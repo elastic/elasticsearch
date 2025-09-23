@@ -382,23 +382,23 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         /**
          * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
          * load stats. The stats will show all the nodes above the high utilization threshold, so they do not accept new shards, while the
-         * first node will show queue latency above the threshold and request a shard to move away. However, there will be no where to
+         * first node will show queue latency above the threshold and request a shard to move away. However, there will be nowhere to
          * reassign any shards.
          */
 
-        final NodeUsageStatsForThreadPools firstNodeHotSpottingAndQueuingNodeStats = createNodeUsageStatsForThreadPools(
+        final NodeUsageStatsForThreadPools firstNodeUtilHotSpottingAndQueuingNodeStats = createNodeUsageStatsForThreadPools(
             harness.firstDiscoveryNode,
             harness.randomNumberOfWritePoolThreads,
             (harness.randomUtilizationThresholdPercent + 1) / 100f,
             randomLongBetween(harness.randomQueueLatencyThresholdMillis, harness.randomQueueLatencyThresholdMillis + 1_000)
         );
-        final NodeUsageStatsForThreadPools secondNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+        final NodeUsageStatsForThreadPools secondNodeUtilHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
             harness.secondDiscoveryNode,
             harness.randomNumberOfWritePoolThreads,
             (harness.randomUtilizationThresholdPercent + 1) / 100f,
             0
         );
-        final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+        final NodeUsageStatsForThreadPools thirdNodeUtilHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
             harness.thirdDiscoveryNode,
             harness.randomNumberOfWritePoolThreads,
             (harness.randomUtilizationThresholdPercent + 1) / 100f,
@@ -412,7 +412,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                     (handler, request, channel, task) -> channel.sendResponse(
                         new NodeUsageStatsForThreadPoolsAction.NodeResponse(
                             harness.firstDiscoveryNode,
-                            firstNodeHotSpottingAndQueuingNodeStats
+                            firstNodeUtilHotSpottingAndQueuingNodeStats
                         )
                     )
                 );
@@ -420,14 +420,14 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.secondDiscoveryNode, secondNodeHotSpottingNodeStats)
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.secondDiscoveryNode, secondNodeUtilHotSpottingNodeStats)
                 )
             );
         MockTransportService.getInstance(harness.thirdDataNodeName)
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats)
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.thirdDiscoveryNode, thirdNodeUtilHotSpottingNodeStats)
                 )
             );
 
@@ -477,7 +477,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         /**
          * Refresh the ClusterInfo to pull in the new dummy hot-spot stats. Then remove the filter restricting the shards to the first node.
          * Then wait for the DesiredBalance computation to finish running after the cluster settings update. All the shards should remain on
-         * the first node, despite hot-spotting, because no other node has below utilization threshold stats.
+         * the first node, despite hot-spotting with queuing, because no other node has below utilization threshold stats.
          */
 
         try (var mockLog = MockLog.capture(DesiredBalanceShardsAllocator.class)) {
@@ -552,11 +552,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         /**
          * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
          * load stats. The stats will show all the nodes above the high utilization threshold, so they do not accept new shards, while the
-         * first node will show queue latency above the threshold and request a shard to move away. However, there will be no where to
-         * reassign any shards.
+         * first node will show queue latency above the threshold and request a shard to move away. A single shard should move away from the
+         * queuing node, no more than one.
          */
 
-        final NodeUsageStatsForThreadPools firstNodeHotSpottingAndQueuingNodeStats = createNodeUsageStatsForThreadPools(
+        final NodeUsageStatsForThreadPools firstNodeUtilHotSpottingAndQueuingNodeStats = createNodeUsageStatsForThreadPools(
             harness.firstDiscoveryNode,
             harness.randomNumberOfWritePoolThreads,
             (harness.randomUtilizationThresholdPercent + 1) / 100f,
@@ -582,7 +582,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                     (handler, request, channel, task) -> channel.sendResponse(
                         new NodeUsageStatsForThreadPoolsAction.NodeResponse(
                             harness.firstDiscoveryNode,
-                            firstNodeHotSpottingAndQueuingNodeStats
+                            firstNodeUtilHotSpottingAndQueuingNodeStats
                         )
                     )
                 );
@@ -666,6 +666,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. This way nothing async is running.
             mockLog.awaitAllExpectationsMatched();
         }
+
         try (var mockLog = MockLog.capture(DesiredBalanceShardsAllocator.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -684,14 +685,15 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
             // Wait for the DesiredBalance to be recomputed as a result of the settings change.
             mockLog.awaitAllExpectationsMatched();
+        }
 
-            // Now check that all the shards remain on the first node because the other two nodes have too high write thread pool
-            // utilization to accept additional shards.
+        try {
+            // Now check that all a single shard was moved off of the first node to address the queuing, but the rest of the shards remain.
             var desiredBalanceResponse = safeGet(
                 client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
             );
             Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(harness.indexName);
-            logger.info("---> Checking desired shard assignments are still on the first data node. Desired assignments: " + shardsMap);
+            logger.info("---> Checking desired shard assignments. Desired assignments: " + shardsMap);
             int countShardsStillAssignedToFirstNode = 0;
             for (var desiredShard : shardsMap.values()) {
                 for (var desiredNodeId : desiredShard.desired().nodeIds()) {

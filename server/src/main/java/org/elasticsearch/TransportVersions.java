@@ -193,12 +193,6 @@ public class TransportVersions {
     public static final TransportVersion NONE_CHUNKING_STRATEGY_8_19 = def(8_841_0_49);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19 = def(8_841_0_50);
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = def(8_841_0_51);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19 = def(8_841_0_52);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19 = def(8_841_0_53);
-    public static final TransportVersion STREAMS_LOGS_SUPPORT_8_19 = def(8_841_0_54);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19 = def(8_841_0_55);
-    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER_8_19 = def(8_841_0_56);
-    public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC_8_19 = def(8_841_0_57);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -269,7 +263,6 @@ public class TransportVersions {
     public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
     public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
     public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
-    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER = def(9_063_0_00);
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
     public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_0_00);
@@ -308,11 +301,6 @@ public class TransportVersions {
     public static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = def(9_099_0_00);
     public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_100_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = def(9_101_0_00);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING = def(9_102_0_00);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = def(9_103_0_00);
-    public static final TransportVersion STREAMS_LOGS_SUPPORT = def(9_104_0_00);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = def(9_105_0_00);
-    public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = def(9_106_0_00);
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
     public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);

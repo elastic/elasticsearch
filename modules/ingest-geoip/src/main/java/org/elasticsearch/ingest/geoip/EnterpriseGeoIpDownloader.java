@@ -413,7 +413,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             logger.trace("Cancelled scheduled run: [{}]", cancelSuccessful);
         }
         if (threadPool.scheduler().isShutdown() == false) {
-            threadPool.schedule(this::runPeriodic, TimeValue.ZERO, threadPool.generic());
+            threadPool.generic().submit(this::runPeriodic);
         }
     }
 
@@ -430,9 +430,12 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // concurrently, but a cluster state run could be in progress. Since the default poll interval is quite large (3d), there is no
         // need to wait for the current run to finish and then run again, so we just skip this run and schedule the next one.
         if (running.tryAcquire()) {
-            logger.trace("Running periodic downloader");
-            runDownloader();
-            running.release();
+            try {
+                logger.trace("Running periodic downloader");
+                runDownloader();
+            } finally {
+                running.release();
+            }
         }
         if (threadPool.scheduler().isShutdown() == false) {
             logger.trace("Scheduling next periodic run, current scheduled run is [{}]", scheduled);
@@ -455,7 +458,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         logger.trace("Requesting downloader run on demand");
         if (queued.compareAndSet(false, true)) {
             logger.trace("Scheduling downloader run on demand");
-            threadPool.schedule(this::runOnDemand, TimeValue.ZERO, threadPool.generic());
+            threadPool.generic().submit(this::runOnDemand);
         }
     }
 
@@ -470,25 +473,29 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // Here we do want to wait for the current run (if any) to finish. Since a new cluster state might have arrived while the current
         // run was running, we want to ensure that the new cluster state update isn't lost, so we wait and run afterwards.
         logger.trace("Waiting to run downloader on demand");
+        boolean acquired = false;
         try {
             running.acquire();
+            acquired = true;
+            // We have the semaphore, so no other run is in progress. We set queued to false, so that future calls to requestRunOnDemand
+            // will schedule a new run. We do this before running the downloader, so that if a new cluster state arrives while we're
+            // running, that will schedule a new run.
+            // Technically speaking, there's a chance that a new cluster state arrives in between the following line and
+            // clusterService.state() in updateDatabases() (or deleteDatabases()), which will cause another run to be scheduled,
+            // but the only consequence of that is that we'll process that cluster state twice, which is harmless.
+            queued.set(false);
+            logger.debug("Running downloader on demand");
+            runDownloader();
         } catch (InterruptedException e) {
             logger.warn("Interrupted while waiting to run downloader on demand", e);
-            return;
+        } finally {
+            // If a new cluster state arrived in between queued.set(false) and now, then that will have scheduled a new run,
+            // so we don't need to care about that here.
+            if (acquired) {
+                running.release();
+            }
+            logger.trace("Finished running downloader on demand");
         }
-        // We have the semaphore, so no other run is in progress. We set queued to false, so that future calls to requestRunOnDemand
-        // will schedule a new run. We do this before running the downloader, so that if a new cluster state arrives while we're running,
-        // that will schedule a new run.
-        // Technically speaking, there's a chance that a new cluster state arrives in between the following line and clusterService.state()
-        // in updateDatabases() (or deleteDatabases()), which will cause another run to be scheduled, but the only consequence of that is
-        // that we'll process that cluster state twice, which is harmless.
-        queued.set(false);
-        logger.debug("Running downloader on demand");
-        runDownloader();
-        // If a new cluster state arrived in between queued.set(false) and now, then that will have scheduled a new run,
-        // so we don't need to care about that here.
-        running.release();
-        logger.trace("Finished running downloader on demand");
     }
 
     /**

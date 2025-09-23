@@ -72,6 +72,7 @@ import static org.elasticsearch.TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTOR
 import static org.elasticsearch.TransportVersions.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.TransportVersions.V_8_15_0;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -295,7 +296,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             NEW_SEMANTIC_QUERY_INTERCEPTORS,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
+            TransportVersionUtils.getPreviousVersion(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
         );
         IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,

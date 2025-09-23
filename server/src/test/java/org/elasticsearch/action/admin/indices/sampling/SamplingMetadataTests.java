@@ -23,6 +23,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 public class SamplingMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
 
     @Override
@@ -67,6 +70,18 @@ public class SamplingMetadataTests extends ChunkedToXContentDiffableSerializatio
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+    }
+
+    public void testSamplingMetadataContextExcludesSnapshot() {
+        // Test that the context() method correctly excludes SNAPSHOT context
+        SamplingMetadata metadata = new SamplingMetadata(Map.of());
+        assertFalse("SamplingMetadata should not be restorable from snapshot", metadata.isRestorable());
+        assertFalse("SamplingMetadata context should not contain SNAPSHOT",
+            metadata.context().contains(Metadata.XContentContext.SNAPSHOT));
+        assertTrue("SamplingMetadata context should contain API",
+            metadata.context().contains(Metadata.XContentContext.API));
+        assertTrue("SamplingMetadata context should contain GATEWAY",
+            metadata.context().contains(Metadata.XContentContext.GATEWAY));
     }
 
     private Map<String, SamplingConfiguration> randomSampleConfigMap() {

@@ -1048,12 +1048,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var expectedPlan = join instanceof InlineJoin
             ? new Limit(limit.source(), limit.limit(), join, false)
-            : new Limit(
-                limit.source(),
-                limit.limit(),
-                join.replaceChildren(limit.replaceChild(join.left()), join.right()),
-                true
-            );
+            : new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), true);
 
         assertEquals(expectedPlan, optimizedPlan);
 

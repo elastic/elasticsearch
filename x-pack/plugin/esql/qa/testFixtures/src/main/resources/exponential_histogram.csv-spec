@@ -4,13 +4,13 @@ FROM exp_histo_sample | KEEP histo
 ;
 
 histo:exponential_histogram
-{"scale":-7}
-{"scale":12}
-{"scale":-10}
-{"scale":0}
-{"scale":0}
-{"scale":0}
-{"scale":0}
+"{""scale"":-7}"
+"{""scale"":12}"
+"{""scale"":-10}"
+"{""scale"":0}"
+"{""scale"":0}"
+"{""scale"":0}"
+"{""scale"":0}"
 ;
 
 loadFiltered
@@ -19,6 +19,6 @@ from exp_histo_sample | WHERE STARTS_WITH(name, "zero_") | KEEP name, histo
 ;
 
 name:keyword | histo:exponential_histogram
-zero_threshold_only | {"scale":0}
-zero_count_only | {"scale":0}
+zero_threshold_only | "{""scale"":0}"
+zero_count_only | "{""scale"":0}"
 ;

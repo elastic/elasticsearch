@@ -16,6 +16,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -26,6 +29,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
@@ -352,6 +357,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
             if (value instanceof String s) {
                 value = s.replaceAll("\\\\n", "\n");
+            }
+        }
+        if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
+            if (value instanceof Map<?, ?> map) {
+                return ExponentialHistogramXContent.parseForTesting(Types.<Map<String,Object>>forciblyCast(map));
+            } if (value instanceof String json) {
+                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                    return ExponentialHistogramXContent.parseForTesting(parser);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
         return value.toString();

@@ -144,7 +144,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> values = (List<?>) response.get("values");
         profileLogger.extractProfile(response, true);
 
-
         MapMatcher expectedColumns = matchesMap();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {

@@ -59,7 +59,7 @@ public class WriteLoadConstraintSettings {
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(
         WriteLoadDeciderStatus.class,
         SETTING_PREFIX + "enabled",
-        WriteLoadDeciderStatus.DISABLED,
+        WriteLoadDeciderStatus.ENABLED,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

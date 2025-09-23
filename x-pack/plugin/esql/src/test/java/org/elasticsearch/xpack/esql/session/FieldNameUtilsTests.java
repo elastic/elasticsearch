@@ -10,13 +10,8 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
@@ -1487,15 +1482,10 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        assertFieldNames(
-            """
-                from employees
-                | enrich languages_policy
-                | keep emp_no""",
-            enrichResolutionWith("language_name"),
-            Set.of("emp_no", "emp_no.*", "language_name", "language_name.*"),
-            Set.of()
-        );
+        assertFieldNames("""
+            from employees
+            | enrich languages_policy
+            | keep emp_no""", true, Set.of("*"), Set.of());
     }
 
     public void testDissectOverwriteName() {
@@ -1599,7 +1589,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testEnrichOnDefaultField() {
         assertFieldNames("""
             from employees
-            | enrich languages_policy""", enrichResolutionWith("language_name"), ALL_FIELDS, Set.of());
+            | enrich languages_policy""", true, ALL_FIELDS, Set.of());
     }
 
     public void testMetrics() {
@@ -3047,26 +3037,16 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, Set<String> expected) {
-        assertFieldNames(query, new EnrichResolution(), expected, Set.of());
+        assertFieldNames(query, false, expected, Set.of());
     }
 
     private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
-        assertFieldNames(query, new EnrichResolution(), expected, wildCardIndices);
+        assertFieldNames(query, false, expected, wildCardIndices);
     }
 
-    private void assertFieldNames(String query, EnrichResolution enrichResolution, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichResolution);
+    private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), hasEnriches);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
-    }
-
-    private static EnrichResolution enrichResolutionWith(String enrichPolicyMatchField) {
-        var enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy(
-            "policy",
-            Enrich.Mode.ANY,
-            new ResolvedEnrichPolicy(enrichPolicyMatchField, null, List.of(), Map.of(), Map.of())
-        );
-        return enrichResolution;
     }
 }

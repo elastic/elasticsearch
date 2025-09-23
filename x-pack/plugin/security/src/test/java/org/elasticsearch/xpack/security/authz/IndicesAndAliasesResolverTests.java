@@ -953,7 +953,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("*", "-foo*", "foo*", "-foo*", "foo*", "bar");
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
-        System.out.println(indices);
         String[] replacedIndices = new String[] { "bar", "foobarfoo", "foofoobar", "foofoo" };
         assertSameValues(indices, replacedIndices);
         assertThat(request.indices(), arrayContainingInAnyOrder("bar", "foobarfoo", "foofoobar", "foofoo", "bar"));
@@ -974,7 +973,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest("bar", "bar");
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
-        System.out.println(indices);
         String[] replacedIndices = new String[] { "bar" };
         assertSameValues(indices, replacedIndices);
         assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar"));

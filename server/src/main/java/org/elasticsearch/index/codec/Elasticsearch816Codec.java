@@ -18,8 +18,8 @@ import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.index.codec.vectors.ComposablePerFieldKnnVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
@@ -49,7 +49,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
         }
     };
 
-    private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
+    private final KnnVectorsFormat knnVectorsFormat = new ComposablePerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
             return Elasticsearch816Codec.this.getKnnVectorsFormatForField(field);

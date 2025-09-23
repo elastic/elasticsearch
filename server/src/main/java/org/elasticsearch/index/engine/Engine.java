@@ -68,6 +68,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
+import org.elasticsearch.index.codec.vectors.ComposablePerFieldKnnVectorsFormat;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -396,6 +397,8 @@ public abstract class Engine implements Closeable {
                 SegmentReader reader = Lucene.segmentReader(atomicReader);
                 var vectorsReader = reader.getVectorReader();
                 if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                    vectorsReader = fieldsReader.getFieldReader(info.name);
+                } else if (vectorsReader instanceof ComposablePerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorsReader = fieldsReader.getFieldReader(info.name);
                 }
                 Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
@@ -1375,13 +1378,10 @@ public abstract class Engine implements Closeable {
                                 knnFormats = new HashMap<>();
                             }
                             String key = fieldInfo.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY);
-                            knnFormats.compute(key, (s, a) -> {
-                                if (a == null) {
-                                    a = new ArrayList<>();
-                                }
-                                a.add(name);
-                                return a;
-                            });
+                            if (key == null) {
+                                key = fieldInfo.getAttribute(ComposablePerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY);
+                            }
+                            knnFormats.computeIfAbsent(key, s -> new ArrayList<>()).add(name);
                         }
                     }
                 }

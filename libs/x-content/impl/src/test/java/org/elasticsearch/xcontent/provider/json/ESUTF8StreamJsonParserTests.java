@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
@@ -161,6 +162,25 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         });
     }
 
+    public void testOptimisedValueAndText() throws IOException {
+        testParseJson("{\"my-funky-field\": \"14`\\\\%+\"}", parser -> {
+            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), equalTo("my-funky-field"));
+            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+
+            var text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+
+            assertTextRef(text.bytes(), "14`\\%+");
+            // Retrieve the value for a second time to ensure the last value is available
+            assertThat(parser.getText(), equalTo("14`\\%+"));
+            text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
+            assertThat(parser.lastOptimisedValue, nullValue());
+        });
+    }
+
     private record TestInput(String input, String result, boolean supportsOptimized) {}
 
     private static final TestInput[] ESCAPE_SEQUENCES = {
@@ -240,7 +260,7 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         return new TestInput(input.toString(), result.toString(), doesSupportOptimized);
     }
 
-    public void testGetValueRandomized() throws IOException {
+    public void testGetValueAndTextRandomized() throws IOException {
         StringBuilder inputBuilder = new StringBuilder();
         inputBuilder.append('{');
 
@@ -274,12 +294,15 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
                     var text = parser.getValueAsText();
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), equalTo(currVal.length()));
-
-                    // Retrieve it twice to ensure it works as expected
+                    // Use getText()
+                    assertThat(parser.getText(), equalTo(text.string()));
+                    // Retrieve it again as value
                     text = parser.getValueAsText();
+                    assertThat(text, Matchers.notNullValue());
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), equalTo(currVal.length()));
                 } else {
+                    assertThat(parser.getText(), Matchers.notNullValue());
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
                     assertThat(parser.getValueAsString(), equalTo(currVal));
                     // Retrieve it twice to ensure it works as expected

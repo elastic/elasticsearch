@@ -19,11 +19,14 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * A registry that assembles and caches Inference Endpoints, {@link Model}, for reuse.
@@ -64,14 +67,16 @@ public class InferenceEndpointRegistry {
     private final InferenceServiceRegistry serviceRegistry;
     private final ProjectResolver projectResolver;
     private final Cache<InferenceIdAndProject, Model> cache;
-    private volatile boolean cacheEnabled;
+    private final Supplier<Boolean> cacheEnabledViaFeature;
+    private volatile boolean cacheEnabledViaSetting;
 
     public InferenceEndpointRegistry(
         ClusterService clusterService,
         Settings settings,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        FeatureService featureService
     ) {
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
@@ -80,15 +85,19 @@ public class InferenceEndpointRegistry {
             .setMaximumWeight(INFERENCE_ENDPOINT_CACHE_WEIGHT.get(settings))
             .setExpireAfterWrite(INFERENCE_ENDPOINT_CACHE_EXPIRY.get(settings))
             .build();
-        this.cacheEnabled = INFERENCE_ENDPOINT_CACHE_ENABLED.get(settings);
+        this.cacheEnabledViaFeature = () -> {
+            var state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ENDPOINT_CACHE);
+        };
+        this.cacheEnabledViaSetting = INFERENCE_ENDPOINT_CACHE_ENABLED.get(settings);
 
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(INFERENCE_ENDPOINT_CACHE_ENABLED, enabled -> this.cacheEnabled = enabled);
+            .addSettingsUpdateConsumer(INFERENCE_ENDPOINT_CACHE_ENABLED, enabled -> this.cacheEnabledViaSetting = enabled);
     }
 
     public void getEndpoint(String inferenceEntityId, ActionListener<Model> listener) {
         var key = new InferenceIdAndProject(inferenceEntityId, projectResolver.getProjectId());
-        var cachedModel = cacheEnabled ? cache.get(key) : null;
+        var cachedModel = cacheEnabled() ? cache.get(key) : null;
         if (cachedModel != null) {
             log.trace("Retrieved [{}] from cache.", inferenceEntityId);
             listener.onResponse(cachedModel);
@@ -98,7 +107,7 @@ public class InferenceEndpointRegistry {
     }
 
     void invalidateAll(ProjectId projectId) {
-        if (cacheEnabled) {
+        if (cacheEnabled()) {
             var cacheKeys = cache.keys().iterator();
             while (cacheKeys.hasNext()) {
                 if (cacheKeys.next().projectId.equals(projectId)) {
@@ -126,7 +135,7 @@ public class InferenceEndpointRegistry {
                 unparsedModel.secrets()
             );
 
-            if (cacheEnabled) {
+            if (cacheEnabled()) {
                 cache.put(idAndProject, model);
             }
             l.onResponse(model);
@@ -134,15 +143,15 @@ public class InferenceEndpointRegistry {
     }
 
     public Cache.Stats stats() {
-        return cacheEnabled ? cache.stats() : EMPTY;
+        return cacheEnabled() ? cache.stats() : EMPTY;
     }
 
     public int cacheCount() {
-        return cacheEnabled ? cache.count() : 0;
+        return cacheEnabled() ? cache.count() : 0;
     }
 
     public boolean cacheEnabled() {
-        return cacheEnabled;
+        return cacheEnabledViaSetting && cacheEnabledViaFeature.get();
     }
 
     private record InferenceIdAndProject(String inferenceEntityId, ProjectId projectId) {}

@@ -612,6 +612,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/135260
+- class: org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT
+  method: testUsage {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135312
 
 # Examples:
 #

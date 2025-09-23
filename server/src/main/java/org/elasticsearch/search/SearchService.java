@@ -1861,11 +1861,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public List<ReaderContext> getActiveContexts(ShardId shardId) {
         return this.activeReaders.values()
-                .stream()
-                .filter(c -> c.singleSession() == false)
-                .filter(c -> c.scrollContext() == null)
-                .filter(c -> c.indexShard().shardId().equals(shardId))
-                .collect(Collectors.toList());
+            .stream()
+            .filter(c -> c.singleSession() == false)
+            .filter(c -> c.scrollContext() == null)
+            .filter(c -> c.indexShard().shardId().equals(shardId))
+            .collect(Collectors.toList());
     }
 
     /**

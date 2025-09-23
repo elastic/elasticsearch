@@ -949,6 +949,43 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
+    public void testResolveMultipleWildcardsExclusions() {
+        SearchRequest request = new SearchRequest("*", "-foo*", "foo*", "-foo*", "foo*", "bar");
+        request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+        System.out.println(indices);
+        String[] replacedIndices = new String[] { "bar", "foobarfoo", "foofoobar", "foofoo" };
+        assertSameValues(indices, replacedIndices);
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "foobarfoo", "foofoobar", "foofoo", "bar"));
+        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+        assertThat(actual, is(notNullValue()));
+        assertThat(
+            actual.expressions(),
+            contains(
+                resolvedIndexExpression("*", Set.of("bar"), SUCCESS),
+                resolvedIndexExpression("foo*", Set.of(), SUCCESS),
+                resolvedIndexExpression("foo*", Set.of("foobarfoo", "foofoobar", "foofoo"), SUCCESS),
+                resolvedIndexExpression("bar", Set.of("bar"), SUCCESS)
+            )
+        );
+    }
+
+    public void testResolveMultipleDuplicateResources() {
+        SearchRequest request = new SearchRequest("bar", "bar");
+        request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+        System.out.println(indices);
+        String[] replacedIndices = new String[] { "bar" };
+        assertSameValues(indices, replacedIndices);
+        assertThat(request.indices(), arrayContainingInAnyOrder("bar", "bar"));
+        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+        assertThat(actual, is(notNullValue()));
+        assertThat(
+            actual.expressions(),
+            contains(resolvedIndexExpression("bar", Set.of("bar"), SUCCESS), resolvedIndexExpression("bar", Set.of("bar"), SUCCESS))
+        );
+    }
+
     public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "+barbaz", "+foob*");
         request.indicesOptions(IndicesOptions.fromOptions(true, true, true, false));

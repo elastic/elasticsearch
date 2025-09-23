@@ -360,8 +360,9 @@ class IndicesAndAliasesResolver {
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );
-                // only store resolved expressions if configured to avoid unnecessary memory usage
-                // once we've migrated from `indices()` to using resolved expressions, we will always store them as part of the request
+                // only store resolved expressions if configured, to avoid unnecessary memory usage
+                // once we've migrated from `indices()` to using resolved expressions holistically,
+                // we will always store them
                 if (recordResolvedIndexExpressions) {
                     replaceable.setResolvedIndexExpressions(resolved);
                 }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -38,7 +40,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             expressions.add(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(new HashSet<>(localExpressions), resolutionResult, null),
+                    new LocalExpressions(new HashSet<>(localExpressions), resolutionResult, null),
                     new HashSet<>()
                 )
             );

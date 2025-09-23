@@ -43,7 +43,8 @@ import java.util.Set;
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions) {
     /**
      * Indicates if a local index resolution attempt was successful or failed.
-     * Failures can be due to missing concrete resources or unauthorized concrete resources.
+     * Failures can be due to concrete resources not being visible (either missing or not visible due to indices options)
+     * or unauthorized concrete resources.
      * A wildcard expression resolving to nothing is still considered a successful resolution.
      */
     public enum LocalIndexResolutionResult {

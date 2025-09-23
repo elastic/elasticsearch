@@ -160,6 +160,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
 import static org.elasticsearch.common.Strings.format;
@@ -1312,7 +1313,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return createAndPutReaderContext(id, request, indexService, shard, reader, true, keepAliveInMillis);
     }
 
-    private ReaderContext createAndPutReaderContext(
+    public ReaderContext createAndPutReaderContext(
         ShardSearchContextId id,
         ShardSearchRequest request,
         IndexService indexService,
@@ -1856,6 +1857,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public int getActiveContexts() {
         return this.activeReaders.size();
+    }
+
+    public List<ReaderContext> getActiveContexts(ShardId shardId) {
+        return this.activeReaders.values()
+                .stream()
+                .filter(c -> c.singleSession() == false)
+                .filter(c -> c.scrollContext() == null)
+                .filter(c -> c.indexShard().shardId().equals(shardId))
+                .collect(Collectors.toList());
     }
 
     /**

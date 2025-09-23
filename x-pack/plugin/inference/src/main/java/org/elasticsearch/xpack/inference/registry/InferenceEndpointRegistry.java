@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.inference.InferenceFeatures;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * A registry that assembles and caches Inference Endpoints, {@link Model}, for reuse.
@@ -67,7 +66,8 @@ public class InferenceEndpointRegistry {
     private final InferenceServiceRegistry serviceRegistry;
     private final ProjectResolver projectResolver;
     private final Cache<InferenceIdAndProject, Model> cache;
-    private final Supplier<Boolean> cacheEnabledViaFeature;
+    private final ClusterService clusterService;
+    private final FeatureService featureService;
     private volatile boolean cacheEnabledViaSetting;
 
     public InferenceEndpointRegistry(
@@ -85,10 +85,8 @@ public class InferenceEndpointRegistry {
             .setMaximumWeight(INFERENCE_ENDPOINT_CACHE_WEIGHT.get(settings))
             .setExpireAfterWrite(INFERENCE_ENDPOINT_CACHE_EXPIRY.get(settings))
             .build();
-        this.cacheEnabledViaFeature = () -> {
-            var state = clusterService.state();
-            return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ENDPOINT_CACHE);
-        };
+        this.clusterService = clusterService;
+        this.featureService = featureService;
         this.cacheEnabledViaSetting = INFERENCE_ENDPOINT_CACHE_ENABLED.get(settings);
 
         clusterService.getClusterSettings()
@@ -151,7 +149,12 @@ public class InferenceEndpointRegistry {
     }
 
     public boolean cacheEnabled() {
-        return cacheEnabledViaSetting && cacheEnabledViaFeature.get();
+        return cacheEnabledViaSetting && cacheEnabledViaFeature();
+    }
+
+    private boolean cacheEnabledViaFeature() {
+        var state = clusterService.state();
+        return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ENDPOINT_CACHE);
     }
 
     private record InferenceIdAndProject(String inferenceEntityId, ProjectId projectId) {}

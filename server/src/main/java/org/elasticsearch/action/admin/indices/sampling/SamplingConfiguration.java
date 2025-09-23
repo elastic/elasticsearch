@@ -171,7 +171,6 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.humanReadable(true);
         builder.percentageField(RATE_FIELD_NAME, RATE_PERCENTAGE_FIELD_NAME, rate);
         builder.field(MAX_SAMPLES_FIELD_NAME, maxSamples);
         builder.humanReadableField(MAX_SIZE_IN_BYTES_FIELD_NAME, MAX_SIZE_FIELD_NAME, maxSize);

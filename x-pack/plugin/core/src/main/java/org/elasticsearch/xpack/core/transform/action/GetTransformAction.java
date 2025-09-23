@@ -69,7 +69,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.checkForDanglingTasks = (in.getTransportVersion().onOrAfter(DANGLING_TASKS) == false) || in.readBoolean();
+            this.checkForDanglingTasks = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readBoolean() : true;
             this.timeout = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
         }
 
@@ -121,7 +121,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             return this == obj
                 || (obj instanceof Request other
                     && super.equals(obj)
-                    && Objects.equals(checkForDanglingTasks, other.checkForDanglingTasks)
+                    && (checkForDanglingTasks == other.checkForDanglingTasks)
                     && Objects.equals(timeout, other.timeout));
         }
 

@@ -86,9 +86,11 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
             builder.startObject(category);
             Map<String, Map<String, Long>> names = categoriesToExtendedData.get(category);
             for (String name : names.keySet()) {
+                builder.startObject(name);
                 for (String property : names.get(name).keySet()) {
                     builder.field(property, names.get(name).get(property));
                 }
+                builder.endObject();
             }
             builder.endObject();
         }

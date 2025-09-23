@@ -317,7 +317,7 @@ public abstract class TransportReplicationAction<
     );
 
     /**
-     * During Resharding, we might need to split
+     * During Resharding, we might need to split the primary request.
      */
     protected Map<ShardId, Request> splitRequestOnPrimary(Request request) {
         return Map.of(request.shardId(), request);
@@ -520,56 +520,143 @@ public abstract class TransportReplicationAction<
 
                     if (numSplitRequests == 1) {
                         // If the request is for source, same behaviour as before
-                        // If the request is for target, similar behaviour to relocated
+                        if (splitRequests.containsKey(primaryRequest.getRequest().shardId)) {
+                            executePrimaryRequest(primaryShardReference, "primary_reshardSplit");
+                        } else {
+                            setPhase(replicationTask, "primary_reshardSplit_delegation");
+                            // If the request is for target, send request to target node
+                            ShardId targetShardId = splitRequests.entrySet().iterator().next().getKey();
+                            final IndexShard targetShard = getIndexShard(targetShardId);
+                            final ShardRouting target = targetShard.routingEntry();
+                            final Writeable.Reader<Response> reader = TransportReplicationAction.this::newResponseInstance;
+                            DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
+                            transportService.sendRequest(
+                                targetNode,
+                                transportPrimaryAction,
+                                new ConcreteShardRequest<>(
+                                    primaryRequest.getRequest(),
+                                    target.allocationId().getRelocationId(),
+                                    primaryRequest.getPrimaryTerm()
+                                ),
+                                transportOptions,
+                                new ActionListenerResponseHandler<>(
+                                    onCompletionListener,
+                                    reader,
+                                    TransportResponseHandler.TRANSPORT_WORKER
+                                ) {
+
+                                    @Override
+                                    public void handleResponse(Response response) {
+                                        setPhase(replicationTask, "finished");
+                                        super.handleResponse(response);
+                                    }
+
+                                    @Override
+                                    public void handleException(TransportException exp) {
+                                        setPhase(replicationTask, "finished");
+                                        super.handleException(exp);
+                                    }
+                                }
+                            );
+                        }
                     } else {  // We have requests for both source and target shards
+
                         // Merge responses from source and target
                     }
                 } else {
-                    setPhase(replicationTask, "primary");
+                    executePrimaryRequest(primaryShardReference, "primary");
+                }
+                /*
+                setPhase(replicationTask, "primary");
 
-                    final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
-                        adaptResponse(response, primaryShardReference.indexShard);
+                final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
+                    adaptResponse(response, primaryShardReference.indexShard);
 
-                        if (syncGlobalCheckpointAfterOperation) {
-                            try {
-                                primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
-                            } catch (final Exception e) {
-                                // only log non-closed exceptions
-                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                    // intentionally swallow, a missed global checkpoint sync should not fail this operation
-                                    logger.info(
-                                        () -> format(
-                                            "%s failed to execute post-operation global checkpoint sync",
-                                            primaryShardReference.indexShard.shardId()
-                                        ),
-                                        e
-                                    );
-                                }
+                    if (syncGlobalCheckpointAfterOperation) {
+                        try {
+                            primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
+                        } catch (final Exception e) {
+                            // only log non-closed exceptions
+                            if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                                // intentionally swallow, a missed global checkpoint sync should not fail this operation
+                                logger.info(
+                                    () -> format(
+                                        "%s failed to execute post-operation global checkpoint sync",
+                                        primaryShardReference.indexShard.shardId()
+                                    ),
+                                    e
+                                );
                             }
                         }
+                    }
 
-                        assert primaryShardReference.indexShard.isPrimaryMode();
-                        primaryShardReference.close(); // release shard operation lock before responding to caller
-                        setPhase(replicationTask, "finished");
-                        onCompletionListener.onResponse(response);
-                    }, e -> handleException(primaryShardReference, e));
+                    assert primaryShardReference.indexShard.isPrimaryMode();
+                    primaryShardReference.close(); // release shard operation lock before responding to caller
+                    setPhase(replicationTask, "finished");
+                    onCompletionListener.onResponse(response);
+                }, e -> handleException(primaryShardReference, e));
 
-                    new ReplicationOperation<>(
-                        primaryRequest.getRequest(),
-                        primaryShardReference,
-                        responseListener.map(result -> result.replicationResponse),
-                        newReplicasProxy(),
-                        logger,
-                        threadPool,
-                        actionName,
-                        primaryRequest.getPrimaryTerm(),
-                        initialRetryBackoffBound,
-                        retryTimeout
-                    ).execute();
+                new ReplicationOperation<>(
+                    primaryRequest.getRequest(),
+                    primaryShardReference,
+                    responseListener.map(result -> result.replicationResponse),
+                    newReplicasProxy(),
+                    logger,
+                    threadPool,
+                    actionName,
+                    primaryRequest.getPrimaryTerm(),
+                    initialRetryBackoffBound,
+                    retryTimeout
+                ).execute();
                 }
+                */
             } catch (Exception e) {
                 handleException(primaryShardReference, e);
             }
+        }
+
+        private void executePrimaryRequest(final PrimaryShardReference primaryShardReference, String phase) throws Exception {
+            setPhase(replicationTask, phase);
+
+            final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
+                adaptResponse(response, primaryShardReference.indexShard);
+
+                if (syncGlobalCheckpointAfterOperation) {
+                    try {
+                        primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
+                    } catch (final Exception e) {
+                        // only log non-closed exceptions
+                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                            // intentionally swallow, a missed global checkpoint sync should not fail this operation
+                            logger.info(
+                                () -> format(
+                                    "%s failed to execute post-operation global checkpoint sync",
+                                    primaryShardReference.indexShard.shardId()
+                                ),
+                                e
+                            );
+                        }
+                    }
+                }
+
+                assert primaryShardReference.indexShard.isPrimaryMode();
+                primaryShardReference.close(); // release shard operation lock before responding to caller
+                setPhase(replicationTask, "finished");
+                onCompletionListener.onResponse(response);
+            }, e -> handleException(primaryShardReference, e));
+
+            new ReplicationOperation<>(
+                primaryRequest.getRequest(),
+                primaryShardReference,
+                responseListener.map(result -> result.replicationResponse),
+                newReplicasProxy(),
+                logger,
+                threadPool,
+                actionName,
+                primaryRequest.getPrimaryTerm(),
+                initialRetryBackoffBound,
+                retryTimeout
+            ).execute();
         }
 
         private void handleException(PrimaryShardReference primaryShardReference, Exception e) {

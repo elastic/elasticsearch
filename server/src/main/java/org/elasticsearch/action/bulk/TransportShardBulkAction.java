@@ -199,8 +199,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             shardRequests.add(bulkItemRequest);
         }
 
-        if (requestsByShard.size() == 1 && requestsByShard.entrySet().iterator().next().getKey().equals(request.shardId())) {
-            return Map.of(request.shardId(), request);
+        // All items belong to either the source shard or target shard.
+        if (requestsByShard.size() == 1) {
+            ShardId targetShard = requestsByShard.entrySet().iterator().next().getKey();
+            // Return original request if no items were split to target.
+            if (targetShard.equals(request.shardId())) {
+                return Map.of(request.shardId(), request);
+            } else {
+                // Create new bulk request that is identical to the original request except the shardId.
+                // TODO: Verify that this is alright because each BulkItemRequest also contains shardId
+                BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                    targetShard,
+                    request.getRefreshPolicy(),
+                    request.items(),
+                    request.isSimulated()
+                );
+                return Map.of(targetShard, bulkShardRequest);
+            }
         }
 
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {

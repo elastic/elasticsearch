@@ -358,33 +358,17 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             null
         );
 
-        // Disable query interception when checking the results of coordinator node rewrite so that the query rewrite context can be used
-        // to populate inference results without triggering another query interception. In production this is achieved by wrapping with
-        // InterceptedQueryBuilderWrapper, but we do not have access to that in this test.
-
         // Query a semantic text field in both indices
         QueryBuilder originalSemantic = createQueryBuilder(semanticField);
-        QueryBuilder rewrittenSemantic = rewriteAndFetch(originalSemantic, queryRewriteContext);
-        QueryBuilder serializedSemantic = copyNamedWriteable(rewrittenSemantic, writableRegistry(), QueryBuilder.class);
-        disableQueryInterception(
-            queryRewriteContext,
-            () -> assertCoordinatorNodeRewriteOnInferenceField(originalSemantic, serializedSemantic, transportVersion, queryRewriteContext)
-        );
+        assertRewriteAndSerializeOnInferenceField(originalSemantic, queryRewriteContext, null, null);
 
         // Query a field that is a semantic text field in one index
         QueryBuilder originalMixed = createQueryBuilder(mixedField);
-        QueryBuilder rewrittenMixed = rewriteAndFetch(originalMixed, queryRewriteContext);
-        QueryBuilder serializedMixed = copyNamedWriteable(rewrittenMixed, writableRegistry(), QueryBuilder.class);
-        disableQueryInterception(
-            queryRewriteContext,
-            () -> assertCoordinatorNodeRewriteOnInferenceField(originalMixed, serializedMixed, transportVersion, queryRewriteContext)
-        );
+        assertRewriteAndSerializeOnInferenceField(originalMixed, queryRewriteContext, null, null);
 
         // Query a text field in both indices
         QueryBuilder originalText = createQueryBuilder(textField);
-        QueryBuilder rewrittenText = rewriteAndFetch(originalText, queryRewriteContext);
-        QueryBuilder serializedText = copyNamedWriteable(rewrittenText, writableRegistry(), QueryBuilder.class);
-        assertCoordinatorNodeRewriteOnNonInferenceField(originalText, serializedText);
+        assertRewriteAndSerializeOnNonInferenceField(originalText, queryRewriteContext);
     }
 
     protected QueryRewriteContext createQueryRewriteContext(
@@ -555,13 +539,21 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             serializationTransportVersion
         );
 
+        // Run the original query through a serialization cycle to account for any BwC logic applied through the transport version
+        QueryBuilder originalSerializedQuery = copyNamedWriteable(
+            originalQuery,
+            writableRegistry(),
+            QueryBuilder.class,
+            serializationTransportVersion
+        );
+
         // Disable query interception when checking the results of coordinator node rewrite so that the query rewrite context can be used
         // to populate inference results without triggering another query interception. In production this is achieved by wrapping with
         // InterceptedQueryBuilderWrapper, but we do not have access to that in this test.
         disableQueryInterception(
             queryRewriteContext,
             () -> assertCoordinatorNodeRewriteOnInferenceField(
-                originalQuery,
+                originalSerializedQuery,
                 serializedQuery,
                 queryRewriteContext.getMinTransportVersion(),
                 queryRewriteContext
@@ -571,14 +563,19 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected void assertRewriteAndSerializeOnNonInferenceField(QueryBuilder originalQuery, QueryRewriteContext queryRewriteContext)
         throws IOException {
-        QueryBuilder rewrittenQuery = rewriteAndFetch(originalQuery, queryRewriteContext);
-        QueryBuilder serializedQuery = copyNamedWriteable(
-            rewrittenQuery,
+        TransportVersion serializationVersion = queryRewriteContext.getMinTransportVersion();
+
+        // Run the original query through a serialization cycle to account for any BwC logic applied through the transport version
+        QueryBuilder originalSerializedQuery = copyNamedWriteable(
+            originalQuery,
             writableRegistry(),
             QueryBuilder.class,
-            queryRewriteContext.getMinTransportVersion()
+            serializationVersion
         );
-        assertCoordinatorNodeRewriteOnNonInferenceField(originalQuery, serializedQuery);
+
+        QueryBuilder rewrittenQuery = rewriteAndFetch(originalQuery, queryRewriteContext);
+        QueryBuilder serializedQuery = copyNamedWriteable(rewrittenQuery, writableRegistry(), QueryBuilder.class, serializationVersion);
+        assertCoordinatorNodeRewriteOnNonInferenceField(originalSerializedQuery, serializedQuery);
     }
 
     protected static QueryBuilder rewriteAndFetch(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {

@@ -89,16 +89,19 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
 
-    private long getShareOfAdditionalRamBytesUsed(long cacheSize) {
+    private long getShareOfAdditionalRamBytesUsed(long itemsInCacheForShard) {
         if (sharedRamBytesUsed == 0L) {
             return 0L;
         }
 
-        // We also have some shared ram usage that we try to distribute proportionally to the cache footprint of each shard.
+        /*
+         * We have some shared ram usage that we try to distribute proportionally to the number of documents in the cache cache for each
+         * shard.
+         */
         // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
-        long totalSize = 0L;
+        long totalItemsInCache = 0L;
         int shardCount = 0;
-        if (cacheSize == 0L) {
+        if (itemsInCacheForShard == 0L) {
             for (final var stats : shardStats.values()) {
                 shardCount += 1;
                 if (stats.cacheSize > 0L) {
@@ -110,7 +113,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             // branchless loop for the common case
             for (final var stats : shardStats.values()) {
                 shardCount += 1;
-                totalSize += stats.cacheSize;
+                totalItemsInCache += stats.cacheSize;
             }
         }
 
@@ -121,12 +124,15 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         final long additionalRamBytesUsed;
-        if (totalSize == 0) {
+        if (totalItemsInCache == 0) {
             // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
         } else {
-            // some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to cache footprint
-            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+            /*
+             * some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to the number of
+             * documents in the cache for this shard
+             */
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * itemsInCacheForShard / totalItemsInCache);
         }
         assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
         return additionalRamBytesUsed;

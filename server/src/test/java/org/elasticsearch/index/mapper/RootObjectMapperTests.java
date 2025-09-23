@@ -495,24 +495,29 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     }
                 }
             }""";
+
+        final String[] validSubojectsValues = ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG
+            ? new String[] { "false", "true", "auto" }
+            : new String[] { "false", "true" };
+
         {
             String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false").replace("<FIELD_NAME>", "_project");
             Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
             assertThat(e.getMessage(), equalTo(errorMessage));
         }
         {
-            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom("true", "auto")).replace("<FIELD_NAME>", "_project");
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "true").replace("<FIELD_NAME>", "_project");
             Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
             assertThat(e.getMessage(), equalTo(errorMessage));
         }
         {
-            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom("false", "true", "auto"))
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom(validSubojectsValues))
                 .replace("<FIELD_NAME>", "_project.foo");
             Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
             assertThat(e.getMessage(), equalTo(errorMessage));
         }
         {
-            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom("false", "true", "auto"))
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom(validSubojectsValues))
                 .replace("<FIELD_NAME>", "project.foo");
             MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
             assertNotNull(mapperService);

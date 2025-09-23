@@ -2686,7 +2686,7 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)", tsdb),
             equalTo(
-                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation; "
+                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation. "
                     + "If you want to group by a metric field, use the FROM command instead of the TS command."
             )
         );
@@ -2697,7 +2697,7 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)", tsdb),
             equalTo(
-                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation; "
+                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
                     + "If you want to group by a metric field, use the FROM command instead of the TS command."
             )
         );

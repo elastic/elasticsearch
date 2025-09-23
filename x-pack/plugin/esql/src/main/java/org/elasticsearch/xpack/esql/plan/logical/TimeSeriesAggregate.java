@@ -124,7 +124,7 @@ public class TimeSeriesAggregate extends Aggregate {
                 failures.add(
                     fail(
                         fieldAttr,
-                        "cannot group by a metric field [{}] in a time-series aggregation; "
+                        "cannot group by a metric field [{}] in a time-series aggregation. "
                             + "If you want to group by a metric field, use the FROM "
                             + "command instead of the TS command.",
                         fieldAttr.sourceText()

@@ -69,7 +69,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
             this::setClusterConcurrentFrozenRebalance
         );
         logger.debug(
-            "using [cluster_concurrent_rebalance] with [concurrent_rebalance=%d, concurrent_frozen_rebalance=%d]",
+            "using [cluster_concurrent_rebalance] with [concurrent_rebalance={}, concurrent_frozen_rebalance={}]",
             clusterConcurrentRebalance,
             clusterConcurrentFrozenRebalance
         );
@@ -107,7 +107,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         }
         boolean normalRelocationUnlimited = clusterConcurrentRebalance == -1;
         boolean frozenRelocationUnlimited = clusterConcurrentFrozenRebalance == -1;
-        if (normalRelocationUnlimited == true && frozenRelocationUnlimited == true) {
+        if (normalRelocationUnlimited && frozenRelocationUnlimited) {
             return allocation.decision(Decision.YES, NAME, "unlimited concurrent rebalances are allowed");
         }
 

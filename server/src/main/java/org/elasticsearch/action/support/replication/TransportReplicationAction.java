@@ -509,7 +509,7 @@ public abstract class TransportReplicationAction<
                     );
                     // Replace false with a Reshard shard count mismatch test
                     // (an abstract API that will be implemented by bulk, refresh and flush)
-                } else if (false) {
+                } else if (true) {
                     // Split Request
                     Map<ShardId, Request> splitRequests = splitRequestOnPrimary(primaryRequest.getRequest());
                     int numSplitRequests = splitRequests.size();

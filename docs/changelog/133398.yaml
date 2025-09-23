@@ -1,5 +1,0 @@
-pr: 133398
-summary: "Aggs: Fix CB on reduction phase"
-area: Aggregations
-type: bug
-issues: []

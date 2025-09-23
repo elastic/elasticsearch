@@ -716,15 +716,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
    * @param ctx the parse tree
    */
-  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  void enterInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
    * @param ctx the parse tree
    */
-  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  void exitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#insistCommand}.
    * @param ctx the parse tree
@@ -745,6 +745,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuseConfiguration}.
+   * @param ctx the parse tree
+   */
+  void enterFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuseConfiguration}.
+   * @param ctx the parse tree
+   */
+  void exitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree

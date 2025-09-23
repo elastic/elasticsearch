@@ -150,7 +150,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         }
 
         String explanation = Strings.format(
-            "Node [%s]'s queue latency of [%d] does not exceed the threshold [%s] does not have write thread pool queue latency",
+            "Node [%s]'s queue latency of [%d] does not exceed the threshold of [%s]",
             node.nodeId(),
             nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
             nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2)

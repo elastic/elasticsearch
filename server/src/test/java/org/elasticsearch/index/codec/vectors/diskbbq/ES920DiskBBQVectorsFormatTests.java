@@ -62,13 +62,15 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         if (rarely()) {
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER)
+                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                random().nextBoolean()
             );
         } else {
             // run with low numbers to force many clusters with parents
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8)
+                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                random().nextBoolean()
             );
         }
         super.setUp();
@@ -129,7 +131,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES920DiskBBQVectorsFormat(128, 4);
+                return new ES920DiskBBQVectorsFormat(128, 4, false);
             }
         };
         String expectedPattern = "ES920DiskBBQVectorsFormat(vectorPerCluster=128)";
@@ -140,10 +142,10 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
-        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES920DiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1, false));
     }
 
     public void testSimpleOffHeapSize() throws IOException {

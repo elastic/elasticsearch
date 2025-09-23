@@ -41,11 +41,10 @@ import java.util.Set;
  * Copied from Lucene99FlatVectorsFormat in Lucene 10.1
  *
  * This is copied to change the implementation of {@link #fieldsReader} only.
- * The codec format itself is not changed, so we keep the original {@link #NAME}
  */
 public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat {
 
-    static final String NAME = "Lucene99FlatVectorsFormat";
+    static final String NAME = "DirectIOLucene99FlatVectorsFormat";
 
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;

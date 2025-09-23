@@ -20,6 +20,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsFormat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,7 +64,15 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
-    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(rawVectorFormat.getName(), rawVectorFormat);
+    private static final FlatVectorsFormat directIORawVectorFormat = new DirectIOLucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(
+        rawVectorFormat.getName(),
+        rawVectorFormat,
+        directIORawVectorFormat.getName(),
+        directIORawVectorFormat
+    );
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
@@ -77,8 +86,9 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
+    private final boolean directRawDiskReads;
 
-    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
+    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean directRawDiskReads) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -102,19 +112,21 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
+        this.directRawDiskReads = directRawDiskReads;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public ES920DiskBBQVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, false);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        FlatVectorsFormat rawFormat = directRawDiskReads ? directIORawVectorFormat : rawVectorFormat;
         return new ES920DiskBBQVectorsWriter(
-            rawVectorFormat.getName(),
+            rawFormat.getName(),
             state,
-            rawVectorFormat.fieldsWriter(state),
+            rawFormat.fieldsWriter(state),
             vectorPerCluster,
             centroidsPerParentCluster
         );

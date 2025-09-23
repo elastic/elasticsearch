@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.commits.HollowIndexEngineDeletionPolic
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -30,18 +29,15 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.LazySoftDeletesDirectoryReaderWrapper;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -59,6 +55,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -115,39 +114,15 @@ public class HollowIndexEngine extends Engine {
                 this.segmentInfos = Lucene.readSegmentInfos(directory);
                 this.seqNoStats = buildSeqNoStats(config, segmentInfos);
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), segmentInfos.totalMaxDoc());
-
+                this.docsStats = buildDocsStats(segmentInfos);
+                this.shardFieldStats = buildShardFieldStats(segmentInfos);
                 try {
                     var policy = config.getIndexDeletionPolicyWrapper().apply(null);
                     if (policy instanceof HollowIndexEngineDeletionPolicy hollowIndexEngineDeletionPolicy) {
                         hollowIndexEngineDeletionPolicy.onInit(Lucene.getIndexCommit(segmentInfos, directory), safeCommitInfo);
                         // Acquires the latest commit for the life of the HollowIndexEngine, it will be released in #closeNoLock
-                        var acquiredCommit = hollowIndexEngineDeletionPolicy.acquireIndexCommit(true);
-                        boolean release = true;
-                        try (
-                            var reader = ElasticsearchDirectoryReader.wrap(
-                                new LazySoftDeletesDirectoryReaderWrapper(
-                                    DirectoryReader.open(
-                                        acquiredCommit,
-                                        IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major,
-                                        null
-                                    ),
-                                    Lucene.SOFT_DELETES_FIELD
-                                ),
-                                shardId,
-                                null
-                            )
-                        ) {
-                            boolean isStateless = DiscoveryNode.isStateless(getEngineConfig().getIndexSettings().getNodeSettings());
-                            this.shardFieldStats = shardFieldStats(reader.getContext().leaves(), isStateless);
-                            this.docsStats = docsStats(reader);
-                            this.indexDeletionPolicy = hollowIndexEngineDeletionPolicy;
-                            this.indexCommit = acquiredCommit;
-                            release = false;
-                        } finally {
-                            if (release) {
-                                hollowIndexEngineDeletionPolicy.releaseIndexCommit(acquiredCommit);
-                            }
-                        }
+                        this.indexCommit = hollowIndexEngineDeletionPolicy.acquireIndexCommit(true);
+                        this.indexDeletionPolicy = hollowIndexEngineDeletionPolicy;
                     } else {
                         throw new IllegalStateException(
                             "Expected ["
@@ -194,6 +169,15 @@ public class HollowIndexEngine extends Engine {
         return statelessCommitService;
     }
 
+    protected static ShardFieldStats buildShardFieldStats(SegmentInfos segmentInfos) throws IOException {
+        assert segmentInfos.userData.containsKey(IndexEngine.SHARD_FIELD_STATS)
+            : "missing shard field stats in user data of commit gen " + segmentInfos.getGeneration();
+        final var shardFieldStatsString = segmentInfos.userData.get(IndexEngine.SHARD_FIELD_STATS);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, shardFieldStatsString)) {
+            return ShardFieldStats.PARSER.parse(parser, null);
+        }
+    }
+
     @Override
     public ShardFieldStats shardFieldStats() {
         return shardFieldStats;
@@ -223,6 +207,15 @@ public class HollowIndexEngine extends Engine {
     @Override
     public CompletionStats completionStats(String... fieldNamePatterns) {
         return new CompletionStats();
+    }
+
+    protected static DocsStats buildDocsStats(SegmentInfos segmentInfos) throws IOException {
+        assert segmentInfos.userData.containsKey(IndexEngine.DOC_STATS)
+            : "missing docs stats in user data of commit gen " + segmentInfos.getGeneration();
+        final var shardFieldStatsString = segmentInfos.userData.get(IndexEngine.DOC_STATS);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, shardFieldStatsString)) {
+            return DocsStats.PARSER.parse(parser, null);
+        }
     }
 
     @Override

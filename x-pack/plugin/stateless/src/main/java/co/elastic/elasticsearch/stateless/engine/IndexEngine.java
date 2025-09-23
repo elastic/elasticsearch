@@ -98,6 +98,8 @@ public class IndexEngine extends InternalEngine {
     public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
     public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
     public static final String TRANSLOG_CARRY_OVER = "translog_carry_over";
+    public static final String DOC_STATS = "doc_stats";
+    public static final String SHARD_FIELD_STATS = "shard_field_stats";
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
     // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
     public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
@@ -426,9 +428,13 @@ public class IndexEngine extends InternalEngine {
             logger.debug(
                 () -> "flushing hollow commit with max seq no " + hollowMaxSeqNo + " and generation " + (getCurrentGeneration() + 1)
             );
-            commitExtraUserData = Maps.newMapWithExpectedSize(2 + accumulatorUserData.size());
+            commitExtraUserData = Maps.newMapWithExpectedSize(4 + accumulatorUserData.size());
             commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(HOLLOW_TRANSLOG_RECOVERY_START_FILE));
             commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogStartFileForNextCommit));
+            // Calculating the stats for hollow commits holds up the IndexWriter commit path, but it should not matter much because anyway
+            // ingestion is blocked at a higher level (e.g., by blocking the primary permits), and the calculations should be fast.
+            commitExtraUserData.put(DOC_STATS, org.elasticsearch.common.Strings.toString(docStats()));
+            commitExtraUserData.put(SHARD_FIELD_STATS, org.elasticsearch.common.Strings.toString(shardFieldStats()));
         } else {
             // carry over previous translog information during translog recovery.
             boolean pendingTranslogRecovery = this.pendingTranslogRecovery();

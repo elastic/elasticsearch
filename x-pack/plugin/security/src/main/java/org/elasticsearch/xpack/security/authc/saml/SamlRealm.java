@@ -135,7 +135,6 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAME_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRIVATE_ATTRIBUTES;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_KEY_ALIAS;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_MESSAGE_TYPES;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_SETTING_KEY;
@@ -223,13 +222,13 @@ public final class SamlRealm extends Realm implements Releasable {
         final Clock clock = Clock.systemUTC();
         final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver, idpDescriptor);
         final TimeValue maxSkew = config.getSetting(CLOCK_SKEW);
-        final Predicate<Attribute> secureAttributePredicate = secureAttributePredicate(config);
+        final Predicate<Attribute> privateAttributePredicate = new SamlPrivateAttributePredicate(config);
         final SamlAuthenticator authenticator = new SamlAuthenticator(
             clock,
             idpConfiguration,
             serviceProvider,
             maxSkew,
-            secureAttributePredicate
+            privateAttributePredicate
         );
         final SamlLogoutRequestHandler logoutHandler = new SamlLogoutRequestHandler(clock, idpConfiguration, serviceProvider, maxSkew);
         final SamlLogoutResponseHandler logoutResponseHandler = new SamlLogoutResponseHandler(
@@ -256,20 +255,6 @@ public final class SamlRealm extends Realm implements Releasable {
         realm.releasables.add(() -> metadataResolver.destroy());
 
         return realm;
-    }
-
-    static Predicate<Attribute> secureAttributePredicate(RealmConfig config) {
-        if (false == config.hasSetting(PRIVATE_ATTRIBUTES)) {
-            return attribute -> false;
-        }
-        final List<String> secureAttributeNames = config.getSetting(PRIVATE_ATTRIBUTES);
-        if (secureAttributeNames == null || secureAttributeNames.isEmpty()) {
-            return attribute -> false;
-        }
-
-        final Set<String> secureAttributeNamesSet = Set.copyOf(secureAttributeNames);
-        return attribute -> attribute != null
-            && (secureAttributeNamesSet.contains(attribute.getName()) || secureAttributeNamesSet.contains(attribute.getFriendlyName()));
     }
 
     public SpConfiguration getServiceProvider() {

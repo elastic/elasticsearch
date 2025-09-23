@@ -44,6 +44,10 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     public static final String NAME = "elastic_inference_service_dense_embeddings_service_settings";
 
+    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
+        "inference_api_disable_eis_rate_limiting"
+    );
+
     private final String modelId;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
@@ -97,7 +101,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         this.maxInputTokens = in.readOptionalVInt();
         this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
 
-        if (in.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             new RateLimitSettings(in);
         }
     }
@@ -188,7 +192,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
-        if (out.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             rateLimitSettings.writeTo(out);
         }
     }

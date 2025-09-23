@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -39,6 +41,9 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse implements Releasable {
+
+    private final Logger logger = Loggers.getLogger(getClass(), "async");
+
     private int totalShards;
     private int skippedShards;
     private Clusters clusters;
@@ -488,6 +493,16 @@ class MutableSearchResponse implements Releasable {
 
     @Override
     public synchronized void close() {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "MutableSearchResponse.close(): byThread={}, finalResponsePresent={}, clusterResponsesCount={}, stack={}",
+                Thread.currentThread().getName(),
+                finalResponse != null,
+                clusterResponses != null ? clusterResponses.size() : 0,
+                new Exception().getStackTrace()
+            );
+        }
+
         if (finalResponse != null) {
             finalResponse.decRef();
         }

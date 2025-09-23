@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -231,13 +232,13 @@ public class SSLService {
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
      * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #profile(String)}
-     * and {@link SslProfile#ioSessionStrategy4()}
+     * and {@link SslProfile#ioSessionStrategy()}
      * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
     public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
         SslConfiguration config = sslConfiguration(settingsToUse);
-        return SSLIOSessionStrategyBuilder.INSTANCE.sslIOSessionStrategy(config, sslContext(config));
+        return SSLIOSessionStrategyBuilder.INSTANCE.build(config, sslContext(config));
     }
 
     /**
@@ -734,8 +735,13 @@ public class SSLService {
         }
 
         @Override
-        public SSLIOSessionStrategy ioSessionStrategy4() {
-            return SSLIOSessionStrategyBuilder.INSTANCE.sslIOSessionStrategy(this.sslConfiguration, context);
+        public SSLIOSessionStrategy ioSessionStrategy() {
+            return SSLIOSessionStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
+        }
+
+        @Override
+        public TlsStrategy clientTlsStrategy() {
+            return TlsStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
         }
 
         @Override

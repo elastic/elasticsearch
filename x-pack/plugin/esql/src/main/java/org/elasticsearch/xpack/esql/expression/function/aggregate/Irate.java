@@ -120,9 +120,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier();
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier();
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier();
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

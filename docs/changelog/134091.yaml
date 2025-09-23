@@ -1,6 +1,0 @@
-pr: 134091
-summary: Use latest setting value when initializing setting watch
-area: Infra/Settings
-type: bug
-issues:
- - 133701

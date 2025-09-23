@@ -91,7 +91,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
-    public static final boolean INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats").isEnabled();
+    public static final boolean INLINE_STATS_FEATURE_FLAG = new FeatureFlag("esql_inline_stats").isEnabled();
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -109,6 +109,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         1000,
         1,
         10000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_default_size",
+        1_000_000,
+        1,
+        10_000_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_max_size",
+        10_000_000,
+        1,
+        1_000_000_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -250,6 +268,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
             QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
             ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
             ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
@@ -258,6 +278,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
             PhysicalSettings.DEFAULT_DATA_PARTITIONING,
             PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
+            PhysicalSettings.LUCENE_TOPN_LIMIT,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD

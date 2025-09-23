@@ -104,7 +104,8 @@ public class IndexResolver {
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
-        LogManager.getLogger(IndexResolver.class).error("NOCOMMIT {} {}", fieldsInfo.supportDenseVector, fieldsInfo.supportAggregateMetricDouble);
+        LogManager.getLogger(IndexResolver.class)
+            .error("NOCOMMIT {} {}", fieldsInfo.supportDenseVector, fieldsInfo.supportAggregateMetricDouble);
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {

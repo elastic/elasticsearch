@@ -59,7 +59,6 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.capabilityName())
         );
 
-
         assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));
     }
 }

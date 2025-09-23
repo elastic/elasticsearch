@@ -17,8 +17,8 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -55,11 +55,10 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Enrich extends UnaryPlan
     implements
         GeneratingPlan<Enrich>,
-        PostOptimizationVerificationAware,
+        PostAnalysisPlanVerificationAware,
         PostAnalysisVerificationAware,
         TelemetryAware,
-        SortAgnostic,
-        ExecutesOn {
+        SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Enrich",
@@ -332,7 +331,7 @@ public class Enrich extends UnaryPlan
             }
         });
 
-        fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
+        badCommands.forEach(c -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after " + c)));
     }
 
     /**
@@ -363,12 +362,5 @@ public class Enrich extends UnaryPlan
             checkMvExpandAfterLimit(failures);
         }
 
-    }
-
-    @Override
-    public void postOptimizationVerification(Failures failures) {
-        if (this.mode == Mode.REMOTE) {
-            checkForPlansForbiddenBeforeRemoteEnrich(failures);
-        }
     }
 }

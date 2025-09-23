@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class IncreaseSerializationTests extends AbstractExpressionSerializationTests<Increase> {
     @Override
-    protected Increase createTestInstance() {
+    protected Increase innerCreateTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression timestamp = randomChild();
@@ -23,7 +23,7 @@ public class IncreaseSerializationTests extends AbstractExpressionSerializationT
     }
 
     @Override
-    protected Increase mutateInstance(Increase instance) throws IOException {
+    protected Increase innerMutateInstance(Increase instance) throws IOException {
         Source source = randomSource();
         Expression field = instance.field();
         Expression timestamp = instance.timestamp();

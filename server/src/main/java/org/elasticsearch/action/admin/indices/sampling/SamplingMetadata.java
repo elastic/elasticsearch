@@ -121,7 +121,9 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
+        // Exclude SNAPSHOT context so this metadata is not included in snapshots
+        return EnumSet.complementOf(EnumSet.of(Metadata.XContentContext.SNAPSHOT));
+
     }
 
     @Override

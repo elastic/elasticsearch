@@ -56,7 +56,6 @@ import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsForm
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -1449,7 +1448,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Object disableOffheapCacheRescoringNode = indexOptionsMap.remove("disable_offheap_cache_rescoring");
+                Object directRawVectorReadsNode = indexOptionsMap.remove("direct_raw_vector_reads");
 
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
@@ -1468,10 +1467,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                boolean disableOffheapCacheRescoring = XContentMapValues.nodeBooleanValue(disableOffheapCacheRescoringNode, false);
+                boolean directRawVectorReads = XContentMapValues.nodeBooleanValue(directRawVectorReadsNode, false);
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, disableOffheapCacheRescoring);
+                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, directRawVectorReads);
             }
 
             @Override
@@ -2019,21 +2018,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
-        private final boolean disableOffheapCacheRescoring;
+        private final boolean directRawVectorReads;
 
-        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean disableOffheapCacheRescoring) {
+        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean directRawVectorReads) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
-            this.disableOffheapCacheRescoring = disableOffheapCacheRescoring;
+            this.directRawVectorReads = directRawVectorReads;
         }
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return disableOffheapCacheRescoring
-                ? new DirectIOES818HnswBinaryQuantizedVectorsFormat(m, efConstruction)
-                : new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction);
+            return new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction);
         }
 
         @Override
@@ -2048,12 +2045,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return m == that.m
                 && efConstruction == that.efConstruction
                 && Objects.equals(rescoreVector, that.rescoreVector)
-                && disableOffheapCacheRescoring == that.disableOffheapCacheRescoring;
+                && directRawVectorReads == that.directRawVectorReads;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, rescoreVector, disableOffheapCacheRescoring);
+            return Objects.hash(m, efConstruction, rescoreVector, directRawVectorReads);
         }
 
         @Override
@@ -2067,7 +2064,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
-            if (disableOffheapCacheRescoring) {
+            if (directRawVectorReads) {
                 builder.field("disable_offheap_cache_rescoring", true);
             }
             if (rescoreVector != null) {

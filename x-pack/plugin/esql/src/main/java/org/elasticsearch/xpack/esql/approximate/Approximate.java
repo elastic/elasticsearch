@@ -14,8 +14,10 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,18 +42,22 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This class computes approximate and fast results for certain classes of
@@ -293,32 +299,30 @@ public class Approximate {
 
         logger.debug("generating approximate plan (p={})", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
+        Set<NameId> variablesWithConfidenceInterval = new HashSet<>();
+
+        Alias bucketId = new Alias(
+            Source.EMPTY,
+            ".bucket_id",
+            new MvAppend(
+                Source.EMPTY,
+                Literal.integer(Source.EMPTY, -1),
+                new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT))
+            )
+        );
+
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
                 return new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
             } else if (encounteredStats.get() == false && plan instanceof Aggregate aggregate) {
                 encounteredStats.set(true);
-                Alias bucketId = new Alias(
-                    Source.EMPTY,
-                    ".bucket_id",
-                    new MvAppend(
-                        Source.EMPTY,
-                        Literal.integer(Source.EMPTY, -1),
-                        new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT))
-                    )
-                );
+
                 Eval addBucketId = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketId));
-                List<NamedExpression> aggregates = new ArrayList<>();
-                for (NamedExpression aggr : aggregate.aggregates()) {
-                    if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        aggregates.add(new Alias(Source.EMPTY, ".bucketed-" + alias.name(), alias.child()));
-                    } else {
-                        aggregates.add(aggr);
-                    }
-                }
+                List<NamedExpression> aggregates = new ArrayList<>(aggregate.aggregates());
+                aggregates.add(bucketId.toAttribute());
                 List<Expression> groupings = new ArrayList<>(aggregate.groupings());
                 groupings.add(bucketId.toAttribute());
-                aggregates.add(bucketId.toAttribute());
+
                 Aggregate aggregateWithBucketId = (Aggregate) aggregate.with(addBucketId, groupings, aggregates)
                     .transformExpressionsOnlyUp(
                         expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(
@@ -330,48 +334,88 @@ public class Approximate {
                                 )
                             )
                         ) : expr);
-                aggregates = new ArrayList<>();
-                for (int i = 0; i < aggregate.aggregates().size(); i++) {
-                    NamedExpression aggr = aggregate.aggregates().get(i);
-                    NamedExpression sampledAggr = aggregateWithBucketId.aggregates().get(i);
-                    if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction aggFn) {
-                        // TODO: probably filter low non-empty bucket counts. They're inaccurate and for skew, you need >=3.
-                        aggregates.add(
-                            alias.replaceChild(
-                                new ConfidenceInterval( // TODO: move confidence level to the end
-                                    Source.EMPTY,
-                                    new Min(
-                                        Source.EMPTY,
-                                        sampledAggr.toAttribute(),
-                                        new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1))
-                                    ),
-                                    new Top(
-                                        Source.EMPTY,
-                                        sampledAggr.toAttribute(),
-                                        new NotEquals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
-                                        Literal.integer(Source.EMPTY, BUCKET_COUNT),
-                                        Literal.keyword(Source.EMPTY, "ASC")
-                                    ),
-                                    Literal.integer(Source.EMPTY, BUCKET_COUNT),
-                                    Literal.fromDouble(Source.EMPTY, aggFn instanceof NeedsSampleCorrection ? 0.0 : Double.NaN)
-                                )
-                            )
-                        );
-                    } else {
-                        aggregates.add(aggr);
+
+                for (NamedExpression aggr : aggregate.aggregates()) {
+                    if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
+                        variablesWithConfidenceInterval.add(alias.id());
                     }
                 }
-                plan = new Aggregate(
-                    Source.EMPTY,
-                    aggregateWithBucketId,
-                    aggregate.groupings().stream().map(e -> e instanceof Alias a ? a.toAttribute() : e).toList(),
-                    aggregates
-                );
+
+                return aggregateWithBucketId;
+            } else if (encounteredStats.get()) {
+                System.out.println("@@@ UPDATE variablesWithConfidenceInterval");
+                System.out.println("plan = " + plan);
+                System.out.println("vars = " + variablesWithConfidenceInterval);
+                switch (plan) {
+                    case Eval eval:
+                        for (NamedExpression field : eval.fields()) {
+                            if (field.anyMatch(expr -> expr instanceof NamedExpression named && variablesWithConfidenceInterval.contains(named.id()))) {
+                                variablesWithConfidenceInterval.add(field.id());
+                            }
+                        }
+                        break;
+                    case Rename rename:
+                        // TODO
+                        break;
+                    default:
+                }
+                System.out.println("vars = " + variablesWithConfidenceInterval);
             }
             return plan;
         });
 
+        System.out.println("### OUTPUT: " + approximatePlan.output());
+
+        List<NamedExpression> aggregates = new ArrayList<>();
+        List<Expression> groupings = new ArrayList<>();
+        for (Attribute attribute : approximatePlan.output()) {
+            if (attribute.id() == bucketId.id()) {
+                continue;
+            }
+            if (variablesWithConfidenceInterval.contains(attribute.id())) {
+                aggregates.add(new Alias(
+                    Source.EMPTY,
+                    attribute.name(),
+                    new ConfidenceInterval(
+                        Source.EMPTY,
+                        new Min(
+                            Source.EMPTY,
+                            attribute,
+                            new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1))
+                        ),
+                        new Top(
+                            Source.EMPTY,
+                            attribute,
+                            new NotEquals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                            Literal.integer(Source.EMPTY, BUCKET_COUNT),
+                            Literal.keyword(Source.EMPTY, "ASC")
+                        ),
+                        Literal.integer(Source.EMPTY, BUCKET_COUNT),
+                        Literal.fromDouble(Source.EMPTY, 0.0)  // TODO: fix, 0.0 or NaN ??
+                    )
+                ));
+            } else {
+                aggregates.add(attribute);
+                groupings.add(attribute);
+            }
+        }
+
+        Aggregate finalAggregate = new Aggregate(
+            Source.EMPTY,
+            approximatePlan,
+            groupings,
+            aggregates
+        );
+
+        if (approximatePlan instanceof Limit || approximatePlan instanceof TopN) {
+            approximatePlan = ((UnaryPlan) approximatePlan).replaceChild(finalAggregate.replaceChild(((UnaryPlan) approximatePlan).child()));
+        } else {
+            // Can this happen? Or is the last command always a Limit / TopN?
+            approximatePlan = finalAggregate;
+        }
+
         logger.info("### AFTER APPROXIMATE:\n{}", approximatePlan);
+        System.out.println("### OUTPUT: " + approximatePlan.output());
 
         approximatePlan.setPreOptimized();
         return approximatePlan;

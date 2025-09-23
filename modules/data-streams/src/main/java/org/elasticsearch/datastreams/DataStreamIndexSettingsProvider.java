@@ -38,8 +38,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DIMENSIONS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -62,7 +60,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public void provideAdditionalMetadata(
+    public void provideAdditionalSettings(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -70,8 +68,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> additionalCustomMetadata
+        IndexVersion indexVersion,
+        Settings.Builder additionalSettings
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
@@ -157,12 +155,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
      * dimension fields via a wildcard pattern.
      */
     @Override
-    public void onUpdateMappings(
-        IndexMetadata indexMetadata,
-        DocumentMapper documentMapper,
-        Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> additionalCustomMetadata
-    ) {
+    public void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {
         List<String> indexDimensions = indexMetadata.getTimeSeriesDimensions();
         if (indexDimensions.isEmpty()) {
             return;

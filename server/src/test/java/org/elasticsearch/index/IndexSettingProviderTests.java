@@ -18,9 +18,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 
 public class IndexSettingProviderTests extends ESSingleNodeTestCase {
 
@@ -87,7 +85,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void provideAdditionalMetadata(
+        public void provideAdditionalSettings(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
@@ -95,8 +93,8 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            Settings.Builder additionalSettings,
-            BiConsumer<String, Map<String, String>> additionalCustomMetadata
+            IndexVersion indexVersion,
+            Settings.Builder additionalSettings
         ) {
             if (enabled.get()) {
                 additionalSettings.put("index.refresh_interval", intervalValue);

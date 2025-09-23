@@ -22,8 +22,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings and custom index metadata that can be set
@@ -43,12 +41,11 @@ public interface IndexSettingProvider {
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
      *                                              defined on the create index request
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
+     * @param indexVersion                          The index version to be used for the new index.
+     *                                              Always {@link IndexVersion#current()} when invoked during validation.
      * @param additionalSettings                    A settings builder to which additional settings can be added
-     * @param additionalCustomMetadata              A consumer to which additional
-     *                                              {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
-     *                                              can be added
      */
-    void provideAdditionalMetadata(
+    void provideAdditionalSettings(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -56,27 +53,19 @@ public interface IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> additionalCustomMetadata
+        IndexVersion indexVersion,
+        Settings.Builder additionalSettings
     );
 
     /**
      * Called when the mappings for an existing index are updated, before the new index metadata is created.
      * This method can be used to update index settings and to provide custom metadata based on the new mappings.
      *
-     * @param indexMetadata            The index metadata for the index being updated
-     * @param documentMapper           The document mapper containing the updated mappings
-     * @param additionalSettings       A settings builder to which additional settings can be added
-     * @param additionalCustomMetadata A consumer to which additional
-     *                                 {@linkplain IndexMetadata.Builder#putCustom(String, Map) custom index metadata}
-     *                                 can be added
+     * @param indexMetadata      The index metadata for the index being updated
+     * @param documentMapper     The document mapper containing the updated mappings
+     * @param additionalSettings A settings builder to which additional settings can be added
      */
-    default void onUpdateMappings(
-        IndexMetadata indexMetadata,
-        DocumentMapper documentMapper,
-        Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> additionalCustomMetadata
-    ) {}
+    default void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {}
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

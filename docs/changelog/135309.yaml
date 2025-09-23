@@ -1,0 +1,5 @@
+pr: 135309
+summary: Enable Semantic Search CCS When ccs_minimize_roundtrips=true
+area: Relevance
+type: enhancement
+issues: []

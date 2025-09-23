@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import software.amazon.awssdk.services.bedrockruntime.model.*;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -14,12 +16,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import software.amazon.awssdk.services.bedrockruntime.model.*;
 
-import java.util.Arrays;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.*;
@@ -106,7 +104,7 @@ public class AmazonBedrockUnifiedStreamingChatProcessorTests extends ESTestCase 
         verify(downstream, times(1)).onNext(assertArg(results -> {
             assertThat(results, notNullValue());
             assertThat(results.chunks().size(), equalTo(1));
-//            assertThat(results.chunks().getFirst().choices().getFirst(), equalTo(expectedText));
+            // assertThat(results.chunks().getFirst().choices().getFirst(), equalTo(expectedText));
         }));
     }
 

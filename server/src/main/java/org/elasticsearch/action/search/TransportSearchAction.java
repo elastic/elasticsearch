@@ -381,6 +381,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             frozenIndexCheck(resolvedIndices);
         }
+        logger.info("Executing search request on node [{}] with indices [{}]", clusterService.getNodeName(), resolvedIndices);
 
         final SearchSourceBuilder source = original.source();
         if (shouldOpenPIT(source)) {
@@ -1271,6 +1272,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
                     // be thrown when a search phase attempts to access it.
                     targetNodes.add(perNode.getNode());
+                    // TODO this looks like its on the cross-cluster search path, we will need to adapt the retry mechanism here as well I
+                    // think
                     if (perNode.getSearchContextId().getSearcherId() != null) {
                         for (String node : group.allocatedNodes()) {
                             if (node.equals(perNode.getNode()) == false) {
@@ -1355,6 +1358,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchPhaseProvider searchPhaseProvider
     ) {
+        logger.info("Executing search locally.");
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
@@ -1944,7 +1948,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     try {
                         final ShardIterator shards = OperationRouting.getShards(projectState.routingTable(), shardId);
                         // Prefer executing shard requests on nodes that are part of PIT first.
-                        if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
+                        boolean nodeExists = projectState.cluster().nodes().nodeExists(perNode.getNode());
+                        if (nodeExists) {
                             targetNodes.add(perNode.getNode());
                         } else {
                             logger.debug(
@@ -1953,7 +1958,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 perNode.getSearchContextId()
                             );
                         }
-                        if (perNode.getSearchContextId().getSearcherId() != null) {
+                        if (perNode.getSearchContextId().getSearcherId() != null || nodeExists == false) {
                             for (ShardRouting shard : shards) {
                                 if (shard.currentNodeId().equals(perNode.getNode()) == false) {
                                     targetNodes.add(shard.currentNodeId());

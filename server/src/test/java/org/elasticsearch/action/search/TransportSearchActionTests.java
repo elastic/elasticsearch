@@ -1710,6 +1710,7 @@ public class TransportSearchActionTests extends ESTestCase {
             if (context.getSearchContextId().getSearcherId() == null) {
                 assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
             } else {
+                // TODO this branch seems never executed by this test. Needs investigation.
                 final List<String> targetNodes = clusterState.routingTable(project)
                     .index(indexMetadata.getIndex())
                     .shard(id)

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -109,5 +110,10 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
     @Override
     public int hashCode() {
         return Objects.hash(categoriesToExtendedData);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

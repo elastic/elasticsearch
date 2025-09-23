@@ -33,7 +33,7 @@ import static org.elasticsearch.TransportVersions.V_8_16_0;
  */
 public final class SearchUsageStats implements Writeable, ToXContentFragment {
 
-    private static final TransportVersion EXTENDED_SEARCH_USAGE_TELEMETRY = TransportVersion.fromName("extended_search_usage_telemetry");
+    static final TransportVersion EXTENDED_SEARCH_USAGE_TELEMETRY = TransportVersion.fromName("extended_search_usage_telemetry");
 
     private long totalSearchCount;
     private final Map<String, Long> queries;

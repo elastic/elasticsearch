@@ -24,9 +24,9 @@ import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.ReadAdvice;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -46,7 +46,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
     /**
      * Same as org.apache.lucene.store.IOContext#DEFAULT, except does not warn on missing files.
      */
-    public static final IOContext WARMING = new IOContext(IOContext.Context.DEFAULT, null, null, ReadAdvice.SEQUENTIAL);
+    public static final IOContext WARMING = IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL, WarmingHint.INSTANCE);
 
     private static final Logger logger = LogManager.getLogger(BlobCacheIndexInput.class);
 
@@ -132,7 +132,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
         } catch (Exception e) {
             if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
                 // includes the file name of the BlobCacheIndexInput
-                logger.log(context != WARMING ? Level.WARN : Level.DEBUG, () -> this + " did not find file", e);
+                logger.log(context.hints().contains(WarmingHint.INSTANCE) ? Level.DEBUG : Level.WARN, () -> this + " did not find file", e);
             }
             if (e instanceof IOException ioe) {
                 throw ioe;

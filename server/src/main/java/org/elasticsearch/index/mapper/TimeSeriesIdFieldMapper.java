@@ -161,12 +161,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
             }
             timeSeriesId = buildLegacyTsid(routingPathFields).toBytesRef();
-        } else if (context.getTsid() != null) {
-            routingPathFields = null;
-            timeSeriesId = context.getTsid();
-        } else {
-            routingPathFields = (RoutingPathFields) context.getRoutingFields();
+        } else if (context.getRoutingFields() instanceof RoutingPathFields rpf) {
+            routingPathFields = rpf;
             timeSeriesId = routingPathFields.buildHash().toBytesRef();
+        } else {
+            routingPathFields = null;
+            assert context.getTsid() != null;
+            timeSeriesId = context.getTsid();
         }
 
         if (this.useDocValuesSkipper) {

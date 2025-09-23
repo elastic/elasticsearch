@@ -5,19 +5,41 @@ type: feature
 issues: []
 highlight:
   title: Release DiskBBQ(`bbq_disk`) index type for `dense_vector` fields
-  body: "This releases a new index type called DiskBBQ (configuration\n`bbq_disk`).\
-    \ \n\nDiskBBQ is a cluster based format that provides:\n\n - faster and cheaper\
-    \ indexing than HNSW\n - Better behavior in lower memory environments (degrades\
-    \ linearly, not exponentially)\n - Is near HNSW for QPS when the index is in memory\n\
-    \nCurrent restrictions that will be able to be removed in the future:\n\n - only\
-    \ floating point values are allowed currently\n - quantization is only to a single\
-    \ bit, so not recommended for low dimensionality vectors\n - all other restrictions\
-    \ for hnsw\n\nTo utilize the format, its just like any other:\n\n```\nPUT vectors\
-    \ {\n  \"mappings\": {\n    \"properties\": {\n      \"vector\": {\"type\": \"\
-    dense_vector\", \"index_options\": {\"type\": \"disk_bbq\"}\n    }\n  }\n}\n```\n\
-    \nQuerying is just like any other field.\n\n```\nPOST vectors/_search\n{\n   \
-    \ \"query\": {\n        \"knn\": {\n            \"field\": \"vector\",\n     \
-    \       \"query_vector\": <vector,\n            \"k\": 3\n        }\n    }\n}\n\
-    ```\n\n`num_candidates` can be used for tuning approximate nature of the\nsearch.\
-    \ Or, more granular control can be provided by setting\n`visit_percentage` directly."
+  body: |-
+     This releases a new index type called DiskBBQ (configuration\n`bbq_disk`).
+     DiskBBQ is a cluster based format that provides:
+       - faster and cheaper indexing than HNSW
+       - Better behavior in lower memory environments (degrades linearly, not exponentially)
+      - Is near HNSW for QPS when the index is in memory\n\
+
+    Current restrictions:
+      - only floating point values are allowed currently
+      - quantization is only to a single bit, so not recommended for low dimensionality vectors
+      - all other restrictions that exist for `dense_vector` fields still apply
+
+    To utilize the format, its just like any other:
+    ```
+    PUT vectors
+    {
+      "mappings": {
+        "properties": {
+          "vector": {"type": "dense_vector", "index_options": {"type": "disk_bbq"}
+        }
+      }
+    }
+    ```
+    Querying is just like any other field.
+    ```
+    POST vectors/_search{
+      "query": {
+        "knn": {
+          "field": "vector",
+          "query_vector": <vector>,
+          "k": 3
+        }
+      }
+    }
+    ```
+    `num_candidates` can be used for tuning approximate nature of the search.
+    Or, more granular control can be provided by setting\n`visit_percentage` directly.
   notable: true

@@ -472,7 +472,7 @@ public abstract class IndexRouting {
          * It creates the tsid during routing and makes the routing decision based on the tsid.
          * The tsid gets attached to the index request so that the data node can reuse it instead of rebuilding it.
          */
-        static class ForIndexDimensions extends ExtractFromSource {
+        public static class ForIndexDimensions extends ExtractFromSource {
 
             ForIndexDimensions(IndexMetadata metadata) {
                 super(metadata, metadata.getTimeSeriesDimensions());

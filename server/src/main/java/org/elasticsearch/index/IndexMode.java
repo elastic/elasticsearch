@@ -219,13 +219,16 @@ public enum IndexMode {
 
         @Override
         public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
-            if (source.tsid() != null) {
-                // If the source already has a _tsid field, we don't need to extract routing from the source.
+            if (settings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
+                return new RoutingPathFields(forRoutingPath.builder());
+            } else if (settings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
+                assert source.tsid() != null : "Source must have a tsid if index uses index.dimensions for routing";
                 return RoutingFields.Noop.INSTANCE;
+            } else {
+                throw new IllegalStateException(
+                    "Index routing strategy not supported for index_mode=time_series: " + settings.getIndexRouting()
+                );
             }
-            IndexRouting.ExtractFromSource.ForRoutingPath routing = (IndexRouting.ExtractFromSource.ForRoutingPath) settings
-                .getIndexRouting();
-            return new RoutingPathFields(routing.builder());
         }
 
         @Override

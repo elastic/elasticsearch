@@ -286,7 +286,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(ML_INFERENCE_COHERE_API_VERSION)) {
+        if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             out.writeEnum(apiVersion);
         }
     }

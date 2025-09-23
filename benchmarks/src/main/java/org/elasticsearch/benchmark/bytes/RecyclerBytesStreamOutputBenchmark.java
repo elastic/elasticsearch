@@ -51,19 +51,8 @@ public class RecyclerBytesStreamOutputBenchmark {
     @Setup
     public void initResults() throws IOException {
         streamOutput = new RecyclerBytesStreamOutput(new BenchmarkRecycler(bytesRef));
-        shortString = "K7mP9xQ2nV8wR4jL6tE3";
-        longString = "xK9mP4nV7wR2jL6tE3qA8zS5yU1oI0bG9cF7hN3kM6pX2vB4lW8rT5eY9uQ1iO7aD3sZ6fH2gJ4nK8mL0xC5vB9wE7qP3tY6rU2";
-        nonAsciiString =
-            "k7mP9xQ2nV8wR4jL6tE3qA8zS5yU1oI0bG9cF7hN3kM6pX2vB4lW8rT5eY9uQ1iO7aD3sZ6fH2gJ4nK8mL0xC5vB9wE7qP3tY6rU2oI4zA1sF8hG5nM7kX0bV3"
-                + "cL9pT6eW4yQ2uR8jN1oA5dS7fH9gK3mP6xC0vB2lñéüøåæçþðßÿì8tE4qY7rU5iZ9aO1sF4hG6nM3kX8pV0bL2cW9eT7yQ5uR1jN4oA8dS6fH3gK0mP9xC"
-                + "7vB5lW2tE8qY4rU1iZ6aO3sF9hG0nM7kX5pV8bL4cW2eTíîïôõöúûüÑÉÜ6yQ9uR3jN1oA0dS8fH5g";
-        veryLongString =
-            "xK9mP4nV7wR2jL6tE3qA8zS5yU1oI0bG9cF7hN3kM6pX2vB4lW8rT5eY9uQ1iO7aD3sZ6fH2gJ4nK8mL0xC5vB9wE7qP3tY6rU2oI4zA1sF8hG5nM7kX0bV3cL9p"
-                + "T6eW4yQ2uR8jN1oA5dS7fH9gK3mP6xC0vB2lW8tE4qY7rU5iZ9aO1sF4hG6nM3kX8pV0bL2cW9eT7yQ5uR1jN4oA8dS6fH3gK0mP9xC7vB5lW2tE8qY4rU1i"
-                + "Z6aO3sF9hG0nM7kX5pV8bL4cW2eT6yQ9uR3jN1oA0dS8fH5gK2mP7xC4vB9lW1tE5qY8rU0iZ3aO6sF2hG9nM4kX7pV1bL5cW8eT0yQ6uR2jN9oA3dS1fH4g"
-                + "K7mP0xC8vB6lW3tE9qY2rU5iZ8aO0sF3hG1nM9kX2pV6bL0cW4eT7yQ1uR5jN8oA6dS9fH2gK4mP1xC0vB8lW6tE2qY5rU9iZ1aO4sF7hG3nM0kX6pV2bL8"
-                + "cW5eT9yQ3uR7jN0oA4dS2fH8gK1mP5xC9vB3lW0tE6qY9rU2iZ5aO8sF1hG4nM7kX3pV0bL6cW9eT2yQ5u";
         ThreadLocalRandom random = ThreadLocalRandom.current();
+
         bytes1 = new byte[327];
         bytes2 = new byte[712];
         bytes3 = new byte[1678];
@@ -73,7 +62,14 @@ public class RecyclerBytesStreamOutputBenchmark {
         random.nextBytes(bytes3);
         random.nextBytes(multiPageBytes);
 
-        // Create a mix of vint values for benchmarking
+        // We use weights to generate certain sized UTF-8 characters and vInts. However, there is still some non-determinism which could
+        // impact direct comparisons run-to-run
+
+        shortString = generateAsciiString(20);
+        longString = generateAsciiString(100);
+        nonAsciiString = generateUtf8String(200);
+        veryLongString = generateAsciiString(800);
+        // vint values for benchmarking
         vints = new int[1000];
         for (int i = 0; i < vints.length; i++) {
             if (random.nextBoolean()) {
@@ -96,7 +92,7 @@ public class RecyclerBytesStreamOutputBenchmark {
 
     @Benchmark
     public void writeByte() throws IOException {
-        streamOutput.seek(0);
+        streamOutput.seek(1);
         for (byte item : bytes1) {
             streamOutput.writeByte(item);
         }
@@ -110,7 +106,7 @@ public class RecyclerBytesStreamOutputBenchmark {
 
     @Benchmark
     public void writeBytes() throws IOException {
-        streamOutput.seek(0);
+        streamOutput.seek(1);
         streamOutput.writeBytes(bytes1, 0, bytes1.length);
         streamOutput.writeBytes(bytes2, 0, bytes2.length);
         streamOutput.writeBytes(bytes3, 0, bytes3.length);
@@ -141,10 +137,53 @@ public class RecyclerBytesStreamOutputBenchmark {
 
     @Benchmark
     public void writeVInt() throws IOException {
-        streamOutput.seek(0);
+        streamOutput.seek(1);
         for (int vint : vints) {
             streamOutput.writeVInt(vint);
         }
+    }
+
+    public static String generateAsciiString(int n) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        StringBuilder sb = new StringBuilder(n);
+
+        for (int i = 0; i < n; i++) {
+            int ascii = random.nextInt(128);
+            sb.append((char) ascii);
+        }
+
+        return sb.toString();
+    }
+
+    public static String generateUtf8String(int n) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        StringBuilder sb = new StringBuilder(n);
+
+        for (int i = 0; i < n; i++) {
+            int codePoint;
+            int probability = random.nextInt(100);
+
+            if (probability < 85) {
+                // 1-byte UTF-8 (ASCII range)
+                // 0x0000 to 0x007F
+                codePoint = random.nextInt(0x0080);
+            } else if (probability < 95) {
+                // 2-byte UTF-8
+                // 0x0080 to 0x07FF
+                codePoint = random.nextInt(0x0080, 0x0800);
+            } else {
+                // 3-byte UTF-8
+                // 0x0800 to 0xFFFF
+                do {
+                    codePoint = random.nextInt(0x0800, 0x10000);
+                    // Skip surrogate pairs (0xD800-0xDFFF)
+                } while (codePoint >= 0xD800 && codePoint <= 0xDFFF);
+            }
+
+            sb.appendCodePoint(codePoint);
+        }
+
+        return sb.toString();
     }
 
     private record BenchmarkRecycler(AtomicReference<BytesRef> bytesRef) implements Recycler<BytesRef> {

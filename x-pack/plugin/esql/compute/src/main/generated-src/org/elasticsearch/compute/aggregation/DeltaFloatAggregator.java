@@ -186,9 +186,11 @@ public class DeltaFloatAggregator {
                         }
                         values.endPositionEntry();
                     } else {
+                        samples.appendLong(0L);
                         timestamps.appendNull();
                         values.appendNull();
-                    }
+
+                    }}
                 }
                 blocks[offset] = samples.build();
                 blocks[offset + 1] = timestamps.build();
@@ -246,4 +248,3 @@ public class DeltaFloatAggregator {
             // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`
         }
     }
-}

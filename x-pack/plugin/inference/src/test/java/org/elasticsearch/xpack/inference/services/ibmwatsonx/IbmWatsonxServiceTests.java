@@ -593,7 +593,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotIbmWatsonxModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -622,7 +622,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startSynchronously();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();

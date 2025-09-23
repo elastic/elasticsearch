@@ -121,7 +121,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     /**
      * True if a run has been queued due to a cluster state change, false otherwise.
      */
-    private final AtomicBoolean queued = new AtomicBoolean(false);
+    private final AtomicBoolean runOnDemandQueued = new AtomicBoolean(false);
     private final Supplier<TimeValue> pollIntervalSupplier;
     private final Function<String, char[]> tokenProvider;
 
@@ -456,7 +456,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             return;
         }
         logger.trace("Requesting downloader run on demand");
-        if (queued.compareAndSet(false, true)) {
+        if (runOnDemandQueued.compareAndSet(false, true)) {
             logger.trace("Scheduling downloader run on demand");
             threadPool.generic().submit(this::runOnDemand);
         }
@@ -483,7 +483,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             // Technically speaking, there's a chance that a new cluster state arrives in between the following line and
             // clusterService.state() in updateDatabases() (or deleteDatabases()), which will cause another run to be scheduled,
             // but the only consequence of that is that we'll process that cluster state twice, which is harmless.
-            queued.set(false);
+            runOnDemandQueued.set(false);
             logger.debug("Running downloader on demand");
             runDownloader();
         } catch (InterruptedException e) {

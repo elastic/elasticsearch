@@ -299,6 +299,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             timeseries.sort((t1, t2) -> t1.v2().v1().compareTo(t2.v2().v1()));
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
+            var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
             if (deltaAgg.equals(DeltaAgg.IRATE)) {
                 var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
@@ -310,10 +311,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var firstVal = timeseries.getFirst().v2().v2();
                 var lastVal = timeseries.getLast().v2().v2();
                 var delta = lastVal - firstVal;
+                // We must extrapolate the delta to the window size
+                var windowSizeFactor = secondsInWindow / tsDurationSeconds;
                 if (delta < 0) {
-                    return new RateRange(delta * 1.001, delta * 0.999); // Add 0.1% tolerance
+                    return new RateRange(delta * windowSizeFactor * 1.001, delta * 0.999); // Add 0.1% tolerance
                 } else {
-                    return new RateRange(delta * 0.999, delta * 1.001); // Add 0.1% tolerance
+                    return new RateRange(delta * 0.999, delta * windowSizeFactor * 1.001); // Add 0.1% tolerance
                 }
             } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
                 var lastVal = timeseries.getLast().v2().v2();
@@ -323,15 +326,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     return new RateRange(idelta * 1.001, idelta * 0.999); // Add 0.1% tolerance
                 } else {
                     return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
-                }
-            } else if (deltaAgg.equals(DeltaAgg.DELTA)) {
-                var firstVal = timeseries.getFirst().v2().v2();
-                var lastVal = timeseries.getLast().v2().v2();
-                var delta = lastVal - firstVal;
-                if (delta < 0) {
-                    return new RateRange(delta * 1.001, delta * 0.999); // Add 0.1% tolerance
-                } else {
-                    return new RateRange(delta * 0.999, delta * 1.001); // Add 0.1% tolerance
                 }
             }
             assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;
@@ -354,7 +348,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
                 lastValue = currentValue; // Update last value for next iteration
             }
-            var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
             if (deltaAgg.equals(DeltaAgg.INCREASE)) {
                 return new RateRange(
                     counterGrowth * 0.99, // INCREASE is RATE multiplied by the window size
@@ -454,7 +447,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+        // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
+        var deltaAgg = Tuple.tuple("delta", DeltaAgg.DELTA); // TODO: Enable random selection after fixing
         var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg.v2());
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();

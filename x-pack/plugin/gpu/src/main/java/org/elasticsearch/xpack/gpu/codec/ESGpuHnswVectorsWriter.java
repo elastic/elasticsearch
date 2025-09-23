@@ -176,8 +176,15 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
 
             var numVectors = field.flatFieldVectorsWriter.getVectors().size();
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Skip building carga index; vectors length {} < {} (min for GPU)",
+                        numVectors,
+                        MIN_NUM_VECTORS_FOR_GPU_BUILD
+                    );
+                }
                 // Will not be indexed on the GPU
-                flushField(null, fieldInfo, null, numVectors, sortMap);
+                flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
             } else {
                 var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
                 try {
@@ -191,7 +198,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                         builder.addVector(vector);
                     }
                     try (var dataset = builder.build()) {
-                        flushField(cuVSResources, fieldInfo, dataset, numVectors, sortMap);
+                        flushFieldWithGpuGraph(cuVSResources, fieldInfo, dataset, sortMap);
                     }
                 } finally {
                     cuVSResourceManager.release(cuVSResources);
@@ -200,18 +207,26 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void flushField(
+    private void flushFieldWithMockGraph(FieldInfo fieldInfo, int numVectors, Sorter.DocMap sortMap) throws IOException {
+        if (sortMap == null) {
+            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+        } else {
+            // TODO: use sortMap
+            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+        }
+    }
+
+    private void flushFieldWithGpuGraph(
         CuVSResourceManager.ManagedCuVSResources resources,
         FieldInfo fieldInfo,
         CuVSMatrix dataset,
-        int numVectors,
         Sorter.DocMap sortMap
     ) throws IOException {
         if (sortMap == null) {
-            writeFieldInternal(resources, fieldInfo, dataset, numVectors);
+            generateGpuGraphAndWriteMeta(resources, fieldInfo, dataset);
         } else {
             // TODO: use sortMap
-            writeFieldInternal(resources, fieldInfo, dataset, numVectors);
+            generateGpuGraphAndWriteMeta(resources, fieldInfo, dataset);
         }
     }
 
@@ -243,31 +258,35 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
-    private void writeFieldInternal(
+    private void generateGpuGraphAndWriteMeta(
         CuVSResourceManager.ManagedCuVSResources cuVSResources,
         FieldInfo fieldInfo,
-        CuVSMatrix dataset,
-        int datasetSize
+        CuVSMatrix dataset
     ) throws IOException {
         try {
+            assert dataset.size() >= MIN_NUM_VECTORS_FOR_GPU_BUILD;
+
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            if (dataset == null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        datasetSize,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
-                }
-                graph = writeMockGraph(datasetSize, graphLevelNodeOffsets);
-            } else {
-                try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
-                    assert index != null : "GPU index should be built for field: " + fieldInfo.name;
-                    graph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
-                }
+            try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
+                assert index != null : "GPU index should be built for field: " + fieldInfo.name;
+                graph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
             }
+            long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
+            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, (int) dataset.size(), graph, graphLevelNodeOffsets);
+        } catch (IOException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IOException("Failed to write GPU index: ", t);
+        }
+    }
+
+    private void generateMockGraphAndWriteMeta(FieldInfo fieldInfo, int datasetSize) throws IOException {
+        try {
+            long vectorIndexOffset = vectorIndex.getFilePointer();
+            int[][] graphLevelNodeOffsets = new int[1][];
+            final HnswGraph graph = writeMockGraph(datasetSize, graphLevelNodeOffsets);
             long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
             writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetSize, graph, graphLevelNodeOffsets);
         } catch (IOException e) {
@@ -457,7 +476,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
 
                     var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType);
                     try {
-                        writeFieldInternal(cuVSResources, fieldInfo, dataset, numVectors);
+                        generateGpuGraphAndWriteMeta(cuVSResources, fieldInfo, dataset);
                     } finally {
                         dataset.close();
                         cuVSResourceManager.release(cuVSResources);
@@ -490,7 +509,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
                             }
                         }
                         try (var dataset = builder.build()) {
-                            writeFieldInternal(cuVSResources, fieldInfo, dataset, numVectors);
+                            generateGpuGraphAndWriteMeta(cuVSResources, fieldInfo, dataset);
                         }
                     } finally {
                         cuVSResourceManager.release(cuVSResources);
@@ -499,7 +518,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
             } else {
                 // we don't really need real value for vectors here,
                 // we just build a mock graph where every node is connected to every other node
-                writeFieldInternal(null, fieldInfo, null, numVectors);
+                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             }
         } catch (Throwable t) {
             throw new IOException("Failed to merge GPU index: ", t);
@@ -513,12 +532,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         final byte bits = 7;
         final Float confidenceInterval = null;
         ScalarQuantizer quantizer = mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval, bits);
-        MergedQuantizedVectorValues byteVectorValues = MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(
-            fieldInfo,
-            mergeState,
-            quantizer
-        );
-        return byteVectorValues;
+        return MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(fieldInfo, mergeState, quantizer);
     }
 
     private static int writeByteVectorValues(IndexOutput out, ByteVectorValues vectorValues) throws IOException {

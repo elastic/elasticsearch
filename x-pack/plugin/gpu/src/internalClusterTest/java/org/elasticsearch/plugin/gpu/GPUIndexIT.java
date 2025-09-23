@@ -102,7 +102,7 @@ public class GPUIndexIT extends ESIntegTestCase {
             Assert.assertEquals(hits1.length, hits2.length);
             for (int i = 0; i < hits1.length; i++) {
                 Assert.assertEquals(hits1[i].getId(), hits2[i].getId());
-                Assert.assertEquals((String) hits1[i].field("my_keyword").getValue(), (String) hits2[i].field("my_keyword").getValue());
+                Assert.assertEquals(hits1[i].field("my_keyword").getValue(), (String) hits2[i].field("my_keyword").getValue());
                 Assert.assertEquals(hits1[i].getScore(), hits2[i].getScore(), 0.001f);
             }
         } finally {
@@ -133,7 +133,7 @@ public class GPUIndexIT extends ESIntegTestCase {
             Assert.assertEquals(hits3.length, hits4.length);
             for (int i = 0; i < hits3.length; i++) {
                 Assert.assertEquals(hits3[i].getId(), hits4[i].getId());
-                Assert.assertEquals((String) hits3[i].field("my_keyword").getValue(), (String) hits4[i].field("my_keyword").getValue());
+                Assert.assertEquals(hits3[i].field("my_keyword").getValue(), (String) hits4[i].field("my_keyword").getValue());
                 Assert.assertEquals(hits3[i].getScore(), hits4[i].getScore(), 0.01f);
             }
         } finally {
@@ -210,9 +210,7 @@ public class GPUIndexIT extends ESIntegTestCase {
                 .setFetchSource(false)
                 .addFetchField("my_keyword")
                 .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null))),
-            response -> {
-                assertEquals("Expected k hits to be returned", k, response.getHits().getHits().length);
-            }
+            response -> assertEquals("Expected k hits to be returned", k, response.getHits().getHits().length)
         );
     }
 

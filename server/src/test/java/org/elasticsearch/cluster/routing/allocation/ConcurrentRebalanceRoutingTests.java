@@ -16,14 +16,12 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 
-import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -52,7 +50,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
                     .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                     .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
                     .build()
-                );
+            );
         }
 
         logger.info("Building initial routing table");
@@ -60,7 +58,12 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         Metadata metadata;
         if (testFrozen) {
             metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current()).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN)).numberOfShards(5).numberOfReplicas(1))
+                .put(
+                    IndexMetadata.builder("test")
+                        .settings(settings(IndexVersion.current()).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN))
+                        .numberOfShards(5)
+                        .numberOfReplicas(1)
+                )
                 .build();
         } else {
             metadata = Metadata.builder()
@@ -86,7 +89,11 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         logger.info("start two nodes and fully start the shards");
         if (testFrozen) {
             clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder().add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))).add(newNode("node2", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))))
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                )
                 .build();
         } else {
             clusterState = ClusterState.builder(clusterState)

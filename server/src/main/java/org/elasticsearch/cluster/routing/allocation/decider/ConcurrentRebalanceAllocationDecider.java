@@ -68,7 +68,11 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
             CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING,
             this::setClusterConcurrentFrozenRebalance
         );
-        logger.debug("using [cluster_concurrent_rebalance] with [concurrent_rebalance=%d, concurrent_frozen_rebalance=%d]", clusterConcurrentRebalance, clusterConcurrentFrozenRebalance);
+        logger.debug(
+            "using [cluster_concurrent_rebalance] with [concurrent_rebalance=%d, concurrent_frozen_rebalance=%d]",
+            clusterConcurrentRebalance,
+            clusterConcurrentFrozenRebalance
+        );
     }
 
     private void setClusterConcurrentRebalance(int concurrentRebalance) {
@@ -133,7 +137,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
             Decision.YES,
             NAME,
             "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d], "
-            + "and threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
+                + "and threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
             clusterConcurrentRebalance,
             relocatingShards,
             clusterConcurrentFrozenRebalance,

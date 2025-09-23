@@ -13,6 +13,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -53,11 +54,44 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock inputBlock = (BytesRefBlock) input.eval(page)) {
+      var inputOrdinalBlock = inputBlock.asOrdinals();
+      if (inputOrdinalBlock != null) {
+        return evalOrdinals(page.getPositionCount(), inputOrdinalBlock);
+      }
       BytesRefVector inputVector = inputBlock.asVector();
       if (inputVector == null) {
         return eval(page.getPositionCount(), inputBlock);
       }
       return eval(page.getPositionCount(), inputVector).asBlock();
+    }
+  }
+
+  public BytesRefBlock evalOrdinals(int positionCount, OrdinalBytesRefBlock inputBlock) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      var inputVector = inputBlock.getDictionaryVector();
+      var ordinalPositions = inputBlock.getOrdinalsBlock();
+      try(var dictResult = eval(ordinalPositions.getPositionCount(), inputVector)) {
+        var scratch = new BytesRef();
+        for (int p = 0; p < positionCount; p++) {
+          if (ordinalPositions.isNull(p)) {
+            result.appendNull();
+            continue;
+          }
+          var firstValueIndex = ordinalPositions.getFirstValueIndex(p);
+          var valueCount = ordinalPositions.getValueCount(p);
+          if (valueCount == 1) {
+            result.appendBytesRef(dictResult.getBytesRef(ordinalPositions.getInt(firstValueIndex), scratch));
+          } else {
+            int lastValueIndex = firstValueIndex + valueCount;
+            result.beginPositionEntry();
+            for (int v = firstValueIndex; v < lastValueIndex; v++) {
+              result.appendBytesRef(dictResult.getBytesRef(ordinalPositions.getInt(v), scratch));
+            }
+            result.endPositionEntry();
+          }
+        }
+      }
+      return result.build();
     }
   }
 

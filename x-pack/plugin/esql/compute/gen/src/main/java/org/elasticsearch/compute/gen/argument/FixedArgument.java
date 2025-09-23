@@ -130,4 +130,9 @@ public record FixedArgument(TypeName type, String name, boolean includeInToStrin
 
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {}
+
+    @Override
+    public boolean canProcessOrdinals() {
+        return true;
+    }
 }

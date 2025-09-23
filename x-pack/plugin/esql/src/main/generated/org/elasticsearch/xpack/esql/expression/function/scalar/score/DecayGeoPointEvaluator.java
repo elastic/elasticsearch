@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -62,11 +63,43 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock valueBlock = (BytesRefBlock) value.eval(page)) {
+      var valueOrdinalBlock = valueBlock.asOrdinals();
+      if (valueOrdinalBlock != null) {
+        return evalOrdinals(page.getPositionCount(), valueOrdinalBlock);
+      }
       BytesRefVector valueVector = valueBlock.asVector();
       if (valueVector == null) {
         return eval(page.getPositionCount(), valueBlock);
       }
       return eval(page.getPositionCount(), valueVector).asBlock();
+    }
+  }
+
+  public DoubleBlock evalOrdinals(int positionCount, OrdinalBytesRefBlock valueBlock) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      var valueVector = valueBlock.getDictionaryVector();
+      var ordinalPositions = valueBlock.getOrdinalsBlock();
+      try(var dictResult = eval(ordinalPositions.getPositionCount(), valueVector)) {
+        for (int p = 0; p < positionCount; p++) {
+          if (ordinalPositions.isNull(p)) {
+            result.appendNull();
+            continue;
+          }
+          var firstValueIndex = ordinalPositions.getFirstValueIndex(p);
+          var valueCount = ordinalPositions.getValueCount(p);
+          if (valueCount == 1) {
+            result.appendDouble(dictResult.getDouble(ordinalPositions.getInt(firstValueIndex)));
+          } else {
+            int lastValueIndex = firstValueIndex + valueCount;
+            result.beginPositionEntry();
+            for (int v = firstValueIndex; v < lastValueIndex; v++) {
+              result.appendDouble(dictResult.getDouble(ordinalPositions.getInt(v)));
+            }
+            result.endPositionEntry();
+          }
+        }
+      }
+      return result.build();
     }
   }
 

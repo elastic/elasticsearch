@@ -75,6 +75,10 @@ public interface Argument {
      */
     String paramName(boolean blockStyle);
 
+    default String ordinalParamName() {
+        return paramName(true);
+    }
+
     /**
      * Declare any required fields for the evaluator to implement this type of parameter.
      */
@@ -163,4 +167,6 @@ public interface Argument {
      * Invokes {@code baseRamBytesUsed} on sub-expressions an
      */
     void sumBaseRamBytesUsed(MethodSpec.Builder builder);
+
+    boolean canProcessOrdinals();
 }

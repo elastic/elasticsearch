@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -53,11 +54,43 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock inputBlock = (BytesRefBlock) input.eval(page)) {
+      var inputOrdinalBlock = inputBlock.asOrdinals();
+      if (inputOrdinalBlock != null) {
+        return evalOrdinals(page.getPositionCount(), inputOrdinalBlock);
+      }
       BytesRefVector inputVector = inputBlock.asVector();
       if (inputVector == null) {
         return eval(page.getPositionCount(), inputBlock);
       }
       return eval(page.getPositionCount(), inputVector).asBlock();
+    }
+  }
+
+  public BooleanBlock evalOrdinals(int positionCount, OrdinalBytesRefBlock inputBlock) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      var inputVector = inputBlock.getDictionaryVector();
+      var ordinalPositions = inputBlock.getOrdinalsBlock();
+      try(var dictResult = eval(ordinalPositions.getPositionCount(), inputVector)) {
+        for (int p = 0; p < positionCount; p++) {
+          if (ordinalPositions.isNull(p)) {
+            result.appendNull();
+            continue;
+          }
+          var firstValueIndex = ordinalPositions.getFirstValueIndex(p);
+          var valueCount = ordinalPositions.getValueCount(p);
+          if (valueCount == 1) {
+            result.appendBoolean(dictResult.getBoolean(ordinalPositions.getInt(firstValueIndex)));
+          } else {
+            int lastValueIndex = firstValueIndex + valueCount;
+            result.beginPositionEntry();
+            for (int v = firstValueIndex; v < lastValueIndex; v++) {
+              result.appendBoolean(dictResult.getBoolean(ordinalPositions.getInt(v)));
+            }
+            result.endPositionEntry();
+          }
+        }
+      }
+      return result.build();
     }
   }
 

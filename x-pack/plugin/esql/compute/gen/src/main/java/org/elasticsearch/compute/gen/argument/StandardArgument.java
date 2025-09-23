@@ -42,6 +42,11 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
+    public String ordinalParamName() {
+        return name + "OrdinalBlock";
+    }
+
+    @Override
     public void declareField(TypeSpec.Builder builder) {
         builder.addField(EXPRESSION_EVALUATOR, name, Modifier.PRIVATE, Modifier.FINAL);
     }
@@ -169,5 +174,10 @@ public record StandardArgument(TypeName type, String name) implements Argument {
             builder.addStatement("continue position");
         }
         builder.endControlFlow();
+    }
+
+    @Override
+    public boolean canProcessOrdinals() {
+        return type.equals(BYTES_REF);
     }
 }

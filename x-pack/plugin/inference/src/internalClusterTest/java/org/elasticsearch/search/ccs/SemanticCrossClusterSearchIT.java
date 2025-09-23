@@ -63,6 +63,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -374,10 +375,13 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             new MatchQueryBuilder(mixedTypeField2, "a"),
             queryIndices,
             List.of(new SearchResult(null, localIndexName, mixedTypeField2 + "_doc")),
-            Set.of(
-                new FailureCause(
-                    QueryShardException.class,
-                    "failed to create query: Field [mixed-type-field-2] of type [semantic_text] does not support match queries"
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(
+                    new FailureCause(
+                        QueryShardException.class,
+                        "failed to create query: Field [mixed-type-field-2] of type [semantic_text] does not support match queries"
+                    )
                 )
             ),
             s -> s.setCcsMinimizeRoundtrips(false)
@@ -391,7 +395,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 new SearchResult(null, localIndexName, textField + "_doc"),
                 new SearchResult(REMOTE_CLUSTER, remoteIndexName, textField + "_doc")
             ),
-            Set.of(),
+            null,
             s -> s.setCcsMinimizeRoundtrips(false)
         );
     }
@@ -428,7 +432,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 "local_doc_1",
                 Map.of(commonInferenceIdField, "a"),
                 "local_doc_2",
-                Map.of(mixedTypeField1, generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT)),
+                Map.of(mixedTypeField1, generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)),
                 "local_doc_3",
                 Map.of(mixedTypeField2, "c")
             )
@@ -453,7 +457,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 "remote_doc_2",
                 Map.of(mixedTypeField1, "y"),
                 "remote_doc_3",
-                Map.of(mixedTypeField2, generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT))
+                Map.of(mixedTypeField2, generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f))
             )
         );
         setupTwoClusters(localIndexInfo, remoteIndexInfo);
@@ -508,7 +512,9 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         );
 
         // Query a field that has mixed types across clusters using a query vector
-        final VectorData queryVector = new VectorData(generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT));
+        final VectorData queryVector = new VectorData(
+            generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)
+        );
         assertSearchResponse(
             new KnnVectorQueryBuilder(mixedTypeField1, queryVector, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null),
             queryIndices,
@@ -538,8 +544,145 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             ),
             queryIndices,
             List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
-            Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null.")),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+            ),
             null
+        );
+    }
+
+    public void testKnnQueryWithCcMinimizeRoundTripsFalse() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final BiConsumer<String, TextEmbeddingQueryVectorBuilder> assertCcsMinimizeRoundTripsFalseFailure = (f, qvb) -> {
+            KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(f, qvb, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null);
+
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+            SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
+            searchRequest.setCcsMinimizeRoundtrips(false);
+
+            IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> client().search(searchRequest).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "knn query does not support cross-cluster search when querying a [semantic_text] field when "
+                        + "[ccs_minimize_roundtrips] is false"
+                )
+            );
+        };
+
+        final int dimensions = 256;
+        final String commonInferenceId = "common-inference-id";
+        final MinimalServiceSettings commonInferenceIdServiceSettings = textEmbeddingServiceSettings(
+            dimensions,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+
+        final String commonInferenceIdField = "common-inference-id-field";
+        final String mixedTypeField1 = "mixed-type-field-1";
+        final String mixedTypeField2 = "mixed-type-field-2";
+        final String denseVectorField = "dense-vector-field";
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            localIndexName,
+            Map.of(commonInferenceId, commonInferenceIdServiceSettings),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField2,
+                denseVectorMapping(dimensions),
+                denseVectorField,
+                denseVectorMapping(dimensions)
+            ),
+            Map.of(
+                mixedTypeField2 + "_doc",
+                Map.of(mixedTypeField2, generateDenseVectorFieldValue(dimensions, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)),
+                denseVectorField + "_doc",
+                Map.of(denseVectorField, generateDenseVectorFieldValue(dimensions, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f))
+            )
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            remoteIndexName,
+            Map.of(commonInferenceId, commonInferenceIdServiceSettings),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                denseVectorMapping(dimensions),
+                mixedTypeField2,
+                semanticTextMapping(commonInferenceId),
+                denseVectorField,
+                denseVectorMapping(dimensions)
+            ),
+            Map.of(
+                mixedTypeField2 + "_doc",
+                Map.of(mixedTypeField2, "a"),
+                denseVectorField + "_doc",
+                Map.of(denseVectorField, generateDenseVectorFieldValue(dimensions, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f))
+            )
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Validate that expected cases fail
+        assertCcsMinimizeRoundTripsFalseFailure.accept(
+            commonInferenceIdField,
+            new TextEmbeddingQueryVectorBuilder(null, randomAlphaOfLength(5))
+        );
+        assertCcsMinimizeRoundTripsFalseFailure.accept(
+            mixedTypeField1,
+            new TextEmbeddingQueryVectorBuilder(commonInferenceId, randomAlphaOfLength(5))
+        );
+
+        // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                mixedTypeField2,
+                new TextEmbeddingQueryVectorBuilder(commonInferenceId, "foo"),
+                10,
+                100,
+                IVF_FORMAT.isEnabled() ? 10f : null,
+                null
+            ),
+            queryIndices,
+            List.of(new SearchResult(null, localIndexName, mixedTypeField2 + "_doc")),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(
+                    new FailureCause(
+                        QueryShardException.class,
+                        "failed to create query: [knn] queries are only supported on [dense_vector] fields"
+                    )
+                )
+            ),
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Validate that a CCS knn query functions when only dense vector fields are queried
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                denseVectorField,
+                generateDenseVectorFieldValue(dimensions, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f),
+                10,
+                100,
+                IVF_FORMAT.isEnabled() ? 10f : null,
+                null,
+                null
+            ),
+            queryIndices,
+            List.of(
+                new SearchResult(null, localIndexName, denseVectorField + "_doc"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, denseVectorField + "_doc")
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
         );
     }
 
@@ -651,7 +794,10 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             new SparseVectorQueryBuilder(mixedTypeField2, null, "c"),
             queryIndices,
             List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
-            Set.of(new FailureCause(IllegalArgumentException.class, "inference_id required to perform vector search on query string")),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(new FailureCause(IllegalArgumentException.class, "inference_id required to perform vector search on query string"))
+            ),
             null
         );
     }
@@ -748,7 +894,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         QueryBuilder queryBuilder,
         String[] indices,
         List<SearchResult> expectedSearchResults,
-        Set<FailureCause> expectedRemoteFailures,
+        ClusterFailure expectedRemoteFailure,
         Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
@@ -776,14 +922,15 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             assertThat(clusters.getCluster(LOCAL_CLUSTER).getFailures().isEmpty(), is(true));
 
             SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
-            if (expectedRemoteFailures != null && expectedRemoteFailures.isEmpty() == false) {
-                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+            if (expectedRemoteFailure != null) {
+                assertThat(remoteCluster.getStatus(), equalTo(expectedRemoteFailure.status()));
 
+                Set<FailureCause> expectedFailures = expectedRemoteFailure.failures();
                 Set<FailureCause> actualFailures = remoteCluster.getFailures()
                     .stream()
                     .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
                     .collect(Collectors.toSet());
-                assertThat(actualFailures, equalTo(expectedRemoteFailures));
+                assertThat(actualFailures, equalTo(expectedFailures));
             } else {
                 assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
                 assertThat(remoteCluster.getFailures().isEmpty(), is(true));
@@ -823,7 +970,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         return clusterAlias + ":" + indexName;
     }
 
-    private static float[] generateDenseVectorFieldValue(int dimensions, DenseVectorFieldMapper.ElementType elementType) {
+    private static float[] generateDenseVectorFieldValue(int dimensions, DenseVectorFieldMapper.ElementType elementType, float value) {
         if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
             assert dimensions % 8 == 0;
             dimensions /= 8;
@@ -832,7 +979,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         float[] vector = new float[dimensions];
         for (int i = 0; i < dimensions; i++) {
             // Use a constant value so that relevance is consistent
-            vector[i] = -128.0f;
+            vector[i] = value;
         }
 
         return vector;
@@ -882,4 +1029,6 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     private record SearchResult(@Nullable String clusterAlias, String index, String id) {}
 
     private record FailureCause(Class<? extends Throwable> causeClass, String message) {}
+
+    private record ClusterFailure(SearchResponse.Cluster.Status status, Set<FailureCause> failures) {}
 }

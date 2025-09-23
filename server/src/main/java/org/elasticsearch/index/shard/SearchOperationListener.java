@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
@@ -127,6 +128,14 @@ public interface SearchOperationListener {
     default void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {}
 
     /**
+     * Executed after the can match phase successfully finished. Used for APM metrics.
+     * Note: this is not invoked if the can match phase execution failed.
+     * @param request the current shard search request
+     * @param tookInNanos the number of nanoseconds the can match execution took
+     */
+    default void onCanMatchPhase(ShardSearchRequest request, long tookInNanos) {};
+
+    /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
@@ -200,6 +209,17 @@ public interface SearchOperationListener {
                     listener.onFetchPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onFetchPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onCanMatchPhase(ShardSearchRequest request, long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onCanMatchPhase(request, tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onPreDfsPhase listener [" + listener + "] failed", e);
                 }
             }
         }

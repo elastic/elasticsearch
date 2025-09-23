@@ -34,6 +34,7 @@ import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.CAN_MATCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.DFS_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
@@ -120,9 +121,14 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
     public void testSearchTransportMetricsQueryThenFetch() {
         assertSearchHitsWithoutFailures(
-            client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
+            client().prepareSearch(indexName)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1) // force a can match phase
+                .setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
+        final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_PHASE_METRIC);
+        assertEquals(num_primaries, canMatchMeasurements.size());
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, queryMeasurements.size());
         assertAttributes(queryMeasurements, false, false);

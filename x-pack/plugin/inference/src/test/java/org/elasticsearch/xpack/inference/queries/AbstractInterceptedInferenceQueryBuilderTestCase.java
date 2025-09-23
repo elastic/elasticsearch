@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -333,7 +334,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         QueryBuilder rewritten,
         TransportVersion transportVersion,
         QueryRewriteContext queryRewriteContext
-    );
+    ) throws Exception;
 
     protected abstract void assertCoordinatorNodeRewriteOnNonInferenceField(QueryBuilder original, QueryBuilder rewritten);
 
@@ -513,7 +514,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         QueryRewriteContext queryRewriteContext,
         Exception expectedRewriteException,
         Exception expectedSerializationException
-    ) throws IOException {
+    ) throws Exception {
         if (expectedRewriteException != null) {
             Exception actualException = assertThrows(Exception.class, () -> rewriteAndFetch(originalQuery, queryRewriteContext));
             assertThat(actualException, instanceOf(expectedRewriteException.getClass()));
@@ -584,7 +585,8 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         return future.actionGet();
     }
 
-    protected static void disableQueryInterception(QueryRewriteContext queryRewriteContext, Runnable runnable) {
+    protected static void disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedRunnable<Exception> runnable)
+        throws Exception {
         QueryRewriteInterceptor interceptor = queryRewriteContext.getQueryRewriteInterceptor();
         queryRewriteContext.setQueryRewriteInterceptor(null);
         runnable.run();

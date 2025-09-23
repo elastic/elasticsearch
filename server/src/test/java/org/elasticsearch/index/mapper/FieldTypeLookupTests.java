@@ -541,7 +541,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         for (int i = 0; i < times; i++) {
             byte[] bytes = new byte[randomInt(1024)];
             random().nextBytes(bytes);
-            String s = new String(bytes);
+            String s = new String(bytes, StandardCharsets.UTF_8);
             int expected = s.chars().map(c -> c == '.' ? 1 : 0).sum();
             assertEquals(expected, FieldTypeLookup.dotCount(s));
         }

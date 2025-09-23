@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
@@ -174,8 +175,10 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertTextRef(text.bytes(), "14`\\%+");
             // Retrieve the value for a second time to ensure the last value is available
             assertThat(parser.getText(), equalTo("14`\\%+"));
-            text = parser.getValueAsText();
-            assertThat(text, Matchers.notNullValue());
+            // After retrieving with getText() we do not use the optimised value even if it's there.
+            assertThat(parser.getValueAsText(), Matchers.nullValue());
+            assertThat(parser.lastOptimisedValue, notNullValue());
+
             assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
             assertThat(parser.lastOptimisedValue, nullValue());
         });
@@ -294,13 +297,15 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
                     var text = parser.getValueAsText();
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), equalTo(currVal.length()));
-                    // Use getText()
-                    assertThat(parser.getText(), equalTo(text.string()));
-                    // Retrieve it again as value
+                    // Retrieve it a second time
                     text = parser.getValueAsText();
                     assertThat(text, Matchers.notNullValue());
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), equalTo(currVal.length()));
+                    // Use getText()
+                    assertThat(parser.getText(), equalTo(text.string()));
+                    // After retrieving it with getText() we do not use the optimised value anymore.
+                    assertThat(parser.getValueAsText(), Matchers.nullValue());
                 } else {
                     assertThat(parser.getText(), Matchers.notNullValue());
                     assertThat(parser.getValueAsText(), Matchers.nullValue());

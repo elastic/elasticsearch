@@ -148,33 +148,33 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
 
     @Override
     public JsonToken nextToken() throws IOException {
-        maybeResetCurrentTokenState();
-        stringEnd = -1;
+        resetCurrentTokenState();
         return super.nextToken();
     }
 
     @Override
     public boolean nextFieldName(SerializableString str) throws IOException {
-        maybeResetCurrentTokenState();
-        stringEnd = -1;
+        resetCurrentTokenState();
         return super.nextFieldName(str);
     }
 
     @Override
     public String nextFieldName() throws IOException {
-        maybeResetCurrentTokenState();
-        stringEnd = -1;
+        resetCurrentTokenState();
         return super.nextFieldName();
     }
 
     /**
-     * Resets the current token state before moving to the next.
+     * Resets the current token state before moving to the next. It resets the _inputPtr and the
+     * _tokenIncomplete only if {@link UTF8StreamJsonParser#getText()} or {@link UTF8StreamJsonParser#getValueAsString()}
+     * hasn't run yet.
      */
-    private void maybeResetCurrentTokenState() {
+    private void resetCurrentTokenState() {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
             _inputPtr = stringEnd;
             _tokenIncomplete = false;
-            lastOptimisedValue = null;
         }
+        lastOptimisedValue = null;
+        stringEnd = -1;
     }
 }

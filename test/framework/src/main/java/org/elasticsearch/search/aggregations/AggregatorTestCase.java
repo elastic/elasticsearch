@@ -494,8 +494,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        when(ctx.fetchPhase())
-            .thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase()), MeterRegistry.NOOP));
+        when(ctx.fetchPhase()).thenReturn(
+            new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase()), MeterRegistry.NOOP)
+        );
         when(ctx.circuitBreaker()).thenReturn(breaker);
         when(ctx.memAccountingBufferSize()).thenReturn(1024 * 1024L);
         /*

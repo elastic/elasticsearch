@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -40,6 +42,8 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -85,12 +89,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         this.indexMode = indexMode;
     }
 
-    protected record NodeInfo(String id, Version version) {}
+    protected record NodeInfo(String cluster, String id, Version version) {}
 
     private static Map<String, NodeInfo> nodeToInfo;
+
     private Map<String, NodeInfo> nodeToInfo() throws IOException {
         if (nodeToInfo == null) {
-            nodeToInfo = fetchNodeToInfo(client());
+            nodeToInfo = fetchNodeToInfo(client(), null);
         }
         return nodeToInfo;
     }
@@ -102,7 +107,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return nodeToInfo();
     }
 
-    protected static Map<String, NodeInfo> fetchNodeToInfo(RestClient client) throws IOException {
+    protected static Map<String, NodeInfo> fetchNodeToInfo(RestClient client, String cluster) throws IOException {
         Map<String, NodeInfo> nodeToInfo = new TreeMap<>();
         Request getIds = new Request("GET", "_cat/nodes");
         getIds.addParameter("h", "name,id,version");
@@ -114,7 +119,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             logger.info("node: {}", line);
             String[] l = line.split(" ");
             // TODO what's the right thing to use instead of Version?
-            nodeToInfo.put(l[0], new NodeInfo(l[1], Version.fromString(l[2])));
+            nodeToInfo.put(l[0], new NodeInfo(cluster, l[1], Version.fromString(l[2])));
         }
         return nodeToInfo;
     }
@@ -130,7 +135,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         Request request = new Request("POST", "_query");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
         body.field("query", """
-            FROM %mode%* METADATA _id, _ignored, _index, _index_mode, _score, _source, _version
+            FROM *:%mode%*,%mode%* METADATA _id, _ignored, _index, _index_mode, _score, _source, _version
             | LIMIT 1000
             """.replace("%mode%", indexMode.toString()));
         {
@@ -156,11 +161,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         profileLogger.extractProfile(response, true);
 
         MapMatcher expectedColumns = matchesMap();
+        Version minVersion = allNodeToInfo().values().stream().map(n -> n.version).min(Comparator.comparing(v -> v.id)).get();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
                 continue;
             }
-            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type));
+            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(minVersion, type));
         }
         expectedColumns = expectedColumns.entry("_id", "keyword")
             .entry("_ignored", "keyword")
@@ -180,9 +186,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type) == false) {
                     continue;
                 }
-                expectedValues = expectedValues.entry(fieldName(type), expectedValue(nodeInfo.version, type));
+                expectedValues = expectedValues.entry(fieldName(type), expectedValue(minVersion, nodeInfo.version, type));
             }
             String expectedIndex = indexMode + "_" + nodeName;
+            if (nodeInfo.cluster != null) {
+                expectedIndex = nodeInfo.cluster + ":" + expectedIndex;
+            }
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
                 .entry("_index", expectedIndex)
@@ -293,7 +302,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    private Matcher<?> expectedValue(Version version, DataType type) {
+    private Matcher<?> expectedValue(Version minVersion, Version version, DataType type) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
             case COUNTER_LONG, LONG, COUNTER_INTEGER, INTEGER, UNSIGNED_LONG, SHORT, BYTE -> equalTo(1);
@@ -312,18 +321,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
-                // TODO this is almost certainly not the right version
-                if (false == version.onOrAfter(Version.V_9_0_4)) {
+                if (minVersion.onOrAfter(Version.V_9_2_0)) {
                     yield nullValue();
                 }
-                // TODO why not a map?
-                yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
+                Matcher<String> expected = equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
+                yield anyOf(nullValue(), expected);
             }
             case DENSE_VECTOR -> {
-                if (false == version.onOrAfter(Version.V_9_2_0)) {
-                    yield matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
+                if (minVersion.onOrAfter(Version.V_9_2_0)) {
+                    yield nullValue();
                 }
-                yield matchesList().item(0.5).item(10.0).item(5.9999995);
+                Matcher<List<?>> expected = version.onOrAfter(Version.V_9_2_0)
+                    ? matchesList().item(0.5).item(10.0).item(5.9999995)
+                    : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
+                yield anyOf(nullValue(), expected);
             }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
@@ -383,18 +394,25 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    private String expectedType(DataType type) {
+    private Matcher<String> expectedType(Version minVersion, DataType type) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
-                    yield type.esType();
+                    yield equalTo(type.esType());
                 }
-                yield type.esType().replace("counter_", "");
+                yield equalTo(type.esType().replace("counter_", ""));
             }
-            case BYTE, SHORT -> "integer";
-            case HALF_FLOAT, SCALED_FLOAT, FLOAT -> "double";
-            case NULL -> "keyword";
-            default -> type.esType();
+            case BYTE, SHORT -> equalTo("integer");
+            case HALF_FLOAT, SCALED_FLOAT, FLOAT -> equalTo("double");
+            case NULL -> equalTo("keyword");
+            // Currently unsupported without TS command or KNN function
+            case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
+                if (false == minVersion.onOrAfter(Version.V_9_2_0)) {
+                    yield either(equalTo("unsupported")).or(equalTo(type.esType()));
+                }
+                yield equalTo("unsupported");
+            }
+            default -> equalTo(type.esType());
         };
     }
 

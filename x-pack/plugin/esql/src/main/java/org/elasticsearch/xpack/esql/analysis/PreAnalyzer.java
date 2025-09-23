@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,8 +25,14 @@ import java.util.List;
  */
 public class PreAnalyzer {
 
-    public record PreAnalysis(IndexMode indexMode, IndexPattern indexPattern, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of());
+    public record PreAnalysis(
+        IndexMode indexMode,
+        IndexPattern indexPattern,
+        List<Enrich> enriches,
+        List<IndexPattern> lookupIndices,
+        boolean supportsDenseVector
+    ) {
+        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false);
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -35,13 +44,9 @@ public class PreAnalyzer {
     }
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
-
         Holder<IndexMode> indexMode = new Holder<>();
         Holder<IndexPattern> index = new Holder<>();
-
-        List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
-
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
                 lookupIndices.add(p.indexPattern());
@@ -53,11 +58,25 @@ public class PreAnalyzer {
             }
         });
 
+        List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
+
+        Holder<Boolean> supportsDenseVector = new Holder<>(false);
+        plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
+            if (fn.name().equalsIgnoreCase("knn")
+                || fn.name().equalsIgnoreCase("v_cosine")
+                || fn.name().equalsIgnoreCase("v_hamming")
+                || fn.name().equalsIgnoreCase("v_l1_norm")
+                || fn.name().equalsIgnoreCase("v_l2_norm")
+                || fn.name().equalsIgnoreCase("v_dot_product")
+                || fn.name().equalsIgnoreCase("v_magnitude")) {
+                supportsDenseVector.set(true);
+            }
+        }));
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indexMode.get(), index.get(), unresolvedEnriches, lookupIndices);
+        return new PreAnalysis(indexMode.get(), index.get(), unresolvedEnriches, lookupIndices, supportsDenseVector.get());
     }
 }

@@ -51,7 +51,7 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
 
     private Map<String, NodeInfo> remoteNodeToInfo() throws IOException {
         if (remoteNodeToInfo == null) {
-            remoteNodeToInfo = fetchNodeToInfo(remoteClient());
+            remoteNodeToInfo = fetchNodeToInfo(remoteClient(), "remote_cluster");
         }
         return remoteNodeToInfo;
     }

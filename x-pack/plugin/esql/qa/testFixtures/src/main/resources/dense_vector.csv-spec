@@ -2,6 +2,7 @@ retrieveDenseVectorData
 required_capability: dense_vector_field_type
 
 FROM dense_vector
+| EVAL k = SCORE(v_l2_norm(float_vector, [1]))
 | KEEP id, float_vector
 | SORT id
 ;
@@ -18,6 +19,7 @@ required_capability: dense_vector_field_type
 
 FROM dense_vector
 | EVAL v = float_vector
+| EVAL k = SCORE(v_l2_norm(float_vector, [1]))
 | KEEP id, v
 | SORT id
 ;
@@ -34,8 +36,9 @@ required_capability: dense_vector_field_type
 
 FROM dense_vector 
 | EVAL v = float_vector 
+| EVAL k = SCORE(v_l2_norm(float_vector, [1]))
 | RENAME v AS new_vector 
-| DROP float_vector, byte_vector, bit_vector
+| DROP float_vector, byte_vector, bit_vector, k
 | SORT id
 ;
 

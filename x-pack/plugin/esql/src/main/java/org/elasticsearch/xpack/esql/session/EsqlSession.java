@@ -440,6 +440,8 @@ public class EsqlSession {
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
             false,
+            false,
+            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -657,6 +659,8 @@ public class EsqlSession {
                         default -> requestFilter;
                     },
                     preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    preAnalysis.supportsDenseVector(),
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
                     })

@@ -58,15 +58,18 @@ class IndicesAndAliasesResolver {
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
+    private final boolean recordResolvedIndexExpressions;
 
     IndicesAndAliasesResolver(
         Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
-        IndexNameExpressionResolver resolver
+        IndexNameExpressionResolver resolver,
+        boolean recordResolvedIndexExpressions
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
+        this.recordResolvedIndexExpressions = recordResolvedIndexExpressions;
     }
 
     /**
@@ -357,7 +360,11 @@ class IndicesAndAliasesResolver {
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );
-                replaceable.setResolvedIndexExpressions(resolved);
+                // only store resolved expressions if configured to avoid unnecessary memory usage
+                // once we've migrated from `indices()` to using resolved expressions, we will always store them as part of the request
+                if (recordResolvedIndexExpressions) {
+                    replaceable.setResolvedIndexExpressions(resolved);
+                }
                 resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }

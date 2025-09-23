@@ -429,7 +429,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         defaultIndicesResolver = new IndicesAndAliasesResolver(
             settings,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver),
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
     }
 

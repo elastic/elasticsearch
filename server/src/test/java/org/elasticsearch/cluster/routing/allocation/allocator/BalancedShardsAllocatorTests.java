@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -51,7 +52,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -59,6 +62,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -78,6 +82,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -86,6 +91,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
+    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
+    };
     private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
     public void testDecideShardAllocation() {
@@ -681,11 +688,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     public void testReturnEarlyOnShardAssignmentChanges() {
+        var shardWriteLoads = new HashMap<ShardId, Double>();
         var allocationService = new MockAllocationService(
             prefixAllocationDeciders(),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
-            EmptyClusterInfoService.INSTANCE,
+            () -> ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
@@ -731,6 +739,45 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 )
         );
 
+        // A started index with a non-preferred allocation (low write load)
+        final double notPreferredLowerWriteLoad = randomDoubleBetween(0.0, 5.0, true);
+        final IndexMetadata notPreferredAllocation = anIndex("large-not-preferred-allocation", indexSettings(IndexVersion.current(), 1, 0))
+            .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID()))
+            .build();
+        projectMetadataBuilder.put(notPreferredAllocation, false);
+        routingTableBuilder.add(
+            IndexRoutingTable.builder(notPreferredAllocation.getIndex())
+                .addShard(
+                    shardRoutingBuilder(notPreferredAllocation.getIndex().getName(), 0, "large-1", true, ShardRoutingState.STARTED)
+                        .withAllocationId(AllocationId.newInitializing(notPreferredAllocation.inSyncAllocationIds(0).iterator().next()))
+                        .build()
+                )
+        );
+        shardWriteLoads.put(new ShardId(notPreferredAllocation.getIndex(), 0), notPreferredLowerWriteLoad);
+
+        // A started index with a non-preferred allocation (max write load)
+        final double notPreferredMaxWriteLoad = randomDoubleBetween(notPreferredLowerWriteLoad, 15.0, true);
+        final IndexMetadata notPreferredAllocationMaxWriteLoad = anIndex(
+            "large-not-preferred-allocation-max-write-load",
+            indexSettings(IndexVersion.current(), 1, 0)
+        ).putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID())).build();
+        projectMetadataBuilder.put(notPreferredAllocationMaxWriteLoad, false);
+        routingTableBuilder.add(
+            IndexRoutingTable.builder(notPreferredAllocationMaxWriteLoad.getIndex())
+                .addShard(
+                    shardRoutingBuilder(
+                        notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                        0,
+                        "large-1",
+                        true,
+                        ShardRoutingState.STARTED
+                    ).withAllocationId(
+                        AllocationId.newInitializing(notPreferredAllocationMaxWriteLoad.inSyncAllocationIds(0).iterator().next())
+                    ).build()
+                )
+        );
+        shardWriteLoads.put(new ShardId(notPreferredAllocationMaxWriteLoad.getIndex(), 0), notPreferredMaxWriteLoad);
+
         // Indices with unbalanced weight of write loads
         final var numWriteLoadIndices = between(3, 5);
         for (int i = 0; i < numWriteLoadIndices; i++) {
@@ -768,8 +815,22 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             assertTrue("unexpected shard state: " + replicaShard, replicaShard.initializing());
 
             // Undesired allocation is not moved because allocate call returns early
-            final var shard = routingTable.shardRoutingTable(undesiredAllocation.getIndex().getName(), 0).primaryShard();
-            assertTrue("unexpected shard state: " + shard, shard.started());
+            final var undesiredShard = routingTable.shardRoutingTable(undesiredAllocation.getIndex().getName(), 0).primaryShard();
+            assertTrue("unexpected shard state: " + undesiredShard, undesiredShard.started());
+
+            // Not-preferred shard is not moved because allocate call returns early
+            final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocation.getIndex().getName(), 0).primaryShard();
+            assertFalse("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
+
+            // Not-preferred (max-write-load) shard is not moved because allocate call returns early
+            final var notPreferredAllocationMaxWriteLoadShard = routingTable.shardRoutingTable(
+                notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                0
+            ).primaryShard();
+            assertFalse(
+                "unexpected shard state: " + notPreferredAllocationMaxWriteLoadShard,
+                notPreferredAllocationMaxWriteLoadShard.relocating()
+            );
 
             // Also no rebalancing for indices with unbalanced write loads due to returning early
             for (int i = 0; i < numWriteLoadIndices; i++) {
@@ -783,8 +844,22 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         {
             // Undesired allocation is now relocating
             final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
-            final var shard = routingTable.shardRoutingTable(undesiredAllocation.getIndex().getName(), 0).primaryShard();
-            assertTrue("unexpected shard state: " + shard, shard.relocating());
+            final var undesiredShard = routingTable.shardRoutingTable(undesiredAllocation.getIndex().getName(), 0).primaryShard();
+            assertTrue("unexpected shard state: " + undesiredShard, undesiredShard.relocating());
+
+            // Not-preferred shard is not moved because allocate call returns early
+            final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocation.getIndex().getName(), 0).primaryShard();
+            assertFalse("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
+
+            // Not-preferred (max-write-load) shard is not moved because allocate call returns early
+            final var notPreferredAllocationMaxWriteLoadShard = routingTable.shardRoutingTable(
+                notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                0
+            ).primaryShard();
+            assertFalse(
+                "unexpected shard state: " + notPreferredAllocationMaxWriteLoadShard,
+                notPreferredAllocationMaxWriteLoadShard.relocating()
+            );
 
             // Still no rebalancing for indices with unbalanced write loads due to returning early
             for (int i = 0; i < numWriteLoadIndices; i++) {
@@ -794,6 +869,47 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         // Third reroute
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        {
+            // Not-preferred allocation is now relocating
+            final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+            final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocation.getIndex().getName(), 0).primaryShard();
+            assertTrue("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
+
+            // Not-preferred (max-write-load) shard is not moved because allocate call returns early
+            final var notPreferredAllocationMaxWriteLoadShard = routingTable.shardRoutingTable(
+                notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                0
+            ).primaryShard();
+            assertFalse(
+                "unexpected shard state: " + notPreferredAllocationMaxWriteLoadShard,
+                notPreferredAllocationMaxWriteLoadShard.relocating()
+            );
+
+            // Still no rebalancing for indices with unbalanced write loads due to returning early
+            for (int i = 0; i < numWriteLoadIndices; i++) {
+                final var writeLoadShard = routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard();
+                assertTrue("unexpected shard state: " + writeLoadShard, writeLoadShard.started());
+            }
+        }
+
+        // Fourth reroute
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        {
+            // Not-preferred (max-write-load) allocation is now relocating
+            final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+            final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocationMaxWriteLoad.getIndex().getName(), 0)
+                .primaryShard();
+            assertTrue("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
+
+            // Still no rebalancing for indices with unbalanced write loads due to returning early
+            for (int i = 0; i < numWriteLoadIndices; i++) {
+                final var writeLoadShard = routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard();
+                assertTrue("unexpected shard state: " + writeLoadShard, writeLoadShard.started());
+            }
+        }
+
+        // Fifth reroute
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         {
             // Rebalance should happen for one and only one of the indices with unbalanced write loads due to returning early
@@ -807,6 +923,116 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         // Ensure allocate to the balancer eventually stop after sufficient iterations
         applyStartedShardsUntilNoChange(clusterState, allocationService);
+    }
+
+    public void testShardMovementPriorityComparator() {
+        final double maxWriteLoad = randomDoubleBetween(0.0, 100.0, true);
+        final double lowThreshold = maxWriteLoad * 0.5;
+        final int numAtMax = between(1, 5);
+        final int numBetweenLowAndMax = between(0, 50);
+        final int numBelowLow = between(0, 50);
+        final int numMissing = between(0, 50);
+        final int totalShards = numAtMax + numBetweenLowAndMax + numBelowLow + numMissing;
+
+        final var indices = new ArrayList<IndexMetadata.Builder>();
+        for (int i = 0; i < totalShards; i++) {
+            indices.add(anIndex("index-" + i).numberOfShards(1).numberOfReplicas(0));
+        }
+
+        final var nodeId = randomIdentifier();
+        final var stateWithIndices = createStateWithIndices(
+            List.of(nodeId),
+            shardId -> nodeId,
+            indices.toArray(IndexMetadata.Builder[]::new)
+        );
+
+        final var allShards = stateWithIndices.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
+        final var shardWriteLoads = new HashMap<ShardId, Double>();
+        addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numAtMax, () -> maxWriteLoad);
+        addRandomWriteLoadAndRemoveShard(
+            shardWriteLoads,
+            allShards,
+            numBetweenLowAndMax,
+            () -> randomDoubleBetween(lowThreshold, maxWriteLoad, true)
+        );
+        addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numBelowLow, () -> randomDoubleBetween(0, lowThreshold, true));
+        assertThat(allShards, hasSize(numMissing));
+
+        final var allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            stateWithIndices,
+            ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes(),
+            System.nanoTime()
+        );
+
+        // Assign all shards to node
+        final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();
+        for (ShardRouting shardRouting : allocatedRoutingNodes.unassigned()) {
+            allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), NOOP);
+        }
+
+        final var comparator = new BalancedShardsAllocator.Balancer.ShardMovementPriorityComparator(
+            allocation,
+            allocatedRoutingNodes.node(nodeId)
+        );
+
+        logger.info("--> testing shard movement priority comparator, maxValue={}, threshold={}", maxWriteLoad, lowThreshold);
+        var sortedShards = allocatedRoutingNodes.getAssignedShards().values().stream().flatMap(List::stream).sorted(comparator).toList();
+
+        for (ShardRouting shardRouting : sortedShards) {
+            logger.info("--> {}: {}", shardRouting.shardId(), shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0));
+        }
+
+        double lastWriteLoad = 0.0;
+        int currentIndex = 0;
+        logger.info("--> expecting {} missing", numMissing);
+        for (int i = 0; i < numMissing; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++);
+            assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
+        }
+        logger.info("--> expecting {} at max", numAtMax);
+        for (int i = 0; i < numAtMax; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
+            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            assertThat(currentWriteLoad, equalTo(maxWriteLoad));
+        }
+        logger.info("--> expecting {} below low in ascending order", numBelowLow);
+        for (int i = 0; i < numBelowLow; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
+            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            if (i == 0) {
+                lastWriteLoad = currentWriteLoad;
+            } else {
+                assertThat(currentWriteLoad, greaterThanOrEqualTo(lastWriteLoad));
+            }
+        }
+        logger.info("--> expecting {} between low and max in descending order", numBetweenLowAndMax);
+        for (int i = 0; i < numBetweenLowAndMax; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
+            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            if (i == 0) {
+                lastWriteLoad = currentWriteLoad;
+            } else {
+                assertThat(currentWriteLoad, lessThanOrEqualTo(lastWriteLoad));
+            }
+        }
+    }
+
+    private void addRandomWriteLoadAndRemoveShard(
+        Map<ShardId, Double> shardWriteLoads,
+        Set<ShardRouting> shards,
+        int count,
+        DoubleSupplier writeLoadSupplier
+    ) {
+        for (int i = 0; i < count; i++) {
+            final var shardRouting = randomFrom(shards);
+            shardWriteLoads.put(shardRouting.shardId(), writeLoadSupplier.getAsDouble());
+            shards.remove(shardRouting);
+        }
     }
 
     private Map<String, Integer> getTargetShardPerNodeCount(IndexRoutingTable indexRoutingTable) {
@@ -850,7 +1076,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     private static ClusterState createStateWithIndices(
         List<String> nodeNames,
-        Function<ShardId, String> unbalancedAllocator,
+        Function<ShardId, String> shardAllocator,
         IndexMetadata.Builder... indexMetadataBuilders
     ) {
         var metadataBuilder = Metadata.builder();
@@ -873,9 +1099,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata.getIndex())
                         .addShard(
-                            shardRoutingBuilder(shardId, unbalancedAllocator.apply(shardId), true, ShardRoutingState.STARTED)
-                                .withAllocationId(AllocationId.newInitializing(inSyncId))
-                                .build()
+                            shardRoutingBuilder(shardId, shardAllocator.apply(shardId), true, ShardRoutingState.STARTED).withAllocationId(
+                                AllocationId.newInitializing(inSyncId)
+                            ).build()
                         )
                 );
             }
@@ -989,32 +1215,65 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     /**
-     * Allocation deciders that only allow shards to be allocated to nodes whose names share the same prefix
+     * Allocation deciders that trigger movements based on specific index names
+     *
+     * @see MoveNotPreferredOnceDecider
+     * @see PrefixAllocationDecider
+     */
+    private static AllocationDeciders prefixAllocationDeciders() {
+        return new AllocationDeciders(
+            List.of(
+                new PrefixAllocationDecider(),
+                new MoveNotPreferredOnceDecider(),
+                new SameShardAllocationDecider(ClusterSettings.createBuiltInClusterSettings())
+            )
+        );
+    }
+
+    /**
+     * Allocation decider that only allow shards to be allocated to nodes whose names share the same prefix
      * as the index they're from
      */
-    private AllocationDeciders prefixAllocationDeciders() {
-        return new AllocationDeciders(List.of(new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return nodePrefixMatchesIndexPrefix(shardRouting, node);
-            }
+    private static class PrefixAllocationDecider extends AllocationDecider {
+        @Override
+        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return nodePrefixMatchesIndexPrefix(shardRouting, node);
+        }
 
-            @Override
-            public Decision canRemain(
-                IndexMetadata indexMetadata,
-                ShardRouting shardRouting,
-                RoutingNode node,
-                RoutingAllocation allocation
-            ) {
-                return nodePrefixMatchesIndexPrefix(shardRouting, node);
-            }
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return nodePrefixMatchesIndexPrefix(shardRouting, node);
+        }
 
-            private Decision nodePrefixMatchesIndexPrefix(ShardRouting shardRouting, RoutingNode node) {
-                var indexPrefix = prefix(shardRouting.index().getName());
-                var nodePrefix = prefix(node.node().getId());
-                return nodePrefix.equals(indexPrefix) ? Decision.YES : Decision.NO;
+        private Decision nodePrefixMatchesIndexPrefix(ShardRouting shardRouting, RoutingNode node) {
+            var indexPrefix = prefix(shardRouting.index().getName());
+            var nodePrefix = prefix(node.node().getId());
+            return nodePrefix.equals(indexPrefix) ? Decision.YES : Decision.NO;
+        }
+    }
+
+    /**
+     * Returns {@link Decision#NOT_PREFERRED} for any shard with 'not-preferred' in the index
+     * name, until it's moved to another node.
+     */
+    private static class MoveNotPreferredOnceDecider extends AllocationDecider {
+
+        private Map<ShardId, String> originalNodes = new HashMap<>();
+
+        @Override
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            if (shardRouting.currentNodeId() == null) {
+                return Decision.YES;
             }
-        }, new SameShardAllocationDecider(ClusterSettings.createBuiltInClusterSettings())));
+            if (shardRouting.index().getName().contains("not-preferred") == false) {
+                return Decision.YES;
+            }
+            if (originalNodes.containsKey(shardRouting.shardId()) == false) {
+                // Remember where we first saw it
+                originalNodes.put(shardRouting.shardId(), shardRouting.currentNodeId());
+            }
+            return shardRouting.currentNodeId().equals(originalNodes.get(shardRouting.shardId())) ? Decision.NOT_PREFERRED : Decision.YES;
+        }
     }
 
     private static String prefix(String value) {

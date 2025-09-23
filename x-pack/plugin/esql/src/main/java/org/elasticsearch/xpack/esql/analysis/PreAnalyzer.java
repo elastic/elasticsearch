@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,9 +28,10 @@ public class PreAnalyzer {
         IndexPattern indexPattern,
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
+        boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false);
+        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false, false);
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -61,6 +60,7 @@ public class PreAnalyzer {
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
+        Holder<Boolean> supportsAggregateMetricDouble = new Holder<>(false);
         Holder<Boolean> supportsDenseVector = new Holder<>(false);
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
             if (fn.name().equalsIgnoreCase("knn")
@@ -72,11 +72,21 @@ public class PreAnalyzer {
                 || fn.name().equalsIgnoreCase("v_magnitude")) {
                 supportsDenseVector.set(true);
             }
+            if (fn.name().equalsIgnoreCase("to_aggregate_metric_double")) {
+                supportsAggregateMetricDouble.set(true);
+            }
         }));
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indexMode.get(), index.get(), unresolvedEnriches, lookupIndices, supportsDenseVector.get());
+        return new PreAnalysis(
+            indexMode.get(),
+            index.get(),
+            unresolvedEnriches,
+            lookupIndices,
+            indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),
+            supportsDenseVector.get()
+        );
     }
 }

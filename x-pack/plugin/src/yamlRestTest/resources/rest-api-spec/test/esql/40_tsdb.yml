@@ -231,7 +231,10 @@ filter on counter without cast:
       catch: bad_request
       esql.query:
         body:
-          query: 'from test | where k8s.pod.network.tx == 1434577921'
+          query: |
+            FROM test
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | WHERE k8s.pod.network.tx == 1434577921
 
 ---
 cast counter then filter:
@@ -263,7 +266,12 @@ sort on counter without cast:
       catch: /cannot sort on counter_long/
       esql.query:
         body:
-          query: 'from test |  KEEP k8s.pod.network.tx | sort k8s.pod.network.tx | limit 1'
+          query: |
+            FROM test
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | KEEP k8s.pod.network.tx
+            | SORT k8s.pod.network.tx
+            | LIMIT 1
 
 ---
 cast then sort on counter:
@@ -289,7 +297,10 @@ from doc with aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test2'
+          query: |
+            FROM test2
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | DROP a
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -318,7 +329,10 @@ stats on aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test2 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
+          query: |
+            FROM test2
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)
   - length: {values: 1}
   - length: {values.0: 4}
   - match: {columns.0.name: "max(agg_metric)"}
@@ -349,9 +363,11 @@ grouping stats on aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: "FROM test2
-          | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY dim
-          | SORT dim"
+          query: |
+            FROM test2
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY dim
+            | SORT dim
   - length: {values: 2}
   - length: {values.0: 5}
   - match: {columns.0.name: "max(agg_metric)"}
@@ -390,7 +406,11 @@ sorting with aggregate_metric_double with partial submetrics:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | SORT @timestamp | KEEP @timestamp, agg_metric'
+          query: |
+            FROM test3
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | SORT @timestamp
+            | KEEP @timestamp, agg_metric
 
   - length: {values: 4}
   - length: {values.0: 2}
@@ -421,7 +441,11 @@ aggregate_metric_double unsortable:
       catch: /cannot sort on aggregate_metric_double/
       esql.query:
         body:
-          query: 'FROM test2 | sort agg_metric'
+          query: |
+            FROM test2
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | DROP a
+            | SORT agg_metric
 
 ---
 stats on aggregate_metric_double with partial submetrics:
@@ -438,7 +462,11 @@ stats on aggregate_metric_double with partial submetrics:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
+          query: |
+            FROM test3
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid
+            | SORT k8s.pod.uid
 
   - length: {values: 2}
   - length: {values.0: 5}
@@ -478,7 +506,10 @@ stats on aggregate_metric_double missing min and max:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test4 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
+          query: |
+            FROM test4
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)
 
   - length: {values: 1}
   - length: {values.0: 4}
@@ -510,7 +541,10 @@ render aggregate_metric_double when missing min and max:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test4 | KEEP agg_metric'
+          query: |
+            FROM test4
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | KEEP agg_metric
 
   - length: {values: 1}
   - length: {values.0: 1}
@@ -534,7 +568,11 @@ render aggregate_metric_double when missing value:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | WHERE @timestamp == "2021-04-28T19:51:04.467Z" | KEEP agg_metric'
+          query: |
+            FROM test3
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | WHERE @timestamp == "2021-04-28T19:51:04.467Z"
+            | KEEP agg_metric
 
   - length: {values: 1}
   - length: {values.0: 1}
@@ -558,7 +596,11 @@ to_string aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test4 | EVAL agg = to_string(agg_metric) | KEEP agg'
+          query: |
+            FROM test4
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | EVAL agg = to_string(agg_metric)
+            | KEEP agg
 
   - length: {values: 1}
   - length: {values.0: 1}
@@ -581,7 +623,10 @@ from index pattern unsupported counter:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test*'
+          query: |
+            FROM test*
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | DROP a
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -724,7 +769,11 @@ avg of aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test2 | STATS avg = avg(agg_metric) | KEEP avg'
+          query: |
+            FROM test2
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | STATS avg = avg(agg_metric)
+            | KEEP avg
 
   - length: {values: 1}
   - length: {values.0: 1}

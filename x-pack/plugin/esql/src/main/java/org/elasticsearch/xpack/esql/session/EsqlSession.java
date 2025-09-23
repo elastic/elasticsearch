@@ -659,7 +659,7 @@ public class EsqlSession {
                         default -> requestFilter;
                     },
                     preAnalysis.indexMode() == IndexMode.TIME_SERIES,
-                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    preAnalysis.supportsAggregateMetricDouble(),
                     preAnalysis.supportsDenseVector(),
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));

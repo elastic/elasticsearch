@@ -125,8 +125,7 @@ public class TimeSeriesAggregate extends Aggregate {
                     fail(
                         fieldAttr,
                         "cannot group by a metric field [{}] in a time-series aggregation; "
-                            + "only dimensions and the special fields [_tsid] and [tbucket] are allowed."
-                            + " If you want to group by a metric field, use a regular aggregation with the FROM "
+                            + "If you want to group by a metric field, use the FROM "
                             + "command instead of the TS command.",
                         fieldAttr.sourceText()
                     )

@@ -6,11 +6,11 @@ issues: []
 highlight:
   title: Release DiskBBQ(`bbq_disk`) index type for `dense_vector` fields
   body: |-
-     This releases a new index type called DiskBBQ (configuration\n`bbq_disk`).
+     This provides a new index type called DiskBBQ (`bbq_disk`).
      DiskBBQ is a cluster based format that provides:
        - faster and cheaper indexing than HNSW
        - Better behavior in lower memory environments (degrades linearly, not exponentially)
-      - Is near HNSW for QPS when the index is in memory\n\
+       - Is near HNSW for QPS when the index is in memory
 
     Current restrictions:
       - only floating point values are allowed currently
@@ -41,5 +41,5 @@ highlight:
     }
     ```
     `num_candidates` can be used for tuning approximate nature of the search.
-    Or, more granular control can be provided by setting\n`visit_percentage` directly.
+    Or, more granular control can be provided by setting `visit_percentage` directly.
   notable: true

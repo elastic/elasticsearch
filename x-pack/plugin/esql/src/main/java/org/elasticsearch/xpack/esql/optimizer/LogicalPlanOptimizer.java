@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSingleStringFilterWithMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
@@ -157,8 +158,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSurrogateExpressions(),
-            new ReplaceOrderByExpressionWithEval()
+            new ReplaceOrderByExpressionWithEval(),
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+            new ReplaceSingleStringFilterWithMatch()
         );
     }
 

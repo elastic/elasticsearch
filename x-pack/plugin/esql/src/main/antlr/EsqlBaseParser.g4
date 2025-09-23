@@ -74,6 +74,7 @@ processingCommand
 
 whereCommand
     : WHERE booleanExpression
+    | WHERE string                  #fullTextSearch
     ;
 
 dataType

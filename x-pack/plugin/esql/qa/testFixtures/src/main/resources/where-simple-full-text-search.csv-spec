@@ -1,0 +1,8 @@
+whereSimpleFullTextSearch
+required_capability: multi_match_function
+required_capability: match_function
+from employees | where "Eberhardt" | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10013          | Eberhardt
+;

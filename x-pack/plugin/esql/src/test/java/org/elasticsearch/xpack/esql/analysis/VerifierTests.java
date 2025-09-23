@@ -467,12 +467,17 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testAggWithNonBooleanFilter() {
-        for (String filter : List.of("\"true\"", "1", "1 + 0", "concat(\"a\", \"b\")")) {
-            String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";
-            assertEquals("1:19: Condition expression needs to be boolean, found [" + type + "]", error("from test | where " + filter));
+        String type = "INTEGER";
+        for (String filter : List.of("1", "1 + 0")) {
+            assertEquals(
+                "1:19: Condition expression needs to be a boolean for conditions or a string for full text search, found [" + type + "]",
+                error("from test | where " + filter)
+            );
             for (String by : List.of("", " by languages", " by bucket(salary, 10)")) {
                 assertEquals(
-                    "1:34: Condition expression needs to be boolean, found [" + type + "]",
+                    "1:34: Condition expression needs to be a boolean for conditions or a string for full text search, found ["
+                        + type
+                        + "]",
                     error("from test | stats count(*) where " + filter + by)
                 );
             }
@@ -982,12 +987,10 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testFilterNonBoolField() {
-        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
-
+    public void testFilterNonBoolOrNonStringField() {
         assertEquals(
-            "1:19: Condition expression needs to be boolean, found [KEYWORD]",
-            error("from test | where concat(first_name, \"foobar\")")
+            "1:19: Condition expression needs to be a boolean for conditions or a string for full text search, found [INTEGER]",
+            error("from test | where emp_no")
         );
     }
 
@@ -1005,22 +1008,27 @@ public class VerifierTests extends ESTestCase {
         query("from t | where to_string(null) == \"abc\"");
 
         // Other DataTypes can contain null values
-        assertEquals("1:19: Condition expression needs to be boolean, found [KEYWORD]", error("from test | where null::string"));
-        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where null::integer"));
         assertEquals(
-            "1:45: Condition expression needs to be boolean, found [DATETIME]",
+            "1:19: Condition expression needs to be a boolean for conditions or a string for full text search, found [INTEGER]",
+            error("from test | where null::integer")
+        );
+        assertEquals(
+            "1:45: Condition expression needs to be a boolean for conditions or a string for full text search, found [DATETIME]",
             error("from test | EVAL x = null::datetime | where x")
         );
     }
 
     public void testFilterDateConstant() {
-        assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
         assertEquals(
-            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            "1:19: Condition expression needs to be a boolean for conditions or a string for full text search, found [DATE_PERIOD]",
+            error("from test | where 1 year")
+        );
+        assertEquals(
+            "1:19: Condition expression needs to be a boolean for conditions or a string for full text search, found [DATE_PERIOD]",
             error("from test | where \"1 year\"::date_period")
         );
         assertEquals(
-            "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
+            "1:19: Condition expression needs to be a boolean for conditions or a string for full text search, found [DATE_PERIOD]",
             error("from test | where to_dateperiod(\"1 year\")")
         );
     }

@@ -164,7 +164,10 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("Condition expression needs to be boolean, found [DOUBLE]"));
+        assertThat(
+            error.getMessage(),
+            containsString("Condition expression needs to be a boolean for conditions or a string for full text search, found [DOUBLE]")
+        );
     }
 
     public void testScoreNonFullTextFunction() {

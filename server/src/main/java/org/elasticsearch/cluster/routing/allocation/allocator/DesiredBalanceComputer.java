@@ -330,7 +330,7 @@ public class DesiredBalanceComputer {
 
         int i = 0;
         boolean hasChanges = false;
-        boolean assignedNewlyCreatedPrimaryShards = false;
+        boolean assignedNewlyCreatedPrimaryOrReplicaShards = false;
         while (true) {
             if (hasChanges) {
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
@@ -356,14 +356,12 @@ public class DesiredBalanceComputer {
                 for (final var shardRouting : routingNode) {
                     if (shardRouting.initializing()) {
                         hasChanges = true;
-                        if (shardRouting.primary()
-                            && shardRouting.unassignedInfo() != null
+                        if (shardRouting.unassignedInfo() != null
                             && shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
                             // TODO: we could include more cases that would cause early publishing of desired balance in case of a long
                             // computation. e.g.:
-                            // - unassigned search replicas in case the shard has no assigned shard replicas
                             // - other reasons for an unassigned shard such as NEW_INDEX_RESTORED
-                            assignedNewlyCreatedPrimaryShards = true;
+                            assignedNewlyCreatedPrimaryOrReplicaShards = true;
                         }
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
                         routingNodes.startShard(shardRouting, changes, 0L);
@@ -427,7 +425,7 @@ public class DesiredBalanceComputer {
                 break;
             }
 
-            if (assignedNewlyCreatedPrimaryShards
+            if (assignedNewlyCreatedPrimaryOrReplicaShards
                 && currentTime - computationStartedTime >= maxBalanceComputationTimeDuringIndexCreationMillis) {
                 logger.info(
                     "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations "

@@ -422,14 +422,9 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             // Manually control cluster info refreshes
             .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m")
             .build();
-        var masterName = internalCluster().startMasterOnlyNode(settings);
+        internalCluster().startMasterOnlyNode(settings);
         var dataNodeName = internalCluster().startDataOnlyNode(settings);
         ensureStableCluster(2);
-
-        String indexName = randomIdentifier();
-        final int numShards = randomIntBetween(1, 5);
-        createIndex(indexName, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
-        ensureGreen(indexName);
 
         // Global checkpoint sync actions are asynchronous. We cannot really tell exactly when they are completely off the
         // thread pool. To avoid busy waiting, we redirect them to the generic thread pool so that we have precise control
@@ -451,6 +446,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                     true
                 )
             );
+
+        String indexName = randomIdentifier();
+        final int numShards = randomIntBetween(1, 5);
+        createIndex(indexName, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        ensureGreen(indexName);
 
         // Block indexing on the data node by submitting write thread pool tasks equal to the number of write threads.
         var barrier = blockDataNodeIndexing(dataNodeName);
@@ -478,11 +478,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             );
 
             // Force a refresh of the ClusterInfo state to collect fresh info from the data node.
-            final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
-                InternalClusterInfoService.class,
-                internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
-            );
-            final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+            final ClusterInfo clusterInfo = refreshClusterInfo();
+            assertNotNull(clusterInfo);
 
             // Since tasks are actively queued right now, #peekMaxQueueLatencyInQueue, which is called from the
             // TransportNodeUsageStatsForThreadPoolsAction that a ClusterInfoService refresh initiates, should return a max queue
@@ -521,7 +518,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 equalTo(0L)
             );
 
-            final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+            final ClusterInfo nextClusterInfo = refreshClusterInfo();
             {
                 final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = nextClusterInfo
                     .getNodeUsageStatsForThreadPools();
@@ -548,11 +545,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         // Now that there's nothing in the queue, and no activity since the last ClusterInfo refresh, the max latency returned should be
         // zero. Verify this.
-        final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
-            InternalClusterInfoService.class,
-            internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
-        );
-        final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+        final ClusterInfo clusterInfo = refreshClusterInfo();
         {
             final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
             logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
@@ -566,7 +559,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
             assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
             assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
-            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), equalTo(0f));
+            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), equalTo(0f));                ////////////////
             assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
         }
     }

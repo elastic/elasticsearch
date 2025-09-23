@@ -144,7 +144,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> values = (List<?>) response.get("values");
         profileLogger.extractProfile(response, true);
 
-
         MapMatcher expectedColumns = matchesMap();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
@@ -301,12 +300,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : equalTo("POINT (-71.34 41.12)");
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
-            case AGGREGATE_METRIC_DOUBLE ->
+            case AGGREGATE_METRIC_DOUBLE -> {
+                // TODO this is almost certainly not the right version
+                if (false == version.onOrAfter(Version.V_9_0_4)) {
+                    yield nullValue();
+                }
                 // TODO why not a map?
-                equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
-            case DENSE_VECTOR -> version.onOrAfter(Version.V_9_2_0)
-                ? matchesList().item(0.5).item(10.0).item(5.9999995)
-                : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
+                yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
+            }
+            case DENSE_VECTOR -> {
+                if (false == version.onOrAfter(Version.V_9_2_0)) {
+                    yield matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
+                }
+                yield matchesList().item(0.5).item(10.0).item(5.9999995);
+            }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
     }

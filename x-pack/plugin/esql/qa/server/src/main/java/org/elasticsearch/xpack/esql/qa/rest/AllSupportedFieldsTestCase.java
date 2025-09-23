@@ -101,6 +101,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         BufferedReader idsReader = new BufferedReader(new InputStreamReader(idsResponse.getEntity().getContent()));
         String line;
         while ((line = idsReader.readLine()) != null) {
+            logger.info("node: {}", line);
             String[] l = line.split(" ");
             // TODO what's the right thing to use instead of Version?
             nodeToInfo.put(l[0], new NodeInfo(l[1], Version.fromString(l[2])));
@@ -135,9 +136,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(body));
 
         Map<String, Object> response = responseAsMap(client().performRequest(request));
+        if ((Boolean) response.get("is_partial")) {
+            throw new AssertionError("partial results: " + response);
+        }
+
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
         profileLogger.extractProfile(response, true);
+
 
         MapMatcher expectedColumns = matchesMap();
         for (DataType type : DataType.values()) {

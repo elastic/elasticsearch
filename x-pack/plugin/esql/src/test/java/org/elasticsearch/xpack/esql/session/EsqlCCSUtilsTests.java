@@ -59,62 +59,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     private final String REMOTE1_ALIAS = "remote1";
     private final String REMOTE2_ALIAS = "remote2";
 
-    public void testCreateIndexExpressionFromAvailableClusters() {
-        var skipped = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-        // no clusters marked as skipped
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true));
-            assertIndexPattern(
-                EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo),
-                containsInAnyOrder("logs*", "remote1:*", "remote2:mylogs1", "remote2:mylogs2", "remote2:logs*")
-            );
-        }
-
-        // one cluster marked as skipped, so not present in revised index expression
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true));
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertIndexPattern(
-                EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo),
-                containsInAnyOrder("logs*", "remote1:*", "remote1:foo")
-            );
-        }
-
-        // two clusters marked as skipped, so only local cluster present in revised index expression
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, skipped));
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo("logs*"));
-        }
-
-        // only remotes present and all marked as skipped, so in revised index expression should be empty string
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(
-                REMOTE1_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
-            );
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo(""));
-        }
-    }
-
     public void testCreateQualifiedLookupIndexExpressionFromAvailableClusters() {
 
         var skipped = EsqlExecutionInfo.Cluster.Status.SKIPPED;

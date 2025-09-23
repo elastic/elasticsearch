@@ -149,6 +149,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS = new NodeFeature(
         "semantic_text.sparse_vector_index_options"
     );
+    public static final NodeFeature SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID = new NodeFeature("semantic_text.updatable_inference_id");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -242,7 +243,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             this.inferenceId = Parameter.stringParam(
                 INFERENCE_ID_FIELD,
-                false,
+                true,
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
                 DEFAULT_ELSER_2_INFERENCE_ID
             ).addValidator(v -> {
@@ -325,9 +326,68 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         protected void merge(FieldMapper mergeWith, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
             SemanticTextFieldMapper semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
-            semanticMergeWith = copySettings(semanticMergeWith, mapperMergeContext);
 
-            // We make sure to merge the inference field first to catch any model conflicts
+            final boolean isInferenceIdUpdate = semanticMergeWith.fieldType().inferenceId.equals(inferenceId.get()) == false;
+            final boolean hasExplicitModelSettings = modelSettings.get() != null;
+
+            if (isInferenceIdUpdate && hasExplicitModelSettings) {
+                validateModelsAreCompatibleWhenInferenceIdIsUpdated(semanticMergeWith.fieldType().inferenceId, conflicts);
+                // As the mapper previously had explicit model settings, we need to apply to the new merged mapper
+                // the resolved model settings if not explicitly set.
+                semanticMergeWith = copyWithNewModelSettingsIfNotSet(
+                    semanticMergeWith,
+                    modelRegistry.getMinimalServiceSettings(semanticMergeWith.fieldType().inferenceId),
+                    mapperMergeContext
+                );
+            }
+
+            semanticMergeWith = copyModelSettingsIfNotSet(semanticMergeWith, mapperMergeContext);
+
+            // We make sure to merge the inference field first to catch any model conflicts.
+            // If inference_id is updated and there are no explicit model settings, we should be
+            // able to switch to the new inference field without the need to check for conflicts.
+            if (isInferenceIdUpdate == false || hasExplicitModelSettings) {
+                mergeInferenceField(mapperMergeContext, semanticMergeWith);
+            }
+
+            super.merge(semanticMergeWith, conflicts, mapperMergeContext);
+            conflicts.check();
+        }
+
+        private void validateModelsAreCompatibleWhenInferenceIdIsUpdated(String newInferenceId, Conflicts conflicts) {
+            MinimalServiceSettings currentModelSettings = modelSettings.get();
+            MinimalServiceSettings updatedModelSettings = modelRegistry.getMinimalServiceSettings(newInferenceId);
+            if (currentModelSettings != null && updatedModelSettings == null) {
+                throw new IllegalArgumentException(
+                    "Cannot merge ["
+                        + CONTENT_TYPE
+                        + "] field ["
+                        + leafName()
+                        + "] because inference endpoint ["
+                        + newInferenceId
+                        + "] does not exist."
+                );
+            }
+            if (canMergeModelSettings(currentModelSettings, updatedModelSettings, conflicts) == false) {
+                throw new IllegalArgumentException(
+                    "Cannot merge ["
+                        + CONTENT_TYPE
+                        + "] field ["
+                        + leafName()
+                        + "] because inference endpoint ["
+                        + inferenceId.get()
+                        + "] with model settings ["
+                        + currentModelSettings
+                        + "] is not compatible with new inference endpoint ["
+                        + newInferenceId
+                        + "] with model settings ["
+                        + updatedModelSettings
+                        + "]."
+                );
+            }
+        }
+
+        private void mergeInferenceField(MapperMergeContext mapperMergeContext, SemanticTextFieldMapper semanticMergeWith) {
             try {
                 var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
                 var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
@@ -340,9 +400,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     : "";
                 throw new IllegalArgumentException(errorMessage, e);
             }
-
-            super.merge(semanticMergeWith, conflicts, mapperMergeContext);
-            conflicts.check();
         }
 
         /**
@@ -498,18 +555,35 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         /**
-         * As necessary, copy settings from this builder to the passed-in mapper.
+         * As necessary, copy model settings from this builder to the passed-in mapper.
          * Used to preserve {@link MinimalServiceSettings} when updating a semantic text mapping to one where the model settings
          * are not specified.
          *
          * @param mapper The mapper
          * @return A mapper with the copied settings applied
          */
-        private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
+        private SemanticTextFieldMapper copyModelSettingsIfNotSet(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
+            return copyWithNewModelSettingsIfNotSet(mapper, modelSettings.getValue(), mapperMergeContext);
+        }
+
+        /**
+         * Creates a new mapper with the new model settings if model settings are not set on the mapper.
+         * If the mapper already has model settings or the new model settings are null, the mapper is
+         * returned unchanged.
+         *
+         * @param mapper        The mapper
+         * @param modelSettings the new model settings. If null the mapper will be returned unchanged.
+         * @return A mapper with the copied settings applied
+         */
+        private SemanticTextFieldMapper copyWithNewModelSettingsIfNotSet(
+            SemanticTextFieldMapper mapper,
+            @Nullable MinimalServiceSettings modelSettings,
+            MapperMergeContext mapperMergeContext
+        ) {
             SemanticTextFieldMapper returnedMapper = mapper;
             if (mapper.fieldType().getModelSettings() == null) {
                 Builder builder = from(mapper);
-                builder.setModelSettings(modelSettings.getValue());
+                builder.setModelSettings(modelSettings);
                 returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
             }
 
@@ -781,6 +855,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 );
             }
         }
+    }
+
+    @Override
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        super.checkIncomingMergeType(mergeWith);
     }
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {

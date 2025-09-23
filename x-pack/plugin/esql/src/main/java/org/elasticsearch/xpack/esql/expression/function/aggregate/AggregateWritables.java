@@ -26,6 +26,8 @@ public class AggregateWritables {
             Percentile.ENTRY,
             Rate.ENTRY,
             Irate.ENTRY,
+            Idelta.ENTRY,
+            Increase.ENTRY,
             Sample.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
@@ -43,7 +45,10 @@ public class AggregateWritables {
             CountOverTime.ENTRY,
             CountDistinctOverTime.ENTRY,
             WeightedAvg.ENTRY,
-            Present.ENTRY
+            Present.ENTRY,
+            PresentOverTime.ENTRY,
+            Absent.ENTRY,
+            AbsentOverTime.ENTRY
         );
     }
 }

@@ -118,7 +118,9 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -142,6 +144,7 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.injection.guice.Key;
 import org.elasticsearch.injection.guice.Module;
@@ -697,6 +700,12 @@ class NodeConstruction {
 
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
+        RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
+            RootObjectMapperNamespaceValidator.class,
+            () -> new DefaultRootObjectMapperNamespaceValidator()
+        );
+        modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
+
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
         TaskManager taskManager = new TaskManager(
             settings,
@@ -716,6 +725,10 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
+        SamplingService samplingService = new SamplingService(scriptService, clusterService);
+        modules.bindToInstance(SamplingService.class, samplingService);
+        clusterService.addListener(samplingService);
+
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -728,7 +741,8 @@ class NodeConstruction {
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             failureStoreMetrics,
             projectResolver,
-            featureService
+            featureService,
+            samplingService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -808,7 +822,7 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
+        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList(), namespaceValidator);
         modules.add(indicesModule);
 
         modules.add(new GatewayModule());
@@ -969,6 +983,17 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
+        final MetadataIndexTemplateService metadataIndexTemplateService = new MetadataIndexTemplateService(
+            clusterService,
+            metadataCreateIndexService,
+            indicesService,
+            settingsModule.getIndexScopedSettings(),
+            xContentRegistry,
+            systemIndices,
+            indexSettingProviders,
+            dataStreamGlobalRetentionSettings
+        );
+
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
@@ -1061,16 +1086,7 @@ class NodeConstruction {
             clusterService,
             rerouteService,
             buildReservedClusterStateHandlers(reservedStateHandlerProviders, settingsModule),
-            buildReservedProjectStateHandlers(
-                reservedStateHandlerProviders,
-                settingsModule,
-                clusterService,
-                indicesService,
-                systemIndices,
-                indexSettingProviders,
-                metadataCreateIndexService,
-                dataStreamGlobalRetentionSettings
-            ),
+            buildReservedProjectStateHandlers(reservedStateHandlerProviders, settingsModule, metadataIndexTemplateService),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
             projectResolver
@@ -1305,6 +1321,7 @@ class NodeConstruction {
             b.bind(IndicesService.class).toInstance(indicesService);
             b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
+            b.bind(MetadataIndexTemplateService.class).toInstance(metadataIndexTemplateService);
             b.bind(SearchService.class).toInstance(searchService);
             b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
@@ -1671,25 +1688,10 @@ class NodeConstruction {
     private List<ReservedProjectStateHandler<?>> buildReservedProjectStateHandlers(
         List<? extends ReservedStateHandlerProvider> handlers,
         SettingsModule settingsModule,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders,
-        MetadataCreateIndexService metadataCreateIndexService,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        MetadataIndexTemplateService templateService
     ) {
         List<ReservedProjectStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
-        var templateService = new MetadataIndexTemplateService(
-            clusterService,
-            metadataCreateIndexService,
-            indicesService,
-            settingsModule.getIndexScopedSettings(),
-            xContentRegistry,
-            systemIndices,
-            indexSettingProviders,
-            globalRetentionSettings
-        );
         reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
 
         // add all reserved state handlers from plugins

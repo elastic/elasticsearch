@@ -95,7 +95,9 @@ public final class GreaterThanOrEqualDoublesEvaluator implements EvalOperator.Ex
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(GreaterThanOrEqual.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
+        double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(GreaterThanOrEqual.processDoubles(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class GreaterThanOrEqualDoublesEvaluator implements EvalOperator.Ex
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, GreaterThanOrEqual.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        double lhs = lhsVector.getDouble(p);
+        double rhs = rhsVector.getDouble(p);
+        result.appendBoolean(p, GreaterThanOrEqual.processDoubles(lhs, rhs));
       }
       return result.build();
     }

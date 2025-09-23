@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -2945,6 +2946,51 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(newTemplate.modifiedDateMillis().orElseThrow(), is(2L));
     }
 
+    public void testPrivateSettingFromIndexSettingsProviderSucceeds() {
+        AtomicBoolean invoked = new AtomicBoolean(false);
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService(IndexSettingProviders.of((additionalSettings) -> {
+            additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting");
+            invoked.set(true);
+        }));
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("foo-*"))
+            .priority(1L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .build();
+        service.validateIndexTemplateV2(emptyProject(), "template", template);
+        assertTrue(invoked.get());
+    }
+
+    public void testPrivateSettingFromTemplateFails() {
+        AtomicBoolean invoked = new AtomicBoolean(false);
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService(IndexSettingProviders.of((additionalSettings) -> {
+            // just because the provider adds the setting, user-provided settings in the template should still cause a failure
+            additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting_from_provider");
+            invoked.set(true);
+        }));
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("foo-*"))
+            .priority(1L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .template(
+                new Template(
+                    Settings.builder().put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting_from_template").build(),
+                    null,
+                    null
+                )
+            )
+            .build();
+        InvalidIndexTemplateException exception = assertThrows(
+            InvalidIndexTemplateException.class,
+            () -> service.validateIndexTemplateV2(emptyProject(), "template", template)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("private index setting [index.downsample.source.name] can not be set explicitly")
+        );
+        assertTrue(invoked.get());
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         when(testThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -3011,6 +3057,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
+        return getMetadataIndexTemplateService(new IndexSettingProviders(Set.of()));
+    }
+
+    private MetadataIndexTemplateService getMetadataIndexTemplateService(IndexSettingProviders indexSettingProviders) {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
@@ -3025,7 +3075,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             true,
-            new IndexSettingProviders(Set.of())
+            indexSettingProviders
         );
         AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
         InstantSource instantSource = () -> Instant.ofEpochMilli(instantSourceInvocationCounter.getAndIncrement());
@@ -3036,7 +3086,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
-            new IndexSettingProviders(Set.of()),
+            indexSettingProviders,
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
             instantSource
         );

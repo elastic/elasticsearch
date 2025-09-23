@@ -269,12 +269,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support for the expressions in grouping in {@code INLINESTATS} syntax.
          */
-        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V2(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -988,7 +988,12 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+
+        /**
+         * Renamed `INLINESTATS` to `INLINE STATS`.
+         */
+        INLINE_STATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1049,6 +1054,7 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
+        @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
@@ -1195,6 +1201,11 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support for INCREASE timeseries aggregation.
+         */
+        INCREASE,
+
+        /**
          * Extra field types in the k8s.csv dataset
          */
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
@@ -1285,7 +1296,7 @@ public class EsqlCapabilities {
         /**
          * Enable support for cross-cluster lookup joins.
          */
-        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
+        ENABLE_LOOKUP_JOIN_ON_REMOTE,
 
         /**
          * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
@@ -1346,7 +1357,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V2(Build.current().isSnapshot()),
+        FUSE_V4(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1450,9 +1461,19 @@ public class EsqlCapabilities {
         URL_ENCODE(Build.current().isSnapshot()),
 
         /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+
+        /**
          * URL decoding function.
          */
         URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
 
         /**
          * FORK with remote indices
@@ -1470,9 +1491,49 @@ public class EsqlCapabilities {
         FN_PRESENT,
 
         /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
          * TO_DENSE_VECTOR function.
          */
-        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot());
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support present_over_time aggregation that gets evaluated per time-series
+         */
+        PRESENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Multivalued query parameters
+         */
+        QUERY_PARAMS_MULTI_VALUES(),
+
+        FIX_PERCENTILE_PRECISION(),
+
+        /**
+         * Support for the Absent function
+         */
+        FN_ABSENT,
+
+        /**
+         * Support absent_over_time aggregation that gets evaluated per time-series
+         */
+        ABSENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /** INLINE STATS supports remote indices */
+        INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
+
+        /**
+         * Support TS command in non-snapshot builds
+         */
+        TS_COMMAND_V0(),
+
+        ;
 
         private final boolean enabled;
 

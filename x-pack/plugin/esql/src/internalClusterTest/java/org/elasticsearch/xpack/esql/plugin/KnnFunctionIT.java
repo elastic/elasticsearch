@@ -22,6 +22,11 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -116,6 +121,33 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
             | WHERE knn(vector, %s)
+            | KEEP id, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
+        }
+    }
+
+    public void testDenseVectorQueryParams() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0);
+        EsqlQueryRequest queryRequest = new EsqlQueryRequest();
+        QueryParams queryParams = new QueryParams(
+            List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER, ParserUtils.ParamClassification.VALUE))
+        );
+
+        queryRequest.params(queryParams);
+
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s) OR id > 100
             | KEEP id, _score, vector
             | SORT _score DESC
             | LIMIT 5

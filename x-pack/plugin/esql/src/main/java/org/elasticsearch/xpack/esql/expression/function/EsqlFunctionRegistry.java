@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -27,6 +29,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
@@ -38,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
@@ -91,6 +96,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -347,7 +353,8 @@ public class EsqlFunctionRegistry {
                 def(Top.class, tri(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
-                def(Present.class, uni(Present::new), "present") },
+                def(Present.class, uni(Present::new), "present"),
+                def(Absent.class, uni(Absent::new), "absent") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -496,7 +503,23 @@ public class EsqlFunctionRegistry {
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") },
+            // time-series functions
+            new FunctionDefinition[] {
+                def(Rate.class, uni(Rate::new), "rate"),
+                def(Irate.class, uni(Irate::new), "irate"),
+                def(Idelta.class, uni(Idelta::new), "idelta"),
+                def(Increase.class, uni(Increase::new), "increase"),
+                def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
+                def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
+                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
+                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
+                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
+                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
+                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
+                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
+                def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
+                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time") } };
 
     }
 
@@ -508,16 +531,6 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(First.class, bi(First::new), "first"),
                 def(Last.class, bi(Last::new), "last"),
-                def(Rate.class, uni(Rate::new), "rate"),
-                def(Irate.class, uni(Irate::new), "irate"),
-                def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
-                def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
-                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
-                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
-                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
-                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
-                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
                 def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
@@ -529,6 +542,7 @@ public class EsqlFunctionRegistry {
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
+                def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
                 def(UrlDecode.class, UrlDecode::new, "url_decode") } };
     }
 

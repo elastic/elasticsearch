@@ -9,6 +9,7 @@
 * [`KEEP`](/reference/query-languages/esql/commands/keep.md)
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md)
+* [preview] [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md)
 * [preview] [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md)
 * [`RENAME`](/reference/query-languages/esql/commands/rename.md)
 * [preview] [`RERANK`](/reference/query-languages/esql/commands/rerank.md)

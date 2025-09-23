@@ -15,6 +15,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
@@ -169,6 +170,9 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
     private static final int DEFAULT_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY);
+    private static final int DEFAULT_TIMESERIES_LIMIT = EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
+        Settings.EMPTY
+    );
 
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
@@ -2407,6 +2411,25 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(queryVector.name(), is("query"));
     }
 
+    public void testDenseVectorImplicitCastingKnnQueryParams() {
+        checkDenseVectorCastingKnnQueryParams("float_vector");
+        checkDenseVectorCastingKnnQueryParams("byte_vector");
+        checkDenseVectorCastingKnnQueryParams("bit_vector");
+    }
+
+    private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | where knn(%s, ?query_vector)
+            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var queryVector = as(knn.query(), ToDenseVector.class);
+        var literal = as(queryVector.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
+    }
+
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
         assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
 
@@ -2562,8 +2585,28 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(List.of(1, 2, 3)));
     }
 
+    public void testTimeseriesDefaultLimitIs1B() {
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        // Tuples of (query, isTimeseries)
+        for (var queryExp : List.of(
+            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in))", true),
+            Tuple.tuple("TS test", false),
+            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket", true),
+            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false)
+        )) {
+            var query = queryExp.v1();
+            var expectedLimit = queryExp.v2() ? DEFAULT_TIMESERIES_LIMIT : DEFAULT_LIMIT;
+            var plan = analyze(query, analyzer);
+            var limit = as(plan, Limit.class);
+            try {
+                assertThat(as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
+            } catch (AssertionError e) {
+                throw new AssertionError("Failed for query: " + query, e);
+            }
+        }
+    }
+
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
@@ -3579,7 +3622,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidFuse() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
@@ -3603,7 +3646,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFuseError() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -3696,7 +3739,14 @@ public class AnalyzerTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        return withDefaultLimitWarning(super.filteredWarnings());
+        return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
+    }
+
+    // TODO: drop after next minor release
+    public static List<String> withInlinestatsWarning(List<String> warnings) {
+        List<String> allWarnings = warnings != null ? new ArrayList<>(warnings) : new ArrayList<>();
+        allWarnings.add("INLINESTATS is deprecated, use INLINE STATS instead");
+        return allWarnings;
     }
 
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
@@ -4349,12 +4399,25 @@ public class AnalyzerTests extends ESTestCase {
             """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
     }
 
-    public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testGroupingOverridesInInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         verifyUnsupported("""
             from test
-            | inlinestats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
+            | inline stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:50: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testInlineStatsStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inline stats stats
+            """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]", "mapping-default.json");
+        // TODO: drop after next minor release
+        verifyUnsupported("""
+            from test
+            | inlinestats stats
+            """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]", "mapping-default.json");
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
@@ -4447,7 +4510,6 @@ public class AnalyzerTests extends ESTestCase {
             """, analyzer);
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
-        assumeTrue("Metrics command must be available for TS", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var plan2 = analyze("""
             TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),

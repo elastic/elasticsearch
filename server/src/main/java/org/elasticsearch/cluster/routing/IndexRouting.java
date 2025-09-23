@@ -494,7 +494,7 @@ public abstract class IndexRouting {
                 return hash(tsid);
             }
 
-            private BytesRef buildTsid(XContentType sourceType, BytesReference source) {
+            public BytesRef buildTsid(XContentType sourceType, BytesReference source) {
                 TsidBuilder b = new TsidBuilder();
                 try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
                     b.add(parser, XContentParserTsidFunnel.get());

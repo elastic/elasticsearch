@@ -303,8 +303,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
         String[] commandParts = first.split("\\s+", 2);
-        String command = commandParts[0].trim().toLowerCase(Locale.ROOT);
-        if (command.equals("from") || command.equals("ts")) {
+        String command = commandParts[0].trim();
+        if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
             String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
             String indicesString = indexMetadataParts[0];
             String[] indices = indicesString.split(",");

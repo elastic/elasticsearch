@@ -331,7 +331,10 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     new Template(
                         Settings.builder()
                             .put("index.mode", "time_series")
-                            .put("index.routing_path", randomBoolean() ? "metricset" : null)
+                            .put(
+                                "index.routing_path",
+                                randomBoolean() && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? null : "metricset"
+                            )
                             .build(),
                         new CompressedXContent(mappingTemplate),
                         null

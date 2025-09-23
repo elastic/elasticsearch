@@ -236,7 +236,6 @@ public class Delta$Type$Aggregator {
             }
         }
 
-
         @Override
         public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`

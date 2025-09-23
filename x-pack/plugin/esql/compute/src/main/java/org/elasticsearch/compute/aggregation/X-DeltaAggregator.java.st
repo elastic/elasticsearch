@@ -33,7 +33,7 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-DeltaAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
+    value = { @IntermediateState(name = "samples", type = "LONG_BLOCK"), @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
 public class Delta$Type$Aggregator {
     public static $Type$DeltaGroupingState initGrouping(DriverContext driverContext) {
@@ -48,11 +48,12 @@ public class Delta$Type$Aggregator {
     public static void combineIntermediate(
         $Type$DeltaGroupingState current,
         int groupId,
+        LongBlock samples,
         LongBlock timestamps,
         $Type$Block values,
         int otherPosition
     ) {
-        current.combine(groupId, timestamps, values, otherPosition);
+        current.combine(groupId, samples, timestamps, values, otherPosition);
     }
 
     public static Block evaluateFinal($Type$DeltaGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
@@ -121,25 +122,24 @@ public class Delta$Type$Aggregator {
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, $Type$Block values, int otherPosition) {
+        void combine(int groupId, LongBlock samples, LongBlock timestamps, $Type$Block values, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
             }
-            final int valuesSeenIdx = timestamps.getFirstValueIndex(otherPosition);
-            final int firstTs = valuesSeenIdx + 1;
+            final long valuesSeen = samples.getLong(samples.getFirstValueIndex(otherPosition));
+            final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
-            final long valuesSeen = timestamps.getLong(valuesSeenIdx);
             ensureCapacity(groupId);
             append(groupId, timestamps.getLong(firstTs), values.get$Type$(firstIndex));
-            if (valueCount > 2) {
+            if (valueCount > 1) {
                 ensureCapacity(groupId);
                 append(groupId, timestamps.getLong(firstTs + 1), values.get$Type$(firstIndex + 1));
             }
             // We are merging the state from upstream, which means we have seen
             // `valuesSeen` values, but we have already counted one or two of them,
             // which is represented by `valueCount - 1`.
-            states.get(groupId).valuesSeen += valuesSeen - valueCount + 1;
+            states.get(groupId).valuesSeen += valuesSeen - valueCount;
         }
 
         @Override
@@ -158,6 +158,7 @@ public class Delta$Type$Aggregator {
             final BlockFactory blockFactory = driverContext.blockFactory();
             final int positionCount = selected.getPositionCount();
             try (
+                LongBlock.Builder samples = blockFactory.newLongBlockBuilder(positionCount);
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
                 $Type$Block.Builder values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
             ) {
@@ -165,10 +166,10 @@ public class Delta$Type$Aggregator {
                     final var groupId = selected.getInt(i);
                     final var state = groupId < states.size() ? states.get(groupId) : null;
                     if (state != null) {
+                        samples.beginPositionEntry();
+                        samples.appendLong(state.valuesSeen);
+                        samples.endPositionEntry();
                         timestamps.beginPositionEntry();
-                        // We store the count of values seen in the first position
-                        // for timestamps, so that we can reconstruct the state.
-                        timestamps.appendLong(state.valuesSeen);
                         timestamps.appendLong(state.lastTimestamp);
                         if (state.valuesSeen > 1) {
                             timestamps.appendLong(state.firstTimestamp);
@@ -186,8 +187,9 @@ public class Delta$Type$Aggregator {
                         values.appendNull();
                     }
                 }
-                blocks[offset] = timestamps.build();
-                blocks[offset + 1] = values.build();
+                blocks[offset] = samples.build();
+                blocks[offset + 1] = timestamps.build();
+                blocks[offset + 2] = values.build();
             }
         }
 

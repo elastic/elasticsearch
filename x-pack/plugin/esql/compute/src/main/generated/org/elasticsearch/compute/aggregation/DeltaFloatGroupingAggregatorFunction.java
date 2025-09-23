@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class DeltaFloatGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+      new IntermediateStateDesc("samples", ElementType.LONG),
       new IntermediateStateDesc("timestamps", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.FLOAT)  );
 
@@ -186,17 +187,22 @@ public final class DeltaFloatGroupingAggregatorFunction implements GroupingAggre
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
+    Block samplesUncast = page.getBlock(channels.get(0));
+    if (samplesUncast.areAllValuesNull()) {
+      return;
+    }
+    LongBlock samples = (LongBlock) samplesUncast;
+    Block timestampsUncast = page.getBlock(channels.get(1));
     if (timestampsUncast.areAllValuesNull()) {
       return;
     }
     LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(1));
+    Block valuesUncast = page.getBlock(channels.get(2));
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
     FloatBlock values = (FloatBlock) valuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount();
+    assert samples.getPositionCount() == timestamps.getPositionCount() && samples.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -206,7 +212,7 @@ public final class DeltaFloatGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DeltaFloatAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        DeltaFloatAggregator.combineIntermediate(state, groupId, samples, timestamps, values, valuesPosition);
       }
     }
   }
@@ -265,17 +271,22 @@ public final class DeltaFloatGroupingAggregatorFunction implements GroupingAggre
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
+    Block samplesUncast = page.getBlock(channels.get(0));
+    if (samplesUncast.areAllValuesNull()) {
+      return;
+    }
+    LongBlock samples = (LongBlock) samplesUncast;
+    Block timestampsUncast = page.getBlock(channels.get(1));
     if (timestampsUncast.areAllValuesNull()) {
       return;
     }
     LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(1));
+    Block valuesUncast = page.getBlock(channels.get(2));
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
     FloatBlock values = (FloatBlock) valuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount();
+    assert samples.getPositionCount() == timestamps.getPositionCount() && samples.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -285,7 +296,7 @@ public final class DeltaFloatGroupingAggregatorFunction implements GroupingAggre
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DeltaFloatAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        DeltaFloatAggregator.combineIntermediate(state, groupId, samples, timestamps, values, valuesPosition);
       }
     }
   }
@@ -330,21 +341,26 @@ public final class DeltaFloatGroupingAggregatorFunction implements GroupingAggre
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
+    Block samplesUncast = page.getBlock(channels.get(0));
+    if (samplesUncast.areAllValuesNull()) {
+      return;
+    }
+    LongBlock samples = (LongBlock) samplesUncast;
+    Block timestampsUncast = page.getBlock(channels.get(1));
     if (timestampsUncast.areAllValuesNull()) {
       return;
     }
     LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(1));
+    Block valuesUncast = page.getBlock(channels.get(2));
     if (valuesUncast.areAllValuesNull()) {
       return;
     }
     FloatBlock values = (FloatBlock) valuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount();
+    assert samples.getPositionCount() == timestamps.getPositionCount() && samples.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      DeltaFloatAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+      DeltaFloatAggregator.combineIntermediate(state, groupId, samples, timestamps, values, valuesPosition);
     }
   }
 

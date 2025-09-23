@@ -639,6 +639,9 @@ tests:
 - class: org.elasticsearch.upgrades.TextRollingUpgradeIT
   method: testIndexing {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/135237
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.highlight/50_synthetic_source/text single unified from reanalysis}
+  issue: https://github.com/elastic/elasticsearch/issues/135323
 
 # Examples:
 #

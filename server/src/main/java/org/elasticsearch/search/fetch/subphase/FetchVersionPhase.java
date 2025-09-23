@@ -40,6 +40,11 @@ public final class FetchVersionPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return FetchVersionPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 long version = Versions.NOT_FOUND;
                 if (versions != null && versions.advanceExact(hitContext.docId())) {
@@ -48,5 +53,10 @@ public final class FetchVersionPhase implements FetchSubPhase {
                 hitContext.hit().version(version < 0 ? -1 : version);
             }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "fetch_version";
     }
 }

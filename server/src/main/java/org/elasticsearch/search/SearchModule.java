@@ -1290,7 +1290,7 @@ public class SearchModule {
     }
 
     public FetchPhase getFetchPhase() {
-        return new FetchPhase(fetchSubPhases);
+        return new FetchPhase(fetchSubPhases, telemetryProvider.getMeterRegistry());
     }
 
 }

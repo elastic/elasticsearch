@@ -66,6 +66,16 @@ public final class ExplainPhase implements FetchSubPhase {
             public StoredFieldsSpec storedFieldsSpec() {
                 return StoredFieldsSpec.NO_REQUIREMENTS;
             }
+
+            @Override
+            public String getName() {
+                return ExplainPhase.this.getName();
+            }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "explain";
     }
 }

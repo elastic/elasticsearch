@@ -39,12 +39,14 @@ import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -61,7 +63,7 @@ public final class FetchPhase {
 
     private final FetchSubPhase[] fetchSubPhases;
 
-    public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
+    public FetchPhase(List<FetchSubPhase> fetchSubPhases, MeterRegistry meterRegistry) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
@@ -171,6 +173,7 @@ public final class FetchPhase {
         boolean requiresSource = storedFieldsSpec.requiresSource();
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
+        final Map<String, Long> subphaseAggregateDurations = new HashMap<>();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
@@ -228,7 +231,9 @@ public final class FetchPhase {
                     sourceProvider.source = hit.source();
                     fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
                     for (FetchSubPhaseProcessor processor : processors) {
+                        long phaseStartTime = System.nanoTime();
                         processor.process(hit);
+                        subphaseAggregateDurations.merge(processor.getName(), System.nanoTime() - phaseStartTime, Long::sum);
                     }
 
                     BytesReference sourceRef = hit.hit().getSourceRef();

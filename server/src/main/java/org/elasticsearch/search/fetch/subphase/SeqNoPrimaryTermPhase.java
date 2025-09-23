@@ -42,6 +42,11 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return SeqNoPrimaryTermPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 int docId = hitContext.docId();
                 long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -57,5 +62,10 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
                 hitContext.hit().setPrimaryTerm(primaryTerm);
             }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "seq_no_primary_term";
     }
 }

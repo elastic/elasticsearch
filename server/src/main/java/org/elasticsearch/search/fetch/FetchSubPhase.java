@@ -102,4 +102,8 @@ public interface FetchSubPhase {
      */
     FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException;
 
+    /**
+     * The name of this fetch sub phase. Used for logging and stats.
+     */
+    String getName();
 }

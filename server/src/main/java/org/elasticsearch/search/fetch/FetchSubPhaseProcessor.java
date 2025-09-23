@@ -42,4 +42,9 @@ public interface FetchSubPhaseProcessor {
      * The stored fields or source required by this sub phase
      */
     StoredFieldsSpec storedFieldsSpec();
+
+    /**
+     * Name of the processor, for APM metrics purposes
+     */
+    String getName();
 }

@@ -151,6 +151,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -493,7 +494,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        when(ctx.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
+        when(ctx.fetchPhase())
+            .thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase()), MeterRegistry.NOOP));
         when(ctx.circuitBreaker()).thenReturn(breaker);
         when(ctx.memAccountingBufferSize()).thenReturn(1024 * 1024L);
         /*

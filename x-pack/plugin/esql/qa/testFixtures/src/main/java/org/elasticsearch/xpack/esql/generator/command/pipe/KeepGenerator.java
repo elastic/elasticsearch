@@ -80,7 +80,17 @@ public class KeepGenerator implements CommandGenerator {
             return new ValidationResult(false, "Expecting at most [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
 
-        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output, deterministic);
+        if (deterministic) {
+            for (int columnIdx = 0; columnIdx < columns.size(); columnIdx++) {
+                Column c = columns.get(columnIdx);
+                int previousColumnIdx = previousColumns.indexOf(columns.get(columnIdx));
+                if (previousColumnIdx == -1) {
+                    return new ValidationResult(false, "Column [" + c + "] not in previous output");
+                }
+                CommandGenerator.expectSameData(previousOutput, previousColumnIdx, output, columnIdx);
+            }
+        }
+        return VALIDATION_OK;
     }
 
 }

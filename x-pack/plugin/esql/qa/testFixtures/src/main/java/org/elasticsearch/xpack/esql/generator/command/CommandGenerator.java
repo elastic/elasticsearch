@@ -126,6 +126,25 @@ public interface CommandGenerator {
         return VALIDATION_OK;
     }
 
+    static ValidationResult expectSameData(List<List<Object>> before, int beforeCol, List<List<Object>> after, int afterCol) {
+        if (before.size() != after.size()) {
+            return new ValidationResult(false, "Expecting same number of rows, got [" + before.size() + "] and [" + after.size() + "]");
+        }
+
+        for (int i = 0; i < before.size(); i++) {
+            Object v1 = before.get(i).get(beforeCol);
+            Object v2 = after.get(i).get(afterCol);
+            if (v1 == null) {
+                if (v2 != null) {
+                    return new ValidationResult(false, "Expecting null at row [" + i + "], got [" + v2 + "]");
+                }
+            } else if (v1.equals(v2) == false) {
+                return new ValidationResult(false, "Expecting [" + v1 + "] at row [" + i + "], got [" + v2 + "]");
+            }
+        }
+        return VALIDATION_OK;
+    }
+
     static ValidationResult expectSameColumns(List<Column> previousColumns, List<Column> columns) {
 
         if (previousColumns.stream().anyMatch(x -> x.name().contains("<all-fields-projected>"))) {

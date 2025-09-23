@@ -198,6 +198,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         ComposableIndexTemplate indexTemplate
     ) {
         IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
+        IndexVersion indexVersion = state.metadata().index(dataStream.getWriteIndex()).getCreationVersion();
         for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
             Settings.Builder builder = Settings.builder();
             provider.provideAdditionalSettings(
@@ -208,7 +209,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 Instant.now(),
                 settings,
                 List.of(),
-                IndexVersion.current(),
+                indexVersion,
                 builder
             );
             Settings addlSettings = builder.build();

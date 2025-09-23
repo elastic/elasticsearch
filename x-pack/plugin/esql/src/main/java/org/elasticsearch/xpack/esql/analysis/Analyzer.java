@@ -757,9 +757,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (leftIsFromRight && rightIsFromLeft) {
                     return comp.swapLeftAndRight(); // Swapped orientation
                 }
-
-                // Invalid orientation (e.g., both from left or both from right)
-                throw new IllegalArgumentException(
+                return new UnresolvedAttribute(
+                    condition.source(),
+                    "unsupported",
                     "Join condition must be between one attribute on the left side and "
                         + "one attribute on the right side of the join, but found: "
                         + condition.sourceText()
@@ -800,7 +800,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             leftKeys.add(leftAttribute);
                             rightKeys.add(rightAttribute);
                         } else {
-                            throw new IllegalArgumentException("Unsupported join filter expression: " + expression);
+                            UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
+                                expression.source(),
+                                "unsupported",
+                                "Unsupported join filter expression:" + expression.sourceText()
+                            );
+                            return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
+
                         }
                     }
                 } else {

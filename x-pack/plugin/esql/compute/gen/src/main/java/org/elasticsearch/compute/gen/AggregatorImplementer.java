@@ -599,7 +599,7 @@ public class AggregatorImplementer {
                 declarationType,
                 requireVoidType(),
                 requireName("combineIntermediate"),
-                requireArgs(
+                requireArgsStartsWith(
                     Stream.concat(
                         Stream.of(aggState.declaredType()), // aggState
                         intermediateState.stream().map(IntermediateStateDesc::combineArgType) // intermediate state

@@ -35,6 +35,7 @@ public class AggregateWritables {
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
+            Sparkline.ENTRY,
             MinOverTime.ENTRY,
             MaxOverTime.ENTRY,
             AvgOverTime.ENTRY,

@@ -9,10 +9,8 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(hasExtra && !(long && Extralong))$
-import org.elasticsearch.common.util.$ExtraType$Array;
-$endif$
-import org.elasticsearch.common.util.$Type$Array;
+import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -26,11 +24,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.stream.IntStream;
 
 /**
- * Aggregates the top N {@code $type$} values per bucket.
+ * Aggregates the top N {@code long} values per bucket.
  * See {@link BucketedSort} for more information.
  * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
-public class $Name$$ExtraName$BucketedSort implements Releasable {
+public class LongFloatBucketedSort implements Releasable {
 
     private final BigArrays bigArrays;
     private final SortOrder order;
@@ -67,15 +65,10 @@ public class $Name$$ExtraName$BucketedSort implements Releasable {
      *     </li>
      * </ul>
      */
-$if(hasExtra)$
-    private $Array$ values;
-    private $ExtraArray$ extraValues;
+    private LongArray values;
+    private FloatArray extraValues;
 
-$else$
-    private $Array$ values;
-$endif$
-
-    public $Name$$ExtraName$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
+    public LongFloatBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
         this.bucketSize = bucketSize;
@@ -83,10 +76,8 @@ $endif$
 
         boolean success = false;
         try {
-            values = bigArrays.new$Type$Array(0, false);
-$if(hasExtra)$
-            extraValues = bigArrays.new$ExtraType$Array(0, false);
-$endif$
+            values = bigArrays.newLongArray(0, false);
+            extraValues = bigArrays.newFloatArray(0, false);
             success = true;
         } finally {
             if (success == false) {
@@ -101,14 +92,12 @@ $endif$
      *     It may or may not be inserted in the heap, depending on if it is better than the current root.
      * </p>
      */
-    public void collect($type$ value, $if(hasExtra)$$Extratype$ extraValue, $endif$int bucket) {
+    public void collect(long value, float extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex)$if(hasExtra)$, extraValue, extraValues.get(rootIndex)$endif$)) {
+            if (betterThan(value, values.get(rootIndex), extraValue, extraValues.get(rootIndex))) {
                 values.set(rootIndex, value);
-$if(hasExtra)$
                 extraValues.set(rootIndex, extraValue);
-$endif$
                 downHeap(rootIndex, 0, bucketSize);
             }
             return;
@@ -123,9 +112,7 @@ $endif$
             : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
         long index = next + rootIndex;
         values.set(index, value);
-$if(hasExtra)$
         extraValues.set(index, extraValue);
-$endif$
         if (next == 0) {
             heapMode.set(bucket);
             heapify(rootIndex, bucketSize);
@@ -166,16 +153,15 @@ $endif$
     /**
      * Merge the values from {@code other}'s {@code otherGroupId} into {@code groupId}.
      */
-    public void merge(int groupId, $Name$$ExtraName$BucketedSort other, int otherGroupId) {
+    public void merge(int groupId, LongFloatBucketedSort other, int otherGroupId) {
         var otherBounds = other.getBucketValuesIndexes(otherGroupId);
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), $if(hasExtra)$other.extraValues.get(i), $endif$groupId);
+            collect(other.values.get(i), other.extraValues.get(i), groupId);
         }
     }
 
-$if(hasExtra)$
     /**
      * Creates a block with the values from the {@code selected} groups.
      */
@@ -187,8 +173,8 @@ $if(hasExtra)$
         }
 
         try (
-            var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount());
-            var extraBuilder = blockFactory.new$ExtraType$BlockBuilder(selected.getPositionCount())
+            var builder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
+            var extraBuilder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())
         ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
@@ -204,8 +190,8 @@ $if(hasExtra)$
                 }
 
                 if (size == 1) {
-                    builder.append$Type$(values.get(rootIndex));
-                    extraBuilder.append$ExtraType$(extraValues.get(rootIndex));
+                    builder.appendLong(values.get(rootIndex));
+                    extraBuilder.appendFloat(extraValues.get(rootIndex));
                     continue;
                 }
 
@@ -218,8 +204,8 @@ $if(hasExtra)$
                 builder.beginPositionEntry();
                 extraBuilder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
-                    builder.append$Type$(values.get(rootIndex + i));
-                    extraBuilder.append$ExtraType$(extraValues.get(rootIndex + i));
+                    builder.appendLong(values.get(rootIndex + i));
+                    extraBuilder.appendFloat(extraValues.get(rootIndex + i));
                 }
                 builder.endPositionEntry();
                 extraBuilder.endPositionEntry();
@@ -228,51 +214,6 @@ $if(hasExtra)$
             blocks[offset + 1] = builder.build();
         }
     }
-
-$else$
-    /**
-     * Creates a block with the values from the {@code selected} groups.
-     */
-    public Block toBlock(BlockFactory blockFactory, IntVector selected) {
-        // Check if the selected groups are all empty, to avoid allocating extra memory
-        if (allSelectedGroupsAreEmpty(selected)) {
-            return blockFactory.newConstantNullBlock(selected.getPositionCount());
-        }
-
-        try (var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
-            for (int s = 0; s < selected.getPositionCount(); s++) {
-                int bucket = selected.getInt(s);
-
-                var bounds = getBucketValuesIndexes(bucket);
-                var rootIndex = bounds.v1();
-                var size = bounds.v2() - bounds.v1();
-
-                if (size == 0) {
-                    builder.appendNull();
-                    continue;
-                }
-
-                if (size == 1) {
-                    builder.append$Type$(values.get(rootIndex));
-                    continue;
-                }
-
-                // If we are in the gathering mode, we need to heapify before sorting.
-                if (inHeapMode(bucket) == false) {
-                    heapify(rootIndex, (int) size);
-                }
-                heapSort(rootIndex, (int) size);
-
-                builder.beginPositionEntry();
-                for (int i = 0; i < size; i++) {
-                    builder.append$Type$(values.get(rootIndex + i));
-                }
-                builder.endPositionEntry();
-            }
-            return builder.build();
-        }
-    }
-$endif$
 
     /**
      * Checks if the selected groups are all empty.
@@ -297,11 +238,7 @@ $endif$
      * at {@code rootIndex}.
      */
     private int getNextGatherOffset(long rootIndex) {
-$if(int)$
-        return values.get(rootIndex);
-$else$
         return (int) values.get(rootIndex);
-$endif$
     }
 
     /**
@@ -317,14 +254,12 @@ $endif$
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan($type$ lhs, $type$ rhs$if(hasExtra)$, $Extratype$ lhsExtra, $Extratype$ rhsExtra$endif$) {
-        int res = $Wrapper$.compare(lhs, rhs);
-$if(hasExtra)$
+    private boolean betterThan(long lhs, long rhs, float lhsExtra, float rhsExtra) {
+        int res = Long.compare(lhs, rhs);
         if (res != 0) {
             return getOrder().reverseMul() * res < 0;
         }
-        res = $ExtraWrapper$.compare(lhsExtra, rhsExtra);
-$endif$
+        res = Float.compare(lhsExtra, rhsExtra);
         return getOrder().reverseMul() * res < 0;
     }
 
@@ -335,11 +270,9 @@ $endif$
         var tmp = values.get(lhs);
         values.set(lhs, values.get(rhs));
         values.set(rhs, tmp);
-$if(hasExtra)$
         var tmpExtra = extraValues.get(lhs);
         extraValues.set(lhs, extraValues.get(rhs));
         extraValues.set(rhs, tmpExtra);
-$endif$
     }
 
     /**
@@ -351,16 +284,14 @@ $endif$
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.$TYPE$_PAGE_SIZE, $BYTES$);
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.LONG_PAGE_SIZE, Long.BYTES);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
-$if(hasExtra)$
-        long newExtraSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.$ExtraTYPE$_PAGE_SIZE, $ExtraBYTES$);
+        long newExtraSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES);
         // Round up to the next full bucket.
         newExtraSize = (newExtraSize + bucketSize - 1) / bucketSize;
         extraValues = bigArrays.resize(extraValues, newExtraSize * bucketSize);
-$endif$
         // Set the next gather offsets for all newly allocated buckets.
         fillGatherOffsets(oldMax);
     }
@@ -442,13 +373,12 @@ $endif$
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex)$if(hasExtra)$, extraValues.get(worstIndex), extraValues.get(leftIndex)$endif$)) {
+                if (betterThan(values.get(worstIndex), values.get(leftIndex), extraValues.get(worstIndex), extraValues.get(leftIndex))) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-$if(hasExtra)$
                 if (rightChild < heapSize
                     && betterThan(
                         values.get(worstIndex),
@@ -456,9 +386,6 @@ $if(hasExtra)$
                         extraValues.get(worstIndex),
                         extraValues.get(rightIndex)
                     )) {
-$else$
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
-$endif$
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }
@@ -473,6 +400,6 @@ $endif$
 
     @Override
     public final void close() {
-        Releasables.close(values, $if(hasExtra)$extraValues, $endif$heapMode);
+        Releasables.close(values, extraValues, heapMode);
     }
 }

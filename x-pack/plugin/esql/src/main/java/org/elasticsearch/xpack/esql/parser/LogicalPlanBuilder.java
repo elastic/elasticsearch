@@ -892,16 +892,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
         Source source = source(ctx);
         return input -> {
-            Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
-            Attribute discriminatorAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
-            Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
-            Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
+            Attribute scoreAttr = visitFuseScoreBy(ctx.fuseConfiguration(), source);
+            Attribute discriminatorAttr = visitFuseGroupBy(ctx.fuseConfiguration(), source);
 
-            List<NamedExpression> groupings = List.of(idAttr, indexAttr);
+            List<NamedExpression> keys = visitFuseKeyBy(ctx.fuseConfiguration(), source);
 
-            MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
+            MapExpression options = visitFuseOptions(ctx.fuseConfiguration());
+
             String fuseTypeName = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType);
-
             Fuse.FuseType fuseType;
             try {
                 fuseType = Fuse.FuseType.valueOf(fuseTypeName.toUpperCase(Locale.ROOT));
@@ -909,8 +907,69 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source(ctx), "Fuse type " + fuseTypeName + " is not supported");
             }
 
-            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType, options);
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, keys, fuseType, options);
         };
+    }
+
+    private Attribute visitFuseScoreBy(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts, Source source) {
+        Attribute scoreAttr = null;
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.score != null) {
+                if (scoreAttr != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one SCORE BY can be specified");
+                }
+                scoreAttr = visitQualifiedName(fuseConfigurationContext.score);
+            }
+        }
+
+        return scoreAttr == null ? new UnresolvedAttribute(source, MetadataAttribute.SCORE) : scoreAttr;
+    }
+
+    private Attribute visitFuseGroupBy(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts, Source source) {
+        Attribute groupByAttr = null;
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.group != null) {
+                if (groupByAttr != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one GROUP BY can be specified");
+                }
+                groupByAttr = visitQualifiedName(fuseConfigurationContext.group);
+            }
+        }
+
+        return groupByAttr == null ? new UnresolvedAttribute(source, Fork.FORK_FIELD) : groupByAttr;
+    }
+
+    private List<NamedExpression> visitFuseKeyBy(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts, Source source) {
+        List<NamedExpression> keys = null;
+
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.key != null) {
+                if (keys != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one KEY BY can be specified");
+                }
+
+                keys = visitGrouping(fuseConfigurationContext.key);
+            }
+        }
+
+        return keys == null
+            ? List.of(new UnresolvedAttribute(source, IdFieldMapper.NAME), new UnresolvedAttribute(source, MetadataAttribute.INDEX))
+            : keys;
+    }
+
+    private MapExpression visitFuseOptions(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts) {
+        MapExpression options = null;
+
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.options != null) {
+                if (options != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one WITH can be specified");
+                }
+                options = visitMapExpression(fuseConfigurationContext.options);
+            }
+        }
+
+        return options;
     }
 
     @Override

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.admin.indices.sampling;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -88,10 +87,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
                 instance.maxSamples(),
                 instance.maxSize(),
                 instance.timeToLive(),
-                randomValueOtherThan(
-                    instance.condition(),
-                    () -> randomAlphaOfLength(10)
-                )
+                randomValueOtherThan(instance.condition(), () -> randomAlphaOfLength(10))
             );
             default -> throw new AssertionError("Unexpected value");
         };
@@ -153,23 +149,15 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_TIME_TO_LIVE_MAX_MESSAGE));
 
         // Test invalid condition
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamplingConfiguration(0.5, null, null, null, "")
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, null, null, null, ""));
         assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_CONDITION_MESSAGE));
 
     }
 
     public void testValidInputs() {
         // Test boundary conditions
-        new SamplingConfiguration(
-            0.001,
-            1,
-            ByteSizeValue.ofBytes(1),
-            TimeValue.timeValueMillis(1),
-            randomAlphaOfLength(10)
-        ); // minimum values
+        new SamplingConfiguration(0.001, 1, ByteSizeValue.ofBytes(1), TimeValue.timeValueMillis(1), randomAlphaOfLength(10)); // minimum
+                                                                                                                              // values
         new SamplingConfiguration(
             1.0,
             SamplingConfiguration.MAX_SAMPLES_LIMIT,
@@ -194,16 +182,15 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
     }
 
     public void testHumanReadableParsing() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            """
-                {
-                  "rate": "0.05",
-                  "max_samples": 20,
-                  "max_size": "10mb",
-                  "time_to_live": "1d",
-                  "if": "ctx?.network?.name == 'Guest'"
-                }
-                """);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "rate": "0.05",
+              "max_samples": 20,
+              "max_size": "10mb",
+              "time_to_live": "1d",
+              "if": "ctx?.network?.name == 'Guest'"
+            }
+            """);
         SamplingConfiguration configuration = SamplingConfiguration.fromXContent(parser);
         assertThat(configuration.rate(), equalTo(0.05));
         assertThat(configuration.maxSize(), equalTo(ByteSizeValue.ofMb(10)));
@@ -211,6 +198,3 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
     }
 
 }
-
-
-

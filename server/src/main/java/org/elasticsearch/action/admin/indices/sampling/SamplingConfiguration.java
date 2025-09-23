@@ -65,43 +65,63 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         + " days";
     public static final String INVALID_CONDITION_MESSAGE = "condition script, if provided, must not be empty";
 
-    private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(TYPE, false, args -> {
-        Double rawRate = (Double) args[1];
-        Integer maxSamples = (Integer) args[2];
-        ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[3];
-        ByteSizeValue rawMaxSize = (ByteSizeValue) args[4];
-        TimeValue humanReadableTimeToLive = (TimeValue) args[5];
-        TimeValue rawTimeToLive = (TimeValue) args[6];
-        String condition = (String) args[7];
+    private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        args -> {
+            Double rawRate = (Double) args[1];
+            Integer maxSamples = (Integer) args[2];
+            ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[3];
+            ByteSizeValue rawMaxSize = (ByteSizeValue) args[4];
+            TimeValue humanReadableTimeToLive = (TimeValue) args[5];
+            TimeValue rawTimeToLive = (TimeValue) args[6];
+            String condition = (String) args[7];
 
-        return new SamplingConfiguration(
-            rawRate,
-            maxSamples,
-            determineValue(humanReadableMaxSize, rawMaxSize),
-            determineValue(humanReadableTimeToLive, rawTimeToLive),
-            condition);
-    });
+            return new SamplingConfiguration(
+                rawRate,
+                maxSamples,
+                determineValue(humanReadableMaxSize, rawMaxSize),
+                determineValue(humanReadableTimeToLive, rawTimeToLive),
+                condition
+            );
+        }
+    );
 
     static {
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            return p.text();
-        }, new ParseField(RATE_PERCENTAGE_FIELD_NAME), ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> { return p.text(); },
+            new ParseField(RATE_PERCENTAGE_FIELD_NAME),
+            ObjectParser.ValueType.STRING
+        );
         PARSER.declareDouble(constructorArg(), new ParseField(RATE_FIELD_NAME));
         PARSER.declareInt(optionalConstructorArg(), new ParseField(MAX_SAMPLES_FIELD_NAME));
         // Handle both human-readable and machine-readable fields for maxSize.
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> {return
-            ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME);}, new ParseField(MAX_SIZE_FIELD_NAME),
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            return ByteSizeValue.ofBytes(p.longValue());
-        }, new ParseField(MAX_SIZE_IN_BYTES_FIELD_NAME), ObjectParser.ValueType.LONG);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> { return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME); },
+            new ParseField(MAX_SIZE_FIELD_NAME),
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> { return ByteSizeValue.ofBytes(p.longValue()); },
+            new ParseField(MAX_SIZE_IN_BYTES_FIELD_NAME),
+            ObjectParser.ValueType.LONG
+        );
         // Handle both human-readable and machine-readable fields for timeToLive
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> {return
-                TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME);}, new ParseField(TIME_TO_LIVE_FIELD_NAME),
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            return TimeValue.timeValueMillis(p.longValue());
-        }, new ParseField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME), ObjectParser.ValueType.LONG);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> { return TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME); },
+            new ParseField(TIME_TO_LIVE_FIELD_NAME),
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> { return TimeValue.timeValueMillis(p.longValue()); },
+            new ParseField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME),
+            ObjectParser.ValueType.LONG
+        );
         PARSER.declareString(optionalConstructorArg(), new ParseField(CONDITION_FIELD_NAME));
     }
 

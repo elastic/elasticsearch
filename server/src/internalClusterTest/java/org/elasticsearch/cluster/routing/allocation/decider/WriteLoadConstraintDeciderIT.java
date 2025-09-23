@@ -63,9 +63,6 @@ import java.util.concurrent.CountDownLatch;
 import static java.util.stream.IntStream.range;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -192,26 +189,28 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
         refreshClusterInfo();
 
-        logger.info(
-            "---> Update the filter to exclude " + harness.firstDataNodeName + " so that shards will be reassigned away to the other nodes"
-        );
-        // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName));
+        var temporaryClusterStateListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            Index index = clusterState.routingTable().index(harness.indexName).getIndex();
+            return checkShardAssignment(
+                clusterState.getRoutingNodes(),
+                index,
+                harness.firstDataNodeId,
+                harness.secondDataNodeId,
+                harness.thirdDataNodeId,
+                0,
+                harness.randomNumberOfShards,
+                0
+            );
+        });
 
         try {
-            safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-                Index index = clusterState.routingTable().index(harness.indexName).getIndex();
-                return checkShardAssignment(
-                    clusterState.getRoutingNodes(),
-                    index,
-                    harness.firstDataNodeId,
-                    harness.secondDataNodeId,
-                    harness.thirdDataNodeId,
-                    0,
-                    harness.randomNumberOfShards,
-                    0
-                );
-            }));
+            logger.info(
+                "---> Update the filter to exclude " + harness.firstDataNodeName + " so shards will be reassigned away to the other nodes"
+            );
+            // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName));
+
+            safeAwait(temporaryClusterStateListener);
         } catch (AssertionError error) {
             ClusterState state = internalCluster().client()
                 .admin()
@@ -339,17 +338,17 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
         refreshClusterInfo();
 
-        try {
-            var temporaryClusterStateListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-                Index index = clusterState.routingTable().index(harness.indexName).getIndex();
-                if (clusterState.getRoutingNodes()
-                    .node(harness.firstDataNodeId)
-                    .numberOfOwningShardsForIndex(index) == harness.randomNumberOfShards) {
-                    return true;
-                }
-                return false;
-            });
+        var temporaryClusterStateListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            Index index = clusterState.routingTable().index(harness.indexName).getIndex();
+            if (clusterState.getRoutingNodes()
+                .node(harness.firstDataNodeId)
+                .numberOfOwningShardsForIndex(index) == harness.randomNumberOfShards) {
+                return true;
+            }
+            return false;
+        });
 
+        try {
             logger.info(
                 "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
             );
@@ -546,11 +545,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     @TestLogging(
         reason = "track when reconciliation has completed",
         value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:DEBUG"
-            + ",org.elasticsearch.cluster.routing.allocation.decider:TRACE"
-            + ",org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:TRACE"
     )
     public void testCanRemainRelocatesOneShardWhenAHotSpotOccurs() {
-        TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode(true);
+        TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
 
         /**
          * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
@@ -804,11 +801,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         return true;
     }
 
-    private Settings enabledWriteLoadDeciderSettings(
-        int utilizationThresholdPercent,
-        long queueLatencyThresholdMillis,
-        boolean throttleToSingleRelocation
-    ) {
+    /**
+     * Enables the write load decider and overrides other write load decider settings.
+     * @param utilizationThresholdPercent Sets the write thread pool utilization threshold, controlling when canAllocate starts returning
+     *                                    not-preferred.
+     * @param queueLatencyThresholdMillis Sets the queue latency threshold, controlling when canRemain starts returning not-preferred.
+     */
+    private Settings enabledWriteLoadDeciderSettings(int utilizationThresholdPercent, long queueLatencyThresholdMillis) {
         return Settings.builder()
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
@@ -824,10 +823,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             )
             // Essentially disable rebalancing so that testing can see Decider change outcomes.
             .put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 1000f)
-            // TODO (ES-12862): remove these overrides when throttling is turned off for simulations.
-            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), throttleToSingleRelocation ? 1 : 100)
-            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), throttleToSingleRelocation ? 1 : 100)
-            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), throttleToSingleRelocation ? 1 : 100)
             .build();
     }
 
@@ -891,29 +886,18 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }
 
-    private TestHarness setUpThreeTestNodesAndAllIndexShardsOnFirstNode() {
-        return setUpThreeTestNodesAndAllIndexShardsOnFirstNode(false);
-    }
-
     /**
      * Sets up common test infrastructure to deduplicate code across tests.
      * <p>
      * Starts three data nodes and creates an index with many shards, then forces shard assignment to only the first data node via the
      * {@link FilterAllocationDecider}.
-     * @param throttleToSingleRelocation If false, throttling will be disabled with high setting values. If true, throttling will occur
-     *                                   after a single relocation. Throttling so quickly allows the shard relocation simulator to run after
-     *                                   each shard decision.
      */
-    private TestHarness setUpThreeTestNodesAndAllIndexShardsOnFirstNode(boolean throttleToSingleRelocation) {
+    private TestHarness setUpThreeTestNodesAndAllIndexShardsOnFirstNode() {
         int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
         int randomNumberOfWritePoolThreads = randomIntBetween(2, 20);
         long randomQueueLatencyThresholdMillis = randomLongBetween(1, 20_000);
         float randomShardWriteLoad = randomFloatBetween(0.0f, 0.01f, false);
-        Settings settings = enabledWriteLoadDeciderSettings(
-            randomUtilizationThresholdPercent,
-            randomQueueLatencyThresholdMillis,
-            throttleToSingleRelocation
-        );
+        Settings settings = enabledWriteLoadDeciderSettings(randomUtilizationThresholdPercent, randomQueueLatencyThresholdMillis);
 
         internalCluster().startMasterOnlyNode(settings);
         final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);

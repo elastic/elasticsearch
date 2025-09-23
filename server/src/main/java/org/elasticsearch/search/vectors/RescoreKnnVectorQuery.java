@@ -261,7 +261,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
                 if (knnVectorValues == null) {
-                    throw new IllegalArgumentException("Field \"" + fieldName + "\" does not exist.");
+                    continue;
                 }
                 if (knnVectorValues.dimension() != floatTarget.length) {
                     throw new IllegalArgumentException(

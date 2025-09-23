@@ -417,7 +417,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", query);
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         String message1 = e1.getCause().getMessage();
-        assertThat(message1, containsString("Unexpected token [START_OBJECT]"));
+        assertThat("Unexpected failure when parsing " + json1 + ". " + message1, containsString("Unexpected token [START_OBJECT]"));
         String json2 = String.format(Locale.ROOT, """
             {
                 "query": "%s",
@@ -425,7 +425,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", query);
         Exception e2 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
         String message2 = e2.getCause().getMessage();
-        assertThat(message2, containsString("Unexpected token [VALUE_STRING]"));
+        assertThat("Unexpected failure when parsing " + json2 + ". " + message2, containsString("Unexpected token [VALUE_STRING]"));
     }
 
     public void testInvalidParamsForIdentifiersPatterns() throws IOException {

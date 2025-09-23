@@ -30,7 +30,7 @@ import java.util.function.IntConsumer;
 
 /**
  * A codec that tracks the length of the min and max written terms. Used to improve memory usage estimates in serverless, since
- * {@link org.apache.lucene.codecs.lucene90.blocktree.FieldReader} keeps an in-memory reference to the min and max term.
+ * {@link org.apache.lucene.codecs.lucene103.blocktree.FieldReader} keeps an in-memory reference to the min and max term.
  */
 public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     public static final String IN_MEMORY_POSTINGS_BYTES_KEY = "es.postings.in_memory_bytes";

@@ -457,6 +457,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
         final var maxShardSegments = new AtomicInteger(0);
+        final var docStatsTotalDocs = new AtomicInteger(0);
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
@@ -464,9 +465,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 assertThat(e, instanceOf(HollowIndexEngine.class));
                 final var segments = e.getLastCommittedSegmentInfos().size();
                 maxShardSegments.accumulateAndGet(segments, Math::max);
+                assertEquals(segments, e.shardFieldStats().numSegments());
+                docStatsTotalDocs.addAndGet((int) e.docStats().getCount());
                 return null;
             });
         }
+        assertEquals(numDocs, docStatsTotalDocs.get());
         assertThat(
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, getTelemetryPlugin(indexNodeB)),
             equalTo((long) numberOfShards)

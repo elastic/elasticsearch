@@ -131,6 +131,18 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx);
     /**
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldQueryValueLiteral}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitFieldQueryValueLiteral(KqlBaseParser.FieldQueryValueLiteralContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldQueryValueUnquotedLiteral}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitFieldQueryValueUnquotedLiteral(KqlBaseParser.FieldQueryValueUnquotedLiteralContext ctx);
+    /**
      * Visit a parse tree produced by {@link KqlBaseParser#booleanFieldQueryValue}.
      * @param ctx the parse tree
      * @return the visitor result

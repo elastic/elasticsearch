@@ -805,7 +805,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
-            final Map<String, ShardRouting> bestNonPreferredShardsByNode = new HashMap<>();
+            final Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode = new HashMap<>();
             final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
                 ShardRouting shardRouting = it.next();
@@ -814,7 +814,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
-                        bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), shardRouting);
+                        bestNonPreferredShardsByNode.put(
+                            shardRouting.currentNodeId(),
+                            new MoveNotPreferredDecision(shardRouting, moveDecision)
+                        );
                     } else {
                         executeMove(shardRouting, index, moveDecision, "move");
                         shardMoved = true;
@@ -829,12 +832,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             // If we get here, attempt to move one of the best not-preferred shards that we identified earlier
             for (var entry : bestNonPreferredShardsByNode.entrySet()) {
-                final var shardRouting = entry.getValue();
+                final var cachedDecision = entry.getValue();
+                final var shardRouting = cachedDecision.shardRouting();
                 final var index = projectIndex(shardRouting);
-                // Have to re-check move decision in case we made a move that invalidated our existing assessment
-                final MoveDecision moveDecision = decideMove(index, shardRouting);
+                // If `shardMoved` is true, there may have been moves that have made our previous move decision
+                // invalid, so we must call `decideMove` again. If not, we know we haven't made any moves, and we
+                // can use the cached decision.
+                final var moveDecision = shardMoved ? decideMove(index, shardRouting) : cachedDecision.moveDecision();
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
-                    executeMove(entry.getValue(), index, moveDecision, "move-non-preferred");
+                    executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // We only ever move a single non-preferred shard at a time
                     return true;
                 } else {
@@ -844,6 +850,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             return shardMoved;
         }
+
+        private record MoveNotPreferredDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
 
         private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, String reason) {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
@@ -964,7 +972,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private MoveDecision decideMove(
             ProjectIndex index,
             ShardRouting shardRouting,
-            Map<String, ShardRouting> bestNonPreferredShardsByNode,
+            Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode,
             Map<String, ShardMovementPriorityComparator> comparatorCache
         ) {
             NodeSorter sorter = nodeSorters.sorterForShard(shardRouting);
@@ -988,7 +996,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 int compare = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),
                     nodeId -> new ShardMovementPriorityComparator(allocation, allocation.routingNodes().node(nodeId))
-                ).compare(shardRouting, bestNonPreferredShardsByNode.get(shardRouting.currentNodeId()));
+                ).compare(shardRouting, bestNonPreferredShardsByNode.get(shardRouting.currentNodeId()).shardRouting());
                 if (compare <= 0) {
                     // Ignore inferior non-preferred moves
                     return MoveDecision.NOT_TAKEN;

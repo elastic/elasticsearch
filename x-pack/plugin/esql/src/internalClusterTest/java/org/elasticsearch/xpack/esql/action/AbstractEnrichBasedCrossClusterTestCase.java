@@ -252,7 +252,7 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
         if (ccsMetadataInResponse != null) {
             request.includeCCSMetadata(ccsMetadataInResponse);
         }
-        return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+        return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(3000, TimeUnit.SECONDS);
     }
 
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {

@@ -7188,27 +7188,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | SORT emp_no
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
-                | ENRICH _remote:departments
-                """, testData, false);
-            var topN = as(plan, TopNExec.class);
-            var exchange = as(topN.child(), ExchangeExec.class);
-            var fragment = as(exchange.child(), FragmentExec.class);
-            var dupTopN = as(fragment.fragment(), TopN.class);
-            assertThat(dupTopN.limit().toString(), equalTo("10"));
-            var enrich = as(dupTopN.child(), Enrich.class);
-            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
-            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
-            var evalFragment = as(enrich.child(), Eval.class);
-            var partialTopN = as(evalFragment.child(), TopN.class);
-            assertThat(partialTopN.limit().toString(), equalTo("10"));
-            as(partialTopN.child(), EsRelation.class);
-        }
-        {
-            var plan = physicalPlan("""
-                FROM test
-                | SORT emp_no
-                | LIMIT 10
-                | EVAL employee_id = to_str(emp_no)
                 | ENRICH _any:departments
                 """, testData, false);
             var enrich = as(plan, EnrichExec.class);
@@ -7237,6 +7216,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialTopN = as(fragment.fragment(), TopN.class);
+            as(partialTopN.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | SORT emp_no
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                """, testData, false);
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var dupTopN = as(fragment.fragment(), TopN.class);
+            assertThat(dupTopN.limit().toString(), equalTo("10"));
+            var enrich = as(dupTopN.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialTopN = as(evalFragment.child(), TopN.class);
+            assertThat(partialTopN.limit().toString(), equalTo("10"));
             as(partialTopN.child(), EsRelation.class);
         }
     }

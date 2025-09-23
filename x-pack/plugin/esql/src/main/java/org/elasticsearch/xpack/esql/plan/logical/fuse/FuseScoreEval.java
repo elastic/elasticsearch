@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.plan.logical.fuse;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.operator.fuse.FuseConfig;
+import org.elasticsearch.compute.operator.fuse.LinearConfig;
+import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
@@ -21,23 +25,35 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalysisVerificationAware {
     private final Attribute discriminatorAttr;
     private final Attribute scoreAttr;
+    private final Fuse.FuseType fuseType;
     private final MapExpression options;
 
-    public FuseScoreEval(Source source, LogicalPlan child, Attribute scoreAttr, Attribute discriminatorAttr, MapExpression options) {
+    public FuseScoreEval(
+        Source source,
+        LogicalPlan child,
+        Attribute scoreAttr,
+        Attribute discriminatorAttr,
+        Fuse.FuseType fuseType,
+        MapExpression options
+    ) {
         super(source, child);
         this.scoreAttr = scoreAttr;
         this.discriminatorAttr = discriminatorAttr;
+        this.fuseType = fuseType;
         this.options = options;
     }
 
@@ -53,7 +69,7 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, FuseScoreEval::new, child(), scoreAttr, discriminatorAttr, options);
+        return NodeInfo.create(this, FuseScoreEval::new, child(), scoreAttr, discriminatorAttr, fuseType, options);
     }
 
     @Override
@@ -63,7 +79,7 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new FuseScoreEval(source(), newChild, scoreAttr, discriminatorAttr, options);
+        return new FuseScoreEval(source(), newChild, scoreAttr, discriminatorAttr, fuseType, options);
     }
 
     public Attribute score() {
@@ -75,29 +91,15 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
     }
 
     public FuseConfig fuseConfig() {
-        if (options == null) {
-            return RrfConfig.DEFAULT_CONFIG;
-        }
-        Double rankConstant = RrfConfig.DEFAULT_RANK_CONSTANT;
-        Expression rankConstantExp = options.keyFoldedMap().get(RrfConfig.RANK_CONSTANT);
-        if (rankConstantExp != null) {
-            rankConstant = ((Number) rankConstantExp.fold(FoldContext.small())).doubleValue();
-        }
-
-        Map<String, Double> weights = new HashMap<>();
-        Expression weightsExp = options.keyFoldedMap().get(FuseConfig.WEIGHTS);
-        if (weightsExp != null) {
-            for (Map.Entry<String, Expression> entry : ((MapExpression) weightsExp).keyFoldedMap().entrySet()) {
-                weights.put(entry.getKey(), ((Number) entry.getValue().fold(FoldContext.small())).doubleValue());
-            }
-        }
-
-        return new RrfConfig(rankConstant, weights);
+        return switch (fuseType) {
+            case RRF -> rrfFuseConfig();
+            case LINEAR -> linearFuseConfig();
+        };
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), scoreAttr, discriminatorAttr);
+        return Objects.hash(super.hashCode(), scoreAttr, discriminatorAttr, fuseType, options);
     }
 
     @Override
@@ -124,9 +126,39 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
             return;
         }
 
+        switch (fuseType) {
+            case LINEAR -> validateLinearOptions(failures);
+            case RRF -> validateRrfOptions(failures);
+        }
+    }
+
+    private void validateRrfOptions(Failures failures) {
         options.keyFoldedMap().forEach((key, value) -> {
             if (key.equals(RrfConfig.RANK_CONSTANT)) {
                 validatePositiveNumber(failures, value, key);
+            } else if (key.equals(FuseConfig.WEIGHTS)) {
+                validateWeights(value, failures);
+            } else {
+                failures.add(new Failure(this, "unknown option [" + key + "] in [" + this.sourceText() + "]"));
+            }
+        });
+    }
+
+    private void validateLinearOptions(Failures failures) {
+        options.keyFoldedMap().forEach((key, value) -> {
+            if (key.equals(LinearConfig.NORMALIZER)) {
+                if ((value instanceof Literal) == false) {
+                    failures.add(new Failure(this, "expected " + key + " to be a literal, got [" + value.sourceText() + "]"));
+                    return;
+                }
+                if (value.dataType() != DataType.KEYWORD) {
+                    failures.add(new Failure(this, "expected " + key + " to be a string, got [" + value.sourceText() + "]"));
+                    return;
+                }
+                String stringValue = BytesRefs.toString(value.fold(FoldContext.small())).toUpperCase(Locale.ROOT);
+                if (Arrays.stream(LinearConfig.Normalizer.values()).noneMatch(s -> s.name().equals(stringValue))) {
+                    failures.add(new Failure(this, "[" + value.sourceText() + "] is not a valid normalizer"));
+                }
             } else if (key.equals(FuseConfig.WEIGHTS)) {
                 validateWeights(value, failures);
             } else {
@@ -156,5 +188,43 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
         if (numericValue != null && numericValue.doubleValue() <= 0) {
             failures.add(new Failure(this, "expected " + name + " to be positive, got [" + value.sourceText() + "]"));
         }
+    }
+
+    private FuseConfig rrfFuseConfig() {
+        if (options == null) {
+            return RrfConfig.DEFAULT_CONFIG;
+        }
+        Double rankConstant = RrfConfig.DEFAULT_RANK_CONSTANT;
+        Expression rankConstantExp = options.keyFoldedMap().get(RrfConfig.RANK_CONSTANT);
+        if (rankConstantExp != null) {
+            rankConstant = ((Number) rankConstantExp.fold(FoldContext.small())).doubleValue();
+        }
+        return new RrfConfig(rankConstant, configWeights());
+    }
+
+    private FuseConfig linearFuseConfig() {
+        if (options == null) {
+            return LinearConfig.DEFAULT_CONFIG;
+        }
+
+        LinearConfig.Normalizer normalizer = LinearConfig.Normalizer.NONE;
+        Expression normalizerExp = options.keyFoldedMap().get(LinearConfig.NORMALIZER);
+        if (normalizerExp != null) {
+            normalizer = LinearConfig.Normalizer.valueOf(
+                BytesRefs.toString(normalizerExp.fold(FoldContext.small())).toUpperCase(Locale.ROOT)
+            );
+        }
+        return new LinearConfig(normalizer, configWeights());
+    }
+
+    private Map<String, Double> configWeights() {
+        Map<String, Double> weights = new HashMap<>();
+        Expression weightsExp = options.keyFoldedMap().get(FuseConfig.WEIGHTS);
+        if (weightsExp != null) {
+            for (Map.Entry<String, Expression> entry : ((MapExpression) weightsExp).keyFoldedMap().entrySet()) {
+                weights.put(entry.getKey(), ((Number) entry.getValue().fold(FoldContext.small())).doubleValue());
+            }
+        }
+        return weights;
     }
 }

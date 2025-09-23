@@ -9,8 +9,8 @@
 
 package org.elasticsearch.usage;
 
-import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStats;
+import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.util.Maps;
 
 import java.util.Collections;
@@ -32,7 +32,7 @@ public final class SearchUsageHolder {
     private final Map<String, LongAdder> rescorersUsage = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> sectionsUsage = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> retrieversUsage = new ConcurrentHashMap<>();
-    private final Map<String,Map<String,Map<String,LongAdder>>> extendedSearchUsage = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Map<String, LongAdder>>> extendedSearchUsage = new ConcurrentHashMap<>();
 
     SearchUsageHolder() {}
 
@@ -81,18 +81,17 @@ public final class SearchUsageHolder {
     }
 
     private Map<String, Map<String, Map<String, Long>>> getExtendedSearchUsage() {
-        return unmodifiableMap(extendedSearchUsage, nameMap ->
-            unmodifiableMap(nameMap, valueMap ->
-                unmodifiableMap(valueMap, LongAdder::longValue)
-            )
+        return unmodifiableMap(
+            extendedSearchUsage,
+            nameMap -> unmodifiableMap(nameMap, valueMap -> unmodifiableMap(valueMap, LongAdder::longValue))
         );
     }
 
     private void updateExtendedUsage(Map<String, Map<String, Set<String>>> extendedDataUsage) {
-        extendedDataUsage.forEach((category, nameMap) ->
-            nameMap.forEach((name, valueSet) ->
-                valueSet.forEach(value ->
-                    extendedSearchUsage.computeIfAbsent(category, k -> new ConcurrentHashMap<>())
+        extendedDataUsage.forEach(
+            (category, nameMap) -> nameMap.forEach(
+                (name, valueSet) -> valueSet.forEach(
+                    value -> extendedSearchUsage.computeIfAbsent(category, k -> new ConcurrentHashMap<>())
                         .computeIfAbsent(name, k -> new ConcurrentHashMap<>())
                         .computeIfAbsent(value, k -> new LongAdder())
                         .increment()

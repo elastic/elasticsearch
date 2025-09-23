@@ -80,8 +80,9 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.totalSearchCount = in.readVLong();
         this.rescorers = in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
         this.retrievers = in.getTransportVersion().onOrAfter(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
-        this.extendedSearchUsageStats =
-            in.getTransportVersion().supports(EXTENDED_SEARCH_USAGE_TELEMETRY) ? new ExtendedSearchUsageStats(in) : new ExtendedSearchUsageStats();
+        this.extendedSearchUsageStats = in.getTransportVersion().supports(EXTENDED_SEARCH_USAGE_TELEMETRY)
+            ? new ExtendedSearchUsageStats(in)
+            : new ExtendedSearchUsageStats();
     }
 
     @Override

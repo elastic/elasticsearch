@@ -65,7 +65,6 @@ public final class SearchUsage {
         trackExtendedDataUsage(RETRIEVERS_NAME, name, values);
     }
 
-
     /**
      * Returns the query types that have been used at least once in the tracked search request
      */
@@ -97,7 +96,7 @@ public final class SearchUsage {
     /**
      * Returns the extended data that has been tracked for the search request
      */
-    public Map<String, Map<String,Set<String>>> getExtendedDataUsage() {
+    public Map<String, Map<String, Set<String>>> getExtendedDataUsage() {
         return extendedUsage.getUsage();
     }
 
@@ -113,21 +112,17 @@ public final class SearchUsage {
         private final Map<String, Map<String, Set<String>>> categoriesToExtendedUsage = new HashMap<>();
 
         public void initialize(String category, String name) {
-            categoriesToExtendedUsage
-                .computeIfAbsent(category, k -> new HashMap<>())
-                .computeIfAbsent(name, k -> new HashSet<>());
+            categoriesToExtendedUsage.computeIfAbsent(category, k -> new HashMap<>()).computeIfAbsent(name, k -> new HashSet<>());
         }
 
         public void track(String category, String name, String value) {
-            categoriesToExtendedUsage
-                .computeIfAbsent(category, k -> new HashMap<>())
+            categoriesToExtendedUsage.computeIfAbsent(category, k -> new HashMap<>())
                 .computeIfAbsent(name, k -> new HashSet<>())
                 .add(value);
         }
 
         public void track(String category, String name, Set<String> values) {
-            categoriesToExtendedUsage
-                .computeIfAbsent(category, k -> new HashMap<>())
+            categoriesToExtendedUsage.computeIfAbsent(category, k -> new HashMap<>())
                 .computeIfAbsent(name, k -> new HashSet<>())
                 .addAll(values);
         }

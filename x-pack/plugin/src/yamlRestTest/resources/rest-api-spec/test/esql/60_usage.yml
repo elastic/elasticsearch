@@ -239,7 +239,7 @@ setup:
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay
-  - not_exists: esql.functions.idelta
+  - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
 

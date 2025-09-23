@@ -33,7 +33,10 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-DeltaAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "samples", type = "LONG_BLOCK"), @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
+    value = {
+        @IntermediateState(name = "samples", type = "LONG_BLOCK"),
+        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
+        @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
 public class Delta$Type$Aggregator {
     public static $Type$DeltaGroupingState initGrouping(DriverContext driverContext) {

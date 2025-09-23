@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -18,9 +19,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
+import java.util.LinkedList;
+import java.util.List;
+
 /**
- * Locate any SORT that is "visible" under remote ENRICH, and make a copy of it above the ENRICH,
- * while making a copy of the original fields.
+ * Locate any TopN that is "visible" under remote ENRICH, and make a copy of it above the ENRICH,
+ * while making a copy of the original fields. Mark the original TopN as local.
+ * This is the same idea as {@link HoistRemoteEnrichLimit} but for TopN instead of Limit.
+ * This must happen after {@link ReplaceLimitAndSortAsTopN}.
  */
 public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOptimizerRule<Enrich, LogicalOptimizerContext> {
     // Local plans don't really need the duplication
@@ -39,6 +45,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
 
         if (en.mode() == Enrich.Mode.REMOTE) {
             LogicalPlan plan = en.child();
+            // This loop only takes care of one TopN, repeated application will stack them in correct order.
             while (true) {
                 if (plan instanceof TopN top) {
                     if (top.isLocal()) {
@@ -67,7 +74,17 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
                             Eval eval = (Eval) enrich.child();
                             // We insert the evals above the original TopN, so that the copy TopN works on the renamed fields
                             LogicalPlan replacementTop = eval.replaceChild(top.withLocal(true));
-                            LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == top ? replacementTop : t);
+                            LogicalPlan transformedEnrich = en.transformDown(p -> switch (p) {
+                                case TopN t when t == top -> replacementTop;
+                                // We only need to take care of Project because Drop can't drop our newly created fields
+                                case Project pr -> {
+                                    List<NamedExpression> allFields = new LinkedList<>(pr.projections());
+                                    allFields.addAll(eval.fields());
+                                    yield pr.withProjections(allFields);
+                                }
+                                default -> p;
+                            });
+
                             // Create the copied topN on top of the Enrich
                             var copyTop = new TopN(top.source(), transformedEnrich, order.order(), top.limit(), false);
                             // And use the project to remove the fields that we don't need anymore

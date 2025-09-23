@@ -21,7 +21,7 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
- * Locate any LIMIT that is "visible" under remote ENRICH, and make a copy of it above the ENRICH.
+ * Locate any LIMIT that is "visible" under remote ENRICH, and make a copy of it above the ENRICH. The original limit is marked as local.
  * This allows the correct semantics of the remote application of limit. Enrich itself does not change the cardinality,
  * but the limit needs to be taken twice, locally on the node and again on the coordinator.
  */
@@ -37,17 +37,21 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
     @Override
     protected LogicalPlan rule(Enrich en, LogicalOptimizerContext ctx) {
         if (en.mode() == Enrich.Mode.REMOTE) {
+            // Since limits are combinable, we will just assemble the set of candidates and create one combined lowest limit above the
+            // Enrich.
             Set<Limit> seenLimits = Collections.newSetFromMap(new IdentityHashMap<>());
             en.child().forEachDownMayReturnEarly((p, stop) -> {
                 if (p instanceof Limit l && l.isLocal() == false) {
                     seenLimits.add(l);
                     return;
                 }
-                // if we hit a plan that can generate more rows, or a pipeline breaker, we cannot look further down
-                if (p instanceof MvExpand
+                if (p instanceof MvExpand // MV_EXPAND can increase the number of rows, so we can't just pull a limit from under it
                     // this will fail the verifier anyway, so no need to continue
                     || (p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
+                // This is essentially another remote enrich - let it take care of its own limits
                     || (p instanceof Enrich e && e.mode() != Enrich.Mode.ANY)
+                // If it's a pipeline breaker, this part will be on the coordinator anyway, which likely will fail the verifier
+                // In any case, duplicating anything below there is pointless.
                     || p instanceof PipelineBreaker) {
                     stop.set(true);
                 }
@@ -65,6 +69,7 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             }
             // Shouldn't actually throw because we checked seenLimits is not empty
             Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx.foldCtx()))).orElseThrow();
+            // Insert new lowest limit on top of the Enrich
             return new Limit(lowestLimit.source(), lowestLimit.limit(), transformLimits, true, false);
         }
         return en;

@@ -96,8 +96,10 @@ public final class ScalbLongEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
+        double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
+        long scaleFactor = scaleFactorBlock.getLong(scaleFactorBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Scalb.process(dBlock.getDouble(dBlock.getFirstValueIndex(p)), scaleFactorBlock.getLong(scaleFactorBlock.getFirstValueIndex(p))));
+          result.appendDouble(Scalb.process(d, scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -110,8 +112,10 @@ public final class ScalbLongEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleBlock eval(int positionCount, DoubleVector dVector, LongVector scaleFactorVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double d = dVector.getDouble(p);
+        long scaleFactor = scaleFactorVector.getLong(p);
         try {
-          result.appendDouble(Scalb.process(dVector.getDouble(p), scaleFactorVector.getLong(p)));
+          result.appendDouble(Scalb.process(d, scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

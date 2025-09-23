@@ -670,6 +670,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -1201,6 +1206,11 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support for INCREASE timeseries aggregation.
+         */
+        INCREASE,
+
+        /**
          * Extra field types in the k8s.csv dataset
          */
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
@@ -1352,7 +1362,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V3(Build.current().isSnapshot()),
+        FUSE_V4(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1456,6 +1466,11 @@ public class EsqlCapabilities {
         URL_ENCODE(Build.current().isSnapshot()),
 
         /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+
+        /**
          * URL decoding function.
          */
         URL_DECODE(Build.current().isSnapshot()),
@@ -1463,7 +1478,7 @@ public class EsqlCapabilities {
         /**
          * Allow lookup join on boolean expressions
          */
-        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
 
         /**
          * FORK with remote indices

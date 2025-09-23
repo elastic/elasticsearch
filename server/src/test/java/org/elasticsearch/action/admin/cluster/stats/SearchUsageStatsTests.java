@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStatsTests.randomExtendedSearchUsage;
 import static org.elasticsearch.action.admin.cluster.stats.SearchUsageStats.EXTENDED_SEARCH_USAGE_TELEMETRY;
 
 public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<SearchUsageStats> {
@@ -87,19 +88,6 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
             retrieversUsage.put(randomFrom(RETRIEVERS), randomLongBetween(1, Long.MAX_VALUE));
         }
         return retrieversUsage;
-    }
-
-    private static ExtendedSearchUsageStats randomExtendedSearchUsage() {
-
-        Map<String, Map<String, Map<String, Long>>> categoriesToExtendedData = new HashMap<>();
-        if (randomBoolean()) {
-            categoriesToExtendedData.put(
-                "retrievers",
-                Map.of("text_similarity_reranker", Map.of("chunk_rescorer", randomLongBetween(1, 10)))
-            );
-        }
-
-        return new ExtendedSearchUsageStats(categoriesToExtendedData);
     }
 
     @Override

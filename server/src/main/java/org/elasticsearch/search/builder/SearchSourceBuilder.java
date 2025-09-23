@@ -1442,7 +1442,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         new RetrieverParserContext(searchUsage, clusterSupportsFeature)
                     );
                     searchUsage.trackSectionUsage(RETRIEVER.getPreferredName());
-                    searchUsage.trackSectionUsage(EXTENDED.getPreferredName());
                 } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(

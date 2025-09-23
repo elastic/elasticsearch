@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +51,10 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
             StreamInput::readString,
             i -> i.readMap(StreamInput::readString, j -> j.readMap(StreamInput::readString, StreamInput::readLong))
         );
+    }
+
+    public Map<String, Map<String, Map<String, Long>>> getCategoriesToExtendedData() {
+        return Collections.unmodifiableMap(categoriesToExtendedData);
     }
 
     @Override

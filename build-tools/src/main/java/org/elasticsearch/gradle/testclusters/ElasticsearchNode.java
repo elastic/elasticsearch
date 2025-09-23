@@ -49,6 +49,7 @@ import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayInputStream;
@@ -94,6 +95,7 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.Optional.ofNullable;
+import static org.elasticsearch.gradle.util.OsUtils.jdkIsIncompatibleWithOS;
 
 public class ElasticsearchNode implements TestClusterConfiguration {
 
@@ -166,6 +168,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
     private final Function<Version, Boolean> isReleasedVersion;
+    private final Provider<JavaLauncher> jdk17FallbackLauncher;
     private final List<ElasticsearchDistribution> distributions = new ArrayList<>();
     private int currentDistro = 0;
     private TestDistribution testDistribution;
@@ -190,7 +193,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         FileOperations fileOperations,
         File workingDirBase,
         Provider<File> runtimeJava,
-        Function<Version, Boolean> isReleasedVersion
+        Function<Version, Boolean> isReleasedVersion,
+        Provider<JavaLauncher> jdk17FallbackLauncher
     ) {
         this.path = path;
         this.name = name;
@@ -203,6 +207,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.fileOperations = fileOperations;
         this.runtimeJava = runtimeJava;
         this.isReleasedVersion = isReleasedVersion;
+        this.jdk17FallbackLauncher = jdk17FallbackLauncher;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -751,6 +756,48 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         featureFlags.add(new FeatureFlag(feature, from, until));
     }
 
+    private boolean isUbuntu2404OrLater() {
+        try {
+            if (OS.current() != OS.LINUX) {
+                return false;
+            }
+
+            // Read /etc/os-release file to get distribution info
+            Path osRelease = Path.of("/etc/os-release");
+            if (!Files.exists(osRelease)) {
+                return false;
+            }
+
+            String content = Files.readString(osRelease);
+            boolean isUbuntu = content.contains("ID=ubuntu");
+
+            if (!isUbuntu) {
+                return false;
+            }
+
+            // Extract version
+            String versionLine = content.lines().filter(line -> line.startsWith("VERSION_ID=")).findFirst().orElse("");
+
+            if (versionLine.isEmpty()) {
+                return false;
+            }
+
+            String version = versionLine.substring("VERSION_ID=".length()).replace("\"", "");
+            String[] parts = version.split("\\.");
+
+            if (parts.length >= 2) {
+                int major = Integer.parseInt(parts[0]);
+                int minor = Integer.parseInt(parts[1]);
+                return major > 24 || (major == 24 && minor >= 4);
+            }
+
+            return false;
+        } catch (Exception e) {
+            LOGGER.debug("Failed to detect Ubuntu version", e);
+            return false;
+        }
+    }
+
     private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
         if (Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false
             && Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false) {
@@ -793,7 +840,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
             defaultEnv.put("ES_JAVA_HOME", runtimeJava.get().getAbsolutePath());
         }
+        // Older distributions ship with openjdk versions that are not compatible with newer kernels of ubuntu 24.04 and later
+        // Therefore we pass explicitly the runtime java to use the adoptium jdk that is maintained longer and compatible
+        // with newer kernels.
+        // 8.10.4 is the last version shipped with jdk < 21. We configure these cluster to run with jdk 17 adoptium as 17 was
+        // the last LTS release before 21
+        else if (jdkIsIncompatibleWithOS(getVersion())) {
+            defaultEnv.put(
+                "ES_JAVA_HOME",
+                jdk17FallbackLauncher.map(j -> j.getMetadata().getInstallationPath().getAsFile().getAbsolutePath()).get()
+            );
+        }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
+
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
             systemPropertiesString = " " + systemProperties.entrySet().stream().peek(entry -> {

@@ -1523,22 +1523,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
-    public void testIVFParsingFailureInRelease() {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(
-                    b -> b.field("type", "dense_vector")
-                        .field("dims", dims)
-                        .startObject("index_options")
-                        .field("type", "bbq_disk")
-                        .endObject()
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("Unknown vector index options"));
-    }
-
     public void testRescoreVectorForNonQuantized() {
         for (String indexType : List.of("hnsw", "flat")) {
             Exception e = expectThrows(

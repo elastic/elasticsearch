@@ -90,20 +90,4 @@ public class SamplingMetadataTests extends ChunkedToXContentDiffableSerializatio
             randomBoolean() ? randomAlphaOfLength(10) : null
         );
     }
-
-    public void testHumanReadableParsing() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            """
-                {
-                  "rate": ".05",
-                  "max_samples": 20,
-                  "max_size": "10mb",
-                  "time_to_live": "1d",
-                  "if": "ctx?.network?.name == 'Guest'"
-                }
-                """);
-        SamplingConfiguration configuration = SamplingConfiguration.fromXContent(parser);
-        assertThat(configuration.maxSize(), equalTo(ByteSizeValue.ofMb(10)));
-        assertThat(configuration.timeToLive(), equalTo(TimeValue.timeValueDays(1)));
-    }
 }

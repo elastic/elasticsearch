@@ -8,13 +8,17 @@
  */
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -183,4 +187,30 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             randomAlphaOfLength(10)
         );
     }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return randomBoolean() ? ToXContent.EMPTY_PARAMS : new ToXContent.MapParams(Map.of("human", "true"));
+    }
+
+    public void testHumanReadableParsing() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            """
+                {
+                  "rate": "0.05",
+                  "max_samples": 20,
+                  "max_size": "10mb",
+                  "time_to_live": "1d",
+                  "if": "ctx?.network?.name == 'Guest'"
+                }
+                """);
+        SamplingConfiguration configuration = SamplingConfiguration.fromXContent(parser);
+        assertThat(configuration.rate(), equalTo(0.05));
+        assertThat(configuration.maxSize(), equalTo(ByteSizeValue.ofMb(10)));
+        assertThat(configuration.timeToLive(), equalTo(TimeValue.timeValueDays(1)));
+    }
+
 }
+
+
+

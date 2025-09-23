@@ -37,6 +37,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
 
     public static final String TYPE = "sampling_configuration";
     private static final String RATE_FIELD_NAME = "rate";
+    private static final String RATE_PERCENTAGE_FIELD_NAME = "rate_percentage";
     private static final String MAX_SAMPLES_FIELD_NAME = "max_samples";
     private static final String MAX_SIZE_IN_BYTES_FIELD_NAME = "max_size_in_bytes";
     private static final String MAX_SIZE_FIELD_NAME = "max_size";
@@ -64,39 +65,43 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         + " days";
     public static final String INVALID_CONDITION_MESSAGE = "condition script, if provided, must not be empty";
 
-    private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(TYPE, true, args -> {
-        double rate = (double) args[0];
-        Integer maxSamples = (Integer) args[1];
-        ByteSizeValue maxSize = (ByteSizeValue) args[2];
-        TimeValue timeToLive = (TimeValue) args[3];
-        String condition = (String) args[4];
-        return new SamplingConfiguration(rate, maxSamples, maxSize, timeToLive, condition);
+    private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(TYPE, false, args -> {
+        Double rawRate = (Double) args[1];
+        Integer maxSamples = (Integer) args[2];
+        ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[3];
+        ByteSizeValue rawMaxSize = (ByteSizeValue) args[4];
+        TimeValue humanReadableTimeToLive = (TimeValue) args[5];
+        TimeValue rawTimeToLive = (TimeValue) args[6];
+        String condition = (String) args[7];
+
+        return new SamplingConfiguration(
+            rawRate,
+            maxSamples,
+            determineValue(humanReadableMaxSize, rawMaxSize),
+            determineValue(humanReadableTimeToLive, rawTimeToLive),
+            condition);
     });
 
     static {
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            return p.text();
+        }, new ParseField(RATE_PERCENTAGE_FIELD_NAME), ObjectParser.ValueType.STRING);
         PARSER.declareDouble(constructorArg(), new ParseField(RATE_FIELD_NAME));
         PARSER.declareInt(optionalConstructorArg(), new ParseField(MAX_SAMPLES_FIELD_NAME));
-        // Handle both human-readable and machine-readable fields for maxSize
+        // Handle both human-readable and machine-readable fields for maxSize.
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {return
+            ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME);}, new ParseField(MAX_SIZE_FIELD_NAME),
+            ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME);
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return ByteSizeValue.ofBytes(p.longValue());
-            } else {
-                throw new IllegalArgumentException("Unexpected token type: " + p.currentToken());
-            }
-        }, new ParseField(MAX_SIZE_IN_BYTES_FIELD_NAME), ObjectParser.ValueType.VALUE);
+            return ByteSizeValue.ofBytes(p.longValue());
+        }, new ParseField(MAX_SIZE_IN_BYTES_FIELD_NAME), ObjectParser.ValueType.LONG);
         // Handle both human-readable and machine-readable fields for timeToLive
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {return
+                TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME);}, new ParseField(TIME_TO_LIVE_FIELD_NAME),
+            ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME);
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return TimeValue.timeValueMillis(p.longValue());
-            } else {
-                throw new IllegalArgumentException("Unexpected token type: " + p.currentToken());
-            }
-        }, new ParseField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME), ObjectParser.ValueType.VALUE);
-
+            return TimeValue.timeValueMillis(p.longValue());
+        }, new ParseField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME), ObjectParser.ValueType.LONG);
         PARSER.declareString(optionalConstructorArg(), new ParseField(CONDITION_FIELD_NAME));
     }
 
@@ -146,7 +151,8 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(RATE_FIELD_NAME, rate);
+        builder.humanReadable(true);
+        builder.percentageField(RATE_FIELD_NAME, RATE_PERCENTAGE_FIELD_NAME, rate);
         builder.field(MAX_SAMPLES_FIELD_NAME, maxSamples);
         builder.humanReadableField(MAX_SIZE_IN_BYTES_FIELD_NAME, MAX_SIZE_FIELD_NAME, maxSize);
         builder.humanReadableField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME, TIME_TO_LIVE_FIELD_NAME, timeToLive);
@@ -219,7 +225,16 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         }
 
         if (condition != null && condition.isEmpty()) {
-            throw new IllegalArgumentException("condition script, if provided, must not be empty");
+            throw new IllegalArgumentException(INVALID_CONDITION_MESSAGE);
         }
+    }
+
+    private static <T> T determineValue(T humanReadableValue, T rawValue) {
+        // If both human-readable and raw fields are present, the human-readable one takes precedence.
+        if (humanReadableValue == null && rawValue == null) {
+            return null;
+        }
+        return humanReadableValue != null ? humanReadableValue : rawValue;
+
     }
 }

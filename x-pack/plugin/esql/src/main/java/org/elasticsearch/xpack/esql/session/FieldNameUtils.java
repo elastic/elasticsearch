@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
@@ -52,21 +50,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
     private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.NAME.toLowerCase(Locale.ROOT));
 
-    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution) {
-
-        // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-        Set<String> enrichPolicyMatchFields = enrichResolution.resolvedEnrichPolicies()
-            .stream()
-            .map(ResolvedEnrichPolicy::matchField)
-            .collect(Collectors.toSet());
+    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches) {
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
@@ -78,7 +71,7 @@ public class FieldNameUtils {
         if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
             // no explicit columns selection, for example "from employees"
             // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
         }
 
         Holder<Boolean> projectAll = new Holder<>(false);
@@ -90,7 +83,7 @@ public class FieldNameUtils {
         });
 
         if (projectAll.get()) {
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
         }
 
         var referencesBuilder = new Holder<>(AttributeSet.builder());
@@ -232,7 +225,7 @@ public class FieldNameUtils {
         parsed.forEachDownMayReturnEarly(forEachDownProcessor.get());
 
         if (projectAll.get()) {
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
         }
 
         // Add JOIN ON column references afterward to avoid Alias removal
@@ -244,15 +237,19 @@ public class FieldNameUtils {
         referencesBuilder.get().removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
         Set<String> fieldNames = referencesBuilder.get().build().names();
 
-        if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
+        if (hasEnriches) {
+            // we do not know names of the enrich policy match fields beforehand. We need to resolve all fields in this case
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, wildcardJoinIndices);
+        } else if (fieldNames.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return new PreAnalysisResult(enrichResolution, IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
+            return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            fieldNames.addAll(subfields(fieldNames));
-            fieldNames.addAll(enrichPolicyMatchFields);
-            fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            return new PreAnalysisResult(enrichResolution, fieldNames, wildcardJoinIndices);
+            return new PreAnalysisResult(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()), wildcardJoinIndices);
         }
+    }
+
+    private static Stream<String> withSubfields(String name) {
+        return name.endsWith(WILDCARD) ? Stream.of(name) : Stream.of(name, name + ".*");
     }
 
     /**
@@ -296,9 +293,5 @@ public class FieldNameUtils {
         }
         var name = attr.name();
         return isPattern ? Regex.simpleMatch(name, other) : name.equals(other);
-    }
-
-    private static Set<String> subfields(Set<String> names) {
-        return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 }

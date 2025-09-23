@@ -167,7 +167,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
             Map.of(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
         QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
 

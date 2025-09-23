@@ -102,7 +102,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
                 testIndex3.semanticTextFields()
             ),
             Map.of(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
         QueryBuilder coordinatorRewritten = rewriteAndFetch(matchQuery, queryRewriteContext);
 

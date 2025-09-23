@@ -1674,6 +1674,11 @@ enrichLookupStatsBug
 required_capability: join_lookup_v12
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 
+// from * accidentally selects columns with dense_vector field type.
+// This is not properly handled when the query is planned by newer node and executed by an older one.
+// see https://github.com/elastic/elasticsearch/issues/135193
+required_capability: dense_vector_field_type
+
 from *
 | enrich languages_policy on cluster
 | rename languages.byte as language_code

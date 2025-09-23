@@ -48,7 +48,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         public Builder(String name) {
             // Subobjects are not currently supported.
-            super(name, Optional.of(Subobjects.DISABLED));
+            super(name, Explicit.implicit(Subobjects.DISABLED));
         }
 
         @Override
@@ -101,7 +101,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         int priority
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), sourceKeepMode, dynamic, mappers);
+        super(name, fullPath, enabled, Explicit.implicit(Subobjects.DISABLED), sourceKeepMode, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
         if (priority < 0) {

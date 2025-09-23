@@ -75,9 +75,9 @@ public class PerFieldFormatSupplier {
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
 
         if (mapperService != null
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)
             && mapperService.getIndexSettings().getMode().useDefaultPostingsFormat()) {
-            defaultPostingsFormat = Elasticsearch900Lucene101Codec.DEFAULT_POSTINGS_FORMAT;
+            defaultPostingsFormat = Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
         } else {
             // our own posting format using PFOR
             defaultPostingsFormat = es812PostingsFormat;

@@ -754,8 +754,12 @@ public enum DataType implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        String name = out.getTransportVersion().supports(createdVersion) ? typeName : UNSUPPORTED.typeName;
-        ((PlanStreamOutput) out).writeCachedString(name);
+        if (out.getTransportVersion().supports(createdVersion) == false) {
+            throw new IllegalStateException(
+                "remote node at version [" + out.getTransportVersion() + "] doesn't understand data type [" + this + "]"
+            );
+        }
+        ((PlanStreamOutput) out).writeCachedString(typeName);
     }
 
     public static DataType readFrom(StreamInput in) throws IOException {

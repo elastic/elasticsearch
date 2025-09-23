@@ -200,6 +200,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Initialize",
             Limiter.ONCE,
+
             new ResolveTable(),
             new ResolveEnrich(),
             new ResolveLookupTables(),

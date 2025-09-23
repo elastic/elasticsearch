@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -79,25 +80,34 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private final MappedFieldType.FieldExtractPreference extractPreference;
     private final IndexMode indexMode;
 
-    private record NodeInfo(String id, Version version) {}
-
-    private Map<String, NodeInfo> nodeToInfo;
-
     protected AllSupportedFieldsTestCase(MappedFieldType.FieldExtractPreference extractPreference, IndexMode indexMode) {
         this.extractPreference = extractPreference;
         this.indexMode = indexMode;
     }
 
-    private Map<String, NodeInfo> nodeToInfo() throws IOException {
-        if (nodeToInfo != null) {
-            return nodeToInfo;
-        }
+    protected record NodeInfo(String id, Version version) {}
 
-        nodeToInfo = new TreeMap<>();
+    private static Map<String, NodeInfo> nodeToInfo;
+    private Map<String, NodeInfo> nodeToInfo() throws IOException {
+        if (nodeToInfo == null) {
+            nodeToInfo = fetchNodeToInfo(client());
+        }
+        return nodeToInfo;
+    }
+
+    /**
+     * Map from node name to information about the node.
+     */
+    protected Map<String, NodeInfo> allNodeToInfo() throws IOException {
+        return nodeToInfo();
+    }
+
+    protected static Map<String, NodeInfo> fetchNodeToInfo(RestClient client) throws IOException {
+        Map<String, NodeInfo> nodeToInfo = new TreeMap<>();
         Request getIds = new Request("GET", "_cat/nodes");
         getIds.addParameter("h", "name,id,version");
         getIds.addParameter("full_id", "");
-        Response idsResponse = client().performRequest(getIds);
+        Response idsResponse = client.performRequest(getIds);
         BufferedReader idsReader = new BufferedReader(new InputStreamReader(idsResponse.getEntity().getContent()));
         String line;
         while ((line = idsReader.readLine()) != null) {
@@ -112,7 +122,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @Before
     public void createIndices() throws IOException {
         for (Map.Entry<String, NodeInfo> e : nodeToInfo().entrySet()) {
-            createIndexForNode(e.getKey(), e.getValue().id());
+            createIndexForNode(client(), e.getKey(), e.getValue().id());
         }
     }
 
@@ -132,6 +142,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
         body.field("accept_pragma_risks", "true");
         body.field("profile", true);
+        body.field("include_ccs_metadata", true);
         body.endObject();
         request.setJsonEntity(Strings.toString(body));
 
@@ -161,7 +172,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : nodeToInfo().entrySet()) {
+        for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
             String nodeName = e.getKey();
             NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
@@ -185,15 +196,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         profileLogger.clearProfile();
     }
 
-    private void createIndexForNode(String nodeName, String nodeId) throws IOException {
+    protected void createIndexForNode(RestClient client, String nodeName, String nodeId) throws IOException {
         String indexName = indexMode + "_" + nodeName;
-        if (false == indexExists(indexName)) {
-            createAllTypesIndex(indexName, nodeId);
-            createAllTypesDoc(indexName);
+        if (false == indexExists(client, indexName)) {
+            createAllTypesIndex(client, indexName, nodeId);
+            createAllTypesDoc(client, indexName);
         }
     }
 
-    private void createAllTypesIndex(String indexName, String nodeId) throws IOException {
+    private void createAllTypesIndex(RestClient client, String indexName, String nodeId) throws IOException {
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         {
             config.startObject("settings");
@@ -213,21 +224,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     continue;
                 }
                 config.startObject(fieldName(type));
-                typeMapping(config, type);
+                typeMapping(indexMode, config, type);
                 config.endObject();
             }
             config.endObject().endObject().endObject();
         }
         Request request = new Request("PUT", indexName);
         request.setJsonEntity(Strings.toString(config));
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
     private String fieldName(DataType type) {
         return type == DataType.DATETIME ? "@timestamp" : "f_" + type.esType();
     }
 
-    private void typeMapping(XContentBuilder config, DataType type) throws IOException {
+    private void typeMapping(IndexMode indexMode, XContentBuilder config, DataType type) throws IOException {
         switch (type) {
             case COUNTER_DOUBLE, COUNTER_INTEGER, COUNTER_LONG -> config.field("type", type.esType().replace("counter_", ""))
                 .field("time_series_metric", "counter");
@@ -246,7 +257,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    private void createAllTypesDoc(String indexName) throws IOException {
+    private void createAllTypesDoc(RestClient client, String indexName) throws IOException {
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
@@ -279,7 +290,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         Request request = new Request("POST", indexName + "/_doc");
         request.addParameter("refresh", "");
         request.setJsonEntity(Strings.toString(doc));
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
     private Matcher<?> expectedValue(Version version, DataType type) {
@@ -321,7 +332,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     /**
      * Is the type supported in indices?
      */
-    private boolean supportedInIndex(DataType t) {
+    private static boolean supportedInIndex(DataType t) {
         return switch (t) {
             // These are supported but implied by the index process.
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,

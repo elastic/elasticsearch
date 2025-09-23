@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.security.AccessControlException;

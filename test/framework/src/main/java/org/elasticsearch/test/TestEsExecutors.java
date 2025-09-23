@@ -7,19 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.util.concurrent;
+package org.elasticsearch.test;
 
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public interface TestEsExecutors {
+public class TestEsExecutors {
 
     /**
      * Other than EsExecutors.daemonThreadFactory this doesn't follow the general naming pattern of ES threads:
      * {@code elasticsearch[<nodeName>][<executorName>][T#<threadNumber>]}.
      * This is sometimes desirable to easily distinguish test threads from ES threads.
      */
-    static ThreadFactory testOnlyDaemonThreadFactory(final String name) {
+    public static ThreadFactory testOnlyDaemonThreadFactory(final String name) {
         assert name != null && name.isEmpty() == false;
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final ThreadGroup group = Thread.currentThread().getThreadGroup();

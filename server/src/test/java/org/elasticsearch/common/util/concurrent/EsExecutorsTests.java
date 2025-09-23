@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 

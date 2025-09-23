@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Assert;

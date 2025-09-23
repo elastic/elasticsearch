@@ -630,6 +630,9 @@ tests:
 - class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
   method: testUsage {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/135319
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135320
 
 # Examples:
 #

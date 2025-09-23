@@ -54,6 +54,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -477,6 +478,7 @@ public class FakeStatelessNode implements Closeable {
 
         final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10));   // lucene 10.3 changed default to 8
         String deleteId = ESTestCase.randomAlphaOfLength(10);
 
         try (var indexWriter = new IndexWriter(indexingStore.directory(), indexWriterConfig)) {

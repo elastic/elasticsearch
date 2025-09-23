@@ -38,7 +38,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.ShowOperator;
@@ -51,6 +50,10 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.fuse.LinearConfig;
+import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
+import org.elasticsearch.compute.operator.fuse.RrfConfig;
+import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
@@ -93,7 +96,6 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.fuse.RrfConfig;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -348,15 +350,16 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("can't find score attribute position");
         }
         if (discriminatorPosition == -1) {
-            throw new IllegalStateException("can'find discriminator attribute position");
+            throw new IllegalStateException("can't find discriminator attribute position");
         }
 
-        RrfConfig config = (RrfConfig) fuse.fuseConfig();
+        if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
+            return source.with(new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig), source.layout);
+        } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
+            return source.with(new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig), source.layout);
+        }
 
-        return source.with(
-            new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config.rankConstant(), config.weights()),
-            source.layout
-        );
+        throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -757,7 +760,26 @@ public class LocalExecutionPlanner {
             if (input == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + left + "]");
             }
-            matchFields.add(new MatchConfig(right, input));
+
+            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
+            // indices, so the call to exactAttribute looks redundant now.
+            String fieldName = right.exactAttribute().fieldName().string();
+
+            // we support 2 types of joins: Field name joins and Expression joins
+            // for Field name join, we do not ship any join on expression.
+            // we built the Lucene query on the field name that is passed in the MatchConfig.fieldName
+            // so for Field name we need to pass the attribute name from the right side, because that is needed to build the query
+            // For expression joins, we pass an expression such as left_id > right_id.
+            // So in this case we pass in left_id as the field name, because that is what we are shipping to the lookup node
+            // The lookup node will replace that name, with the actual values for each row and perform the lookup join
+            // We need to pass the left name, because we need to know what data we have shipped.
+            // It is not acceptable to just use the left or right side of the operator because the same field can be joined multiple times
+            // e.g. LOOKUP JOIN ON left_id < right_id_1 and left_id >= right_id_2
+            // we want to be able to optimize this in the future and only ship the left_id once
+            if (join.isOnJoinExpression()) {
+                fieldName = left.name();
+            }
+            matchFields.add(new MatchConfig(fieldName, input));
         }
         return source.with(
             new LookupFromIndexOperator.Factory(
@@ -770,7 +792,8 @@ public class LocalExecutionPlanner {
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
-                join.right()
+                join.right(),
+                join.joinOnConditions()
             ),
             layout
         );

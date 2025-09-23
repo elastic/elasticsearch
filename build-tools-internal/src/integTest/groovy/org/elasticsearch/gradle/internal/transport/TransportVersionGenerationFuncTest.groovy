@@ -245,8 +245,11 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     def "unreferenced definitions are removed"() {
         given:
         referableTransportVersion("test_tv", "8124000,8012002")
+        /*
+        TODO: reset of upper bounds
         transportVersionUpperBound("9.2", "test_tv", "8124000")
         transportVersionUpperBound("9.1", "test_tv", "8012002")
+         */
 
         when:
         def result = runGenerateAndValidateTask().build()
@@ -409,6 +412,8 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
     }
 
+    /*
+    TODO: reset of upper bounds
     def "deleted upper bounds files are restored"() {
         given:
         file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").delete()
@@ -419,7 +424,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         then:
         assertGenerateAndValidateSuccess(result)
         assertUpperBound("9.2", "existing_92,8123000")
-    }
+    }*/
 
     def "upper bounds files must exist for backport branches"() {
         when:

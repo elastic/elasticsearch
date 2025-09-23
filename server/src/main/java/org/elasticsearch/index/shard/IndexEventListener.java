@@ -202,6 +202,13 @@ public interface IndexEventListener {
         listener.onResponse(null);
     }
 
+    /**
+     * Called after the recover process is completed. The recovery state is DONE at this point. However, this is triggered prior to the
+     * index shard state transitions to either POST_RECOVERY to STARTED
+     *
+     * @param indexShard the shard that was recovered
+     * @param listener listener notified when this step completes
+     */
     default void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
         listener.onResponse(null);
     }

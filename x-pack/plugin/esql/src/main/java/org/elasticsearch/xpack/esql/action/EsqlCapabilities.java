@@ -269,12 +269,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support for the expressions in grouping in {@code INLINESTATS} syntax.
          */
-        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V2(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -670,6 +670,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -988,7 +993,12 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+
+        /**
+         * Renamed `INLINESTATS` to `INLINE STATS`.
+         */
+        INLINE_STATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1049,6 +1059,7 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
+        @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
@@ -1193,6 +1204,11 @@ public class EsqlCapabilities {
          * Support for count_distinct_over_time aggregation that gets evaluated per time-series
          */
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for INCREASE timeseries aggregation.
+         */
+        INCREASE,
 
         /**
          * Extra field types in the k8s.csv dataset
@@ -1346,7 +1362,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V2(Build.current().isSnapshot()),
+        FUSE_V4(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1450,9 +1466,19 @@ public class EsqlCapabilities {
         URL_ENCODE(Build.current().isSnapshot()),
 
         /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+
+        /**
          * URL decoding function.
          */
         URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
 
         /**
          * FORK with remote indices
@@ -1504,8 +1530,15 @@ public class EsqlCapabilities {
          */
         ABSENT_OVER_TIME(Build.current().isSnapshot()),
 
-        /** INLINESTATS supports remote indices */
-        INLINESTATS_SUPPORTS_REMOTE;
+        /** INLINE STATS supports remote indices */
+        INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
+
+        /**
+         * Support TS command in non-snapshot builds
+         */
+        TS_COMMAND_V0(),
+
+        ;
 
         private final boolean enabled;
 

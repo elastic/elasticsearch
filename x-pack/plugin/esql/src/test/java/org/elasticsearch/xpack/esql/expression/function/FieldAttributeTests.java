@@ -47,15 +47,17 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         String qualifier = instance.qualifier();
         EsField field = instance.field();
         Nullability nullability = instance.nullable();
+        NameId id = instance.id();
         boolean synthetic = instance.synthetic();
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0 -> parentName = randomValueOtherThan(parentName, () -> randomBoolean() ? null : randomAlphaOfLength(2));
             case 1 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 2 -> name = randomAlphaOfLength(name.length() + 1);
             case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));
             case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
-            case 5 -> synthetic = false == synthetic;
+            case 5 -> id = new NameId();
+            case 6 -> synthetic = false == synthetic;
         }
-        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, new NameId(), synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, id, synthetic);
     }
 }

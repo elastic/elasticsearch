@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -61,6 +62,14 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
             pin.setTransportVersion(in.getTransportVersion());
             return new ExtraAttribute(pin);
         };
+    }
+
+    @Override
+    protected ExtraAttribute copyInstance(ExtraAttribute instance, TransportVersion version) throws IOException {
+        ExtraAttribute copied = super.copyInstance(instance, version);
+        // In production, we assign new name ids when deserializing a plan, as name ids are globally unique on a node.
+        // In tests we don't do that because it would make equality testing impossible, so we just copy the original id.
+        return new ExtraAttribute(copied.a.withId(instance.a.id()));
     }
 
     /**

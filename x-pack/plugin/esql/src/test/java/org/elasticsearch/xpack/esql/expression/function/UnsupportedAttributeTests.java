@@ -34,13 +34,14 @@ public class UnsupportedAttributeTests extends AbstractAttributeTestCase<Unsuppo
         String name = instance.name();
         UnsupportedEsField field = instance.field();
         String customMessage = instance.hasCustomMessage() ? instance.unresolvedMessage() : null;
-        switch (between(0, 3)) {
+        NameId id = instance.id();
+        switch (between(0, 4)) {
             case 0 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
             case 2 -> field = randomValueOtherThan(field, () -> UnsupportedEsFieldTests.randomUnsupportedEsField(4));
             case 3 -> customMessage = randomValueOtherThan(customMessage, () -> randomBoolean() ? null : randomAlphaOfLength(9));
-            default -> throw new IllegalArgumentException();
+            case 4 -> id = new NameId();
         }
-        return new UnsupportedAttribute(source, qualifier, name, field, customMessage, new NameId());
+        return new UnsupportedAttribute(source, qualifier, name, field, customMessage, id);
     }
 }

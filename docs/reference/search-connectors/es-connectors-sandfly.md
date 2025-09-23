@@ -17,6 +17,12 @@ As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer avai
 All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
+::::{note}
+This connector is a community contribution and is not supported by Elastic.
+Support for this connector is provided by the community.
+Please refer to the connector's source code repository for issues and support requests.
+::::
+
 
 ## **Self-managed connector** [es-connectors-sandfly-connector-client-reference]
 
@@ -42,7 +48,7 @@ To create a new Sandfly Security connector:
 
 #### Use the API [es-connectors-sandfly-client-create-use-the-api]
 
-You can use the {{es}} [Create connector API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector) to create a new self-managed Sandfly Security self-managed connector.
+You can use the {{es}} [Create connector API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector) to create a new self-managed Sandfly Security connector.
 
 For example:
 
@@ -120,12 +126,9 @@ For example: `https://your-sandfly-server.com/v4`
 * **Username**: A valid username for the Sandfly Security server
 * **Password**: The password for the specified username
 
-::::{note}
-The connector requires Elasticsearch Replication feature licensing on your Sandfly Security server to access the API endpoints.
-::::
 
 
-### Compatibility [es-connectors-sandfly-client-compatability]
+### Compatibility [es-connectors-sandfly-client-compatibility]
 
 This connector is compatible with Sandfly Security servers that support API version v4.
 
@@ -276,9 +279,6 @@ Advanced sync rules are not currently supported for this connector.
 ### Content Extraction [es-connectors-sandfly-client-content-extraction]
 
 See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
-
-
-### Self-managed connector operations [es-connectors-sandfly-client-connector-client-operations]
 
 
 ### End-to-end testing [es-connectors-sandfly-client-testing]

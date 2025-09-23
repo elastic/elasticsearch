@@ -213,7 +213,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public boolean isAsync() {
-        return isRunning;
+        return isAsync;
     }
 
     public boolean isPartial() {

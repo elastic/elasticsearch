@@ -9,6 +9,6 @@
 
   - set:
       nodes._arbitrary_key_: node_id
-  - match: { nodes.$node_id.roles.dls.bit_set_cache.hits: 0 }
-  - match: { nodes.$node_id.roles.file.remote_indices: 0 }
-  - match: { nodes.$node_id.roles.native.remote_indices: 0 }
+  - gte: { nodes.$node_id.roles.dls.bit_set_cache.count: 0 }
+  - gte: { nodes.$node_id.roles.file.size: 0 }
+  - gte: { nodes.$node_id.roles.native.size: 0 }

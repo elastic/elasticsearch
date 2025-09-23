@@ -1189,9 +1189,7 @@ public class Security extends Plugin
         var crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
             environment,
             resourceWatcherService,
-            clusterService.getClusterSettings(),
-            CrossClusterApiKeySignatureManager.getInitialTrustFilesToMonitor(environment),
-            CrossClusterApiKeySignatureManager.getInitialSigningFilesToMonitor(environment)
+            clusterService.getClusterSettings()
         );
         components.add(crossClusterApiKeySignerReloader);
 

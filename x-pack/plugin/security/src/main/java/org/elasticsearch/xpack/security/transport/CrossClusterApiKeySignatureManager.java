@@ -15,7 +15,6 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslUtil;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,8 +33,6 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -52,7 +49,8 @@ public class CrossClusterApiKeySignatureManager {
     private final Environment environment;
     private final AtomicReference<X509ExtendedTrustManager> trustManager = new AtomicReference<>();
     private final Map<String, X509KeyPair> keyPairByClusterAlias = new ConcurrentHashMap<>();
-    private final Map<String, SslConfiguration> sslConfigByClusterAlias = new ConcurrentHashMap<>();
+    private final Map<String, SslConfiguration> sslSigningConfigByClusterAlias = new ConcurrentHashMap<>();
+    private final AtomicReference<SslConfiguration> sslTrustConfig = new AtomicReference<>();
 
     private static final Map<String, String> SIGNATURE_ALGORITHM_BY_TYPE = Map.of("RSA", "SHA256withRSA", "EC", "SHA256withECDSA");
 
@@ -63,10 +61,12 @@ public class CrossClusterApiKeySignatureManager {
     }
 
     public void reload(Settings settings) {
+        logger.trace("Loading trust config with settings [{}]", settings);
         try {
             // Only load a trust manager if trust is configured to avoid using key store as trust store
             if (settingsHaveTrustConfig(settings)) {
                 var sslConfig = loadSslConfig(environment, settings);
+                sslTrustConfig.set(sslConfig);
                 var trustConfig = sslConfig.trustConfig();
                 final X509ExtendedTrustManager newTrustManager = trustConfig.createTrustManager();
                 if (newTrustManager.getAcceptedIssuers().length == 0) {
@@ -88,7 +88,7 @@ public class CrossClusterApiKeySignatureManager {
         if (settings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
             try {
                 var sslConfig = loadSslConfig(environment, settings);
-                sslConfigByClusterAlias.put(clusterAlias, sslConfig);
+                sslSigningConfigByClusterAlias.put(clusterAlias, sslConfig);
 
                 var keyConfig = sslConfig.keyConfig();
                 if (keyConfig.hasKeyMaterial()) {
@@ -117,12 +117,12 @@ public class CrossClusterApiKeySignatureManager {
     }
 
     public Collection<Path> getDependentFiles() {
-        var sslConfig = loadSslConfig(environment, environment.settings().getByPrefix("cluster.remote."));
+        var sslConfig = sslTrustConfig.get();
         return sslConfig == null ? Collections.emptyList() : sslConfig.getDependentFiles();
     }
 
     public Collection<Path> getDependentFiles(String clusterAlias) {
-        var sslConfig = sslConfigByClusterAlias.get(clusterAlias);
+        var sslConfig = sslSigningConfigByClusterAlias.get(clusterAlias);
         return sslConfig == null ? Collections.emptyList() : sslConfig.getDependentFiles();
     }
 
@@ -137,28 +137,6 @@ public class CrossClusterApiKeySignatureManager {
                 });
             }
         }
-    }
-
-    public static Set<Path> getInitialTrustFilesToMonitor(Environment environment) {
-        var trustConfig = loadSslConfig(environment, environment.settings().getByPrefix("cluster.remote."));
-        return new HashSet<>(trustConfig.getDependentFiles());
-    }
-
-    public static Map<Path, Set<String>> getInitialSigningFilesToMonitor(Environment environment) {
-        var clusterSettingsByClusterAlias = environment.settings().getGroups("cluster.remote.", true);
-        Map<Path, Set<String>> filesToMonitor = new HashMap<>();
-        clusterSettingsByClusterAlias.forEach((clusterAlias, settingsForCluster) -> {
-            var sslConfig = loadSslConfig(environment, settingsForCluster);
-            if (sslConfig != null) {
-                sslConfig.getDependentFiles().forEach(path -> {
-                    filesToMonitor.compute(
-                        path,
-                        (p, aliases) -> aliases == null ? Set.of(clusterAlias) : Sets.addToCopy(aliases, clusterAlias)
-                    );
-                });
-            }
-        });
-        return filesToMonitor;
     }
 
     public Verifier verifier() {

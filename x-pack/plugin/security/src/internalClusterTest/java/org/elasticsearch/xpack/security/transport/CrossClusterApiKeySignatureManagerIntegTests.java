@@ -7,15 +7,10 @@
 
 package org.elasticsearch.xpack.security.transport;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.test.SecurityIntegTestCase;
-
-import java.security.cert.X509Certificate;
-
-import javax.net.ssl.KeyManagerFactory;
 
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERTIFICATE_AUTHORITIES;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERT_PATH;
@@ -25,7 +20,6 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigni
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_TYPE;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEY_PATH;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
-import static org.mockito.Mockito.mock;
 
 public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegTestCase {
 

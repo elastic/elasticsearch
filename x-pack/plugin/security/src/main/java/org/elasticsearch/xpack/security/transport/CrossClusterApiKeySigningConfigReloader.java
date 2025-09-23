@@ -21,19 +21,21 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
+import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SETTINGS_PART_SIGNING;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.getDynamicSigningSettings;
@@ -50,8 +52,7 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigni
 public final class CrossClusterApiKeySigningConfigReloader implements ReloadableSecurityComponent {
 
     private static final Logger logger = LogManager.getLogger(CrossClusterApiKeySigningConfigReloader.class);
-    private final Map<Path, SigningChangeListener> signingConfigPathsToChangeListener = new ConcurrentHashMap<>();
-    private final Map<Path, FileChangesListener> trustConfigPathsToChangeListener = new ConcurrentHashMap<>();
+    private final Map<Path, ChangeListener> signingConfigPathsToChangeListener = new ConcurrentHashMap<>();
     private final ResourceWatcherService resourceWatcherService;
     private final AtomicReference<Settings> trustSettings = new AtomicReference<>();
     private final Map<String, Settings> signingSettingsByClusterAlias = new ConcurrentHashMap<>();
@@ -66,20 +67,38 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
     public CrossClusterApiKeySigningConfigReloader(
         Environment environment,
         ResourceWatcherService resourceWatcherService,
-        ClusterSettings clusterSettings,
-        Set<Path> initialTrustFilesToMonitor,
-        Map<Path, Set<String>> initialSigningFilesToMonitor
+        ClusterSettings clusterSettings
     ) {
         this.resourceWatcherService = resourceWatcherService;
-        trustSettings.set(environment.settings().getByPrefix("cluster.remote." + SETTINGS_PART_SIGNING + "."));
-        signingSettingsByClusterAlias.putAll(environment.settings().getGroups("cluster.remote.", true));
-        watchDependentFilesForTrustConfig(resourceWatcherService, initialTrustFilesToMonitor);
-        watchDependentFilesForClusterAliases(resourceWatcherService, initialSigningFilesToMonitor);
+        initTrustConfig(clusterSettings, environment);
+        initSigningConfig(clusterSettings, environment);
+    }
+
+    public void setSigningConfigLoader(CrossClusterApiKeySignatureManager apiKeySignatureManager) {
+        assert apiKeySignatureManagerFuture.isDone() == false : "apiKeySignatureManager already set";
+        apiKeySignatureManagerFuture.onResponse(apiKeySignatureManager);
+    }
+
+    private void initTrustConfig(ClusterSettings clusterSettings, Environment environment) {
+        var allRemoteClusterSettings = environment.settings().getByPrefix("cluster.remote.");
+        trustSettings.set(allRemoteClusterSettings.getByPrefix(SETTINGS_PART_SIGNING + "."));
+        var sslSettingsLoader = SslSettingsLoader.load(allRemoteClusterSettings, SETTINGS_PART_SIGNING + ".", environment);
+        watchDependentFiles(new HashSet<>(sslSettingsLoader.getDependentFiles()));
 
         clusterSettings.addSettingsUpdateConsumer((val) -> {
             reloadConsumer(val.getByPrefix("cluster.remote."), false);
             logger.info("Updated trust configuration due to updated cluster settings");
         }, getDynamicTrustSettings(), val -> this.validateUpdate(val.getByPrefix("cluster.remote.")));
+
+    }
+
+    private void initSigningConfig(ClusterSettings clusterSettings, Environment environment) {
+        var clusterSettingsByClusterAlias = environment.settings().getGroups("cluster.remote.", true);
+        clusterSettingsByClusterAlias.forEach((clusterAlias, settingsForCluster) -> {
+            var sslSettingsLoader = SslSettingsLoader.load(settingsForCluster, SETTINGS_PART_SIGNING + ".", environment);
+            signingSettingsByClusterAlias.put(clusterAlias, settingsForCluster);
+            watchDependentFiles(clusterAlias, new HashSet<>(sslSettingsLoader.getDependentFiles()));
+        });
 
         clusterSettings.addAffixGroupUpdateConsumer(getDynamicSigningSettings(), (key, val) -> {
             reloadConsumer(key, val.getByPrefix("cluster.remote." + key + "."), false);
@@ -102,92 +121,79 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
     }
 
     private void reloadConsumer(@Nullable Settings settings, boolean updateSecureSettings) {
+        reloadConsumer(null, settings, updateSecureSettings);
+    }
+
+    private void reloadConsumer(@Nullable String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
         try {
             var apiKeySignatureManager = apiKeySignatureManagerFuture.get();
-            trustSettings.updateAndGet(oldSettings -> {
-                var effectiveSettings = buildEffectiveSettings(oldSettings, settings, updateSecureSettings);
-                try {
-                    apiKeySignatureManager.reload(effectiveSettings);
-                } catch (IllegalStateException e) {
-                    logger.error(Strings.format("Failed to load trust config"), e);
-                } finally {
-                    var configFiles = apiKeySignatureManager.getDependentFiles();
-                    watchDependentFilesForTrustConfig(resourceWatcherService, new HashSet<>(configFiles));
-                }
-                return effectiveSettings;
-            });
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException e) {
-            throw new ElasticsearchException("Failed to obtain apiKeySignatureManager", e);
-        }
-    }
-
-    private void reloadConsumer(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
-        try {
-            var apiKeySignatureManager = apiKeySignatureManagerFuture.get();
-            signingSettingsByClusterAlias.compute(clusterAlias, (key, val) -> {
-                var effectiveSettings = buildEffectiveSettings(val, settings, updateSecureSettings);
-                try {
-                    apiKeySignatureManager.reload(clusterAlias, effectiveSettings);
-                } catch (IllegalStateException e) {
-                    logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
-                } finally {
-                    var configFiles = apiKeySignatureManager.getDependentFiles(clusterAlias);
-                    watchDependentFilesForClusterAliases(
-                        resourceWatcherService,
-                        configFiles.stream().collect(Collectors.toMap(file -> file, (file) -> Set.of(clusterAlias)))
-                    );
-                }
-                return effectiveSettings;
-            });
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException e) {
-            throw new ElasticsearchException("Failed to obtain apiKeySignatureManager", e);
-        }
-    }
-
-    public void setSigningConfigLoader(CrossClusterApiKeySignatureManager apiKeySignatureManager) {
-        assert apiKeySignatureManagerFuture.isDone() == false : "apiKeySignatureManager already set";
-        apiKeySignatureManagerFuture.onResponse(apiKeySignatureManager);
-    }
-
-    private void watchDependentFilesForTrustConfig(ResourceWatcherService resourceWatcherService, Set<Path> trustFilesToMonitor) {
-        trustFilesToMonitor.forEach((keyPath) -> {
-            trustConfigPathsToChangeListener.computeIfAbsent(keyPath, path -> {
-                FileChangesListener changeListener = new TrustChangeListener(path, () -> this.reloadConsumer(null, false));
-                FileWatcher fileWatcher = new FileWatcher(path);
-                fileWatcher.addListener(changeListener);
-                try {
-                    resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-                    return changeListener;
-                } catch (IOException | SecurityException e) {
-                    logger.error(Strings.format("failed to start watching file [%s]", path), e);
-                }
-                return changeListener;
-            });
-        });
-    }
-
-    private void watchDependentFilesForClusterAliases(
-        ResourceWatcherService resourceWatcherService,
-        Map<Path, Set<String>> dependentFilesToClusterAliases
-    ) {
-        dependentFilesToClusterAliases.forEach((path, clusterAliases) -> {
-            signingConfigPathsToChangeListener.compute(path, (monitoredPath, existingChangeListener) -> {
-                if (existingChangeListener != null) {
-                    logger.trace("Found existing listener for file [{}], adding clusterAliases {}", path, clusterAliases);
-                    existingChangeListener.addClusterAliases(clusterAliases);
-                    return existingChangeListener;
-                }
-
-                logger.trace("Adding listener for file [{}] for clusters {}", path, clusterAliases);
-                SigningChangeListener changeListener = new SigningChangeListener(
-                    new HashSet<>(clusterAliases),
-                    path,
-                    (clusterAlias) -> this.reloadConsumer(clusterAlias, null, false)
+            if (clusterAlias == null) {
+                trustSettings.updateAndGet(
+                    (currentSettings) -> this.reloadAndWatch(apiKeySignatureManager, currentSettings, settings, updateSecureSettings)
                 );
+            } else {
+                signingSettingsByClusterAlias.compute(
+                    clusterAlias,
+                    (alias, currentSettings) -> this.reloadAndWatch(
+                        alias,
+                        apiKeySignatureManager,
+                        currentSettings,
+                        settings,
+                        updateSecureSettings
+                    )
+                );
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            throw new ElasticsearchException("Failed to obtain apiKeySignatureManager", e);
+        }
+    }
+
+    private Settings reloadAndWatch(
+        CrossClusterApiKeySignatureManager signatureManager,
+        Settings currentSettings,
+        Settings newSettings,
+        boolean updateSecureSettings
+    ) {
+        return reloadAndWatch(null, signatureManager, currentSettings, newSettings, updateSecureSettings);
+    }
+
+    private Settings reloadAndWatch(
+        @Nullable String clusterAlias,
+        CrossClusterApiKeySignatureManager signatureManager,
+        Settings currentSettings,
+        Settings newSettings,
+        boolean updateSecureSettings
+    ) {
+        var effectiveSettings = buildEffectiveSettings(currentSettings, newSettings, updateSecureSettings);
+        try {
+            if (clusterAlias == null) {
+                signatureManager.reload(effectiveSettings);
+            } else {
+                signatureManager.reload(clusterAlias, effectiveSettings);
+            }
+        } catch (IllegalStateException e) {
+            logger.error(Strings.format("Failed to load trust config"), e);
+        } finally {
+            var configFiles = clusterAlias == null
+                ? signatureManager.getDependentFiles()
+                : signatureManager.getDependentFiles(clusterAlias);
+            watchDependentFiles(clusterAlias, new HashSet<>(configFiles));
+        }
+        return effectiveSettings;
+    }
+
+    private void watchDependentFiles(Set<Path> filesToMonitor) {
+        watchDependentFiles(null, filesToMonitor);
+    }
+
+    private void watchDependentFiles(@Nullable String clusterAlias, Set<Path> filesToMonitor) {
+        filesToMonitor.forEach(path -> {
+            signingConfigPathsToChangeListener.compute(path, (monitoredPath, existingChangeListener) -> {
+                var changeListener = existingChangeListener != null ? existingChangeListener : new ChangeListener(path);
+                changeListener.addChangeCallback(new ChangeCallback(clusterAlias, () -> this.reloadConsumer(clusterAlias, null, false)));
+
                 FileWatcher fileWatcher = new FileWatcher(path);
                 fileWatcher.addListener(changeListener);
                 try {
@@ -201,33 +207,21 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
         });
     }
 
-    private record SigningChangeListener(Set<String> clusterAliases, Path file, Consumer<String> reloadConsumer)
-        implements
-            FileChangesListener {
-        public void addClusterAliases(Set<String> clusterAliases) {
-            this.clusterAliases.addAll(clusterAliases);
+    private record ChangeCallback(@Nullable String clusterAlias, Runnable callback) {}
+
+    private record ChangeListener(Path file, List<ChangeCallback> changeCallbacks) implements FileChangesListener {
+        ChangeListener(Path file) {
+            this(file, new ArrayList<>()); // delegate to canonical
         }
 
-        @Override
-        public void onFileCreated(Path file) {
-            onFileChanged(file);
-        }
-
-        @Override
-        public void onFileDeleted(Path file) {
-            onFileChanged(file);
-        }
-
-        @Override
-        public void onFileChanged(Path file) {
-            if (this.file.equals(file)) {
-                this.clusterAliases.forEach(reloadConsumer);
-                logger.info("Updated signing configuration for [{}] config(s) due to update of file [{}]", clusterAliases.size(), file);
+        public void addChangeCallback(ChangeCallback changeCallback) {
+            if (changeCallbacks.stream()
+                .anyMatch(existingChangeCallback -> Objects.equals(existingChangeCallback.clusterAlias, changeCallback.clusterAlias))) {
+                return;
             }
+            this.changeCallbacks.add(changeCallback);
         }
-    }
 
-    private record TrustChangeListener(Path file, Runnable reloadConsumer) implements FileChangesListener {
         @Override
         public void onFileCreated(Path file) {
             onFileChanged(file);
@@ -241,8 +235,8 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
         @Override
         public void onFileChanged(Path file) {
             if (this.file.equals(file)) {
-                reloadConsumer.run();
-                logger.info("Updated signing configuration for trust config due to update of file [{}]", file);
+                this.changeCallbacks.forEach(callback -> callback.callback.run());
+                logger.info("Updated signing configuration due to update of file [{}]", file);
             }
         }
     }

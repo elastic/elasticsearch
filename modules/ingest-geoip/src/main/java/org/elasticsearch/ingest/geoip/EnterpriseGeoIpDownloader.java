@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -57,7 +56,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -120,14 +119,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      */
     private final Semaphore running = new Semaphore(1);
     /**
-     * Contains a reference to the next state to run on, or null if no run is currently requested.
-     * May be overridden by a newer state before the downloader has had a chance to run on it.
-     * We store the cluster state like this instead of using `ClusterService#state()`, as we invoke {@link #requestRunOnState(ClusterState)}
-     * from a cluster state listener, and then use the cluster state asynchronously, meaning there's a race condition between
-     * {@link #runOnState()} and the rest of the cluster state listeners completing and `ClusterStateApplierService` updating its internal
-     * `state` field.
+     * True if a run has been queued due to a cluster state change, false otherwise.
      */
-    private final AtomicReference<ClusterState> queue = new AtomicReference<>();
+    private final AtomicBoolean queued = new AtomicBoolean(false);
     private final Supplier<TimeValue> pollIntervalSupplier;
     private final Function<String, char[]> tokenProvider;
 
@@ -165,9 +159,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    void updateDatabases(ClusterState clusterState) throws IOException {
+    void updateDatabases() throws IOException {
         @NotMultiProjectCapable(description = "Enterprise GeoIP not available in serverless")
         ProjectId projectId = ProjectId.DEFAULT;
+        var clusterState = clusterService.state();
         var geoipIndex = clusterState.getMetadata().getProject(projectId).getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("the geoip index [{}] exists", EnterpriseGeoIpDownloader.DATABASES_INDEX);
@@ -435,9 +430,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         // concurrently, but a cluster state run could be in progress. Since the default poll interval is quite large (3d), there is no
         // need to wait for the current run to finish and then run again, so we just skip this run and schedule the next one.
         if (running.tryAcquire()) {
-            final var clusterState = clusterService.state();
-            logger.trace("Running periodic downloader on cluster state [{}]", clusterState.version());
-            runDownloader(clusterState);
+            logger.trace("Running periodic downloader");
+            runDownloader();
             running.release();
         }
         if (threadPool.scheduler().isShutdown() == false) {
@@ -448,61 +442,59 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     /**
-     * This method requests that the downloader runs on the supplied cluster state, which likely contains a change in the GeoIP metadata.
-     * If the queue was non-empty before we set it, then a run is already scheduled or in progress, so it will either be processed in the
-     * next/current run, or the current run will automatically start a new run when it finishes because the cluster state queue changed
-     * while it was running. This method does nothing if this task is cancelled or completed.
+     * This method requests that the downloader runs on the latest cluster state, which likely contains a change in the GeoIP metadata.
+     * If the queue was already {@code true}, then a run is already scheduled, which will process the latest cluster state when it runs,
+     * so we don't need to do anything. If the queue was {@code false}, then we set it to {@code true} and schedule a run.
+     * This method does nothing if this task is cancelled or completed.
      */
-    public void requestRunOnState(ClusterState clusterState) {
+    public void requestRunOnDemand() {
         if (isCancelled() || isCompleted() || threadPool.scheduler().isShutdown()) {
-            logger.debug("Not requesting downloader run on cluster state because task is cancelled, completed or shutting down");
+            logger.debug("Not requesting downloader run on demand because task is cancelled, completed or shutting down");
             return;
         }
-        logger.trace("Requesting downloader run on cluster state [{}]", clusterState.version());
-        if (queue.getAndSet(clusterState) == null) {
-            logger.trace("Scheduling downloader run on cluster state");
-            threadPool.schedule(this::runOnState, TimeValue.ZERO, threadPool.generic());
+        logger.trace("Requesting downloader run on demand");
+        if (queued.compareAndSet(false, true)) {
+            logger.trace("Scheduling downloader run on demand");
+            threadPool.schedule(this::runOnDemand, TimeValue.ZERO, threadPool.generic());
         }
     }
 
     /**
-     * Waits for any current run to finish, then runs the downloader on the last seen cluster state. If a new cluster state came in while
-     * waiting or running, then schedules another run to happen immediately after this one.
+     * Waits for any current run to finish, then runs the downloader on the last seen cluster state.
      */
-    private void runOnState() {
+    private void runOnDemand() {
         if (isCancelled() || isCompleted()) {
-            logger.debug("Not running downloader on cluster state because task is cancelled or completed");
+            logger.debug("Not running downloader on demand because task is cancelled or completed");
             return;
         }
         // Here we do want to wait for the current run (if any) to finish. Since a new cluster state might have arrived while the current
-        // run was running, we want to ensure that new cluster state update isn't lost, so we wait and run afterwards.
-        logger.trace("Waiting to run downloader on cluster state");
+        // run was running, we want to ensure that the new cluster state update isn't lost, so we wait and run afterwards.
+        logger.trace("Waiting to run downloader on demand");
         try {
             running.acquire();
         } catch (InterruptedException e) {
-            logger.warn("Interrupted while waiting to run downloader on cluster state", e);
+            logger.warn("Interrupted while waiting to run downloader on demand", e);
             return;
         }
-        // Get the last seen cluster state and process it.
-        final ClusterState clusterState = queue.get();
-        assert clusterState != null : "queue was null, but we should only be called if queue was non-null";
-        logger.debug("Running downloader on cluster state [{}]", clusterState.version());
-        runDownloader(clusterState);
-        // Try to clear the queue by setting the reference to null. If another cluster state came in since we fetched it above (i.e. the
-        // reference differs from `clusterState`), then we schedule another run to happen immediately after this one.
-        if (queue.compareAndSet(clusterState, null) == false) {
-            logger.debug("A new cluster state came in while running, scheduling another run");
-            threadPool.schedule(this::runOnState, TimeValue.ZERO, threadPool.generic());
-        }
-        // We release the semaphore last, to ensure that no duplicate runs/threads are started.
+        // We have the semaphore, so no other run is in progress. We set queued to false, so that future calls to requestRunOnDemand
+        // will schedule a new run. We do this before running the downloader, so that if a new cluster state arrives while we're running,
+        // that will schedule a new run.
+        // Technically speaking, there's a chance that a new cluster state arrives in between the following line and clusterService.state()
+        // in updateDatabases() (or deleteDatabases()), which will cause another run to be scheduled, but the only consequence of that is
+        // that we'll process that cluster state twice, which is harmless.
+        queued.set(false);
+        logger.debug("Running downloader on demand");
+        runDownloader();
+        // If a new cluster state arrived in between queued.set(false) and now, then that will have scheduled a new run,
+        // so we don't need to care about that here.
         running.release();
-        logger.trace("Finished running downloader on cluster state [{}]", clusterState.version());
+        logger.trace("Finished running downloader on demand");
     }
 
     /**
      * Downloads the geoip databases now based on the supplied cluster state.
      */
-    synchronized void runDownloader(ClusterState clusterState) {
+    synchronized void runDownloader() {
         // by the time we reach here, the state will never be null
         assert this.state != null : "this.setState() is null. You need to call setState() before calling runDownloader()";
 
@@ -510,22 +502,22 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             return;
         }
         try {
-            updateDatabases(clusterState); // n.b. this downloads bytes from the internet, it can take a while
+            updateDatabases(); // n.b. this downloads bytes from the internet, it can take a while
         } catch (Exception e) {
             logger.error("exception during databases update", e);
         }
         try {
-            cleanDatabases(clusterState);
+            cleanDatabases();
         } catch (Exception e) {
             logger.error("exception during databases cleanup", e);
         }
     }
 
-    private void cleanDatabases(ClusterState clusterState) {
+    private void cleanDatabases() {
         List<Tuple<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
-            .filter(e -> e.getValue().isNewEnough(clusterState.metadata().settings()) == false)
+            .filter(e -> e.getValue().isNewEnough(clusterService.state().metadata().settings()) == false)
             .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
             .toList();
         expiredDatabases.forEach(e -> {

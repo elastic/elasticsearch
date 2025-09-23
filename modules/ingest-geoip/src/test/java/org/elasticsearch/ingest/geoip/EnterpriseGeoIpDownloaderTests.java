@@ -451,10 +451,11 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
             .getWriteIndex()
             .getName();
-        ClusterState finalState = ClusterState.builder(state)
+        state = ClusterState.builder(state)
             .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
-        var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases(finalState));
+        when(clusterService.state()).thenReturn(state);
+        var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
         assertThat(
             e.getMessage(),
             equalTo(
@@ -480,7 +481,8 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         state = ClusterState.builder(state)
             .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
-        geoIpDownloader.updateDatabases(state);
+        when(clusterService.state()).thenReturn(state);
+        geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);
     }
 

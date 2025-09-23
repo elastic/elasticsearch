@@ -58,10 +58,10 @@ public abstract class IndexRouting {
         if (metadata.getIndexMode() == IndexMode.TIME_SERIES
             && metadata.getTimeSeriesDimensions().isEmpty() == false
             && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
-            return new ExtractFromSource.ForIndexDimensions(metadata, metadata.getTimeSeriesDimensions());
+            return new ExtractFromSource.ForIndexDimensions(metadata);
         }
         if (metadata.getRoutingPaths().isEmpty() == false) {
-            return new ExtractFromSource.ForRoutingPath(metadata, metadata.getRoutingPaths());
+            return new ExtractFromSource.ForRoutingPath(metadata);
         }
         if (metadata.isRoutingPartitionedIndex()) {
             return new Partitioned(metadata);
@@ -424,9 +424,9 @@ public abstract class IndexRouting {
         public static class ForRoutingPath extends ExtractFromSource {
             private final Predicate<String> isRoutingPath;
 
-            ForRoutingPath(IndexMetadata metadata, List<String> routingPath) {
-                super(metadata, routingPath);
-                isRoutingPath = Regex.simpleMatcher(routingPath.toArray(String[]::new));
+            ForRoutingPath(IndexMetadata metadata) {
+                super(metadata, metadata.getRoutingPaths());
+                isRoutingPath = Regex.simpleMatcher(metadata.getRoutingPaths().toArray(String[]::new));
             }
 
             @Override
@@ -474,8 +474,8 @@ public abstract class IndexRouting {
          */
         static class ForIndexDimensions extends ExtractFromSource {
 
-            ForIndexDimensions(IndexMetadata metadata, List<String> indexDimensions) {
-                super(metadata, indexDimensions);
+            ForIndexDimensions(IndexMetadata metadata) {
+                super(metadata, metadata.getTimeSeriesDimensions());
                 assert metadata.getIndexMode() == IndexMode.TIME_SERIES : "Index mode must be time_series for ForIndexDimensions routing";
                 assert metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)
                     : "Index version must be at least "

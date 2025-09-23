@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -20,13 +21,15 @@ import org.elasticsearch.common.settings.Setting.Property;
 /**
  * Similar to the {@link ClusterRebalanceAllocationDecider} this
  * {@link AllocationDecider} controls the number of currently in-progress
- * re-balance (relocation) operations and restricts node allocations if the
- * configured threshold is reached. The default number of concurrent rebalance
- * operations is set to {@code 2}
+ * re-balance (shard relocation) operations and restricts node allocations
+ * if the configured threshold is reached. Frozen and non-frozen shards are
+ * considered separately. The default number of concurrent rebalance operations
+ * is set to {@code 2} for non-frozen shards, and {@code 10} for frozen shards.
  * <p>
  * Re-balance operations can be controlled in real-time via the cluster update API using
- * {@code cluster.routing.allocation.cluster_concurrent_rebalance}. Iff this
- * setting is set to {@code -1} the number of concurrent re-balance operations
+ * {@code cluster.routing.allocation.cluster_concurrent_rebalance} and
+ * {@code cluster.routing.allocation.cluster_concurrent_frozen_rebalance}.
+ * Iff either setting is set to {@code -1} the number of concurrent re-balance operations
  * are unlimited.
  */
 public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
@@ -44,16 +47,36 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     );
     private volatile int clusterConcurrentRebalance;
 
+    /**
+     * Same as cluster_concurrent_rebalance, but applies separately to frozen tier shards
+     */
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.cluster_concurrent_frozen_rebalance",
+        10,
+        -1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    private volatile int clusterConcurrentFrozenRebalance;
+
     public ConcurrentRebalanceAllocationDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
             this::setClusterConcurrentRebalance
         );
-        logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
+        clusterSettings.initializeAndWatch(
+            CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING,
+            this::setClusterConcurrentFrozenRebalance
+        );
+        logger.debug("using [cluster_concurrent_rebalance] with [concurrent_rebalance=%d, concurrent_frozen_rebalance=%d]", clusterConcurrentRebalance, clusterConcurrentFrozenRebalance);
     }
 
     private void setClusterConcurrentRebalance(int concurrentRebalance) {
         clusterConcurrentRebalance = concurrentRebalance;
+    }
+
+    private void setClusterConcurrentFrozenRebalance(int concurrentFrozenRebalance) {
+        clusterConcurrentFrozenRebalance = concurrentFrozenRebalance;
     }
 
     @Override
@@ -68,18 +91,25 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
+        int relocatingFrozenShards = countRelocatingFrozenShards(allocation);
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
         if (allocation.isSimulating() && relocatingShards >= 2) {
             // BalancedShardAllocator is prone to perform unnecessary moves when cluster_concurrent_rebalance is set to high values (>2).
             // (See https://github.com/elastic/elasticsearch/issues/87279)
             // Above allocator is used in DesiredBalanceComputer. Since we do not move actual shard data during calculation
             // it is possible to artificially set above setting to 2 to avoid unnecessary moves in desired balance.
+            // Separately: keep overall limit in simulation to two including frozen shards
             return allocation.decision(Decision.THROTTLE, NAME, "allocation should move one shard at the time when simulating");
         }
-        if (clusterConcurrentRebalance == -1) {
+        boolean normalRelocationUnlimited = clusterConcurrentRebalance == -1;
+        boolean frozenRelocationUnlimited = clusterConcurrentFrozenRebalance == -1;
+        if (normalRelocationUnlimited == true && frozenRelocationUnlimited == true) {
             return allocation.decision(Decision.YES, NAME, "unlimited concurrent rebalances are allowed");
         }
-        if (relocatingShards >= clusterConcurrentRebalance) {
+
+        // separate into frozen/non-frozen counts
+        relocatingShards = relocatingShards - relocatingFrozenShards;
+        if (normalRelocationUnlimited == false && relocatingShards >= clusterConcurrentRebalance) {
             return allocation.decision(
                 Decision.THROTTLE,
                 NAME,
@@ -89,12 +119,35 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
                 clusterConcurrentRebalance
             );
         }
+        if (frozenRelocationUnlimited == false && relocatingFrozenShards >= clusterConcurrentFrozenRebalance) {
+            return allocation.decision(
+                Decision.THROTTLE,
+                NAME,
+                "reached the limit of concurrently rebalancing frozen shards [%d], cluster setting [%s=%d]",
+                relocatingFrozenShards,
+                CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING.getKey(),
+                clusterConcurrentFrozenRebalance
+            );
+        }
         return allocation.decision(
             Decision.YES,
             NAME,
-            "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
+            "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d], "
+            + "and threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
             clusterConcurrentRebalance,
-            relocatingShards
+            relocatingShards,
+            clusterConcurrentFrozenRebalance,
+            relocatingFrozenShards
         );
+    }
+
+    private int countRelocatingFrozenShards(RoutingAllocation allocation) {
+        int frozenRelocations = 0;
+        for (var routingNode : allocation.routingNodes()) {
+            if (routingNode.node().isDedicatedFrozenNode()) {
+                frozenRelocations += routingNode.shardCountsWithState(ShardRoutingState.RELOCATING);
+            }
+        }
+        return frozenRelocations;
     }
 }

@@ -246,6 +246,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     /**
+     * Determine the number of shards with a specific state
+     * @param state ShardRoutingState which should be listed
+     * @return number of shards
+     */
+    public int shardCountsWithState(ShardRoutingState state) {
+        return internalGetShardsWithState(state).size();
+    }
+
+    /**
      * Determine the shards of an index with a specific state
      * @param index id of the index
      * @param states set of states which should be listed

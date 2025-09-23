@@ -17,9 +17,14 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -32,18 +37,36 @@ import static org.hamcrest.Matchers.nullValue;
 public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
 
     public void testClusterConcurrentRebalance() {
-        AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
-                .build()
-        );
+        boolean testFrozen = randomBoolean();
+        AllocationService strategy;
+        if (testFrozen) {
+            strategy = createAllocationService(
+                Settings.builder()
+                    .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                    .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", 3)
+                    .build()
+            );
+        } else {
+            strategy = createAllocationService(
+                Settings.builder()
+                    .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                    .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
+                    .build()
+                );
+        }
 
         logger.info("Building initial routing table");
 
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
-            .build();
+        Metadata metadata;
+        if (testFrozen) {
+            metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current()).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN)).numberOfShards(5).numberOfReplicas(1))
+                .build();
+        } else {
+            metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
+                .build();
+        }
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.getProject().index("test"))
@@ -61,9 +84,15 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("start two nodes and fully start the shards");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
-            .build();
+        if (testFrozen) {
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder().add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))).add(newNode("node2", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))))
+                .build();
+        } else {
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+                .build();
+        }
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -82,19 +111,35 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("now, start 8 more nodes, and check that no rebalancing/relocation have happened");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(
-                DiscoveryNodes.builder(clusterState.nodes())
-                    .add(newNode("node3"))
-                    .add(newNode("node4"))
-                    .add(newNode("node5"))
-                    .add(newNode("node6"))
-                    .add(newNode("node7"))
-                    .add(newNode("node8"))
-                    .add(newNode("node9"))
-                    .add(newNode("node10"))
-            )
-            .build();
+        if (testFrozen) {
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(
+                    DiscoveryNodes.builder(clusterState.nodes())
+                        .add(newNode("node3", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node4", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node5", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node6", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node7", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node8", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node9", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                        .add(newNode("node10", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                )
+                .build();
+        } else {
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(
+                    DiscoveryNodes.builder(clusterState.nodes())
+                        .add(newNode("node3"))
+                        .add(newNode("node4"))
+                        .add(newNode("node5"))
+                        .add(newNode("node6"))
+                        .add(newNode("node7"))
+                        .add(newNode("node8"))
+                        .add(newNode("node9"))
+                        .add(newNode("node10"))
+                )
+                .build();
+        }
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {

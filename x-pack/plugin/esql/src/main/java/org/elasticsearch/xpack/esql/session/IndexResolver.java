@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -104,8 +103,6 @@ public class IndexResolver {
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
-        LogManager.getLogger(IndexResolver.class)
-            .error("NOCOMMIT {} {}", fieldsInfo.supportDenseVector, fieldsInfo.supportAggregateMetricDouble);
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {

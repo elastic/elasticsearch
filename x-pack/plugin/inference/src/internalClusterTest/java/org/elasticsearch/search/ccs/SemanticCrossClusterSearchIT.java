@@ -305,7 +305,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         );
     }
 
-    public void testMatchQueryWithCcMinimizeRoundTripsFalse() throws Exception {
+    public void testMatchQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
         final String localIndexName = "local-index";
         final String remoteIndexName = "remote-index";
         final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
@@ -552,7 +552,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         );
     }
 
-    public void testKnnQueryWithCcMinimizeRoundTripsFalse() throws Exception {
+    public void testKnnQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
         final String localIndexName = "local-index";
         final String remoteIndexName = "remote-index";
         final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
@@ -712,7 +712,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 "local_doc_1",
                 Map.of(commonInferenceIdField, "a"),
                 "local_doc_2",
-                Map.of(mixedTypeField1, generateSparseVectorFieldValue()),
+                Map.of(mixedTypeField1, generateSparseVectorFieldValue(1.0f)),
                 "local_doc_3",
                 Map.of(mixedTypeField2, "c")
             )
@@ -734,7 +734,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 "remote_doc_2",
                 Map.of(mixedTypeField1, "y"),
                 "remote_doc_3",
-                Map.of(mixedTypeField2, generateSparseVectorFieldValue())
+                Map.of(mixedTypeField2, generateSparseVectorFieldValue(1.0f))
             )
         );
         setupTwoClusters(localIndexInfo, remoteIndexInfo);
@@ -768,7 +768,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         );
 
         // Query a field that has mixed types across clusters using a query vector
-        final List<WeightedToken> queryVector = generateSparseVectorFieldValue().entrySet()
+        final List<WeightedToken> queryVector = generateSparseVectorFieldValue(1.0f).entrySet()
             .stream()
             .map(e -> new WeightedToken(e.getKey(), e.getValue()))
             .toList();
@@ -799,6 +799,113 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 Set.of(new FailureCause(IllegalArgumentException.class, "inference_id required to perform vector search on query string"))
             ),
             null
+        );
+    }
+
+    public void testSparseVectorQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
+            SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
+            searchRequest.setCcsMinimizeRoundtrips(false);
+
+            IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> client().search(searchRequest).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "sparse_vector query does not support cross-cluster search when querying a [semantic_text] field when "
+                        + "[ccs_minimize_roundtrips] is false"
+                )
+            );
+        };
+
+        final String commonInferenceId = "common-inference-id";
+
+        final String commonInferenceIdField = "common-inference-id-field";
+        final String mixedTypeField1 = "mixed-type-field-1";
+        final String mixedTypeField2 = "mixed-type-field-2";
+        final String sparseVectorField = "sparse-vector-field";
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            localIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField2,
+                sparseVectorMapping(),
+                sparseVectorField,
+                sparseVectorMapping()
+            ),
+            Map.of(
+                mixedTypeField2 + "_doc",
+                Map.of(mixedTypeField2, generateSparseVectorFieldValue(1.0f)),
+                sparseVectorField + "_doc",
+                Map.of(sparseVectorField, generateSparseVectorFieldValue(1.0f))
+            )
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            remoteIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                sparseVectorMapping(),
+                mixedTypeField2,
+                semanticTextMapping(commonInferenceId),
+                sparseVectorField,
+                sparseVectorMapping()
+            ),
+            Map.of(
+                mixedTypeField2 + "_doc",
+                Map.of(mixedTypeField2, "a"),
+                sparseVectorField + "_doc",
+                Map.of(sparseVectorField, generateSparseVectorFieldValue(0.5f))
+            )
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Validate that expected cases fail
+        assertCcsMinimizeRoundTripsFalseFailure.accept(new SparseVectorQueryBuilder(commonInferenceIdField, null, randomAlphaOfLength(5)));
+        assertCcsMinimizeRoundTripsFalseFailure.accept(
+            new SparseVectorQueryBuilder(mixedTypeField1, commonInferenceId, randomAlphaOfLength(5))
+        );
+
+        // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(mixedTypeField2, commonInferenceId, "foo"),
+            queryIndices,
+            List.of(new SearchResult(null, localIndexName, mixedTypeField2 + "_doc")),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(
+                    new FailureCause(
+                        QueryShardException.class,
+                        "failed to create query: field [mixed-type-field-2] must be type [sparse_vector] but is type [semantic_text]"
+                    )
+                )
+            ),
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Validate that a CCS sparse vector query functions when only sparse vector fields are queried
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(sparseVectorField, commonInferenceId, "foo"),
+            queryIndices,
+            List.of(
+                new SearchResult(null, localIndexName, sparseVectorField + "_doc"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, sparseVectorField + "_doc")
+            ),
+            null,
+            s -> s.setCcsMinimizeRoundtrips(false)
         );
     }
 
@@ -985,10 +1092,10 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         return vector;
     }
 
-    private static Map<String, Float> generateSparseVectorFieldValue() {
+    private static Map<String, Float> generateSparseVectorFieldValue(float weight) {
         // Generate values that have the same recall behavior as those produced by TestSparseInferenceServiceExtension. Use a constant token
         // weight so that relevance is consistent.
-        return Map.of("feature_0", 1.0f);
+        return Map.of("feature_0", weight);
     }
 
     public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {

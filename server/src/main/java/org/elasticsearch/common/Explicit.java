@@ -36,6 +36,20 @@ public class Explicit<T> {
     }
 
     /**
+     * Create an explicitly set value
+     */
+    public static <T> Explicit<T> of(T value) {
+        return new Explicit<>(value, true);
+    }
+
+    /**
+     * Create an implicitly set value
+     */
+    public static <T> Explicit<T> implicit(T value) {
+        return new Explicit<>(value, false);
+    }
+
+    /**
      * Create a value with an indication if this was an explicit choice
      * @param value a setting value
      * @param explicit true if the value passed is a conscious decision, false if using some kind of default

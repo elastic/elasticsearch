@@ -57,6 +57,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -419,7 +420,6 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
-import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityComponents;
@@ -1192,9 +1192,7 @@ public class Security extends Plugin
         );
         remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
         remoteClusterAuthenticationService.set(remoteClusterSecurityExtension.get().getAuthenticationService());
-        components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
         var remoteClusterTransportInterceptor = remoteClusterSecurityExtension.get().getTransportInterceptor();
-        components.add(new PluginComponentBinding<>(RemoteClusterTransportInterceptor.class, remoteClusterTransportInterceptor));
 
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -1250,11 +1248,10 @@ public class Security extends Plugin
     }
 
     private void setClosableAndReloadableComponents(List<Object> components) {
-        final List<Object> allComponents = new ArrayList<>(components);
         // adding additional components we don't expose externally,
         // but want to allow reloading settings and closing resources
         // when the security plugin gets closed
-        allComponents.add(remoteClusterSecurityExtension.get());
+        final Iterable<Object> allComponents = Iterables.flatten(List.of(components, List.of(remoteClusterSecurityExtension.get())));
 
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
         final List<Closeable> closableComponents = new ArrayList<>();

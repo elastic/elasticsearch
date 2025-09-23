@@ -461,6 +461,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
         // After caching 20 big things on shard1, the cache memory is exactly 20 * the object size:
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(shard1Queries * (shard1QuerySize + extraCacheSizePerObject)));
+        assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(0L));
         for (int i = 0; i < shard2Queries; ++i) {
             indexSearcher2.count(new DummyQuery(i, shard2QuerySize));
         }

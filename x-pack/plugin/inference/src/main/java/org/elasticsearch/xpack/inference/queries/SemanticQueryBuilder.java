@@ -68,9 +68,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     static final TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = TransportVersion.fromName(
         "inference_results_map_with_cluster_alias"
     );
-    public static final TransportVersion SEMANTIC_SEARCH_CCS_SUPPORT = TransportVersion.fromName(
-        "semantic_search_ccs_support"
-    );
+    public static final TransportVersion SEMANTIC_SEARCH_CCS_SUPPORT = TransportVersion.fromName("semantic_search_ccs_support");
 
     // Use a placeholder inference ID that will never overlap with a real inference endpoint (user-created or internal)
     private static final String PLACEHOLDER_INFERENCE_ID = "$PLACEHOLDER";

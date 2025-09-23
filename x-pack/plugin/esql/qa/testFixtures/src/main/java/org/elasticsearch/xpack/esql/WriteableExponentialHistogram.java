@@ -28,6 +28,9 @@ import java.io.IOException;
  */
 public class WriteableExponentialHistogram extends AbstractExponentialHistogram implements GenericNamedWriteable {
 
+    // TODO(b/133393): as it turns out, this is also required in production. Therefore we have to properly register this class,
+    // like in https://github.com/elastic/elasticsearch/pull/135054
+
     private static final String WRITEABLE_NAME = "test_exponential_histogram";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

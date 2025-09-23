@@ -559,7 +559,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-sentinel_one.application-*",
                         "logs-cyera.classification-*",
                         "logs-cyera.issue-*",
-                        "logs-cyera.datastore-*"                       
+                        "logs-cyera.datastore-*"
                     )
                     .privileges(
                         "manage",

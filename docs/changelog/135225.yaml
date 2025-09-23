@@ -1,0 +1,5 @@
+pr: 135225
+summary: "Refactor to remove `UsingJoinType,` `NaturalJoinType`"
+area: ES|QL
+type: tech debt
+issues: []

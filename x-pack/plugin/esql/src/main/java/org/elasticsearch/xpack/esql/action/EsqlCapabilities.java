@@ -1533,6 +1533,8 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES
+
         ;
 
         private final boolean enabled;

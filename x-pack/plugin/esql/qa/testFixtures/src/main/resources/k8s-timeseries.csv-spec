@@ -520,7 +520,7 @@ false                    | two         | 2024-05-10T00:22:00.000Z
 ;
 
 tsidMetadataAttributeCount
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: metadata_tsid_field
 
 TS k8s METADATA _tsid
@@ -532,7 +532,7 @@ cnt:long
 ;
 
 tsidMetadataAttributeAggregation
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: metadata_tsid_field
 
 TS k8s METADATA _tsid

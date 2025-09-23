@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.Text;
 
@@ -115,11 +116,9 @@ public class TsidBuilderTests extends ESTestCase {
     }
 
     public void testExceptionWhenNoDimensions() {
-        // Test that exception is thrown when no dimensions are added
         TsidBuilder builder = TsidBuilder.newBuilder();
 
-        IllegalArgumentException hashException = expectThrows(IllegalArgumentException.class, builder::hash);
-        assertTrue(hashException.getMessage().contains("Dimensions are empty"));
+        assertThat(builder.hash(), equalTo(new MurmurHash3.Hash128()));
 
         IllegalArgumentException tsidException = expectThrows(IllegalArgumentException.class, builder::buildTsid);
         assertTrue(tsidException.getMessage().contains("Dimensions are empty"));

@@ -39,7 +39,6 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .feature(FeatureFlag.IVF_FORMAT)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.RERANK_SNIPPETS)
         .build();
 
     public SmokeTestMultiNodeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

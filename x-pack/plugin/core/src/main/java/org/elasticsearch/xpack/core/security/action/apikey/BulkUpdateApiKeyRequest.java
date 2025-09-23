@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public final class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
+public class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
 
     public static BulkUpdateApiKeyRequest usingApiKeyIds(String... ids) {
         return new BulkUpdateApiKeyRequest(Arrays.stream(ids).toList(), null, null, null, null);

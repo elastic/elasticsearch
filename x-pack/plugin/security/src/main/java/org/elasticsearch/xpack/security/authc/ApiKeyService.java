@@ -141,6 +141,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
@@ -565,7 +566,7 @@ public class ApiKeyService implements Closeable {
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
             final String certificateIdentity;
             try {
-                certificateIdentity = getCertificateIdentityFromRequest(request);
+                certificateIdentity = getCertificateIdentityFromCreateRequest(request);
             } catch (ElasticsearchException e) {
                 listener.onFailure(e);
                 return;
@@ -633,25 +634,56 @@ public class ApiKeyService implements Closeable {
         }));
     }
 
-    private String getCertificateIdentityFromRequest(AbstractCreateApiKeyRequest request) {
+    private String getCertificateIdentityFromCreateRequest(AbstractCreateApiKeyRequest request) {
         String certificateIdentity = null;
         if (request instanceof CreateCrossClusterApiKeyRequest) {
             certificateIdentity = ((CreateCrossClusterApiKeyRequest) request).getCertificateIdentity();
+            validateCertificateIdentityIfPresent(certificateIdentity);
+        }
+        return certificateIdentity;
+    }
 
-            ClusterState clusterState = clusterService.state();
-            if (certificateIdentity != null
-                && featureService.clusterHasFeature(clusterState, CERTIFICATE_IDENTITY_FIELD_FEATURE) == false) {
-                logger.error(
-                    "API key creation failed. The 'certificate_identity' field was provided, but this feature "
-                        + "is not yet in place on all nodes in the cluster."
+    // For update requests
+    private void validateCertificateIdentityFromUpdateRequest(BaseBulkUpdateApiKeyRequest request) {
+        String certificateIdentity = request.getCertificateIdentity();
+        if (certificateIdentity != null) {
+            // A certificate identity should only apply to one key.
+            if (request.getIds().size() > 1) {
+                throw new IllegalArgumentException(
+                    "Certificate identity can only be updated for a single API key at a time. "
+                        + "Found "
+                        + request.getIds().size()
+                        + " API key IDs in the request."
                 );
+            }
+            validateCertificateIdentityIfPresent(certificateIdentity);
+        }
+    }
+
+    // Shared validation logic
+    private void validateCertificateIdentityIfPresent(String certificateIdentity) {
+        if (certificateIdentity != null) {
+            // Regex validation
+            if (isValidCertificateIdentity(certificateIdentity) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid certificate_identity format: [" + certificateIdentity + "]. " + "Must be a valid regex name pattern."
+                );
+            }
+
+            // Feature flag check
+            ClusterState clusterState = clusterService.state();
+            if (featureService.clusterHasFeature(clusterState, CERTIFICATE_IDENTITY_FIELD_FEATURE) == false) {
                 throw new ElasticsearchException(
-                    "API key creation failed. The cluster is in a mixed-version state and does not yet "
+                    "API key operation failed. The cluster is in a mixed-version state and does not yet "
                         + "support the [certificate_identity] field. Please retry after the upgrade is complete."
                 );
             }
         }
-        return certificateIdentity;
+    }
+
+    private static boolean isValidCertificateIdentity(String certificateIdentity) {
+        Pattern pattern = Pattern.compile("^.+$");
+        return pattern.matcher(certificateIdentity).matches();
     }
 
     public void updateApiKeys(
@@ -682,6 +714,13 @@ public class ApiKeyService implements Closeable {
         }
 
         final TransportVersion transportVersion = getMinTransportVersion();
+
+        try {
+            validateCertificateIdentityFromUpdateRequest(request);
+        } catch (IllegalArgumentException | ElasticsearchException e) {
+            listener.onFailure(e);
+            return;
+        }
 
         if (validateRoleDescriptorsForMixedCluster(listener, request.getRoleDescriptors(), transportVersion) == false) {
             return;

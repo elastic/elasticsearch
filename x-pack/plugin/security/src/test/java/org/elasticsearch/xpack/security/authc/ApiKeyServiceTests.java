@@ -3341,6 +3341,165 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(certIdentity, sourceMap.get("certificate_identity"));
     }
 
+    public void testCreateCrossClusterApiKeyInvalidCertificateIdentity() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+
+        FeatureService mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE))).thenReturn(true);
+
+        final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareIndex(any())).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+            listener.onFailure(
+                new IllegalArgumentException("Invalid certificate_identity format: [   ]. Must be a valid regex name pattern.")
+            );
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
+
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("test-user", "superuser"))
+            .realmRef(new RealmRef("file", "file", "node-1"))
+            .build(false);
+
+        // Test with whitespace-only certificate identity (passes regex but should be invalid)
+        final String whitespaceCertificateIdentity = "   ";
+        final String accessJson = """
+            {
+              "search": [{"names": ["logs*"]}]
+            }
+            """;
+
+        final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
+        try {
+            roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(accessJson);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        final CreateCrossClusterApiKeyRequest createRequest = new CreateCrossClusterApiKeyRequest(
+            randomAlphaOfLength(20),
+            roleDescriptorBuilder,
+            null,
+            null,
+            whitespaceCertificateIdentity
+        );
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createRequest, Collections.emptySet(), future);
+
+        // This should fail during service-level validation
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(ex.getMessage(), containsString("Invalid certificate_identity format"));
+    }
+
+    public void testUpdateApiKeyWithCertificateIdentity() throws ExecutionException, InterruptedException {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+
+        FeatureService mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE))).thenReturn(true);
+
+        final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
+
+        final String apiKeyId = randomAlphaOfLength(20);
+        final String apiKey = randomAlphaOfLength(16);
+        final String originalCertIdentity = "CN=old-host.example.com";
+        final String newCertIdentity = "CN=new-host.example.com";
+
+        // Mock existing API key document with certificate identity
+        final Map<String, Object> sourceMap = buildApiKeySourceDoc(
+            getFastStoredHashAlgoForTests().hash(new SecureString(apiKey.toCharArray()))
+        );
+        sourceMap.put("type", ApiKey.Type.CROSS_CLUSTER.value());
+        sourceMap.put("certificate_identity", originalCertIdentity);
+
+        // Mock search operation
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareIndex(any())).thenReturn(new IndexRequestBuilder(client));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
+
+            // Create a search hit for the existing API key
+            final SearchHit searchHit = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), apiKeyId);
+            searchHit.sourceRef(BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(sourceMap)));
+            searchHit.setSeqNo(randomLongBetween(0, 100));
+            searchHit.setPrimaryTerm(randomLongBetween(1, 100));
+
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.successfulResponse(
+                    SearchHits.unpooled(
+                        new SearchHit[] { searchHit },
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                        randomFloat(),
+                        null,
+                        null,
+                        null
+                    )
+                )
+            );
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+
+        // Mock bulk update operations
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
+
+            final UpdateResponse updateResponse = new UpdateResponse(
+                mock(ShardId.class),
+                apiKeyId,
+                randomLong(),
+                randomLong(),
+                randomLong(),
+                DocWriteResponse.Result.UPDATED
+            );
+
+            final BulkItemResponse itemResponse = BulkItemResponse.success(0, DocWriteRequest.OpType.UPDATE, updateResponse);
+
+            listener.onResponse(new BulkResponse(new BulkItemResponse[] { itemResponse }, 100L));
+            return null;
+        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
+
+        // Mock cache clearing
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ClearSecurityCacheResponse> listener = (ActionListener<ClearSecurityCacheResponse>) invocation.getArguments()[2];
+            listener.onResponse(mock(ClearSecurityCacheResponse.class));
+            return null;
+        }).when(client).execute(eq(ClearSecurityCacheAction.INSTANCE), any(), anyActionListener());
+
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("test_user", "superuser"))
+            .realmRef(new RealmRef("file", "file", "node-1"))
+            .build(false);
+
+        BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(List.of(apiKeyId), null, null, null, newCertIdentity) {
+            @Override
+            public ApiKey.Type getType() {
+                return ApiKey.Type.CROSS_CLUSTER;
+            }
+        };
+
+        final PlainActionFuture<BulkUpdateApiKeyResponse> future = new PlainActionFuture<>();
+        service.updateApiKeys(authentication, updateRequest, Collections.emptySet(), future);
+
+        final BulkUpdateApiKeyResponse response = future.get();
+
+        assertThat(response.getUpdated(), contains(apiKeyId));
+        assertThat(response.getNoops(), hasSize(0));
+
+    }
+
     public void testMaybeBuildUpdatedDocumentWithCertificateIdentity() throws Exception {
         final String apiKeyId = randomAlphaOfLength(12);
         final String apiKey = randomAlphaOfLength(16);
@@ -3371,7 +3530,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             originalCertIdentity
         );
 
-        // Create the same type of bulk request that TransportUpdateCrossClusterApiKeyAction creates
         final BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
             List.of(apiKeyId),
             null,

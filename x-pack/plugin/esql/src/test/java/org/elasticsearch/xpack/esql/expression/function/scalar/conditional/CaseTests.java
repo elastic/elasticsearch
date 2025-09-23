@@ -65,6 +65,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             t.addAll(
                 DataType.UNDER_CONSTRUCTION.keySet()
                     .stream()
+                    .filter(type -> type != DataType.EXPONENTIAL_HISTOGRAM) // TODO(b/133393): implement
                     .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
                     .toList()
             );

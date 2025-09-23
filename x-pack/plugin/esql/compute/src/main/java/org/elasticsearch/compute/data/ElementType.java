@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,6 +65,16 @@ public enum ElementType {
         "AggregateMetricDouble",
         BlockFactory::newAggregateMetricDoubleBlockBuilder,
         AggregateMetricDoubleArrayBlock::readFrom
+    ),
+
+    /**
+     * Blocks that contain exponential_histograms.
+     */
+    EXPONENTIAL_HISTOGRAM(
+        11,
+        "ExponentialHistogram",
+        BlockFactory::newExponentialHistogramBlockBuilder,
+        ExponentialHistogramArrayBlock::readFrom
     );
 
     private interface BuilderSupplier {
@@ -111,6 +122,8 @@ public enum ElementType {
             elementType = BOOLEAN;
         } else if (type == AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class) {
             elementType = AGGREGATE_METRIC_DOUBLE;
+        } else if (type != null && ExponentialHistogram.class.isAssignableFrom(type)) {
+            elementType = EXPONENTIAL_HISTOGRAM;
         } else if (type == null || type == Void.class) {
             elementType = NULL;
         } else {

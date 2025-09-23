@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -56,6 +57,7 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.add(Add.ENTRY); // Used by the eval tests
         entries.add(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY);
         entries.add(LookupJoinExec.ENTRY);
+        entries.add(WriteableExponentialHistogram.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

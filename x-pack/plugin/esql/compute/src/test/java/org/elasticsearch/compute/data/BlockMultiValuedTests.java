@@ -49,6 +49,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
+                || e == ElementType.EXPONENTIAL_HISTOGRAM // TODO(b/133393): Enable tests once the block supports lookup
                 || e == ElementType.AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }

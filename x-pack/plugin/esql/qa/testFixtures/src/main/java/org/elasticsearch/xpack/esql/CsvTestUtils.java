@@ -23,15 +23,21 @@ import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -498,6 +504,7 @@ public final class CsvTestUtils {
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
+        EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -593,6 +600,7 @@ public final class CsvTestUtils {
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
+                case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }
@@ -697,5 +705,16 @@ public final class CsvTestUtils {
     private static double scaledFloat(String value, String factor) {
         double scalingFactor = Double.parseDouble(factor);
         return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() / scalingFactor;
+    }
+
+    private static ExponentialHistogram parseExponentialHistogram(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return ExponentialHistogramXContent.parseForTesting(parser);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

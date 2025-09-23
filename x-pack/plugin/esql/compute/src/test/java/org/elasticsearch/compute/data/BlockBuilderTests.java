@@ -41,6 +41,13 @@ public class BlockBuilderTests extends ESTestCase {
         return params;
     }
 
+    private static boolean supportsVectors(ElementType type) {
+        return switch (type) {
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM -> false;
+            default -> true;
+        };
+    }
+
     private final ElementType elementType;
 
     BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
@@ -183,8 +190,9 @@ public class BlockBuilderTests extends ESTestCase {
                     RandomBlock random = RandomBlock.randomBlock(elementType, 1, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
-                        if (built instanceof AggregateMetricDoubleArrayBlock == false) {
-                            assertThat(built.asVector().isConstant(), is(true));
+                        Vector vector = built.asVector();
+                        if (supportsVectors(elementType)) {
+                            assertThat(vector.isConstant(), is(true));
                         }
                         assertThat(built, equalTo(random.block()));
                     }

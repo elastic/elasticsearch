@@ -124,7 +124,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
@@ -2915,21 +2914,5 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static ProjectMetadata emptyProject() {
         return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-    }
-
-    public static BytesReference randomTsId() {
-        RoutingPathFields routingPathFields = new RoutingPathFields(null);
-
-        int numDimensions = randomIntBetween(1, 4);
-        for (int i = 0; i < numDimensions; i++) {
-            String fieldName = "dim" + i;
-            if (randomBoolean()) {
-                routingPathFields.addString(fieldName, randomAlphaOfLength(randomIntBetween(3, 10)));
-            } else {
-                routingPathFields.addLong(fieldName, randomLongBetween(1, 1000));
-            }
-        }
-
-        return routingPathFields.buildHash();
     }
 }

@@ -1533,6 +1533,11 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
+        /**
+         * Support for requesting the "_tsid" metadata field.
+         */
+        METADATA_TSID_FIELD,
+
         ;
 
         private final boolean enabled;

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
-
 import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
@@ -21,6 +19,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
@@ -71,14 +70,14 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
                                         ToolSpecification.builder()
                                             .name(tool.function().name())
                                             .description(tool.function().description())
-                                            .inputSchema(ToolInputSchema
-                                                .fromJson(Document.fromMap(paramToDocumentMap(tool))))
+                                            .inputSchema(ToolInputSchema.fromJson(Document.fromMap(paramToDocumentMap(tool))))
                                             .build()
                                     )
                                     .build()
                             )
-                            .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder()
-                                .name(tool.function().name()).build()).build())
+                            .toolChoice(
+                                ToolChoice.builder().tool(SpecificToolChoice.builder().name(tool.function().name()).build()).build()
+                            )
                             .build()
                     );
                 } catch (IOException e) {
@@ -96,12 +95,10 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
             case null -> Document.fromNull();
             case String stringValue -> Document.fromString(stringValue);
             case Integer numberValue -> Document.fromNumber(numberValue);
-            case Map<?,?> mapValue -> {
+            case Map<?, ?> mapValue -> {
                 final Map<String, Document> converted = new HashMap<>();
-                for (Map.Entry<?,?> entry : mapValue.entrySet()) {
-                    converted.put(
-                        String.valueOf(entry.getKey()),
-                        toDocument(entry.getValue()));
+                for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                    converted.put(String.valueOf(entry.getKey()), toDocument(entry.getValue()));
                 }
                 yield Document.fromMap(converted);
             }

@@ -24,13 +24,13 @@ import java.util.stream.IntStream;
  *  * reranked relevance scores into the specified score channel of the input page.
  */
 
-public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
+class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
 
     private final Page inputPage;
     private final DoubleBlock.Builder scoreBlockBuilder;
     private final int scoreChannel;
 
-    public RerankOperatorOutputBuilder(DoubleBlock.Builder scoreBlockBuilder, Page inputPage, int scoreChannel) {
+    RerankOperatorOutputBuilder(DoubleBlock.Builder scoreBlockBuilder, Page inputPage, int scoreChannel) {
         this.inputPage = inputPage;
         this.scoreBlockBuilder = scoreBlockBuilder;
         this.scoreChannel = scoreChannel;

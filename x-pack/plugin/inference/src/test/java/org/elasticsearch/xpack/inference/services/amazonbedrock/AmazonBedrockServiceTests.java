@@ -32,6 +32,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,11 +44,15 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockMockRequestSender;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
@@ -68,7 +75,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.service.TaskExecutorTests.createThreadPool;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.elasticsearch.test.ESTestCase.terminate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
@@ -95,16 +105,22 @@ import static org.mockito.Mockito.when;
 
 public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
+    private HttpClientManager clientManager;
 
     @Before
     public void init() throws Exception {
+        webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
+        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
     @After
     public void shutdown() throws IOException {
+        clientManager.close();
         terminate(threadPool);
+        webServer.close();
     }
 
     public void testParseRequestConfig_CreatesAnAmazonBedrockModel() throws IOException {
@@ -1458,6 +1474,56 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         return new Utils.PersistedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
+        );
+    }
+
+    public void testDoUnifiedInfer() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+            data: {"choices": [{"delta": {"content": "content", "role": "assistant"}, "finish_reason": null, "index": 0, \
+            "logprobs": null}], "created": 1718345013, "id": "12345", "model": "us.anthropic.claude-3-7-sonnet-20250219-v1:0", \
+            "object": "chat.completion.chunk", "system_fingerprint": "fp_1234"}
+
+            data: [DONE]
+
+            """));
+        doUnifiedCompletionInfer().hasNoErrors().hasEvent("""
+            {"id":"12345","choices":[{"delta":{"content":"content","role":"assistant"},"index":0}],""" + """
+            "model":"us.anthropic.claude-3-7-sonnet-20250219-v1:0","object":"chat.completion.chunk"}""");
+    }
+
+    private InferenceEventsAssertion doUnifiedCompletionInfer() throws Exception {
+        var model = AmazonBedrockChatCompletionModelTests.createModel(
+            "id",
+            "region",
+            "model",
+            AmazonBedrockProvider.AMAZONTITAN,
+            "access",
+            "secret"
+        );
+
+        try (var service = createAmazonBedrockService()) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(
+                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                ),
+                TIMEOUT,
+                listener
+            );
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
+        }
+    }
+
+    private AmazonBedrockService createService() {
+        var sender = mock(Sender.class);
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+        return new AmazonBedrockService(
+            factory,
+            AmazonBedrockRequestSenderTests.createSenderFactory(threadPool, Settings.EMPTY),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
         );
     }
 }

@@ -87,26 +87,26 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
-//    public void writeBytes(byte[] b, int offset, int length) {
-//        // nothing to copy
-//        if (length == 0) {
-//            return;
-//        }
-//
-//        Objects.checkFromIndexSize(offset, length, b.length);
-//
-//        final int currentPageOffset = this.currentPageOffset;
-//        if (length > pageSize - currentPageOffset) {
-//            writeMultiplePages(b, offset, length);
-//        } else {
-//            // Add a hot path that can be easily optimized at call sites where the bytes fit in the page.
-//            final BytesRef currentPage = currentBytesRef;
-//            final byte[] bytes = currentPage.bytes;
-//            final int destOffset = currentPage.offset + currentPageOffset;
-//            System.arraycopy(b, offset, bytes, destOffset, length);
-//            this.currentPageOffset = currentPageOffset + length;
-//        }
-//    }
+    // public void writeBytes(byte[] b, int offset, int length) {
+    // // nothing to copy
+    // if (length == 0) {
+    // return;
+    // }
+    //
+    // Objects.checkFromIndexSize(offset, length, b.length);
+    //
+    // final int currentPageOffset = this.currentPageOffset;
+    // if (length > pageSize - currentPageOffset) {
+    // writeMultiplePages(b, offset, length);
+    // } else {
+    // // Add a hot path that can be easily optimized at call sites where the bytes fit in the page.
+    // final BytesRef currentPage = currentBytesRef;
+    // final byte[] bytes = currentPage.bytes;
+    // final int destOffset = currentPage.offset + currentPageOffset;
+    // System.arraycopy(b, offset, bytes, destOffset, length);
+    // this.currentPageOffset = currentPageOffset + length;
+    // }
+    // }
     public void writeBytes(byte[] b, int offset, int length) {
         // nothing to copy
         if (length == 0) {
@@ -141,30 +141,30 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.currentBytesRef = currentPage;
     }
 
-//    private void writeMultiplePages(byte[] b, int offset, int length) {
-//        ensureCapacity(length);
-//
-//        BytesRef currentPage = currentBytesRef;
-//        int currentPageOffset = this.currentPageOffset;
-//        int bytesToCopy = length;
-//        int srcOff = offset;
-//        while (true) {
-//            final int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
-//            final int destOffset = currentPage.offset + currentPageOffset;
-//            System.arraycopy(b, srcOff, currentPage.bytes, destOffset, toCopyThisLoop);
-//            srcOff += toCopyThisLoop;
-//            bytesToCopy -= toCopyThisLoop;
-//            if (bytesToCopy > 0) {
-//                currentPageOffset = 0;
-//                currentPage = pages.get(++pageIndex).v();
-//            } else {
-//                currentPageOffset += toCopyThisLoop;
-//                break;
-//            }
-//        }
-//        this.currentPageOffset = currentPageOffset;
-//        this.currentBytesRef = currentPage;
-//    }
+    // private void writeMultiplePages(byte[] b, int offset, int length) {
+    // ensureCapacity(length);
+    //
+    // BytesRef currentPage = currentBytesRef;
+    // int currentPageOffset = this.currentPageOffset;
+    // int bytesToCopy = length;
+    // int srcOff = offset;
+    // while (true) {
+    // final int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
+    // final int destOffset = currentPage.offset + currentPageOffset;
+    // System.arraycopy(b, srcOff, currentPage.bytes, destOffset, toCopyThisLoop);
+    // srcOff += toCopyThisLoop;
+    // bytesToCopy -= toCopyThisLoop;
+    // if (bytesToCopy > 0) {
+    // currentPageOffset = 0;
+    // currentPage = pages.get(++pageIndex).v();
+    // } else {
+    // currentPageOffset += toCopyThisLoop;
+    // break;
+    // }
+    // }
+    // this.currentPageOffset = currentPageOffset;
+    // this.currentBytesRef = currentPage;
+    // }
 
     @Override
     public void writeVInt(int i) throws IOException {

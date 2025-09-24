@@ -102,8 +102,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
-    public LlamaServiceTests() {
-        super(createTestConfiguration());
+    public LlamaServiceTests(TestCase testCase) {
+        super(createTestConfiguration(), testCase);
     }
 
     private static TestConfiguration createTestConfiguration() {

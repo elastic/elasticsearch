@@ -18,8 +18,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -49,24 +51,33 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
+import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -102,8 +113,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class OpenAiServiceTests extends InferenceServiceTestCase {
+public class OpenAiServiceTests extends AbstractInferenceServiceTests {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String MODEL = "model";
+    private static final String URL = "http://www.elastic.co";
+    private static final String ORGANIZATION = "org";
+    private static final int MAX_INPUT_TOKENS = 123;
+    private static final SimilarityMeasure SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
+    private static final int DIMENSIONS = 100;
+    private static final boolean DIMENSIONS_SET_BY_USER = true;
+    private static final String USER = "user";
+    private static final String HEADER_KEY = "header_key";
+    private static final String HEADER_VALUE = "header_value";
+    private static final Map<String, String> HEADERS = Map.of(HEADER_KEY, HEADER_VALUE);
+    private static final String SECRET = "secret";
+    private static final String INFERENCE_ID = "id";
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -122,221 +147,174 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         webServer.close();
     }
 
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
-        try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+    public OpenAiServiceTests(TestCase testCase) {
+        super(createTestConfiguration(), testCase);
+    }
 
-                var embeddingsModel = (OpenAiEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-                assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-                assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            }, exception -> fail("Unexpected exception: " + exception));
+    private static TestConfiguration createTestConfiguration() {
+        return new TestConfiguration.Builder(new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.RERANK) {
+            @Override
+            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                return OpenAiServiceTests.createService(threadPool, clientManager);
+            }
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap("model", "url", "org"),
-                    getOpenAiTaskSettingsMap("user"),
-                    getSecretSettingsMap("secret")
-                ),
-                modelVerificationListener
+            @Override
+            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
+            }
+
+            @Override
+            protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+                return OpenAiServiceTests.createServiceSettingsMap(taskType, parseContext);
+            }
+
+            @Override
+            protected Map<String, Object> createTaskSettingsMap() {
+                return OpenAiServiceTests.createTaskSettingsMap();
+            }
+
+            @Override
+            protected Map<String, Object> createSecretSettingsMap() {
+                return getSecretSettingsMap(SECRET);
+            }
+
+            @Override
+            protected void assertModel(Model model, TaskType taskType) {
+                OpenAiServiceTests.assertModel(model, taskType);
+            }
+
+            @Override
+            protected EnumSet<TaskType> supportedStreamingTasks() {
+                return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+            }
+        }).enableUpdateModelTests(new UpdateModelConfiguration() {
+            @Override
+            protected OpenAiEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+                return createInternalEmbeddingModel(similarityMeasure, null);
+            }
+        }).build();
+    }
+
+    private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+        var settingsMap = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                MODEL,
+                ServiceFields.URL,
+                URL,
+                OpenAiServiceFields.ORGANIZATION,
+                ORGANIZATION,
+                ServiceFields.MAX_INPUT_TOKENS,
+                MAX_INPUT_TOKENS
+            )
+        );
+
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            settingsMap.putAll(
+                Map.of(
+                    ServiceFields.SIMILARITY,
+                    SIMILARITY.toString(),
+                    ServiceFields.DIMENSIONS,
+                    DIMENSIONS
+                )
             );
+
+            if (parseContext == ConfigurationParseContext.PERSISTENT) {
+                settingsMap.put(OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER);
+            }
+        }
+
+        return settingsMap;
+    }
+
+    private static Map<String, Object> createTaskSettingsMap() {
+        return new HashMap<>(Map.of(OpenAiServiceFields.USER, USER, OpenAiServiceFields.HEADERS, HEADERS));
+    }
+
+    private static void assertModel(Model model, TaskType taskType) {
+        switch (taskType) {
+            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model);
+            case COMPLETION, CHAT_COMPLETION -> assertCompletionModel(model);
+            default -> fail("unexpected task type: " + taskType);
         }
     }
 
-    public void testParseRequestConfig_CreatesAnOpenAiChatCompletionsModel() throws IOException {
-        var url = "url";
-        var organization = "org";
-        var model = "model";
-        var user = "user";
-        var secret = "secret";
+    private static void assertTextEmbeddingModel(Model model) {
+        assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
 
-        try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(OpenAiChatCompletionModel.class));
+        var embeddingsModel = (OpenAiEmbeddingsModel) model;
+        assertThat(
+            embeddingsModel.getServiceSettings(),
+            is(
+                new OpenAiEmbeddingsServiceSettings(
+                    MODEL,
+                    URI.create(URL),
+                    ORGANIZATION,
+                    SIMILARITY,
+                    DIMENSIONS,
+                    MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
+                    OpenAiEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
+                )
+            )
+        );
 
-                var completionsModel = (OpenAiChatCompletionModel) m;
-
-                assertThat(completionsModel.getServiceSettings().uri().toString(), is(url));
-                assertThat(completionsModel.getServiceSettings().organizationId(), is(organization));
-                assertThat(completionsModel.getServiceSettings().modelId(), is(model));
-                assertThat(completionsModel.getTaskSettings().user(), is(user));
-                assertThat(completionsModel.getSecretSettings().apiKey().toString(), is(secret));
-
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.COMPLETION,
-                getRequestConfigMap(
-                    getServiceSettingsMap(model, url, organization),
-                    getOpenAiTaskSettingsMap(user),
-                    getSecretSettingsMap(secret)
-                ),
-                modelVerificationListener
-            );
-        }
+        assertThat(embeddingsModel.getTaskSettings(), is(new OpenAiEmbeddingsTaskSettings(USER, HEADERS)));
+        assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(SECRET));
     }
 
-    public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), is("The [openai] service does not support task type [sparse_embedding]"));
-                }
-            );
+    private static void assertCompletionModel(Model model) {
+        assertThat(model, instanceOf(OpenAiChatCompletionModel.class));
 
-            service.parseRequestConfig(
-                "id",
-                TaskType.SPARSE_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap("model", "url", "org"),
-                    getOpenAiTaskSettingsMap("user"),
-                    getSecretSettingsMap("secret")
-                ),
-                modelVerificationListener
-            );
-        }
+        var completionModel = (OpenAiChatCompletionModel) model;
+
+        assertThat(
+            completionModel.getServiceSettings(),
+            is(
+                new OpenAiChatCompletionServiceSettings(
+                    MODEL,
+                    URI.create(URL),
+                    ORGANIZATION,
+                    MAX_INPUT_TOKENS,
+                    OpenAiChatCompletionServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
+                )
+            )
+        );
+
+        assertThat(completionModel.getTaskSettings(), is(new OpenAiChatCompletionTaskSettings(USER, HEADERS)));
+        assertThat(completionModel.getSecretSettings().apiKey().toString(), is(SECRET));
     }
 
-    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createOpenAiService()) {
-            var config = getRequestConfigMap(
-                getServiceSettingsMap("model", "url", "org"),
-                getOpenAiTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
-            );
-            config.put("extra_key", "value");
-
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(
-                        exception.getMessage(),
-                        is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service")
-                    );
-                }
-            );
-
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
-        }
+    private static OpenAiEmbeddingsModel createInternalEmbeddingModel(
+        SimilarityMeasure similarityMeasure,
+        @Nullable ChunkingSettings chunkingSettings
+    ) {
+        return createInternalEmbeddingModel(similarityMeasure, URL, chunkingSettings);
     }
 
-    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
-        try (var service = createOpenAiService()) {
-            var serviceSettings = getServiceSettingsMap("model", "url", "org");
-            serviceSettings.put("extra_key", "value");
-
-            var config = getRequestConfigMap(serviceSettings, getOpenAiTaskSettingsMap("user"), getSecretSettingsMap("secret"));
-
-            ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
-                fail("Expected exception, but got model: " + model);
-            }, e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
-            });
-
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
-        }
-    }
-
-    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
-        try (var service = createOpenAiService()) {
-            var taskSettingsMap = getOpenAiTaskSettingsMap("user");
-            taskSettingsMap.put("extra_key", "value");
-
-            var config = getRequestConfigMap(getServiceSettingsMap("model", "url", "org"), taskSettingsMap, getSecretSettingsMap("secret"));
-
-            ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
-                fail("Expected exception, but got model: " + model);
-            }, e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
-            });
-
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
-        }
-    }
-
-    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        try (var service = createOpenAiService()) {
-            var secretSettingsMap = getSecretSettingsMap("secret");
-            secretSettingsMap.put("extra_key", "value");
-
-            var config = getRequestConfigMap(
-                getServiceSettingsMap("model", "url", "org"),
-                getOpenAiTaskSettingsMap("user"),
-                secretSettingsMap
-            );
-
-            ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
-                fail("Expected exception, but got model: " + model);
-            }, e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
-            });
-
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
-        try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OpenAiEmbeddingsModel) model;
-                assertNull(embeddingsModel.getServiceSettings().uri());
-                assertNull(embeddingsModel.getServiceSettings().organizationId());
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-                assertNull(embeddingsModel.getTaskSettings().user());
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap("model", null, null),
-                    getOpenAiTaskSettingsMap(null),
-                    getSecretSettingsMap("secret")
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnOpenAiChatCompletionsModelWithoutUserWithoutUserUrlOrganization() throws IOException {
-        var model = "model";
-        var secret = "secret";
-
-        try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(OpenAiChatCompletionModel.class));
-
-                var completionsModel = (OpenAiChatCompletionModel) m;
-                assertNull(completionsModel.getServiceSettings().uri());
-                assertNull(completionsModel.getServiceSettings().organizationId());
-                assertThat(completionsModel.getServiceSettings().modelId(), is(model));
-                assertNull(completionsModel.getTaskSettings().user());
-                assertThat(completionsModel.getSecretSettings().apiKey().toString(), is(secret));
-
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model, null, null), getOpenAiTaskSettingsMap(null), getSecretSettingsMap(secret)),
-                modelVerificationListener
-            );
-        }
+    private static OpenAiEmbeddingsModel createInternalEmbeddingModel(
+        SimilarityMeasure similarityMeasure,
+        @Nullable String url,
+        @Nullable ChunkingSettings chunkingSettings
+    ) {
+        return new OpenAiEmbeddingsModel(
+            INFERENCE_ID,
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new OpenAiEmbeddingsServiceSettings(
+                MODEL,
+                url == null ? null : URI.create(url),
+                ORGANIZATION,
+                similarityMeasure,
+                DIMENSIONS,
+                DIMENSIONS,
+                false,
+                null
+            ),
+            new OpenAiEmbeddingsTaskSettings(USER, HEADERS),
+            chunkingSettings,
+            new DefaultSecretSettings(new SecureString(SECRET.toCharArray()))
+        );
     }
 
     public void testParseRequestConfig_MovesModel() throws IOException {
@@ -362,392 +340,6 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 ),
                 modelVerificationListener
             );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OpenAiEmbeddingsModel) model;
-                assertNull(embeddingsModel.getServiceSettings().uri());
-                assertNull(embeddingsModel.getServiceSettings().organizationId());
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-                assertNull(embeddingsModel.getTaskSettings().user());
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap("model", null, null),
-                    getOpenAiTaskSettingsMap(null),
-                    createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OpenAiEmbeddingsModel) model;
-                assertNull(embeddingsModel.getServiceSettings().uri());
-                assertNull(embeddingsModel.getServiceSettings().organizationId());
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-                assertNull(embeddingsModel.getTaskSettings().user());
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap("model", null, null),
-                    getOpenAiTaskSettingsMap(null),
-                    getSecretSettingsMap("secret")
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModel() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", 100, null, false),
-                getOpenAiTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org"),
-                getOpenAiTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
-            );
-
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets(
-                    "id",
-                    TaskType.SPARSE_EMBEDDING,
-                    persistedConfig.config(),
-                    persistedConfig.secrets()
-                )
-            );
-
-            assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [openai] service, please delete and add the service again")
-            );
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", null, null, null, null, true),
-                getOpenAiTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().uri());
-            assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertNull(embeddingsModel.getTaskSettings().user());
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", null, null, null, null, true),
-                getOpenAiTaskSettingsMap(null),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().uri());
-            assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertNull(embeddingsModel.getTaskSettings().user());
-            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", null, null, null, null, true),
-                getOpenAiTaskSettingsMap(null),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().uri());
-            assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertNull(embeddingsModel.getTaskSettings().user());
-            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, null, true),
-                getOpenAiTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
-            );
-            persistedConfig.config().put("extra_key", "value");
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        try (var service = createOpenAiService()) {
-            var secretSettingsMap = getSecretSettingsMap("secret");
-            secretSettingsMap.put("extra_key", "value");
-
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, null, true),
-                getOpenAiTaskSettingsMap("user"),
-                secretSettingsMap
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, null, true),
-                getOpenAiTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
-            );
-            persistedConfig.secrets().put("extra_key", "value");
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createOpenAiService()) {
-            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, null, true);
-            serviceSettingsMap.put("extra_key", "value");
-
-            var persistedConfig = getPersistedConfigMap(
-                serviceSettingsMap,
-                getOpenAiTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createOpenAiService()) {
-            var taskSettingsMap = getOpenAiTaskSettingsMap("user");
-            taskSettingsMap.put("extra_key", "value");
-
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, null, true),
-                taskSettingsMap,
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, null, true),
-                getOpenAiTaskSettingsMap("user")
-            );
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertNull(embeddingsModel.getSecretSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org"), getOpenAiTaskSettingsMap("user"));
-
-            var thrownException = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
-            );
-
-            assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [openai] service, please delete and add the service again")
-            );
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", null, null, null, null, true),
-                getOpenAiTaskSettingsMap(null)
-            );
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().uri());
-            assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertNull(embeddingsModel.getTaskSettings().user());
-            assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
@@ -1679,6 +1271,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 XContentType.JSON
             );
         }
+    }
+
+    private static OpenAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        return new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private OpenAiService createOpenAiService() {

@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -82,8 +81,8 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
-    public Ai21ServiceTests() {
-        super(createTestConfiguration());
+    public Ai21ServiceTests(TestCase testCase) {
+        super(createTestConfiguration(), testCase);
     }
 
     private static AbstractInferenceServiceTests.TestConfiguration createTestConfiguration() {
@@ -560,10 +559,5 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         builtServiceSettings.putAll(secretSettings);
 
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
-    }
-
-    @Override
-    public InferenceService createInferenceService() {
-        return createService();
     }
 }

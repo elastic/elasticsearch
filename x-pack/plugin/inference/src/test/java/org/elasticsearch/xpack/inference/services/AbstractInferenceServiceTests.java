@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -20,6 +23,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
@@ -27,11 +32,14 @@ import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -39,6 +47,7 @@ import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -56,6 +65,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
     protected final MockWebServer webServer = new MockWebServer();
     protected ThreadPool threadPool;
     protected HttpClientManager clientManager;
+    protected TestCase testCase;
 
     @Override
     @Before
@@ -77,8 +87,9 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
     private final TestConfiguration testConfiguration;
 
-    public AbstractInferenceServiceTests(TestConfiguration testConfiguration) {
+    public AbstractInferenceServiceTests(TestConfiguration testConfiguration, TestCase testCase) {
         this.testConfiguration = Objects.requireNonNull(testConfiguration);
+        this.testCase = testCase;
     }
 
     /**
@@ -105,7 +116,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
     }
 
     /**
-     * Configurations that useful for most tests
+     * Configurations that are useful for most tests
      */
     public abstract static class CommonConfig {
 
@@ -120,6 +131,10 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
         protected abstract SenderService createService(ThreadPool threadPool, HttpClientManager clientManager);
 
         protected abstract Map<String, Object> createServiceSettingsMap(TaskType taskType);
+
+        protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+            return createServiceSettingsMap(taskType);
+        }
 
         protected abstract Map<String, Object> createTaskSettingsMap();
 
@@ -154,12 +169,17 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
         }
     };
 
+    @Override
+    public InferenceService createInferenceService() {
+        return testConfiguration.commonConfig.createService(threadPool, clientManager);
+    }
+
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws Exception {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig;
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING),
+                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -167,7 +187,32 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
             var listener = new PlainActionFuture<Model>();
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, listener);
 
-            parseRequestConfigTestConfig.assertModel(listener.actionGet(TIMEOUT), TaskType.TEXT_EMBEDDING);
+            var model = listener.actionGet(TIMEOUT);
+            var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(Map.of());
+            assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
+            parseRequestConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws Exception {
+        var parseRequestConfigTestConfig = testConfiguration.commonConfig;
+
+        try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
+            var chunkingSettingsMap = createRandomChunkingSettingsMap();
+            var config = getRequestConfigMap(
+                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
+                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                chunkingSettingsMap,
+                parseRequestConfigTestConfig.createSecretSettingsMap()
+            );
+
+            var listener = new PlainActionFuture<Model>();
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, listener);
+
+            var model = listener.actionGet(TIMEOUT);
+            var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+            assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
+            parseRequestConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
         }
     }
 
@@ -176,7 +221,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION),
+                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.REQUEST),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -193,7 +238,10 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -214,7 +262,10 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -231,7 +282,10 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig;
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
-            var serviceSettings = parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType);
+            var serviceSettings = parseRequestConfigTestConfig.createServiceSettingsMap(
+                parseRequestConfigTestConfig.taskType,
+                ConfigurationParseContext.REQUEST
+            );
             serviceSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
                 serviceSettings,
@@ -253,7 +307,10 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
             var taskSettings = parseRequestConfigTestConfig.createTaskSettingsMap();
             taskSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 taskSettings,
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -272,7 +329,10 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
             var secretSettingsMap = parseRequestConfigTestConfig.createSecretSettingsMap();
             secretSettingsMap.put("extra_key", "value");
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(parseRequestConfigTestConfig.taskType),
+                parseRequestConfigTestConfig.createServiceSettingsMap(
+                    parseRequestConfigTestConfig.taskType,
+                    ConfigurationParseContext.REQUEST
+                ),
                 parseRequestConfigTestConfig.createTaskSettingsMap(),
                 secretSettingsMap
             );
@@ -285,26 +345,122 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
         }
     }
 
+    @ParametersFactory
+    public static Iterable<TestCase[]> parameters() throws IOException {
+        return Arrays.asList(
+            new TestCase[][] {
+                {
+                    new TestCase(
+                        "Test parsing persisted config without chunking settings",
+                        testConfiguration -> getPersistedConfigMap(
+                            testConfiguration.commonConfig.createServiceSettingsMap(
+                                TaskType.TEXT_EMBEDDING,
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            testConfiguration.commonConfig.createTaskSettingsMap(),
+                            null
+                        ),
+                        (service, persistedConfig) -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config()),
+                        null
+                    ) } }
+        );
+    }
+
+    public record TestCase(
+        @Nullable String description,
+        Function<TestConfiguration, Utils.PersistedConfig> createPersistedConfig,
+        BiFunction<SenderService, Utils.PersistedConfig, Model> serviceCallback,
+        @Nullable Map<String, Object> chunkingSettingsMap
+    ) {}
+
+    public void testPersistedConfig() throws Exception {
+        var parseConfigTestConfig = testConfiguration.commonConfig;
+        var persistedConfig = testCase.createPersistedConfig.apply(testConfiguration);
+
+        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
+
+            var model = testCase.serviceCallback.apply(service, persistedConfig);
+
+            var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(
+                testCase.chunkingSettingsMap == null ? Map.of() : testCase.chunkingSettingsMap
+            );
+            assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
+
+            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+        }
+
+        parseConfigHelper(service -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfigMap.config()), null);
+    }
+
+    // parsePersistedConfig tests
+
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModel() throws Exception {
+        var parseConfigTestConfig = testConfiguration.commonConfig;
+        var persistedConfigMap = getPersistedConfigMap(
+            parseConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
+            parseConfigTestConfig.createTaskSettingsMap(),
+            null
+        );
+
+        parseConfigHelper(service -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfigMap.config()), null);
+    }
+
+    private void parseConfigHelper(Function<SenderService, Model> serviceParseCallback, @Nullable Map<String, Object> chunkingSettingsMap)
+        throws Exception {
+        var parseConfigTestConfig = testConfiguration.commonConfig;
+        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
+
+            var model = serviceParseCallback.apply(service);
+
+            var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap == null ? Map.of() : chunkingSettingsMap);
+            assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
+
+            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+        }
+    }
+
     // parsePersistedConfigWithSecrets
 
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModel() throws Exception {
         var parseConfigTestConfig = testConfiguration.commonConfig;
 
-        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING),
-                parseConfigTestConfig.createTaskSettingsMap(),
-                parseConfigTestConfig.createSecretSettingsMap()
-            );
+        var persistedConfigMap = getPersistedConfigMap(
+            parseConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
+            parseConfigTestConfig.createTaskSettingsMap(),
+            parseConfigTestConfig.createSecretSettingsMap()
+        );
 
-            var model = service.parsePersistedConfigWithSecrets(
+        parseConfigHelper(
+            service -> service.parsePersistedConfigWithSecrets(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 persistedConfigMap.config(),
                 persistedConfigMap.secrets()
-            );
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
-        }
+            ),
+            null
+        );
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsAreProvided() throws Exception {
+        var parseConfigTestConfig = testConfiguration.commonConfig;
+
+        var chunkingSettingsMap = createRandomChunkingSettingsMap();
+        var persistedConfigMap = getPersistedConfigMap(
+            parseConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.PERSISTENT),
+            parseConfigTestConfig.createTaskSettingsMap(),
+            chunkingSettingsMap,
+            parseConfigTestConfig.createSecretSettingsMap()
+        );
+
+        parseConfigHelper(
+            service -> service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfigMap.config(),
+                persistedConfigMap.secrets()
+            ),
+            chunkingSettingsMap
+        );
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesACompletionModel() throws Exception {
@@ -312,7 +468,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
             var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION),
+                parseConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -332,7 +488,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
             var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -365,7 +521,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
             var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -385,7 +541,10 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
     public void testParsePersistedConfigWithSecrets_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         var parseConfigTestConfig = testConfiguration.commonConfig;
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var serviceSettings = parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType);
+            var serviceSettings = parseConfigTestConfig.createServiceSettingsMap(
+                parseConfigTestConfig.taskType,
+                ConfigurationParseContext.PERSISTENT
+            );
             serviceSettings.put("extra_key", "value");
             var persistedConfigMap = getPersistedConfigMap(
                 serviceSettings,
@@ -410,7 +569,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
             var taskSettings = parseConfigTestConfig.createTaskSettingsMap();
             taskSettings.put("extra_key", "value");
             var config = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 taskSettings,
                 parseConfigTestConfig.createSecretSettingsMap()
             );
@@ -427,7 +586,7 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
             var secretSettingsMap = parseConfigTestConfig.createSecretSettingsMap();
             secretSettingsMap.put("extra_key", "value");
             var config = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType),
+                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType, ConfigurationParseContext.PERSISTENT),
                 parseConfigTestConfig.createTaskSettingsMap(),
                 secretSettingsMap
             );

@@ -24,10 +24,7 @@ import org.elasticsearch.core.TimeValue;
 public class WriteLoadConstraintSettings {
 
     private static final String SETTING_PREFIX = "cluster.routing.allocation.write_load_decider.";
-
-    private static final FeatureFlag WRITE_LOAD_DECIDER_ENABLED_FF = new FeatureFlag(
-        "cluster.routing.allocation.write_load_decider_enabled"
-    );
+    private static final FeatureFlag WRITE_LOAD_DECIDER_ENABLED_FF = new FeatureFlag("write_load_decider_enabled");
 
     public enum WriteLoadDeciderStatus {
         /**
@@ -64,7 +61,7 @@ public class WriteLoadConstraintSettings {
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(
         WriteLoadDeciderStatus.class,
         SETTING_PREFIX + "enabled",
-        WriteLoadDeciderStatus.DISABLED,
+        WriteLoadDeciderStatus.ENABLED,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

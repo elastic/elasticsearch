@@ -1,0 +1,36 @@
+The first [`STATS`](/reference/query-languages/esql/commands/stats-by.md) under
+a [`TS`](/reference/query-languages/esql/commands/ts.md) source command
+supports the following time-series aggregation functions:
+
+:::{include} ../_snippets/functions/layout/absent_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/avg_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/count_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/count_distinct_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/first_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/last_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/max_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/min_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/present_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/rate.md
+:::
+
+:::{include} ../_snippets/functions/layout/sum_over_time.md
+:::

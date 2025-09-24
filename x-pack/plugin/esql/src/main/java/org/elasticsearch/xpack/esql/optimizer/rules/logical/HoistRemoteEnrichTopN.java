@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.CardinalityExpanding;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
@@ -90,15 +91,18 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
                         }
                     }
                 }
-                if ((plan instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
+                if (plan instanceof CardinalityExpanding // can increase the number of rows, so we can't just pull a TopN from under it
+                    // this will fail the verifier anyway, so no need to continue
+                    || (plan instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
                     // This is essentially another remote Enrich, it can handle its own limits
-                    || (plan instanceof Enrich e && e.mode() != Enrich.Mode.ANY)
+                    || (plan instanceof Enrich e && e.mode() == Enrich.Mode.REMOTE)
                     || plan instanceof PipelineBreaker) {
                     break;
                 }
                 if (plan instanceof UnaryPlan u) {
                     plan = u.child();
                 } else {
+                    // TODO: can we handle binary plans as well here?
                     break;
                 }
             }

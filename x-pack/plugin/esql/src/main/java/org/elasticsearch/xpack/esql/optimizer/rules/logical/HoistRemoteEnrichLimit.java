@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.CardinalityExpanding;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -45,11 +46,11 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
                     seenLimits.add(l);
                     return;
                 }
-                if (p instanceof MvExpand // MV_EXPAND can increase the number of rows, so we can't just pull a limit from under it
+                if (p instanceof CardinalityExpanding // can increase the number of rows, so we can't just pull a limit from under it
                     // this will fail the verifier anyway, so no need to continue
                     || (p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
                 // This is essentially another remote enrich - let it take care of its own limits
-                    || (p instanceof Enrich e && e.mode() != Enrich.Mode.ANY)
+                    || (p instanceof Enrich e && e.mode() == Enrich.Mode.REMOTE)
                 // If it's a pipeline breaker, this part will be on the coordinator anyway, which likely will fail the verifier
                 // In any case, duplicating anything below there is pointless.
                     || p instanceof PipelineBreaker) {

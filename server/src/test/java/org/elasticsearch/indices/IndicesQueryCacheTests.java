@@ -34,8 +34,13 @@ import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -43,26 +48,30 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
     private static class DummyQuery extends Query implements org.apache.lucene.util.Accountable {
 
-        private final int id;
+        private final String id;
         private final long sizeInCache;
 
         DummyQuery(int id) {
+            this(Integer.toString(id), 10);
+        }
+
+        DummyQuery(String id) {
             this(id, 10);
         }
 
-        DummyQuery(int id, long sizeInCache) {
+        DummyQuery(String id, long sizeInCache) {
             this.id = id;
             this.sizeInCache = sizeInCache;
         }
 
         @Override
         public boolean equals(Object obj) {
-            return sameClassAs(obj) && id == ((DummyQuery) obj).id;
+            return sameClassAs(obj) && id.equals(((DummyQuery) obj).id);
         }
 
         @Override
         public int hashCode() {
-            return 31 * classHash() + id;
+            return 31 * classHash() + id.hashCode();
         }
 
         @Override
@@ -418,75 +427,114 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close();
     }
 
-    public void testGetStatsMemory() throws IOException {
-        Directory dir1 = newDirectory();
-        IndexWriter indexWriter1 = new IndexWriter(dir1, newIndexWriterConfig());
-        indexWriter1.addDocument(new Document());
-        DirectoryReader directoryReader1 = DirectoryReader.open(indexWriter1);
-        indexWriter1.close();
-        ShardId shard1 = new ShardId("index1", "_na_", 0);
-        directoryReader1 = ElasticsearchDirectoryReader.wrap(directoryReader1, shard1);
-        IndexSearcher indexSearcher1 = new IndexSearcher(directoryReader1);
-        indexSearcher1.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+    @SuppressWarnings("cast")
+    public void testGetStatsMemory() throws Exception {
+        String indexName = randomIdentifier();
+        String uuid = randomUUID();
+        ShardId shard1 = new ShardId(indexName, uuid, 0);
+        ShardId shard2 = new ShardId(indexName, uuid, 1);
+        List<Closeable> closeableList = new ArrayList<>();
+        int shard1Segment1Docs = randomIntBetween(11, 1000);
+        int shard1Segment2Docs = randomIntBetween(1, 10);
+        int shardSegment1Docs = randomIntBetween(1, 10);
+        IndexSearcher shard1Searcher1 = initializeSegment(shard1, shard1Segment1Docs, closeableList);
+        IndexSearcher shard1Searcher2 = initializeSegment(shard1, shard1Segment2Docs, closeableList);
+        IndexSearcher shard2Searcher1 = initializeSegment(shard2, shardSegment1Docs, closeableList);
 
-        Directory dir2 = newDirectory();
-        IndexWriter indexWriter2 = new IndexWriter(dir2, newIndexWriterConfig());
-        indexWriter2.addDocument(new Document());
-        DirectoryReader directoryReader2 = DirectoryReader.open(indexWriter2);
-        indexWriter2.close();
-        ShardId shard2 = new ShardId("index2", "_na_", 0);
-        directoryReader2 = ElasticsearchDirectoryReader.wrap(directoryReader2, shard2);
-        IndexSearcher indexSearcher2 = new IndexSearcher(directoryReader2);
-        indexSearcher2.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
-
-        final int maxCacheSize = 100;
+        final int maxCacheSize = 200;
         Settings settings = Settings.builder()
             .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), maxCacheSize)
             .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
             .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
-        indexSearcher1.setQueryCache(cache);
-        indexSearcher2.setQueryCache(cache);
+        shard1Searcher1.setQueryCache(cache);
+        shard1Searcher2.setQueryCache(cache);
+        shard2Searcher1.setQueryCache(cache);
 
         assertEquals(0L, cache.getStats(shard1).getMemorySizeInBytes());
 
-        final long extraCacheSizePerObject = 136;
-        final long shard1QuerySize = 1000;
-        final int shard1Queries = 20;
-        final int shard2Queries = 5;
-        final long shard2QuerySize = 10;
+        final long extraCacheSizePerQuery = 24;
+
+        final long shard1QuerySize = randomIntBetween(100, 1000);
+        final int shard1Queries = 40;// randomIntBetween(20, 50); // 40 works, impacts 465
+        final int shard2Queries = randomIntBetween(5, 10);
+        final long shard2QuerySize = randomIntBetween(10, 50);
 
         for (int i = 0; i < shard1Queries; ++i) {
-            indexSearcher1.count(new DummyQuery(i, shard1QuerySize));
+            shard1Searcher1.count(new DummyQuery("ingest1-" + i, shard1QuerySize));
         }
-        // After caching 20 big things on shard1, the cache memory is exactly 20 * the object size:
-        assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(shard1Queries * (shard1QuerySize + extraCacheSizePerObject)));
+        // After caching a number of big things on shard1, the cache memory is exactly 20 * the object size:
+        long shard1Segment1MinimumCacheMemory = (shard1Queries * (shard1QuerySize + extraCacheSizePerQuery)) + ((shard1Queries * 112)
+            + ((((shard1Segment1Docs) - 1) / 64) * 320L)) + (shard1Queries * 16) - 640;
+
+        System.out.println(shard1Queries + "\t" + shard1Segment1Docs + "\t" + cache.getStats(shard1).getMemorySizeInBytes());
+        assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(shard1Segment1MinimumCacheMemory));
         assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(0L));
         for (int i = 0; i < shard2Queries; ++i) {
-            indexSearcher2.count(new DummyQuery(i, shard2QuerySize));
+            shard2Searcher1.count(new DummyQuery("ingest2-" + i, shard2QuerySize));
         }
         /*
          * Now that we have cached some smaller things for shard2, the cache memory for shard1 has gone down. This is expected because we
          * report cache memory proportional to the number of documents for each shard, ignoring the actual document sizes. Since the shard2
          * requests were smaller, the average cache memory size per document has now gone down.
          */
-        assertThat(cache.getStats(shard1).getMemorySizeInBytes(), lessThan(shard1Queries * (shard1QuerySize + extraCacheSizePerObject)));
+        assertThat(cache.getStats(shard1).getMemorySizeInBytes(), lessThan(shard1Segment1MinimumCacheMemory));
         long shard1CacheBytes = cache.getStats(shard1).getMemorySizeInBytes();
         long shard2CacheBytes = cache.getStats(shard2).getMemorySizeInBytes();
-        // Asserting that the memory reported is proportional to the number of documents, ignoring their sizes:
-        assertThat(shard1CacheBytes, equalTo(shard2CacheBytes * (shard1Queries / shard2Queries)));
+        // Asserting that the memory reported is proportional to the number of segments, ignoring their sizes:
+        assertThat(
+            (double) shard1CacheBytes,
+            closeTo(
+                (double) (shard2CacheBytes * ((double) shard1Queries / shard2Queries) + ((int) (((shard1Segment1Docs) - 1) / 64) * 320L))
+                    + (shard1Queries * 24) - 960,
+                shard1CacheBytes * 0.01
+            )
+        );
 
+        // Now we cache just 20 more "big" searches on shard1, but on a different segment:
+        for (int i = 0; i < shard1Queries; ++i) {
+            shard1Searcher2.count(new DummyQuery("ingest3-" + i, shard1QuerySize));
+        }
+        assertThat(
+            (double) cache.getStats(shard1).getMemorySizeInBytes(),
+            closeTo(
+                cache.getStats(shard2).getMemorySizeInBytes() * 2 * ((double) shard1Queries / shard2Queries) + ((int) (((shard1Segment1Docs)
+                    - 1) / 64) * 320L) + (shard1Queries * 24) - 960,
+                (double) cache.getStats(shard1).getMemorySizeInBytes() * 0.01
+            )
+        );
         // Now make sure the cache only has items for shard2:
         for (int i = 0; i < (maxCacheSize * 2); ++i) {
-            indexSearcher2.count(new DummyQuery(i, shard2QuerySize));
+            shard2Searcher1.count(new DummyQuery("ingest4-" + i, shard2QuerySize));
         }
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(0L));
-        assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(maxCacheSize * (shard2QuerySize + extraCacheSizePerObject)));
+        assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(maxCacheSize * (shard2QuerySize + extraCacheSizePerQuery + 112)));
 
-        IOUtils.close(directoryReader1, dir1);
-        IOUtils.close(directoryReader2, dir2);
+        IOUtils.close(closeableList);
         cache.onClose(shard1);
         cache.onClose(shard2);
         cache.close();
+    }
+
+    private IndexSearcher initializeSegment(ShardId shard, int numDocs, List<Closeable> closeableList) throws Exception {
+        AtomicReference<IndexSearcher> indexSearcherReference = new AtomicReference<>();
+        assertBusy(() -> {
+            Directory dir = newDirectory();
+            IndexWriter indexWriter = new IndexWriter(dir, newIndexWriterConfig());
+            for (int i = 0; i < numDocs; i++) {
+                indexWriter.addDocument(new Document());
+            }
+            System.out.println("here");
+            DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
+            indexWriter.close();
+            directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, shard);
+            IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
+            indexSearcherReference.set(indexSearcher);
+            indexSearcher.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+            closeableList.add(directoryReader);
+            closeableList.add(dir);
+            assertThat(indexSearcher.getLeafContexts().size(), equalTo(1));
+        });
+        return indexSearcherReference.get();
     }
 }

@@ -98,7 +98,8 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
             random().nextInt(
                 ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER,
                 ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER
-            )
+            ),
+            random().nextBoolean()
         );
     }
 

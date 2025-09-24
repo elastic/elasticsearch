@@ -98,17 +98,20 @@ public class ES818BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private static final FlatVectorsFormat rawVectorFormat = USE_DIRECT_IO
-        ? new DirectIOLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
-        : new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
-
-    private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
+    static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    private final FlatVectorsFormat rawVectorFormat;
+
     /** Creates a new instance with the default number of vectors per cluster. */
     public ES818BinaryQuantizedVectorsFormat() {
-        super(NAME);
+        this(NAME, new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer()));
+    }
+
+    ES818BinaryQuantizedVectorsFormat(String name, FlatVectorsFormat rawVectorFormat) {
+        super(name);
+        this.rawVectorFormat = rawVectorFormat;
     }
 
     @Override

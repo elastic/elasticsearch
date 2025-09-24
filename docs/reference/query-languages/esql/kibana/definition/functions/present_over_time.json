@@ -3,7 +3,6 @@
   "type" : "time_series_agg",
   "name" : "present_over_time",
   "description" : "The presence of a field in the output result over time range.",
-  "note" : "Available with the TS command in snapshot builds",
   "signatures" : [
     {
       "params" : [

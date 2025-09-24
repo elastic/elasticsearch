@@ -3,7 +3,6 @@
   "type" : "time_series_agg",
   "name" : "last_over_time",
   "description" : "The latest value of a field, where recency determined by the `@timestamp` field.",
-  "note" : "Available with the TS command in snapshot builds",
   "signatures" : [
     {
       "params" : [

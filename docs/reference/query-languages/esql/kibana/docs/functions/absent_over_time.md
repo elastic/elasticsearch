@@ -3,8 +3,6 @@
 ### ABSENT OVER TIME
 The absence of a field in the output result over time range.
 
-Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command in snapshot builds
-
 ```esql
 TS k8s
 | WHERE cluster == "prod" AND pod == "two"

@@ -3,7 +3,6 @@
   "type" : "time_series_agg",
   "name" : "absent_over_time",
   "description" : "The absence of a field in the output result over time range.",
-  "note" : "Available with the TS command in snapshot builds",
   "signatures" : [
     {
       "params" : [

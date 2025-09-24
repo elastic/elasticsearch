@@ -3,7 +3,6 @@
   "type" : "time_series_agg",
   "name" : "count_over_time",
   "description" : "The count over time value of a field.",
-  "note" : "Available with the TS command in snapshot builds",
   "signatures" : [
     {
       "params" : [

@@ -3,7 +3,6 @@
   "type" : "time_series_agg",
   "name" : "avg_over_time",
   "description" : "The average over time of a numeric field.",
-  "note" : "Available with the TS command in snapshot builds",
   "signatures" : [
     {
       "params" : [

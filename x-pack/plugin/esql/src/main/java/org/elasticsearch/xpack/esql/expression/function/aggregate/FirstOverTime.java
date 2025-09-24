@@ -53,7 +53,6 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         returnType = { "long", "integer", "double" },
         description = "The earliest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
         examples = { @Example(file = "k8s-timeseries", tag = "first_over_time") }
     )
     public FirstOverTime(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {

@@ -4,8 +4,3 @@
 
 The average over time of a numeric field.
 
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds
-::::
-
-

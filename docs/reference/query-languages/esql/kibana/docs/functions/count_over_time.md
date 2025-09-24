@@ -3,8 +3,6 @@
 ### COUNT OVER TIME
 The count over time value of a field.
 
-Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command in snapshot builds
-
 ```esql
 TS k8s
 | STATS count=count(count_over_time(network.cost))

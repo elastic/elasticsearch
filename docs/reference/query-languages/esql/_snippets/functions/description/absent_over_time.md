@@ -4,8 +4,3 @@
 
 The absence of a field in the output result over time range.
 
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds
-::::
-
-

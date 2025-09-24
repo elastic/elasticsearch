@@ -4,8 +4,3 @@
 
 The latest value of a field, where recency determined by the `@timestamp` field.
 
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds
-::::
-
-

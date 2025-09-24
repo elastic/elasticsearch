@@ -49,11 +49,10 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
-    private static final NodeFeature CHUNK_RESCORER_TELEMETRY = new NodeFeature("retrievers.extended_telemetry_chunk_rescorer");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return new HashSet<>(
+        var testFeatures = new HashSet<>(
             Set.of(
                 SemanticTextFieldMapper.SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX,
                 SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
@@ -88,9 +87,9 @@ public class InferenceFeatures implements FeatureSpecification {
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
-                TEXT_SIMILARITY_RERANKER_SNIPPETS,
-                CHUNK_RESCORER_TELEMETRY
+                TEXT_SIMILARITY_RERANKER_SNIPPETS
             )
         );
+        return testFeatures;
     }
 }

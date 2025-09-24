@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
@@ -142,7 +143,7 @@ public class InlineJoin extends Join {
      * \_Limit[1000[INTEGER],false]
      *   \_LocalRelation[[x{r}#99],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
      */
-    public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, LocalRelation skipped) {
+    public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlanTuple> subPlan = new Holder<>();
         // Collect the first inlinejoin (bottom up in the tree)
         optimizedPlan.forEachUp(InlineJoin.class, ij -> {
@@ -152,7 +153,8 @@ public class InlineJoin extends Join {
                     var p = replaceStub(ij.left(), ij.right());
                     p.setOptimized();
                     subPlan.set(new LogicalPlanTuple(p, ij.right()));
-                } else if (ij.right() instanceof LocalRelation && skipped == null
+                } else if (ij.right() instanceof LocalRelation relation
+                    && (subPlansResults.isEmpty() || subPlansResults.contains(relation) == false)
                     || ij.right() instanceof LocalRelation == false && ij.right().anyMatch(p -> p instanceof LocalRelation)) {
                         // In case the plan was optimized further and the StubRelation was replaced with a LocalRelation
                         // or the right hand side became a LocalRelation alltogether, there is no need to replace the source of the
@@ -160,6 +162,9 @@ public class InlineJoin extends Join {
                         var p = ij.right();
                         p.setOptimized();
                         subPlan.set(new LogicalPlanTuple(p, ij.right()));
+                        // TODO: INLINE STATS this is essentially an optimization similar to the one in PruneEmptyInlineStatsRightSide
+                        // this further supports the idea of running the optimization step again after the substitutions (see EsqlSession
+                        // executeSubPlan() method where we could run the optimizer after the results are replaced in place).
                     }
             }
         });

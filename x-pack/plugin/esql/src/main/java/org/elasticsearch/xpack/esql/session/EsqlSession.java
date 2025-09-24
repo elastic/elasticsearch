@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -241,7 +243,8 @@ public class EsqlSession {
         EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        var subPlan = firstSubPlan(optimizedPlan, null);
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlan = firstSubPlan(optimizedPlan, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -253,6 +256,7 @@ public class EsqlSession {
                 executionInfo,
                 runner,
                 request,
+                subPlansResults,
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
@@ -270,6 +274,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
+        Set<LocalRelation> subPlansResults,
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
@@ -283,6 +288,7 @@ public class EsqlSession {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
                 LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
+                subPlansResults.add(resultWrapper);
 
                 // replace the original logical plan with the backing result
                 LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
@@ -293,9 +299,10 @@ public class EsqlSession {
                 );
                 // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
                 newLogicalPlan.setOptimized();
-                LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
+                LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
+
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newLogicalPlan, resultWrapper);
+                var newSubPlan = firstSubPlan(newLogicalPlan, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
@@ -308,7 +315,16 @@ public class EsqlSession {
                         );
                     }));
                 } else {// continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    executeSubPlan(
+                        completionInfoAccumulator,
+                        newLogicalPlan,
+                        newSubPlan,
+                        executionInfo,
+                        runner,
+                        request,
+                        subPlansResults,
+                        listener
+                    );
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));

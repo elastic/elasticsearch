@@ -136,7 +136,6 @@ public class Delta$Type$Aggregator {
             ensureCapacity(groupId);
             append(groupId, timestamps.getLong(firstTs), values.get$Type$(firstIndex));
             if (valueCount > 1) {
-                ensureCapacity(groupId);
                 append(groupId, timestamps.getLong(firstTs + 1), values.get$Type$(firstIndex + 1));
             }
             // We are merging the state from upstream, which means we have seen
@@ -161,7 +160,7 @@ public class Delta$Type$Aggregator {
             final BlockFactory blockFactory = driverContext.blockFactory();
             final int positionCount = selected.getPositionCount();
             try (
-                LongBlock.Builder samples = blockFactory.newLongBlockBuilder(positionCount);
+                LongVector.FixedBuilder samples = blockFactory.newLongVectorFixedBuilder(positionCount);
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
                 $Type$Block.Builder values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
             ) {
@@ -169,9 +168,7 @@ public class Delta$Type$Aggregator {
                     final var groupId = selected.getInt(i);
                     final var state = groupId < states.size() ? states.get(groupId) : null;
                     if (state != null) {
-                        samples.beginPositionEntry();
                         samples.appendLong(state.valuesSeen);
-                        samples.endPositionEntry();
                         timestamps.beginPositionEntry();
                         timestamps.appendLong(state.lastTimestamp);
                         if (state.valuesSeen > 1) {
@@ -191,7 +188,7 @@ public class Delta$Type$Aggregator {
                         values.appendNull();
                     }
                 }
-                blocks[offset] = samples.build();
+                blocks[offset] = samples.asBlock();
                 blocks[offset + 1] = timestamps.build();
                 blocks[offset + 2] = values.build();
             }
@@ -216,7 +213,7 @@ public class Delta$Type$Aggregator {
                             continue;
                         }
                         double startGap = state.firstTimestamp - rangeStart;
-                        final double averageSampleInterval = (state.lastTimestamp - state.firstTimestamp) / state.valuesSeen;
+                        final double averageSampleInterval = ((double) state.lastTimestamp - state.firstTimestamp) / state.valuesSeen;
                         final double slope = (state.lastValue - state.firstValue) / (state.lastTimestamp - state.firstTimestamp);
                         double endGap = rangeEnd - state.lastTimestamp;
                         double calculatedFirstValue = state.firstValue;

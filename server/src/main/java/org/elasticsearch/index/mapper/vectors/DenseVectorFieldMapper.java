@@ -2377,6 +2377,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
+            hnswEarlyTermination &= canApplyPatienceQuery();
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(
                     queryVector.asByteVector(),
@@ -2419,6 +2420,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private boolean isQuantized() {
             return indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized();
+        }
+
+        private boolean canApplyPatienceQuery() {
+            return indexOptions instanceof HnswIndexOptions
+                || indexOptions instanceof Int8HnswIndexOptions
+                || indexOptions instanceof Int4HnswIndexOptions
+                || indexOptions instanceof BBQHnswIndexOptions;
         }
 
         private Query createKnnBitQuery(

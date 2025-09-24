@@ -216,8 +216,12 @@ public class ContextualAiService extends SenderService implements RerankingInfer
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // Using conservative default as the actual window size is not known
-        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
+        // Contextual AI rerank models have an 8000 token limit per document
+        // https://docs.contextual.ai/docs/rerank-api-reference
+        // Using 1 token = 0.75 words as a rough estimate, we get 6000 words
+        // allowing for some headroom, we set the window size below 6000 words
+        // https://github.com/elastic/elasticsearch/pull/134933#discussion_r2368608515
+        return 5500;
     }
 
     @Override

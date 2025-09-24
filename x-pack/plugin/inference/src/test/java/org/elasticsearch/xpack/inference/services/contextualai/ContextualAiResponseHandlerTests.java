@@ -29,7 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ContextualAiResponseHandlerTests extends ESTestCase {
-    
+
     public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
         callCheckForFailureStatusCode(200, "id");
     }

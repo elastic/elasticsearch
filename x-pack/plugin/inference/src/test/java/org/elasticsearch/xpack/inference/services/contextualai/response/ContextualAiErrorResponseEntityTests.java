@@ -27,9 +27,9 @@ public class ContextualAiErrorResponseEntityTests extends ESTestCase {
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
 
         var httpResult = new HttpResult(httpResponse, new byte[0]);
-        
+
         ErrorResponse errorResponse = ContextualAiErrorResponseEntity.fromResponse(httpResult);
-        
+
         assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 400 Bad Request"));
     }
 
@@ -41,9 +41,9 @@ public class ContextualAiErrorResponseEntityTests extends ESTestCase {
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
 
         var httpResult = new HttpResult(httpResponse, new byte[0]);
-        
+
         ErrorResponse errorResponse = ContextualAiErrorResponseEntity.fromResponse(httpResult);
-        
+
         assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 500 Internal Server Error"));
     }
 }

@@ -28,7 +28,7 @@ public class SampleGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        double n = randomDoubleBetween(0.01, 0.99, true);
+        double n = randomDoubleBetween(0.0, 1.0, false);
         String cmd = " | SAMPLE " + n;
         return new CommandDescription(SAMPLE, this, cmd, Map.of());
     }

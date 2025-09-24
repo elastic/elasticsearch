@@ -43,7 +43,7 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
         Map<String, Map<String, Long>> retrieversData = new HashMap<>();
 
         // TODO: Gate this behind a randomBoolean() in the future when we have other values to add.
-        Map<String,Long> values = Map.of("chunk_rescorer", randomLongBetween(1, 10));
+        Map<String, Long> values = Map.of("chunk_rescorer", randomLongBetween(1, 10));
         retrieversData.put("text_similarity_reranker", values);
 
         return retrieversData;
@@ -59,15 +59,16 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
         Map<String, Map<String, Map<String, Long>>> current = instance.getCategoriesToExtendedData();
         Map<String, Map<String, Map<String, Long>>> modified = new HashMap<>();
         if (current.isEmpty()) {
-            modified.put(
-                "retrievers",
-                Map.of("text_similarity_reranker", Map.of("chunk_rescorer", randomLongBetween(1, 10)))
-            );
+            modified.put("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", randomLongBetween(1, 10))));
         } else {
             if (randomBoolean()) {
-                modified.put("retrievers",
-                    Map.of("text_similarity_reranker",
-                        Map.of("chunk_rescorer", (Long) randomValueOtherThan(current, () -> randomLongBetween(1, 10)))));
+                modified.put(
+                    "retrievers",
+                    Map.of(
+                        "text_similarity_reranker",
+                        Map.of("chunk_rescorer", (Long) randomValueOtherThan(current, () -> randomLongBetween(1, 10)))
+                    )
+                );
             }
         }
         return new ExtendedSearchUsageStats(modified);

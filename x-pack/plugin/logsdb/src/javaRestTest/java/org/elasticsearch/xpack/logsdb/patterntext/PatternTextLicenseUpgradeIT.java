@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb.patterntext;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.xpack.logsdb.DataStreamLicenseChangeTestCase;
 import org.junit.Before;
 

@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashSet;

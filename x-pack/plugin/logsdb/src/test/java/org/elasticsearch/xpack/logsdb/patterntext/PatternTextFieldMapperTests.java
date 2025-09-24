@@ -52,7 +52,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

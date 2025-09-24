@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;

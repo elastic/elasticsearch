@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;

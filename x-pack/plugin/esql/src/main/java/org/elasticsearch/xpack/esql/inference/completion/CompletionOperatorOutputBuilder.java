@@ -25,7 +25,7 @@ class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder
     private final BytesRefBlock.Builder outputBlockBuilder;
     private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
 
-    public CompletionOperatorOutputBuilder(BytesRefBlock.Builder outputBlockBuilder, Page inputPage) {
+    CompletionOperatorOutputBuilder(BytesRefBlock.Builder outputBlockBuilder, Page inputPage) {
         this.inputPage = inputPage;
         this.outputBlockBuilder = outputBlockBuilder;
     }

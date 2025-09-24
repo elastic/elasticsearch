@@ -34,7 +34,7 @@ class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator 
      * @param promptBlock The input block containing prompts.
      * @param inferenceId The ID of the inference model to invoke.
      */
-    public CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
+    CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
         this.textReader = new InputTextReader(promptBlock);
         this.size = promptBlock.getPositionCount();
         this.inferenceId = inferenceId;

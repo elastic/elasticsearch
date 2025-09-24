@@ -30,7 +30,7 @@ class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
     private final DoubleBlock.Builder scoreBlockBuilder;
     private final int scoreChannel;
 
-    public RerankOperatorOutputBuilder(DoubleBlock.Builder scoreBlockBuilder, Page inputPage, int scoreChannel) {
+    RerankOperatorOutputBuilder(DoubleBlock.Builder scoreBlockBuilder, Page inputPage, int scoreChannel) {
         this.inputPage = inputPage;
         this.scoreBlockBuilder = scoreBlockBuilder;
         this.scoreChannel = scoreChannel;

@@ -34,7 +34,7 @@ class TextEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterat
      * @param textBlock   The input block containing text to embed.
      * @param inferenceId The ID of the inference model to invoke.
      */
-    public TextEmbeddingOperatorRequestIterator(BytesRefBlock textBlock, String inferenceId) {
+    TextEmbeddingOperatorRequestIterator(BytesRefBlock textBlock, String inferenceId) {
         this.textReader = new InputTextReader(textBlock);
         this.size = textBlock.getPositionCount();
         this.inferenceId = inferenceId;

@@ -32,7 +32,7 @@ class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
     private final int batchSize;
     private int remainingPositions;
 
-    public RerankOperatorRequestIterator(BytesRefBlock inputBlock, String inferenceId, String queryText, int batchSize) {
+    RerankOperatorRequestIterator(BytesRefBlock inputBlock, String inferenceId, String queryText, int batchSize) {
         this.inputBlock = inputBlock;
         this.inferenceId = inferenceId;
         this.queryText = queryText;

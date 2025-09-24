@@ -25,7 +25,7 @@ class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuil
     private final Page inputPage;
     private final FloatBlock.Builder outputBlockBuilder;
 
-    public TextEmbeddingOperatorOutputBuilder(FloatBlock.Builder outputBlockBuilder, Page inputPage) {
+    TextEmbeddingOperatorOutputBuilder(FloatBlock.Builder outputBlockBuilder, Page inputPage) {
         this.inputPage = inputPage;
         this.outputBlockBuilder = outputBlockBuilder;
     }

@@ -350,12 +350,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    private void setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus status) {
-        updateClusterSettings(
-            Settings.builder().put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), status).build()
-        );
-    }
-
     public void testShardWriteLoadsArePresent() {
         // Create some indices and some write-load
         final int numIndices = randomIntBetween(1, 5);
@@ -764,6 +758,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         } finally {
             closeShardNoCheck(newShard, randomBoolean());
         }
+    }
+
+    private void setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus status) {
+        updateClusterSettings(
+            Settings.builder().put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), status).build()
+        );
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {

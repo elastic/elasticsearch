@@ -64,6 +64,7 @@ public class PreAnalyzer {
         Holder<Boolean> supportsDenseVector = new Holder<>(false);
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
             if (fn.name().equalsIgnoreCase("knn")
+                || fn.name().equalsIgnoreCase("to_dense_vector")
                 || fn.name().equalsIgnoreCase("v_cosine")
                 || fn.name().equalsIgnoreCase("v_hamming")
                 || fn.name().equalsIgnoreCase("v_l1_norm")

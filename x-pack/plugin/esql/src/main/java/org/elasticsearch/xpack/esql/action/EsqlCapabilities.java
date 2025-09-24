@@ -1107,6 +1107,8 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
          */
         FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
+
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

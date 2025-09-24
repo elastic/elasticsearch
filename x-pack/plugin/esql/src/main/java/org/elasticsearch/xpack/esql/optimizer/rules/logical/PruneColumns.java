@@ -76,7 +76,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                                 Attribute attribute = Expressions.attribute(aggregate.groupings().get(0));
                                 NamedExpression firstAggregate = aggregate.aggregates().get(0);
                                 remaining = List.of(
-                                    new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id())
+                                    new Alias(firstAggregate.source(), firstAggregate.name(), attribute, attribute.id())
                                 );
                                 p = aggregate.with(aggregate.groupings(), remaining);
                             }

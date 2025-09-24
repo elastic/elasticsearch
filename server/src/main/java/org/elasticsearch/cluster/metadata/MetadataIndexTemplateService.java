@@ -955,18 +955,36 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
-        final Set<String> dataStreams = project.dataStreams()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().isSystem() == false)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+        final ComposableIndexTemplate existing = project.templatesV2().get(templateName);
+        final Settings existingSettings = Optional.ofNullable(existing)
+            .map(ComposableIndexTemplate::template)
+            .map(Template::settings)
+            .orElse(Settings.EMPTY);
+        final Settings newSettings = Optional.ofNullable(newTemplate)
+            .map(ComposableIndexTemplate::template)
+            .map(Template::settings)
+            .orElse(Settings.EMPTY);
+        // We check whether anything relevant has changed that could affect data stream coverage and return early if not.
+        // These checks are based on the implementation of findV2Template and the data stream template check in this method.
+        // If we're adding a new template, we do the full check in case this template's priority changes coverage.
+        if (existing != null
+            && existing.indexPatterns().equals(newTemplate.indexPatterns())
+            && Objects.equals(existingSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), newSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN))
+            && Objects.equals(existing.getDataStreamTemplate() != null, newTemplate.getDataStreamTemplate() != null)
+            && existing.priorityOrZero() == newTemplate.priorityOrZero()) {
+            return;
+        }
 
         Function<Map<String, ComposableIndexTemplate>, Set<String>> findUnreferencedDataStreams = composableTemplates -> {
             final Set<String> unreferenced = new HashSet<>();
             // For each data stream that we have, see whether it's covered by a different
             // template (which is great), or whether it's now uncovered by any template
-            for (String dataStream : dataStreams) {
+            for (var dataStreamEntry : project.dataStreams().entrySet()) {
+                // Exclude system data streams
+                if (dataStreamEntry.getValue().isSystem()) {
+                    continue;
+                }
+                final String dataStream = dataStreamEntry.getKey();
                 final String matchingTemplate = findV2Template(project, composableTemplates.entrySet(), dataStream, false, false);
                 if (matchingTemplate == null) {
                     unreferenced.add(dataStream);

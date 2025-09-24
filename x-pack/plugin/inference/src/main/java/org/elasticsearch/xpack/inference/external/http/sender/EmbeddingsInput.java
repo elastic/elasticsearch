@@ -12,11 +12,13 @@ import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public class EmbeddingsInput extends InferenceInputs {
-    private Supplier<List<String>> inputListSupplier;
+    private final Supplier<List<String>> inputListSupplier;
     private final InputType inputType;
+    private final AtomicBoolean supplierInvoked = new AtomicBoolean();
 
     public EmbeddingsInput(List<String> input, @Nullable InputType inputType) {
         this(() -> input, inputType, false);
@@ -36,12 +38,17 @@ public class EmbeddingsInput extends InferenceInputs {
         this.inputType = inputType;
     }
 
+    /**
+     * Calling this method twice will result in the {@link #inputListSupplier} being invoked twice. In the case where the supplier simply
+     * returns the list passed into the constructor, this is not a problem, but in the case where a supplier that will chunk the input
+     * Strings when invoked is passed into the constructor, this will result in multiple copies of the input Strings being created. Calling
+     * this method twice in a non-production environment will cause an {@link AssertionError} to be thrown.
+     *
+     * @return a list of String embedding inputs
+     */
     public List<String> getInputs() {
-        // The supplier should only be invoked once
-        assert inputListSupplier != null;
-        List<String> strings = inputListSupplier.get();
-        inputListSupplier = null;
-        return strings;
+        assert supplierInvoked.compareAndSet(false, true) : "EmbeddingsInput supplier invoked twice";
+        return inputListSupplier.get();
     }
 
     public InputType getInputType() {

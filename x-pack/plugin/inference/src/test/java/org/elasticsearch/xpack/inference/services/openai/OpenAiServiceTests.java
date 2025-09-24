@@ -87,7 +87,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettingsTests.getServiceSettingsMap;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getOpenAiTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -140,7 +140,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     getServiceSettingsMap("model", "url", "org"),
-                    getTaskSettingsMap("user"),
+                    getOpenAiTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
                 modelVerificationListener
@@ -174,7 +174,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.COMPLETION,
                 getRequestConfigMap(
                     getServiceSettingsMap(model, url, organization),
-                    getTaskSettingsMap(user),
+                    getOpenAiTaskSettingsMap(user),
                     getSecretSettingsMap(secret)
                 ),
                 modelVerificationListener
@@ -197,7 +197,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
                     getServiceSettingsMap("model", "url", "org"),
-                    getTaskSettingsMap("user"),
+                    getOpenAiTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
                 modelVerificationListener
@@ -209,7 +209,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var config = getRequestConfigMap(
                 getServiceSettingsMap("model", "url", "org"),
-                getTaskSettingsMap("user"),
+                getOpenAiTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
             config.put("extra_key", "value");
@@ -234,7 +234,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             var serviceSettings = getServiceSettingsMap("model", "url", "org");
             serviceSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap("user"), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getOpenAiTaskSettingsMap("user"), getSecretSettingsMap("secret"));
 
             ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
                 fail("Expected exception, but got model: " + model);
@@ -249,7 +249,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         try (var service = createOpenAiService()) {
-            var taskSettingsMap = getTaskSettingsMap("user");
+            var taskSettingsMap = getOpenAiTaskSettingsMap("user");
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(getServiceSettingsMap("model", "url", "org"), taskSettingsMap, getSecretSettingsMap("secret"));
@@ -270,7 +270,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("model", "url", "org"), getTaskSettingsMap("user"), secretSettingsMap);
+            var config = getRequestConfigMap(
+                getServiceSettingsMap("model", "url", "org"),
+                getOpenAiTaskSettingsMap("user"),
+                secretSettingsMap
+            );
 
             ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
                 fail("Expected exception, but got model: " + model);
@@ -299,7 +303,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", null, null),
+                    getOpenAiTaskSettingsMap(null),
+                    getSecretSettingsMap("secret")
+                ),
                 modelVerificationListener
             );
         }
@@ -325,7 +333,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model, null, null), getTaskSettingsMap(null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(getServiceSettingsMap(model, null, null), getOpenAiTaskSettingsMap(null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -349,7 +357,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     getServiceSettingsMap("model", "url", "org"),
-                    getTaskSettingsMap("user"),
+                    getOpenAiTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
                 modelVerificationListener
@@ -376,7 +384,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     getServiceSettingsMap("model", null, null),
-                    getTaskSettingsMap(null),
+                    getOpenAiTaskSettingsMap(null),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
                 ),
@@ -402,7 +410,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", null, null),
+                    getOpenAiTaskSettingsMap(null),
+                    getSecretSettingsMap("secret")
+                ),
                 modelVerificationListener
             );
         }
@@ -412,7 +424,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", "url", "org", 100, null, false),
-                getTaskSettingsMap("user"),
+                getOpenAiTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
 
@@ -438,7 +450,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", "url", "org"),
-                getTaskSettingsMap("user"),
+                getOpenAiTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
 
@@ -463,7 +475,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", null, null, null, null, true),
-                getTaskSettingsMap(null),
+                getOpenAiTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             );
 
@@ -489,7 +501,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", null, null, null, null, true),
-                getTaskSettingsMap(null),
+                getOpenAiTaskSettingsMap(null),
                 createRandomChunkingSettingsMap(),
                 getSecretSettingsMap("secret")
             );
@@ -517,7 +529,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", null, null, null, null, true),
-                getTaskSettingsMap(null),
+                getOpenAiTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             );
 
@@ -544,7 +556,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", "url", "org", null, null, true),
-                getTaskSettingsMap("user"),
+                getOpenAiTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
             persistedConfig.config().put("extra_key", "value");
@@ -575,7 +587,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", "url", "org", null, null, true),
-                getTaskSettingsMap("user"),
+                getOpenAiTaskSettingsMap("user"),
                 secretSettingsMap
             );
 
@@ -601,7 +613,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", "url", "org", null, null, true),
-                getTaskSettingsMap("user"),
+                getOpenAiTaskSettingsMap("user"),
                 getSecretSettingsMap("secret")
             );
             persistedConfig.secrets().put("extra_key", "value");
@@ -630,7 +642,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, null, true);
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("user"), getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(
+                serviceSettingsMap,
+                getOpenAiTaskSettingsMap("user"),
+                getSecretSettingsMap("secret")
+            );
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -652,7 +668,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createOpenAiService()) {
-            var taskSettingsMap = getTaskSettingsMap("user");
+            var taskSettingsMap = getOpenAiTaskSettingsMap("user");
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -683,7 +699,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", "url", "org", null, null, true),
-                getTaskSettingsMap("user")
+                getOpenAiTaskSettingsMap("user")
             );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
@@ -701,7 +717,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org"), getTaskSettingsMap("user"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org"), getOpenAiTaskSettingsMap("user"));
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -719,7 +735,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", null, null, null, null, true),
-                getTaskSettingsMap(null)
+                getOpenAiTaskSettingsMap(null)
             );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
@@ -739,7 +755,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", null, null, null, null, true),
-                getTaskSettingsMap(null),
+                getOpenAiTaskSettingsMap(null),
                 createRandomChunkingSettingsMap()
             );
 
@@ -761,7 +777,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", null, null, null, null, true),
-                getTaskSettingsMap(null)
+                getOpenAiTaskSettingsMap(null)
             );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
@@ -782,7 +798,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap("model", "url", "org", null, null, true),
-                getTaskSettingsMap("user")
+                getOpenAiTaskSettingsMap("user")
             );
             persistedConfig.config().put("extra_key", "value");
 
@@ -804,7 +820,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, null, true);
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("user"));
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getOpenAiTaskSettingsMap("user"));
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
@@ -821,7 +837,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createOpenAiService()) {
-            var taskSettingsMap = getTaskSettingsMap("user");
+            var taskSettingsMap = getOpenAiTaskSettingsMap("user");
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org", null, null, true), taskSettingsMap);
@@ -1644,7 +1660,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                                     "sensitive": false,
                                     "updatable": true,
                                     "type": "map",
-                                    "supported_task_types": ["completion", "chat_completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 }
                             }
                         }

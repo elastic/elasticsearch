@@ -33,7 +33,6 @@ public class ContextualAiRerankRequest implements Request {
 
     private final String query;
     private final List<String> documents;
-    private final Boolean returnDocuments;
     private final Integer topN;
     private final String instruction;
     private final ContextualAiRerankModel model;
@@ -41,14 +40,12 @@ public class ContextualAiRerankRequest implements Request {
     public ContextualAiRerankRequest(
         String query,
         List<String> documents,
-        @Nullable Boolean returnDocuments,
         @Nullable Integer topN,
         @Nullable String instruction,
         ContextualAiRerankModel model
     ) {
         this.query = Objects.requireNonNull(query);
         this.documents = Objects.requireNonNull(documents);
-        this.returnDocuments = returnDocuments;
         this.topN = topN;
         this.instruction = instruction;
         this.model = Objects.requireNonNull(model);
@@ -58,7 +55,7 @@ public class ContextualAiRerankRequest implements Request {
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(model.uri());
 
-        var requestEntity = new ContextualAiRerankRequestEntity(query, documents, returnDocuments, getTopN(), instruction, model);
+        var requestEntity = new ContextualAiRerankRequestEntity(query, documents, getTopN(), instruction, model);
         String requestJson;
         try {
             requestJson = Strings.toString(requestEntity);

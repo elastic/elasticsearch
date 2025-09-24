@@ -52,7 +52,6 @@ public class ContextualAiActionCreator implements ContextualAiActionVisitor {
         Function<QueryAndDocsInputs, Request> requestCreator = rerankInput -> new ContextualAiRerankRequest(
             rerankInput.getQuery(),
             rerankInput.getChunks(),
-            rerankInput.getReturnDocuments(),
             rerankInput.getTopN(),
             overriddenModel.getTaskSettings().getInstruction(),
             overriddenModel

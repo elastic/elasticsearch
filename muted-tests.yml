@@ -618,6 +618,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateInManyThreads {TestCase=<double>, <double>, <double>, <_source> #17}"
   issue: https://github.com/elastic/elasticsearch/issues/135357
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/510_range_query_out_of_bounds/Test range query for half_float field with out of bounds upper limit}
+  issue: https://github.com/elastic/elasticsearch/issues/135365
 
 # Examples:
 #

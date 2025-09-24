@@ -148,19 +148,19 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
         assert bucketCountBlock.getValueCount(position) == 1 : "bucketCount: expected 1 element, got " + bucketCountBlock.getValueCount(position);
         assert emptyBucketValueBlock.getValueCount(position) == 1 : "emptyBucketValue: expected 1 element, got " + emptyBucketValueBlock.getValueCount(position);
-        double bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
+        Number bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
         int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
         double emptyBucketValue = emptyBucketValueBlock.getDouble(emptyBucketValueBlock.getFirstValueIndex(position));
 
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
+        Number[] estimates = new Number[estimatesBlock.getValueCount(position)];
         for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
             estimates[i] = estimatesBlock.getDouble(estimatesBlock.getFirstValueIndex(position) + i);
         }
 
-        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, bucketCount, emptyBucketValue);
+        Number[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, bucketCount, emptyBucketValue);
         builder.beginPositionEntry();
-        for (double v : confidenceInterval) {
-            builder.appendDouble(v);
+        for (Number v : confidenceInterval) {
+            builder.appendDouble(v.doubleValue());
         }
         builder.endPositionEntry();
 
@@ -172,19 +172,19 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
         assert bucketCountBlock.getValueCount(position) == 1 : "bucketCount: expected 1 element, got " + bucketCountBlock.getValueCount(position);
         assert emptyBucketValueBlock.getValueCount(position) == 1 : "emptyBucketValue: expected 1 element, got " + emptyBucketValueBlock.getValueCount(position);
-        double bestEstimate = bestEstimateBlock.getInt(bestEstimateBlock.getFirstValueIndex(position));
+        Number bestEstimate = bestEstimateBlock.getInt(bestEstimateBlock.getFirstValueIndex(position));
         int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
         double emptyBucketValue = emptyBucketValueBlock.getDouble(emptyBucketValueBlock.getFirstValueIndex(position));
 
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
+        Number[] estimates = new Number[estimatesBlock.getValueCount(position)];
         for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
             estimates[i] = estimatesBlock.getInt(estimatesBlock.getFirstValueIndex(position) + i);
         }
 
-        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, bucketCount, emptyBucketValue);
+        Number[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, bucketCount, emptyBucketValue);
         builder.beginPositionEntry();
-        for (double v : confidenceInterval) {
-            builder.appendInt((int) v);
+        for (Number v : confidenceInterval) {
+            builder.appendInt(v.intValue());
         }
         builder.endPositionEntry();
     }
@@ -194,32 +194,32 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
         assert bucketCountBlock.getValueCount(position) == 1 : "bucketCount: expected 1 element, got " + bucketCountBlock.getValueCount(position);
         assert emptyBucketValueBlock.getValueCount(position) == 1 : "emptyBucketValue: expected 1 element, got " + emptyBucketValueBlock.getValueCount(position);
-        double bestEstimate = bestEstimateBlock.getLong(bestEstimateBlock.getFirstValueIndex(position));
+        Number bestEstimate = bestEstimateBlock.getLong(bestEstimateBlock.getFirstValueIndex(position));
         int bucketCount = bucketCountBlock.getInt(bucketCountBlock.getFirstValueIndex(position));
         double emptyBucketValue = emptyBucketValueBlock.getDouble(emptyBucketValueBlock.getFirstValueIndex(position));
 
-        double[] estimates = new double[estimatesBlock.getValueCount(position)];
+        Number[] estimates = new Number[estimatesBlock.getValueCount(position)];
         for (int i = 0; i < estimatesBlock.getValueCount(position); i++) {
             estimates[i] = estimatesBlock.getLong(estimatesBlock.getFirstValueIndex(position) + i);
         }
 
-        double[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, bucketCount, emptyBucketValue);
+        Number[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates, bucketCount, emptyBucketValue);
         builder.beginPositionEntry();
-        for (double v : confidenceInterval) {
-            builder.appendLong((long) v);
+        for (Number v : confidenceInterval) {
+            builder.appendLong(v.longValue());
         }
         builder.endPositionEntry();
     }
 
-    private static double[] computeConfidenceInterval(double bestEstimate, double[] estimates, int bucketCount, double emptyBucketValue) {
+    private static Number[] computeConfidenceInterval(Number bestEstimate, Number[] estimates, int bucketCount, double emptyBucketValue) {
         System.out.println("@@@ computeConfidenceInterval: bestEstimate = " + bestEstimate + ", estimates = " + Arrays.toString(estimates) + ", bucketCount = " + bucketCount + ", emptyBucketValue = " + emptyBucketValue);
         Mean estimatesMean = new Mean();
         StandardDeviation estimatesStdDev = new StandardDeviation(false);
         Skewness estimatesSkew = new Skewness();
-        for (double estimate : estimates) {
-            estimatesMean.increment(estimate);
-            estimatesStdDev.increment(estimate);
-            estimatesSkew.increment(estimate);
+        for (Number estimate : estimates) {
+            estimatesMean.increment(estimate.doubleValue());
+            estimatesStdDev.increment(estimate.doubleValue());
+            estimatesSkew.increment(estimate.doubleValue());
         }
         if (Double.isNaN(emptyBucketValue) == false) {
             for (int i = 0; i < bucketCount - estimates.length; i++) {
@@ -233,21 +233,21 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         double sm = estimatesStdDev.getResult();
 
         if (sm == 0.0) {
-            return new double[] { bestEstimate, bestEstimate, bestEstimate };
+            return new Number[] { bestEstimate, bestEstimate, bestEstimate };
         }
 
         double a = estimatesSkew.getResult() / 6;
 
         NormalDistribution norm = new NormalDistribution(0, 1);
 
-        double z0 = (bestEstimate - mm) / sm;
+        double z0 = (bestEstimate.doubleValue() - mm) / sm;
         double dz = norm.inverseCumulativeProbability((1 + 0.95) / 2);  // for 95% confidence interval
         double zl = z0 - dz;
         double zu = z0 + dz;
 
         sm /= Math.sqrt(estimatesMean.getN());
 
-        return new double[] {
+        return new Number[] {
             mm + sm * (z0 + zl / (1 - Math.min(0.8, a * zl))),
             bestEstimate,
             mm + sm * (z0 + zu / (1 - Math.min(0.8, a * zu))),

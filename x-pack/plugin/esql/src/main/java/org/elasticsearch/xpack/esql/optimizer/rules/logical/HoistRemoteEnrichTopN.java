@@ -28,21 +28,15 @@ import java.util.List;
  * This is the same idea as {@link HoistRemoteEnrichLimit} but for TopN instead of Limit.
  * This must happen after {@link ReplaceLimitAndSortAsTopN}.
  */
-public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOptimizerRule<Enrich, LogicalOptimizerContext> {
-    // Local plans don't really need the duplication
-    private final boolean local;
-
-    public HoistRemoteEnrichTopN(boolean local) {
+public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOptimizerRule<Enrich, LogicalOptimizerContext>
+    implements
+        OptimizerRules.CoordinatorOnly {
+    public HoistRemoteEnrichTopN() {
         super(OptimizerRules.TransformDirection.UP);
-        this.local = local;
     }
 
     @Override
     protected LogicalPlan rule(Enrich en, LogicalOptimizerContext ctx) {
-        if (local) {
-            return en;
-        }
-
         if (en.mode() == Enrich.Mode.REMOTE) {
             LogicalPlan plan = en.child();
             // This loop only takes care of one TopN, repeated application will stack them in correct order.

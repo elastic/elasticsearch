@@ -24,14 +24,14 @@ import java.util.Set;
  * Locate any LIMIT that is "visible" under remote ENRICH, and make a copy of it above the ENRICH. The original limit is marked as local.
  * This allows the correct semantics of the remote application of limit. Enrich itself does not change the cardinality,
  * but the limit needs to be taken twice, locally on the node and again on the coordinator.
+ * This runs only on LogicalPlanOptimizer not on local one.
  */
-public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOptimizerRule<Enrich, LogicalOptimizerContext> {
-    // Local plans don't really need the duplication
-    private final boolean local;
+public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOptimizerRule<Enrich, LogicalOptimizerContext>
+    implements
+        OptimizerRules.CoordinatorOnly {
 
-    public HoistRemoteEnrichLimit(boolean local) {
+    public HoistRemoteEnrichLimit() {
         super(OptimizerRules.TransformDirection.UP);
-        this.local = local;
     }
 
     @Override
@@ -62,11 +62,6 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             }
             // Mark original limits as local
             LogicalPlan transformLimits = en.transformDown(Limit.class, l -> seenLimits.contains(l) ? l.withLocal(true) : l);
-            if (local) {
-                // For local plan, we just mark the limits so that the verifier is content
-                // TODO: alternatively, we could just not make the Enrich verifier know where the plan is running
-                return transformLimits;
-            }
             // Shouldn't actually throw because we checked seenLimits is not empty
             Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx.foldCtx()))).orElseThrow();
             // Insert new lowest limit on top of the Enrich

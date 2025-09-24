@@ -33,14 +33,16 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
             PlanConsistencyChecker.checkPlan(p, depFailures);
 
             if (failures.hasFailures() == false) {
-                if (p instanceof PostOptimizationVerificationAware pova) {
+                if (p instanceof PostOptimizationVerificationAware pova
+                    && (pova instanceof PostOptimizationVerificationAware.CoordinatorOnly && isLocal) == false) {
                     pova.postOptimizationVerification(failures);
                 }
                 if (p instanceof PostOptimizationPlanVerificationAware popva) {
                     checkers.add(popva.postOptimizationPlanVerification());
                 }
                 p.forEachExpression(ex -> {
-                    if (ex instanceof PostOptimizationVerificationAware va) {
+                    if (ex instanceof PostOptimizationVerificationAware va
+                        && (va instanceof PostOptimizationVerificationAware.CoordinatorOnly && isLocal) == false) {
                         va.postOptimizationVerification(failures);
                     }
                 });

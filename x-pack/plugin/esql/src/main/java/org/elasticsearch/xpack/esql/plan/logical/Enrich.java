@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Enrich extends UnaryPlan
     implements
         GeneratingPlan<Enrich>,
-        PostOptimizationVerificationAware,
+        PostOptimizationVerificationAware.CoordinatorOnly,
         PostAnalysisVerificationAware,
         TelemetryAware,
         SortAgnostic,

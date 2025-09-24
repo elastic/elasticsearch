@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -35,7 +37,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index.
  *
  * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators(boolean)}
- * and {@link LogicalPlanOptimizer#cleanup(boolean)}
+ * and {@link LogicalPlanOptimizer#cleanup()}
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
@@ -53,7 +55,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceDateTruncBucketWithRoundTo()
         ),
         localOperators(),
-        cleanup(true)
+        localCleanup()
     );
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
@@ -75,8 +77,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         for (var r : rules) {
             switch (r) {
                 case PropagateEmptyRelation ignoredPropagate -> newRules.add(new LocalPropagateEmptyRelation());
-                // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
-                case ReplaceStatsFilteredAggWithEval ignoredReplace -> {
+                case OptimizerRules.CoordinatorOnly ignored -> {
                 }
                 default -> newRules.add(r);
             }
@@ -86,6 +87,14 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         newRules.add(new ReplaceStringCasingWithInsensitiveRegexMatch());
 
         return operators.with(newRules.toArray(Rule[]::new));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Batch<LogicalPlan> localCleanup() {
+        var cleanup = cleanup();
+        return cleanup.with(
+            Arrays.stream(cleanup.rules()).filter(r -> r instanceof OptimizerRules.CoordinatorOnly == false).toArray(Rule[]::new)
+        );
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {

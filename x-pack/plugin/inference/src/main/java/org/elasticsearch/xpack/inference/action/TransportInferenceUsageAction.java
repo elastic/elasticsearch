@@ -232,10 +232,20 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
 
     private record DefaultModelStatsKey(String service, TaskType taskType, String modelId) {
 
+        // Some of the default models have optimized variants for linux that will have the following suffix.
+        private static final String MODEL_ID_LINUX_SUFFIX = "-x86_64";
+
         @Override
         public String toString() {
             // Inference ids cannot start with '_'. Thus, default stats do to avoid conflicts with user-defined inference ids.
-            return "_" + service + "_" + modelId.replace('.', '_');
+            return "_" + service + "_" + stripLinuxSuffix(modelId).replace('.', '_');
+        }
+
+        private static String stripLinuxSuffix(String modelId) {
+            if (modelId.endsWith(MODEL_ID_LINUX_SUFFIX)) {
+                return modelId.substring(0, modelId.length() - MODEL_ID_LINUX_SUFFIX.length());
+            }
+            return modelId;
         }
     }
 

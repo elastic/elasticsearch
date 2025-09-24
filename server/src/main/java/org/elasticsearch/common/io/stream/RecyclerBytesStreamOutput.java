@@ -38,9 +38,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     protected static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     protected static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
+    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final Recycler<BytesRef> recycler;
-    protected ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
-    protected final int pageSize;
+    private final int pageSize;
     private int pageIndex = -1;
     private int currentCapacity = 0;
 
@@ -51,7 +51,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.recycler = recycler;
         this.pageSize = recycler.pageSize();
         this.currentPageOffset = pageSize;
-        // Always start with a page
+        // Always start with a page. This is because if we don't have a page, one of the hot write paths would be forced to go through
+        // a slow path. We prefer to only execute that path if we need to expand.
         ensureCapacityFromPosition(1);
         nextPage();
     }
@@ -64,13 +65,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     @Override
     public void writeByte(byte b) {
         int currentPageOffset = this.currentPageOffset;
-        if (1 > (pageSize - currentPageOffset)) {
+        if (1 > pageSize - currentPageOffset) {
             ensureCapacity(1);
             nextPage();
+            currentPageOffset = 0;
         }
-
-        BytesRef currentPage = currentBytesRef;
-        currentPage.bytes[currentPage.offset + currentPageOffset] = b;
+        final BytesRef currentPage = currentBytesRef;
+        final int destOffset = currentPage.offset + currentPageOffset;
+        currentPage.bytes[destOffset] = b;
         this.currentPageOffset = currentPageOffset + 1;
     }
 
@@ -93,47 +95,68 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
         Objects.checkFromIndexSize(offset, length, b.length);
 
-        int toCopy = Math.min(length, pageSize - currentPageOffset);
-        if (toCopy != 0) {
-            BytesRef currentPage = currentBytesRef;
-            System.arraycopy(b, offset, currentPage.bytes, currentPage.offset + currentPageOffset, toCopy);
-            currentPageOffset += toCopy;
-            if (toCopy == length) {
-                return;
-            }
+        final int currentPageOffset = this.currentPageOffset;
+        if (length > pageSize - currentPageOffset) {
+            writeMultiplePages(b, offset, length);
+        } else {
+            // Add a hot path that can be easily optimized at call sites where the bytes fit in the page.
+            final BytesRef currentPage = currentBytesRef;
+            final byte[] bytes = currentPage.bytes;
+            final int destOffset = currentPage.offset + currentPageOffset;
+            System.arraycopy(b, offset, bytes, destOffset, length);
+            this.currentPageOffset = currentPageOffset + length;
         }
-
-        writeAdditionalPages(b, offset + toCopy, length - toCopy);
     }
 
-    private void writeAdditionalPages(byte[] b, int offset, int length) {
+    private void writeMultiplePages(byte[] b, int offset, int length) {
         ensureCapacity(length);
 
+        BytesRef currentPage = currentBytesRef;
+        int currentPageOffset = this.currentPageOffset;
         int bytesToCopy = length;
-        int srcOffset = offset;
-
-        while (bytesToCopy > 0) {
-            if (currentPageOffset == pageSize) {
-                nextPage();
-            }
-
-            int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
-            BytesRef currentPage = currentBytesRef;
-            System.arraycopy(b, srcOffset, currentPage.bytes, currentPage.offset + currentPageOffset, toCopyThisLoop);
-
-            srcOffset += toCopyThisLoop;
+        int srcOff = offset;
+        while (true) {
+            final int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
+            final int destOffset = currentPage.offset + currentPageOffset;
+            System.arraycopy(b, srcOff, currentPage.bytes, destOffset, toCopyThisLoop);
+            srcOff += toCopyThisLoop;
             bytesToCopy -= toCopyThisLoop;
-            currentPageOffset += toCopyThisLoop;
+            if (bytesToCopy > 0) {
+                currentPageOffset = 0;
+                currentPage = pages.get(++pageIndex).v();
+            } else {
+                currentPageOffset += toCopyThisLoop;
+                break;
+            }
         }
+        this.currentPageOffset = currentPageOffset;
+        this.currentBytesRef = currentPage;
     }
 
     @Override
     public void writeVInt(int i) throws IOException {
+        final int currentPageOffset = this.currentPageOffset;
+        final int remainingBytesInPage = pageSize - currentPageOffset;
+
+        // Single byte values (most common)
+        if ((i & 0xFFFFFF80) == 0) {
+            if (1 > remainingBytesInPage) {
+                super.writeVInt(i);
+            } else {
+                BytesRef currentPage = currentBytesRef;
+                currentPage.bytes[currentPage.offset + currentPageOffset] = (byte) i;
+                this.currentPageOffset = currentPageOffset + 1;
+            }
+            return;
+        }
+
         int bytesNeeded = vIntLength(i);
-        if (bytesNeeded > pageSize - currentPageOffset) {
+        if (bytesNeeded > remainingBytesInPage) {
             super.writeVInt(i);
         } else {
-            putVInt(i, bytesNeeded);
+            BytesRef currentPage = currentBytesRef;
+            putVInt(i, bytesNeeded, currentPage.bytes, currentPage.offset + currentPageOffset);
+            this.currentPageOffset = currentPageOffset + bytesNeeded;
         }
     }
 
@@ -151,13 +174,11 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         return 5;
     }
 
-    private void putVInt(int i, int bytesNeeded) {
-        BytesRef currentPage = currentBytesRef;
+    private void putVInt(int i, int bytesNeeded, byte[] page, int offset) {
         if (bytesNeeded == 1) {
-            currentPage.bytes[currentPage.offset + currentPageOffset] = (byte) i;
-            currentPageOffset += 1;
+            page[offset] = (byte) i;
         } else {
-            currentPageOffset += putMultiByteVInt(currentPage.bytes, i, currentPage.offset + currentPageOffset);
+            putMultiByteVInt(page, i, offset);
         }
     }
 
@@ -238,8 +259,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void writeString(String str) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         final int charCount = str.length();
-        // maximum serialized length is 3 bytes per char + 5 bytes for the longest possible vint
-        if (charCount * 3 + 5 > (pageSize - currentPageOffset)) {
+        int bytesNeededForVInt = vIntLength(charCount);
+        // maximum serialized length is 3 bytes per char + n bytes for the vint
+        if (charCount * 3 + bytesNeededForVInt > (pageSize - currentPageOffset)) {
             super.writeString(str);
             return;
         }
@@ -248,7 +270,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         int offset = currentPage.offset + currentPageOffset;
         byte[] buffer = currentPage.bytes;
         // mostly duplicated from StreamOutput.writeString to to get more reliable compilation of this very hot loop
-        offset += putVInt(buffer, charCount, offset);
+        putVInt(charCount, bytesNeededForVInt, currentPage.bytes, offset);
+        offset += bytesNeededForVInt;
+
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
             if (c <= 0x007F) {
@@ -273,24 +297,28 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     @Override
     public void seek(long position) {
         ensureCapacityFromPosition(position);
-        int offsetInPage = (int) (position % pageSize);
-        int pageIndex = (int) position / pageSize;
+        if (position > 0) {
+            int offsetInPage = (int) (position % pageSize);
+            int pageIndex = (int) position / pageSize;
 
-        // Special handling for seeking to the first index in a new page, which is handled as a seeking to one-after the last index
-        // in the previous case. This is done so that seeking to the first index of a new page does not cause a page allocation while
-        // still allowing a fast check via (pageSize - currentPageOffset) on the remaining size in the current page in all other methods.
-        if (offsetInPage == 0) {
-            this.pageIndex = pageIndex - 1;
-            this.currentPageOffset = pageSize;
+            // Special handling for seeking to the first index in a new page, which is handled as a seeking to one-after the last index
+            // in the previous case. This is done so that seeking to the first index of a new page does not cause a page allocation while
+            // still allowing a fast check via (pageSize - currentPageOffset) on the remaining size in the current page in all other
+            // methods.
+            if (offsetInPage == 0) {
+                this.pageIndex = pageIndex - 1;
+                this.currentPageOffset = pageSize;
+            } else {
+                this.pageIndex = pageIndex;
+                this.currentPageOffset = offsetInPage;
+            }
         } else {
-            this.pageIndex = pageIndex;
-            this.currentPageOffset = offsetInPage;
+            // We always have an initial page so special handling for seeking to 0.
+            assert position == 0;
+            this.pageIndex = 0;
+            this.currentPageOffset = 0;
         }
-        if (position != 0) {
-            this.currentBytesRef = pages.get(this.pageIndex).v();
-        } else {
-            nextPage();
-        }
+        this.currentBytesRef = pages.get(pageIndex).v();
     }
 
     public void skip(int length) {
@@ -301,9 +329,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void close() {
         var pages = this.pages;
         if (pages != null) {
-            this.pages = null;
-
-            this.currentBytesRef = null;
+            closeFields();
             Releasables.close(pages);
         }
     }
@@ -317,10 +343,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public ReleasableBytesReference moveToBytesReference() {
         var bytes = bytes();
         var pages = this.pages;
-        this.pages = null;
-        this.currentBytesRef = null;
+        closeFields();
 
         return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
+    }
+
+    private void closeFields() {
+        this.pages = null;
+        this.currentBytesRef = null;
+        this.pageIndex = -1;
+        this.currentPageOffset = pageSize;
+        this.currentCapacity = 0;
     }
 
     /**
@@ -376,26 +409,21 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // than Integer.MAX_VALUE
         if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+        } else if (pages == null) {
+            throw new IllegalStateException("Cannot use " + getClass().getSimpleName() + " after it has been closed");
         }
 
         long additionalCapacityNeeded = newPosition - currentCapacity;
         if (additionalCapacityNeeded > 0) {
-            if (additionalCapacityNeeded <= pageSize) {
+            // Calculate number of additional pages needed
+            int additionalPagesNeeded = (int) ((additionalCapacityNeeded + pageSize - 1) / pageSize);
+            pages.ensureCapacity(pages.size() + additionalPagesNeeded);
+            for (int i = 0; i < additionalPagesNeeded; i++) {
                 Recycler.V<BytesRef> newPage = recycler.obtain();
                 assert pageSize == newPage.v().length;
                 pages.add(newPage);
-                currentCapacity += pageSize;
-            } else {
-                // Calculate number of additional pages needed
-                int additionalPagesNeeded = (int) ((additionalCapacityNeeded + pageSize - 1) / pageSize);
-                pages.ensureCapacity(pages.size() + additionalPagesNeeded);
-                for (int i = 0; i < additionalPagesNeeded; i++) {
-                    Recycler.V<BytesRef> newPage = recycler.obtain();
-                    assert pageSize == newPage.v().length;
-                    pages.add(newPage);
-                }
-                currentCapacity += additionalPagesNeeded * pageSize;
             }
+            currentCapacity += additionalPagesNeeded * pageSize;
         }
     }
 

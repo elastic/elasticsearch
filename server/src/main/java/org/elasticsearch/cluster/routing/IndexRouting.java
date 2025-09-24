@@ -158,6 +158,12 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
+    public abstract int rerouteIndexingRequestIfResharding(String id, @Nullable String routing);
+
+    public abstract int rerouteDeleteRequestIfResharding(String id, @Nullable String routing);
+
+    public abstract int rerouteUpdateRequestIfResharding(String id, @Nullable String routing);
+
     /**
      * If this index is in the process of resharding, and the shard to which this request is being routed,
      * is a target shard that is not yet in HANDOFF state, then route it to the source shard.
@@ -239,6 +245,16 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public int rerouteIndexingRequestIfResharding(String id, @Nullable String routing) {
+            if (id == null) {
+                throw new IllegalStateException("id is required and should have been set by process");
+            }
+            checkRoutingRequired(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteWritesIfResharding(shardId);
+        }
+
+        @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
@@ -246,7 +262,21 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public int rerouteUpdateRequestIfResharding(String id, @Nullable String routing) {
+            checkRoutingRequired(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteWritesIfResharding(shardId);
+        }
+
+        @Override
         public int deleteShard(String id, @Nullable String routing) {
+            checkRoutingRequired(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteWritesIfResharding(shardId);
+        }
+
+        @Override
+        public int rerouteDeleteRequestIfResharding(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
             return rerouteWritesIfResharding(shardId);
@@ -397,6 +427,12 @@ public abstract class IndexRouting {
             }
             int shardId = hashToShardId(hash);
             return (rerouteWritesIfResharding(shardId));
+        }
+
+        @Override
+        public int rerouteIndexingRequestIfResharding(String id, @Nullable String routing) {
+            int shardId = hashToShardId(hash);
+            return rerouteWritesIfResharding(shardId);
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -550,7 +586,19 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public int rerouteUpdateRequestIfResharding(String id, @Nullable String routing) {
+            throw new IllegalArgumentException(error("update"));
+        }
+
+        @Override
         public int deleteShard(String id, @Nullable String routing) {
+            checkNoRouting(routing);
+            int shardId = idToHash(id);
+            return (rerouteWritesIfResharding(shardId));
+        }
+
+        @Override
+        public int rerouteDeleteRequestIfResharding(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
             return (rerouteWritesIfResharding(shardId));

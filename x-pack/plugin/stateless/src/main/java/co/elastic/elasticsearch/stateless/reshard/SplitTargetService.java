@@ -41,6 +41,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -87,35 +88,20 @@ public class SplitTargetService {
         }
     }
 
-    public void afterSplitTargetIndexShardRecovery(
-        IndexShard indexShard,
-        IndexReshardingMetadata reshardingMetadata,
-        ActionListener<Void> listener
-    ) {
+    public void afterSplitTargetIndexShardStarted(IndexShard indexShard, IndexReshardingMetadata reshardingMetadata) {
         ShardId shardId = indexShard.shardId();
         Split split = onGoingSplits.get(indexShard);
         if (split == null) {
-            listener.onFailure(new IllegalStateException("No on-going split found for shard " + shardId));
-            return;
+            throw new IllegalStateException("No on-going split found for shard " + shardId);
         }
 
         switch (reshardingMetadata.getSplit().getTargetShardState(shardId.id())) {
             case CLONE -> throw new IllegalStateException("Cannot make it here is still CLONE");
             case HANDOFF -> {
                 moveToSplitStep(indexShard, split);
-                listener.onResponse(null);
             }
-            // TODO this is not really correct.
-            // This will block target shard recovery until we delete unowned documents and transition to DONE.
-            // It is not necessary and in SPLIT target shard is serving indexing traffic so this delay
-            // hurts.
-            // We should not block on this but also we need to make sure this eventually happens somehow.
-            // For simplicity it is done inline now.
-            case SPLIT -> moveToDoneStep(indexShard, split, listener);
-            case DONE -> {
-                onGoingSplits.remove(indexShard);
-                listener.onResponse(null);
-            }
+            case SPLIT -> moveToDone(indexShard, split);
+            case DONE -> onGoingSplits.remove(indexShard);
         }
     }
 
@@ -160,7 +146,7 @@ public class SplitTargetService {
                     new ActionListener<>() {
                         @Override
                         public void onResponse(ActionResponse actionResponse) {
-                            clusterService.threadPool().generic().submit(() -> moveToDoneStep(indexShard, split, ActionListener.noop()));
+                            moveToDone(indexShard, split);
                         }
 
                         @Override
@@ -174,21 +160,81 @@ public class SplitTargetService {
         }, newState -> searchShardsOnlineOrNewPrimaryTerm(newState, shardId, split.targetPrimaryTerm()));
     }
 
-    private void moveToDoneStep(IndexShard indexShard, Split split, ActionListener<Void> listener) {
-        // Note that a shard can be closed (due to a failure) at any moment during the below flow.
-        // It is not a problem since all operations are idempotent.
-        SubscribableListener.<Void>newForked(l -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), l)).<Void>andThen(l -> {
-            var changeStateToDone = new ChangeState(
-                indexShard,
-                split,
-                IndexReshardingState.Split.TargetShardState.DONE,
-                l.map(ignored -> null)
+    private void moveToDone(IndexShard indexShard, Split split) {
+        var listener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("Successfully moved split target shard {} to DONE", indexShard.shardId());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info(Strings.format("Failed to move split target shard {} to DONE (is it closed?).", indexShard.shardId()), e);
+            }
+        };
+
+        var action = new MoveToDone(indexShard, split, listener);
+        action.run();
+    }
+
+    /**
+     * Executes necessary logic to complete split on the target shard and moves target shard state to done.
+     */
+    private class MoveToDone extends RetryableAction<Void> {
+        private final IndexShard indexShard;
+        private final Split split;
+
+        private MoveToDone(IndexShard indexShard, Split split, ActionListener<Void> listener) {
+            super(
+                logger,
+                clusterService.threadPool(),
+                // this logic is not time-sensitive, retry delays do not need to be tight
+                TimeValue.timeValueSeconds(5), // initialDelay
+                TimeValue.timeValueSeconds(30), // maxDelayBound
+                TimeValue.MAX_VALUE, // timeoutValue
+                listener,
+                clusterService.threadPool().generic()
             );
-            changeStateToDone.run();
-        }).andThenAccept(ignored -> onGoingSplits.remove(indexShard)).addListener(listener.delegateResponse((l, e) -> {
-            stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.DONE, e);
-            l.onFailure(e);
-        }));
+            this.indexShard = indexShard;
+            this.split = split;
+        }
+
+        @Override
+        public void tryAction(ActionListener<Void> listener) {
+            if (onGoingSplits.get(indexShard) != split) {
+                // Shard is closed, nothing to do.
+                return;
+            }
+
+            // Note that a shard can be closed (due to a failure) at any moment during the below flow.
+            // It is not a problem since all operations are idempotent.
+            SubscribableListener.<Void>newForked(l -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), l))
+                .<Void>andThen(l -> {
+                    var changeStateToDone = new ChangeState(
+                        indexShard,
+                        split,
+                        IndexReshardingState.Split.TargetShardState.DONE,
+                        l.map(ignored -> null)
+                    );
+                    changeStateToDone.run();
+                })
+                .andThenAccept(ignored -> onGoingSplits.remove(indexShard))
+                .addListener(listener.delegateResponse((l, e) -> {
+                    stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.DONE, e);
+                    l.onFailure(e);
+                }));
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (e instanceof IndexShardClosedException) {
+                // Shard is closed, but it was not reflected in `onGoingSplits`, we'll resume the tracking logic on next recovery.
+                return false;
+            }
+
+            logger.info(Strings.format("Going to retry to move target shard {} to DONE. Encountered exception.", indexShard.shardId()), e);
+            return true;
+        }
     }
 
     private void stateError(IndexShard shard, Split split, IndexReshardingState.Split.TargetShardState state, Exception e) {
@@ -199,7 +245,6 @@ public class SplitTargetService {
     }
 
     private class ChangeState extends RetryableAction<ActionResponse> {
-
         private final IndexShard indexShard;
         private final Split split;
         private final SplitStateRequest splitStateRequest;

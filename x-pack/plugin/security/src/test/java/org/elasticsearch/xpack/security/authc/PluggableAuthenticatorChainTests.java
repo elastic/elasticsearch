@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 

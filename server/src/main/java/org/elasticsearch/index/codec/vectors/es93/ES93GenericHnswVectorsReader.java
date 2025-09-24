@@ -48,6 +48,7 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.GroupVIntUtil;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
@@ -65,6 +66,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -84,9 +86,8 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
     private final int version;
 
     @SuppressWarnings("this-escape")
-    public ES93GenericHnswVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> flatVectorsReaders) throws IOException {
+    public ES93GenericHnswVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
         this.fields = new IntObjectHashMap<>();
-        this.flatVectorsReaders = flatVectorsReaders;
         this.fieldInfos = state.fieldInfos;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -96,6 +97,7 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
         int versionMeta = -1;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
             Throwable priorE = null;
+            Map<String, FlatVectorsReader> readers = null;
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     meta,
@@ -105,12 +107,13 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                readFields(meta);
+                readers = readFields(meta, getFormatReader);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
                 CodecUtil.checkFooter(meta, priorE);
             }
+            this.flatVectorsReaders = readers;
             this.version = versionMeta;
             this.vectorIndex = openDataInput(
                 state,
@@ -188,7 +191,9 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
         }
     }
 
-    private void readFields(ChecksumIndexInput meta) throws IOException {
+    private Map<String, FlatVectorsReader> readFields(ChecksumIndexInput meta, IOFunction<String, FlatVectorsReader> loadReader)
+        throws IOException {
+        Map<String, FlatVectorsReader> readers = new HashMap<>();
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -196,8 +201,19 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
             }
             FieldEntry fieldEntry = readField(meta, info);
             validateFieldEntry(info, fieldEntry);
+
+            FlatVectorsReader reader = readers.get(fieldEntry.flatVectorFormatName);
+            if (reader == null) {
+                reader = loadReader.apply(fieldEntry.flatVectorFormatName);
+                if (reader == null) {
+                    throw new IllegalStateException("Cannot find flat vector format: " + fieldEntry.flatVectorFormatName);
+                }
+                readers.put(fieldEntry.flatVectorFormatName, reader);
+            }
+
             fields.put(info.number, fieldEntry);
         }
+        return readers;
     }
 
     private void validateFieldEntry(FieldInfo info, FieldEntry fieldEntry) {
@@ -238,9 +254,6 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
 
     private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
         String flatVectorFormatName = input.readString();
-        if (flatVectorsReaders.containsKey(flatVectorFormatName) == false) {
-            throw new IllegalArgumentException("Invalid flat vector format: " + flatVectorFormatName);
-        }
         VectorEncoding vectorEncoding = readVectorEncoding(input);
         VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {

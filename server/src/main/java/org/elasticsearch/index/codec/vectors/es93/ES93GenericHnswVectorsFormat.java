@@ -23,14 +23,11 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
@@ -88,11 +85,11 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
     @Override
     public final KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         var readFormats = supportedReadFlatVectorsFormats();
-        Map<String, FlatVectorsReader> readers = CollectionUtil.newHashMap(readFormats.size());
-        for (var fe : readFormats.entrySet()) {
-            readers.put(fe.getKey(), fe.getValue().fieldsReader(state));
-        }
-        return new ES93GenericHnswVectorsReader(state, Collections.unmodifiableMap(readers));
+        return new ES93GenericHnswVectorsReader(state, f -> {
+            var format = readFormats.get(f);
+            if (format == null) return null;
+            return format.fieldsReader(state);
+        });
     }
 
     @Override

@@ -25,12 +25,12 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,6 +43,8 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -100,6 +102,25 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     @Override
+    protected void assertOffHeapByteSize(LeafReader r, String fieldName) throws IOException {
+        var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
+
+        if (r instanceof CodecReader codecReader) {
+            KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
+            }
+            var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+            long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
+            // IVF doesn't report stats at the moment
+            assertThat(offHeap, anEmptyMap());
+            assertThat(totalByteSize, equalTo(0L));
+        } else {
+            throw new AssertionError("unexpected:" + r.getClass());
+        }
+    }
+
+    @Override
     public void testAdvance() throws Exception {
         // TODO re-enable with hierarchical IVF, clustering as it is is flaky
     }
@@ -140,7 +161,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertEquals(0, offHeap.size());
                 }
             }
@@ -171,7 +192,13 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 for (LeafReaderContext r : subReaders) {
                     LeafReader leafReader = r.reader();
                     float[] vector = randomVector(dimensions);
-                    TopDocs topDocs = leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
                 }
 
@@ -199,7 +226,13 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 for (LeafReaderContext r : subReaders) {
                     LeafReader leafReader = r.reader();
                     float[] vector = randomVector(dimensions);
-                    TopDocs topDocs = leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(Math.min(leafReader.maxDoc(), 10), topDocs.scoreDocs.length);
                 }
 
@@ -230,7 +263,13 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                             for (; totSearch < numSearches && failed.get() == false; totSearch++) {
                                 float[] vector = randomVector(dimensions);
                                 LeafReader leafReader = getOnlyLeafReader(reader);
-                                leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                                leafReader.searchNearestVectors(
+                                    "f",
+                                    vector,
+                                    10,
+                                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                                    Integer.MAX_VALUE
+                                );
                             }
                             assertTrue(totSearch > 0);
                         } catch (Exception exc) {

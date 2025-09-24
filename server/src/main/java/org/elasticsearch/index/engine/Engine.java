@@ -68,7 +68,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
@@ -398,7 +397,7 @@ public abstract class Engine implements Closeable {
                 if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorsReader = fieldsReader.getFieldReader(info.name);
                 }
-                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                Map<String, Long> offHeap = vectorsReader.getOffHeapByteSize(info);
                 offHeapStats.put(info.name, offHeap);
             }
         }

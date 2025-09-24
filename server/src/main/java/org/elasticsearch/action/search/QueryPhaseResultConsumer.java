@@ -95,6 +95,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;
     private volatile boolean hasPartialReduce;
+    // Note: at this time, numReducePhases does not count reductions that occur on the data node as part of batched query execution.
     private volatile int numReducePhases;
 
     /**

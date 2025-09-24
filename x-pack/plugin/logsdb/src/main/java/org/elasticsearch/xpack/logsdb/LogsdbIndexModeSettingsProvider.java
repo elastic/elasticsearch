@@ -34,16 +34,14 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapper;
+import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -98,7 +96,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public void provideAdditionalMetadata(
+    public void provideAdditionalSettings(
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,
@@ -106,8 +104,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final Instant resolvedAt,
         Settings settings,
         final List<CompressedXContent> combinedTemplateMappings,
-        final Settings.Builder additionalSettings,
-        final BiConsumer<String, Map<String, String>> additionalCustomMetadata
+        IndexVersion indexVersion,
+        final Settings.Builder additionalSettings
     ) {
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
         // This index name is used when validating component and index templates, we should skip this check in that case.
@@ -194,9 +192,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             }
         }
 
-        if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()
-            && licenseService.allowPatternedTextTemplating(isTemplateValidation) == false) {
-            additionalSettings.put(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
+        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()
+            && licenseService.allowPatternTextTemplating(isTemplateValidation) == false) {
+            additionalSettings.put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
         }
     }
 

@@ -240,6 +240,203 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         assertLeftJoinConfig(join.config(), "emp_no", mainRel.outputSet(), "languages", lookupRel.outputSet());
     }
 
+    /**
+     * Project[[languages{f}#30, emp_no{f}#27, salary{f}#32]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[emp_no{f}#16, languages{f}#30],[emp_no{f}#16],[languages{f}#30],emp_no{f}#16 == languages{f}#30]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#27, languages{f}#30, salary{f}#32]
+     */
+    public void testShadowingAfterPushdownExpressionJoin() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+
+        String query = """
+            FROM test_lookup
+            | RENAME languages as lang2
+            | EVAL y = emp_no
+            | RENAME y AS lang
+            | LOOKUP JOIN test_lookup ON lang == languages
+            | KEEP languages, emp_no, salary
+            """;
+
+        var plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+        var limit1 = asLimit(project.child(), 1000, true);
+        var join = as(limit1.child(), Join.class);
+        var lookupRel = as(join.right(), EsRelation.class);
+        var limit2 = asLimit(join.left(), 1000, false);
+        var mainRel = as(limit2.child(), EsRelation.class);
+
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("languages", "emp_no", "salary"));
+
+        var languages = as(projections.get(0), FieldAttribute.class);
+        assertEquals("languages", languages.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(languages));
+
+        var empNo = as(projections.get(1), FieldAttribute.class);
+        assertEquals("emp_no", empNo.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(empNo));
+
+        var salary = as(projections.get(2), FieldAttribute.class);
+        assertEquals("salary", salary.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(salary));
+    }
+
+    /**
+     * Project[[languages{f}#31, emp_no{f}#28, salary{f}#33, $$languages$temp_name$39{r$}#40 AS lang2#4]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[emp_no{f}#17],[languages{f}#31],emp_no{f}#17 == languages{f}#31]
+     *     |_Eval[[languages{f}#20 AS $$languages$temp_name$39#40]]
+     *     | \_Limit[1000[INTEGER],false]
+     *     |   \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#28, languages{f}#31, salary{f}#33]
+     */
+    public void testShadowingAfterPushdownExpressionJoinKeepOrig() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+
+        String query = """
+            FROM test_lookup
+            | RENAME languages as lang2
+            | EVAL y = emp_no
+            | RENAME y AS lang
+            | LOOKUP JOIN test_lookup ON lang == languages
+            | KEEP languages, emp_no, salary, lang2
+            """;
+
+        var plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+        var limit1 = asLimit(project.child(), 1000, true);
+        var join = as(limit1.child(), Join.class);
+        var lookupRel = as(join.right(), EsRelation.class);
+        var eval = as(join.left(), Eval.class);
+        var limit2 = asLimit(eval.child(), 1000, false);
+        var mainRel = as(limit2.child(), EsRelation.class);
+
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("languages", "emp_no", "salary", "lang2"));
+
+        var languages = as(projections.get(0), FieldAttribute.class);
+        assertEquals("languages", languages.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(languages));
+
+        var empNo = as(projections.get(1), FieldAttribute.class);
+        assertEquals("emp_no", empNo.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(empNo));
+
+        var salary = as(projections.get(2), FieldAttribute.class);
+        assertEquals("salary", salary.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(salary));
+
+        var lang2TempName = unwrapAlias(projections.get(3), ReferenceAttribute.class);
+        assertThat(lang2TempName.name(), startsWith("$$languages$temp_name$"));
+        assertTrue(eval.outputSet().contains(lang2TempName));
+    }
+
+    /**
+     * Project[[languages{f}#24, emp_no{f}#21, salary{f}#26]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#24, languages{f}#13],[languages{f}#13],[languages{f}#24],languages{f}#13 == languages{f}#24]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#21, languages{f}#24, salary{f}#26]
+     */
+    public void testShadowingAfterPushdownRenameExpressionJoin() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+
+        String query = """
+            FROM test_lookup
+            | RENAME languages AS lang
+            | LOOKUP JOIN test_lookup ON lang == languages
+            | KEEP languages, emp_no, salary
+            """;
+
+        var plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+        var limit1 = asLimit(project.child(), 1000, true);
+        var join = as(limit1.child(), Join.class);
+        var lookupRel = as(join.right(), EsRelation.class);
+        var limit2 = asLimit(join.left(), 1000, false);
+        var mainRel = as(limit2.child(), EsRelation.class);
+
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("languages", "emp_no", "salary"));
+
+        var languages = as(projections.get(0), FieldAttribute.class);
+        assertEquals("languages", languages.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(languages));
+
+        var empNo = as(projections.get(1), FieldAttribute.class);
+        assertEquals("emp_no", empNo.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(empNo));
+
+        var salary = as(projections.get(2), FieldAttribute.class);
+        assertEquals("salary", salary.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(salary));
+    }
+
+    /**
+     * Project[[languages{f}#25, emp_no{f}#22, salary{f}#27]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[lang{r}#4, languages{f}#25],[lang{r}#4],[languages{f}#25],lang{r}#4 == languages{f}#25]
+     *     |_Eval[[languages{f}#14 + 0[INTEGER] AS lang#4]]
+     *     | \_Limit[1000[INTEGER],false]
+     *     |   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#22, languages{f}#25, salary{f}#27]
+     */
+    public void testShadowingAfterPushdownEvalExpressionJoin() {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+
+        String query = """
+            FROM test_lookup
+            | EVAL lang = languages + 0
+            | DROP languages
+            | LOOKUP JOIN test_lookup ON lang == languages
+            | KEEP languages, emp_no, salary
+            """;
+
+        var plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+        var limit1 = asLimit(project.child(), 1000, true);
+        var join = as(limit1.child(), Join.class);
+        var lookupRel = as(join.right(), EsRelation.class);
+        var eval = as(join.left(), Eval.class);
+        var limit2 = asLimit(eval.child(), 1000, false);
+        var mainRel = as(limit2.child(), EsRelation.class);
+
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("languages", "emp_no", "salary"));
+
+        var languages = as(projections.get(0), FieldAttribute.class);
+        assertEquals("languages", languages.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(languages));
+
+        var empNo = as(projections.get(1), FieldAttribute.class);
+        assertEquals("emp_no", empNo.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(empNo));
+
+        var salary = as(projections.get(2), FieldAttribute.class);
+        assertEquals("salary", salary.fieldName().string());
+        assertTrue(lookupRel.outputSet().contains(salary));
+    }
+
     private static void assertLeftJoinConfig(
         JoinConfig config,
         String expectedLeftFieldName,

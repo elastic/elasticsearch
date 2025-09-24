@@ -635,11 +635,14 @@ public class ApiKeyService implements Closeable {
     }
 
     private String getCertificateIdentityFromCreateRequest(final AbstractCreateApiKeyRequest request) {
-        String certificateIdentity = null;
+        String certificateIdentityString = null;
         if (request instanceof CreateCrossClusterApiKeyRequest) {
-            certificateIdentity = ((CreateCrossClusterApiKeyRequest) request).getCertificateIdentity().value();
+            CertificateIdentity certIdentityObject = ((CreateCrossClusterApiKeyRequest) request).getCertificateIdentity();
+            if (certIdentityObject != null) {
+                certificateIdentityString = certIdentityObject.value();
+            }
         }
-        return certificateIdentity;
+        return certificateIdentityString;
     }
 
     public void ensureCertificateIdentityFeatureIsEnabled() {

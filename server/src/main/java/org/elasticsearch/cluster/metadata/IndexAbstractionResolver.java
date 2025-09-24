@@ -47,7 +47,7 @@ public class IndexAbstractionResolver {
         BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
-        ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
+        final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
 
         boolean wildcardSeen = false;
         for (String index : indices) {
@@ -61,8 +61,8 @@ public class IndexAbstractionResolver {
             }
 
             // Always check to see if there's a selector on the index expression
-            Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
-            String selectorString = expressionAndSelector.v2();
+            final Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
+            final String selectorString = expressionAndSelector.v2();
             if (indicesOptions.allowSelectors() == false && selectorString != null) {
                 throw new UnsupportedSelectorException(indexAbstraction);
             }
@@ -74,7 +74,7 @@ public class IndexAbstractionResolver {
 
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
-                HashSet<String> resolvedIndices = new HashSet<>();
+                final HashSet<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
@@ -103,34 +103,33 @@ public class IndexAbstractionResolver {
                     }
                 }
             } else {
-                HashSet<String> resolvedIndices = new HashSet<>();
+                final HashSet<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
                 } else {
-                    boolean authorized = isAuthorized.test(indexAbstraction, selector);
-                    boolean visible = authorized
-                        && indexExists(projectMetadata, indexAbstraction)
-                        && isIndexVisible(
-                            indexAbstraction,
-                            selectorString,
-                            indexAbstraction,
-                            indicesOptions,
-                            projectMetadata,
-                            indexNameExpressionResolver,
-                            includeDataStreams
-                        );
-
-                    LocalIndexResolutionResult result = authorized
-                        ? (visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE)
-                        : CONCRETE_RESOURCE_UNAUTHORIZED;
-
-                    // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
-                    // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
-                    // handler, see: https://github.com/elastic/elasticsearch/issues/90215
-                    boolean includeIndices = indicesOptions.ignoreUnavailable() == false || authorized;
-                    HashSet<String> finalIndices = includeIndices ? resolvedIndices : new HashSet<>();
-                    resolvedExpressionsBuilder.addLocalExpressions(index, finalIndices, result);
+                    final boolean authorized = isAuthorized.test(indexAbstraction, selector);
+                    if (authorized) {
+                        final boolean visible = indexExists(projectMetadata, indexAbstraction)
+                            && isIndexVisible(
+                                indexAbstraction,
+                                selectorString,
+                                indexAbstraction,
+                                indicesOptions,
+                                projectMetadata,
+                                indexNameExpressionResolver,
+                                includeDataStreams
+                            );
+                        final LocalIndexResolutionResult result = visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE;
+                        resolvedExpressionsBuilder.addLocalExpressions(index, resolvedIndices, result);
+                    } else if (indicesOptions.ignoreUnavailable()) {
+                        // ignoreUnavailable implies that the request should not fail if an index is not authorized
+                        // so we map this expression to an empty list,
+                        resolvedExpressionsBuilder.addLocalExpressions(index, new HashSet<>(), CONCRETE_RESOURCE_UNAUTHORIZED);
+                    } else {
+                        // store the calculated expansion as unauthorized, it will be rejected later
+                        resolvedExpressionsBuilder.addLocalExpressions(index, resolvedIndices, CONCRETE_RESOURCE_UNAUTHORIZED);
+                    }
                 }
             }
         }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -33,19 +34,28 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
         /**
-         * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it
+         * @param original         the original expression that was resolved -- may be blank for "access all" cases
+         * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it.
+         *                         May be empty.
          */
         public void addLocalExpressions(
             String original,
             HashSet<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
         ) {
+            Objects.requireNonNull(original);
+            Objects.requireNonNull(localExpressions);
+            Objects.requireNonNull(resolutionResult);
             expressions.add(
                 new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), new HashSet<>())
             );
         }
 
+        /**
+         * Exclude the given expressions from the local expressions of all prior added {@link ResolvedIndexExpression}.
+         */
         public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
+            Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
                 for (ResolvedIndexExpression prior : expressions) {
                     prior.localExpressions().expressions().removeAll(expressionsToExclude);

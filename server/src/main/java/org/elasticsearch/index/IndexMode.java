@@ -218,14 +218,13 @@ public enum IndexMode {
 
         @Override
         public RoutingFields buildRoutingFields(IndexSettings settings) {
-            if (settings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
+            IndexRouting indexRouting = settings.getIndexRouting();
+            if (indexRouting instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
                 return new RoutingPathFields(forRoutingPath.builder());
-            } else if (settings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
+            } else if (indexRouting instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
                 return RoutingFields.Noop.INSTANCE;
             } else {
-                throw new IllegalStateException(
-                    "Index routing strategy not supported for index_mode=time_series: " + settings.getIndexRouting()
-                );
+                throw new IllegalStateException("Index routing strategy not supported for index_mode=time_series: " + indexRouting);
             }
         }
 

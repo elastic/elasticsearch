@@ -384,14 +384,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
                 // TODO with this implementation we will sometimes run below calls on stateless_upload_prewarm thread pool
                 // due to how statelessCommitService.addListenerForUploadedGeneration works.
-                if (IndexReshardingMetadata.isSplitTarget(indexShard.shardId(), reshardingMetadata)) {
-                    // Should already have advanced past CLONE
-                    assert reshardingMetadata.getSplit()
-                        .targetStateAtLeast(indexShard.shardId().id(), IndexReshardingState.Split.TargetShardState.HANDOFF);
-                    l = l.delegateFailure(
-                        (toWrap, unused) -> splitTargetService.afterSplitTargetIndexShardRecovery(indexShard, reshardingMetadata, toWrap)
-                    );
-                } else if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {
+                if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {
                     l = l.delegateFailure(
                         (toWrap, unused) -> splitSourceService.afterSplitSourceIndexShardRecovery(indexShard, reshardingMetadata, toWrap)
                     );
@@ -436,5 +429,18 @@ class StatelessIndexEventListener implements IndexEventListener {
     @Override
     public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
         hollowShardsService.onMutableOperation(indexShard, permitAcquired, listener);
+    }
+
+    @Override
+    public void afterIndexShardStarted(IndexShard indexShard) {
+        IndexSettings indexSettings = indexShard.indexSettings();
+        IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
+        if (indexShard.routingEntry().isSearchable() == false
+            && IndexReshardingMetadata.isSplitTarget(indexShard.shardId(), reshardingMetadata)) {
+            // Should already have advanced past CLONE
+            assert reshardingMetadata.getSplit()
+                .targetStateAtLeast(indexShard.shardId().id(), IndexReshardingState.Split.TargetShardState.HANDOFF);
+            splitTargetService.afterSplitTargetIndexShardStarted(indexShard, reshardingMetadata);
+        }
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.test.ClusterServiceUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -141,8 +142,13 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
             case LOCAL_FAIL_SHARD -> {
                 try {
                     IndexShard indexShard = findIndexShard(index, randomIntBetween(0, shardCount));
+                    var listener = ClusterServiceUtils.addTemporaryStateListener(
+                        cs -> cs.routingTable().index(index.getName()).shard(indexShard.shardId().id()).primaryShard().unassigned()
+                    );
                     logger.info("--> failing shard {}", indexShard.shardId());
                     indexShard.failShard("broken", new Exception("boom local"));
+                    // ensureGreen may succeed before the cluster state reflects the failed shard
+                    safeAwait(listener);
                     ensureGreen(index.getName());
                 } catch (AssertionError e) {
                     // Unlucky, shard does not exist yet.

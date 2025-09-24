@@ -351,7 +351,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private boolean isFrozenNode(String nodeId) {
         RoutingNode node = nodesToShards.get(nodeId);
-        if (node != null && node.node().isDedicatedFrozenNode()) {
+        if (node != null && node.node() != null && node.node().isDedicatedFrozenNode()) {
             return true;
         }
         return false;

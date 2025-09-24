@@ -98,7 +98,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         super("DirectIOIndexInput(path=\"" + path + "\")");
         this.channel = FileChannel.open(path, StandardOpenOption.READ, getDirectOpenOption());
         this.blockSize = blockSize;
-        this.prefetcher = new DirectIOPrefetcher(bufferSize, maxPrefetches, maxPrefetches * 64);
+        this.prefetcher = new DirectIOPrefetcher(bufferSize, maxPrefetches, maxPrefetches * 16);
         this.buffer = allocateBuffer(bufferSize, blockSize);
         this.isOpen = true;
         this.isClosable = true;

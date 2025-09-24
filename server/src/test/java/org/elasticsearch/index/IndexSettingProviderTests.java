@@ -45,6 +45,14 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             "additional index setting [index.refresh_interval] added by [TestIndexSettingsProvider] is already present",
             e.getMessage()
         );
+
+        INDEX_SETTING_VERSION_ENABLED.set(true);
+        INDEX_SETTING_PROVIDER2_ENABLED.set(false);
+        e = expectThrows(IllegalArgumentException.class, () -> createIndex("my-index5", Settings.builder().build()));
+        assertEquals(
+            "setting [index.version.created] added by [TestIndexSettingsProvider] is not allowed to be set via an IndexSettingProvider",
+            e.getMessage()
+        );
     }
 
     @Override
@@ -72,6 +80,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
     private static final AtomicBoolean INDEX_SETTING_PROVIDER1_ENABLED = new AtomicBoolean(false);
     private static final AtomicBoolean INDEX_SETTING_PROVIDER2_ENABLED = new AtomicBoolean(false);
     private static final AtomicBoolean INDEX_SETTING_DEPTH_ENABLED = new AtomicBoolean(true);
+    private static final AtomicBoolean INDEX_SETTING_VERSION_ENABLED = new AtomicBoolean(false);
     private static final AtomicBoolean INDEX_SETTING_OVERRULING = new AtomicBoolean(false);
 
     static class TestIndexSettingsProvider implements IndexSettingProvider {
@@ -100,6 +109,9 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
                 additionalSettings.put("index.refresh_interval", intervalValue);
                 if (INDEX_SETTING_DEPTH_ENABLED.get()) {
                     additionalSettings.put("index.mapping.depth.limit", 100);
+                }
+                if (INDEX_SETTING_VERSION_ENABLED.get()) {
+                    additionalSettings.put("index.version.created", IndexVersion.current());
                 }
             }
         }

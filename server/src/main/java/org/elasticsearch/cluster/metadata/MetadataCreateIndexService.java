@@ -1100,25 +1100,26 @@ public class MetadataCreateIndexService {
         final Settings.Builder templateSettings = Settings.builder().put(combinedTemplateSettings);
         final Settings.Builder requestSettings = Settings.builder().put(request.settings());
 
+        // Create a combined builder that serves two purposes:
+        // 1) It is used to pass to the IndexSettingProviders so they can see the combined settings
+        // that will be applied to the new index
+        // 2) It is used to create the IndexVersion for the new index which will be passed in to the IndexSettingProviders.
+        // IndexSettingProviders are not allowed to set the index version.
+        // Otherwise, they wouldn't be able to rely on the version they receive because another provider would be able to change it.
+        Settings.Builder templateAndRequestSettingsBuilder = Settings.builder().put(combinedTemplateSettings).put(request.settings());
+        if (request.isFailureIndex()) {
+            DataStreamFailureStoreDefinition.filterUserDefinedSettings(templateAndRequestSettingsBuilder);
+        }
+        final Settings templateAndRequestSettings = templateAndRequestSettingsBuilder.build();
+        final IndexVersion createdVersion;
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.exists(templateAndRequestSettings)) {
+            createdVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(templateAndRequestSettings);
+        } else {
+            createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
+        }
+
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            // Create a combined builder that serves two purposes:
-            // 1) It is used to pass to the IndexSettingProviders so they can see the combined settings
-            // that will be applied to the new index
-            // 2) It is used to create the IndexVersion to be passed in to the IndexSettingProviders.
-            // After the IndexSettingProviders have added their settings, the version is re-calculated
-            // in case one of the providers sets a specific version.
-            Settings.Builder templateAndRequestSettingsBuilder = Settings.builder().put(combinedTemplateSettings).put(request.settings());
-            if (request.isFailureIndex()) {
-                DataStreamFailureStoreDefinition.filterUserDefinedSettings(templateAndRequestSettingsBuilder);
-            }
-            final Settings templateAndRequestSettings = templateAndRequestSettingsBuilder.build();
-            IndexVersion createdVersion;
-            if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.exists(templateAndRequestSettings)) {
-                createdVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(templateAndRequestSettings);
-            } else {
-                createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
-            }
             final IndexMode templateIndexMode = Optional.of(request)
                 .filter(r -> r.isFailureIndex() == false)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
@@ -1217,10 +1218,7 @@ public class MetadataCreateIndexService {
             }
         }
 
-        if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
-            IndexVersion createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
-            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
-        }
+        indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
@@ -1265,13 +1263,14 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates whether additional settings don't have keys that are already defined in all additional settings.
+     * Validates that additional settings don't have keys that are already defined in all additional settings
+     * and that they don't try to set {@link IndexMetadata#SETTING_VERSION_CREATED}.
      *
      * @param provider                  The {@link IndexSettingProvider} that produced <code>additionalSettings</code>
      * @param additionalSettings        The settings produced by the specified <code>provider</code>
      * @param allAdditionalSettings     A settings builder containing all additional settings produced by any {@link IndexSettingProvider}
      *                                  that already executed
-     * @throws IllegalArgumentException If keys in additionalSettings are already defined in allAdditionalSettings
+     * @throws IllegalArgumentException If any of the validations fail
      */
     public static void validateAdditionalSettings(
         IndexSettingProvider provider,
@@ -1282,6 +1281,15 @@ public class MetadataCreateIndexService {
             if (allAdditionalSettings.keys().contains(settingName)) {
                 var name = provider.getClass().getSimpleName();
                 var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
+                throw new IllegalArgumentException(message);
+            }
+            if (IndexMetadata.SETTING_VERSION_CREATED.equals(settingName)) {
+                var name = provider.getClass().getSimpleName();
+                var message = Strings.format(
+                    "setting [%s] added by [%s] is not allowed to be set via an IndexSettingProvider",
+                    settingName,
+                    name
+                );
                 throw new IllegalArgumentException(message);
             }
         }

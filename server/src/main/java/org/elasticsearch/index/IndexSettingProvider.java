@@ -43,7 +43,9 @@ public interface IndexSettingProvider {
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
      * @param indexVersion                          The index version to be used for the new index.
      *                                              Always {@link IndexVersion#current()} when invoked during validation.
-     * @param additionalSettings                    A settings builder to which additional settings can be added
+     * @param additionalSettings                    A settings builder to which additional settings can be added.
+     *                                              Providing {@link IndexMetadata#SETTING_VERSION_CREATED} is disallowed and leads to
+     *                                              an {@link IllegalArgumentException} during validation of the additional settings.
      */
     void provideAdditionalSettings(
         String indexName,

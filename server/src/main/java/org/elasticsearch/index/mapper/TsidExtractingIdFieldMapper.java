@@ -62,9 +62,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
              * at all we just skip the assertion because we can't be sure
              * it always must pass.
              */
-            IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context
-                .indexSettings()
-                .getIndexRouting();
+            var indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context.indexSettings().getIndexRouting();
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));

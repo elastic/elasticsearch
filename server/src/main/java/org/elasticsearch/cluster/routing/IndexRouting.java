@@ -318,13 +318,8 @@ public abstract class IndexRouting {
             }
             indexMode = metadata.getIndexMode();
             assert indexMode != null : "Index mode must be set for ExtractFromSource routing";
-            var trackTimeSeriesRoutingHash = false;
-            if (indexMode == IndexMode.TIME_SERIES) {
-                if (metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
-                    trackTimeSeriesRoutingHash = true;
-                }
-            }
-            this.trackTimeSeriesRoutingHash = trackTimeSeriesRoutingHash;
+            this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
+                && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(includePaths), null, true);
         }

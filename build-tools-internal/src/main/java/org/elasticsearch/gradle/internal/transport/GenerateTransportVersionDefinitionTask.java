@@ -199,10 +199,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                 throw new IllegalArgumentException("Cannot use --resolve-conflict with --backport-branches");
             }
 
-            if (targetDefinitionName.isEmpty()) {
-
-            }
-
             return getUpperBoundNamesFromDefinition(resources, upstreamUpperBounds, targetDefinitionName);
         }
 

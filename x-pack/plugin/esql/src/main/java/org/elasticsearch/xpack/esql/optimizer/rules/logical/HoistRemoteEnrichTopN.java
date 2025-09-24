@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -96,7 +97,9 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
                 if (plan instanceof UnaryPlan u) {
                     plan = u.child();
                 } else {
-                    // TODO: can we handle binary plans as well here?
+                    // The only non-unary plans right now are Join and Fork, and they are not cardinality preserving,
+                    // so really there's nothing to do here. But if we had binary plan that is cardinality preserving,
+                    // we would need to add it here.
                     break;
                 }
             }

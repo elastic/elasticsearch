@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.CardinalityExpanding;
+import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 
 import java.util.Collections;
@@ -46,7 +45,8 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
                     seenLimits.add(l);
                     return;
                 }
-                if (p instanceof CardinalityExpanding // can increase the number of rows, so we can't just pull a limit from under it
+                if ((p instanceof CardinalityPreserving) == false // can change the number of rows, so we can't just pull a limit from
+                                                                  // under it
                     // this will fail the verifier anyway, so no need to continue
                     || (p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
                 // This is essentially another remote enrich - let it take care of its own limits

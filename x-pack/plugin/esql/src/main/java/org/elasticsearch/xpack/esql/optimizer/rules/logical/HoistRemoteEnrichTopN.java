@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.CardinalityExpanding;
+import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
@@ -91,7 +91,8 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
                         }
                     }
                 }
-                if (plan instanceof CardinalityExpanding // can increase the number of rows, so we can't just pull a TopN from under it
+                if ((plan instanceof CardinalityPreserving) == false // can change the number of rows, so we can't just pull a TopN from
+                                                                     // under it
                     // this will fail the verifier anyway, so no need to continue
                     || (plan instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
                     // This is essentially another remote Enrich, it can handle its own limits

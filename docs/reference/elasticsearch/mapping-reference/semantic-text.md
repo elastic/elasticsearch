@@ -25,11 +25,11 @@ type make it simpler to perform semantic search on your data. The
 with [match](/reference/query-languages/query-dsl/query-dsl-match-query.md), [sparse_vector](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md)
 or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
 
-{applies_to}`serverless: ga` If you don’t specify an {infer} endpoint, the `inference_id` field defaults to
+{applies_to}`serverless: ga` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to
 `.elser-2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
 This endpoint uses the [Elastic {infer-cap} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
-{applies_to}`stack: ga 9.0` If you don’t specify an inference endpoint, the `inference_id` field defaults to
+{applies_to}`stack: ga 9.0` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to
 `.elser-2-elasticsearch`, a preconfigured endpoint for the `elasticsearch` service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for

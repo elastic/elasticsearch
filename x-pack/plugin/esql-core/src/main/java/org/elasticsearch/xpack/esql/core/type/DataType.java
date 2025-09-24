@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS;
 import static org.elasticsearch.TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING;
 import static org.elasticsearch.TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
 
@@ -397,7 +396,7 @@ public enum DataType implements Writeable {
     /**
      * Version that first created this data type.
      */
-    private final TransportVersion createdVersion;
+    private final CreatedVersion createdVersion;
 
     DataType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
@@ -754,7 +753,7 @@ public enum DataType implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(createdVersion) == false) {
+        if (createdVersion.supports(out) == false) {
             /*
              * TODO when we implement version aware planning flip this to an IllegalStateException
              * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
@@ -889,7 +888,7 @@ public enum DataType implements Writeable {
          * version for which we maintain wire compatibility, which is pretty
          * much {@code 8.18.0}.
          */
-        private TransportVersion createdVersion = INDEXING_PRESSURE_THROTTLING_STATS;
+        private CreatedVersion createdVersion = CreatedVersion.SUPPORTED_ON_ALL_NODES;
 
         Builder() {}
 
@@ -948,7 +947,7 @@ public enum DataType implements Writeable {
         }
 
         Builder createdVersion(TransportVersion createdVersion) {
-            this.createdVersion = createdVersion;
+            this.createdVersion = CreatedVersion.supportedOn(createdVersion);
             return this;
         }
     }

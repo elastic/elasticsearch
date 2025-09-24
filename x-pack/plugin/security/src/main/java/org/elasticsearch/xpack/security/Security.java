@@ -1142,8 +1142,9 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        final CrossProjectSearchAuthorizationService crossProjectSearchIndexExpressionsRewriter =
-            getCrossProjectSearchIndexExpressionsRewriter(extensionComponents);
+        final CrossProjectSearchAuthorizationService crossProjectSearchAuthorizationService = getCrossProjectSearchAuthorizationService(
+            extensionComponents
+        );
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1162,9 +1163,9 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            crossProjectSearchIndexExpressionsRewriter == null
+            crossProjectSearchAuthorizationService == null
                 ? new CrossProjectSearchAuthorizationService.Default()
-                : crossProjectSearchIndexExpressionsRewriter
+                : crossProjectSearchAuthorizationService
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1318,12 +1319,12 @@ public class Security extends Plugin
         }
     }
 
-    private CrossProjectSearchAuthorizationService getCrossProjectSearchIndexExpressionsRewriter(
+    private CrossProjectSearchAuthorizationService getCrossProjectSearchAuthorizationService(
         SecurityExtension.SecurityComponents extensionComponents
     ) {
         return findValueFromExtensions(
-            "cross-project search index expressions rewriter",
-            extension -> extension.getCrossProjectSearchIndexExpressionsRewriter(extensionComponents)
+            "cross-project search authorization service",
+            extension -> extension.getCrossProjectSearchAuthorizationService(extensionComponents)
         );
     }
 

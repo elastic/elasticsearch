@@ -150,7 +150,7 @@ public interface SecurityExtension {
         return getClass().getName();
     }
 
-    default CrossProjectSearchAuthorizationService getCrossProjectSearchIndexExpressionsRewriter(SecurityComponents components) {
+    default CrossProjectSearchAuthorizationService getCrossProjectSearchAuthorizationService(SecurityComponents components) {
         return null;
     }
 }

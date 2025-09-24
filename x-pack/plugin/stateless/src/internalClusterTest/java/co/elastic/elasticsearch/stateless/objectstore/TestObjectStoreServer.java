@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -51,7 +52,9 @@ public class TestObjectStoreServer {
 
     public void start() throws IOException {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + AbstractMockObjectStoreIntegTestCase.class.getName() + "]");
+        ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory(
+            "[" + AbstractMockObjectStoreIntegTestCase.class.getName() + "]"
+        );
         executorService = EsExecutors.newScaling(
             AbstractMockObjectStoreIntegTestCase.class.getName(),
             0,

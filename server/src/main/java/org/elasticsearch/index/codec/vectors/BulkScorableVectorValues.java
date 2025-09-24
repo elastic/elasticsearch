@@ -30,9 +30,8 @@ public interface BulkScorableVectorValues {
         interface Bulk {
             /**
              * Scores up to {@code nextCount} docs in the provided {@code buffer}.
-             * Returns the maxScore of docs scored.
              */
-            float nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException;
+            void nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException;
         }
     }
 }

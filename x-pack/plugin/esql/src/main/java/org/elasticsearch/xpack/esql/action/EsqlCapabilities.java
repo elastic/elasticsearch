@@ -1478,7 +1478,7 @@ public class EsqlCapabilities {
         /**
          * Allow lookup join on boolean expressions
          */
-        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
 
         /**
          * FORK with remote indices
@@ -1537,6 +1537,8 @@ public class EsqlCapabilities {
          * Support TS command in non-snapshot builds
          */
         TS_COMMAND_V0(),
+
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES
 
         ;
 

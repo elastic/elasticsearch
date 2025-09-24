@@ -612,6 +612,45 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/135260
+- class: org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT
+  method: testUsage {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135312
+- class: org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT
+  method: testLogsIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/135313
+- class: org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT
+  method: testLogsIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/135314
+- class: org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT
+  method: testLogsIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135315
+- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
+  method: testUsage {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135316
+- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
+  method: testUsage {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/135319
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135320
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/135238
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135237
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.highlight/50_synthetic_source/text single unified from reanalysis}
+  issue: https://github.com/elastic/elasticsearch/issues/135323
+- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135324
+- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/135325
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/135327
 
 # Examples:
 #

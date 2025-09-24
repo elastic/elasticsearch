@@ -609,6 +609,9 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   method: testTsdbStartEndSet
   issue: https://github.com/elastic/elasticsearch/issues/135366
+- class: org.elasticsearch.xpack.esql.session.SessionUtilsTests
+  method: testFromPages
+  issue: https://github.com/elastic/elasticsearch/issues/135377
 
 # Examples:
 #

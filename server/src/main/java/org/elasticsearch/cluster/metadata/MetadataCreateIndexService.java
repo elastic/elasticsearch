@@ -1107,7 +1107,7 @@ public class MetadataCreateIndexService {
             // that will be applied to the new index
             // 2) It is used to create the IndexVersion to be passed in to the IndexSettingProviders.
             // After the IndexSettingProviders have added their settings, the version is re-calculated
-            // in case one of the providers set a specific version.
+            // in case one of the providers sets a specific version.
             Settings.Builder templateAndRequestSettingsBuilder = Settings.builder().put(combinedTemplateSettings).put(request.settings());
             if (request.isFailureIndex()) {
                 DataStreamFailureStoreDefinition.filterUserDefinedSettings(templateAndRequestSettingsBuilder);

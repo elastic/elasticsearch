@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;

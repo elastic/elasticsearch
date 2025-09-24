@@ -203,7 +203,7 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.FLOAT32);
-        return new OffHeapFloatVectorValues.load(
+        return OffHeapFloatVectorValues.load(
             fieldEntry.similarityFunction,
             vectorScorer,
             fieldEntry.ordToDoc,

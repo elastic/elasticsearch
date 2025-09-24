@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.ArrayList;
@@ -66,30 +65,20 @@ public class CrossClusterQueriesWithInvalidLicenseIT extends AbstractEnrichBased
 
         // since this wildcarded expression does not resolve to a valid remote cluster, it is not considered
         // a cross-cluster search and thus should not throw a license error
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [xremote*:events]"),
-            () -> runQuery("FROM xremote*:events | STATS count(*)", requestIncludeMeta).close()
-        );
-        // try (EsqlQueryResponse resp = runQuery("FROM xremote*:events | STATS count(*)", requestIncludeMeta)) {
-        // assertThat(resp.columns().size(), equalTo(1));
-        // EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-        // assertThat(executionInfo.isCrossClusterSearch(), is(false));
-        // assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-        // }
+        try (EsqlQueryResponse resp = runQuery("FROM xremote*:events | STATS count(*)", requestIncludeMeta)) {
+            assertThat(resp.columns().size(), equalTo(1));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.isCrossClusterSearch(), is(false));
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+        }
 
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [xremote*:events]"),
-            () -> runQuery("FROM xremote*:events | STATS count(*)", requestIncludeMeta).close()
-        );
-        // try (EsqlQueryResponse resp = runQuery("FROM xremote*:events | LIMIT 0", requestIncludeMeta)) {
-        // assertThat(resp.columns().size(), equalTo(1));
-        // assertThat(getValuesList(resp).size(), equalTo(0));
-        // EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-        // assertThat(executionInfo.isCrossClusterSearch(), is(false));
-        // assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-        // }
+        try (EsqlQueryResponse resp = runQuery("FROM xremote*:events | LIMIT 0", requestIncludeMeta)) {
+            assertThat(resp.columns().size(), equalTo(1));
+            assertThat(getValuesList(resp).size(), equalTo(0));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.isCrossClusterSearch(), is(false));
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+        }
     }
 
     public void testCCSWithLimit0() {

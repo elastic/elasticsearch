@@ -647,25 +647,32 @@ public class EsqlSession {
             ThreadPool.Names.SYSTEM_READ
         );
         if (preAnalysis.indexPattern() != null) {
-            indexResolver.resolveAsMergedMapping(
-                preAnalysis.indexPattern().indexPattern(),
-                result.fieldNames,
-                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                switch (preAnalysis.indexMode()) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                },
-                preAnalysis.indexMode() == IndexMode.TIME_SERIES,
-                listener.delegateFailureAndWrap((l, indexResolution) -> {
-                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
-                    l.onResponse(result.withIndices(indexResolution));
-                })
-            );
+            if (executionInfo.clusterAliases().isEmpty()) {
+                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
+                listener.onResponse(
+                    result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
+                );
+            } else {
+                indexResolver.resolveAsMergedMapping(
+                    preAnalysis.indexPattern().indexPattern(),
+                    result.fieldNames,
+                    // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                    switch (preAnalysis.indexMode()) {
+                        case IndexMode.TIME_SERIES -> {
+                            var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                            yield requestFilter != null
+                                ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
+                                : indexModeFilter;
+                        }
+                        default -> requestFilter;
+                    },
+                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    listener.delegateFailureAndWrap((l, indexResolution) -> {
+                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
+                        l.onResponse(result.withIndices(indexResolution));
+                    })
+                );
+            }
         } else {
             // occurs when dealing with local relations (row a = 1)
             listener.onResponse(result.withIndices(IndexResolution.invalid("[none specified]")));

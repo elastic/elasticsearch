@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.core.inference.usage;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SemanticTextStatsTests extends AbstractWireSerializingTestCase<SemanticTextStats> {
+public class SemanticTextStatsTests extends AbstractBWCWireSerializationTestCase<SemanticTextStats> {
 
     @Override
     protected Writeable.Reader<SemanticTextStats> instanceReader() {
@@ -74,5 +75,10 @@ public class SemanticTextStatsTests extends AbstractWireSerializingTestCase<Sema
         assertThat(new SemanticTextStats(randomLongBetween(1, Long.MAX_VALUE), 0, 0).isEmpty(), is(false));
         assertThat(new SemanticTextStats(0, randomLongBetween(1, Long.MAX_VALUE), 0).isEmpty(), is(false));
         assertThat(new SemanticTextStats(0, 0, randomLongBetween(1, Long.MAX_VALUE)).isEmpty(), is(false));
+    }
+
+    @Override
+    protected SemanticTextStats mutateInstanceForVersion(SemanticTextStats instance, TransportVersion version) {
+        return instance;
     }
 }

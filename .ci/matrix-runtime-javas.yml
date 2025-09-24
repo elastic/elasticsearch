@@ -3,10 +3,11 @@
 
 # This axis of the build matrix represents the versions of Java on
 # which Elasticsearch will be tested.  Valid Java versions are 'java'
-# or 'openjdk' followed by the major release number.
+# 'openjdk' or `adoptopenjdk` followed by the major release number.
 
 ES_RUNTIME_JAVA:
   - graalvm-ce17
+  - adoptopenjdk17
   - openjdk17
   - openjdk18
   - openjdk19

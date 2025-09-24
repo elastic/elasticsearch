@@ -60,12 +60,7 @@ public final class SearchRequestAttributesExtractor {
             shardSearchRequest.shardId().getIndexName()
         );
 
-        boolean isSystem;
-        if (Thread.currentThread() instanceof EsExecutors.EsThread) {
-            isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
-        } else {
-            isSystem = false;
-        }
+        boolean isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
 
         attributes.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
         return attributes;

@@ -619,11 +619,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
             // we want to change node ids in the PIT id if any shards and its PIT context have moved
             BytesReference bytesReference = maybeReEncodeNodeIds(
-                    source.pointInTimeBuilder(),
-                    results.getAtomicArray().asList(),
-                    failures,
-                    namedWriteableRegistry,
-                    mintransportVersion
+                source.pointInTimeBuilder(),
+                results.getAtomicArray().asList(),
+                failures,
+                namedWriteableRegistry,
+                mintransportVersion
             );
             if (bytesReference == source.pointInTimeBuilder().getEncodedId() == false) {
                 logger.info(

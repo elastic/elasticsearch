@@ -47,11 +47,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-
 @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
-        value = "org.elasticsearch.action.search:DEBUG,"
-                + "org.elasticsearch.search:TRACE"
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
+    value = "org.elasticsearch.action.search:DEBUG," + "org.elasticsearch.search:TRACE"
 )
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -186,8 +184,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         // for debugging, we try to see where the documents are located
         try (RestClient restClient = createRestClient()) {
             Request checkShardsRequest = new Request(
-                    "GET",
-                    "/_cat/shards/" + indexName + "?format=json&h=index,node,shard,prirep,state,docs,index"
+                "GET",
+                "/_cat/shards/" + indexName + "?format=json&h=index,node,shard,prirep,state,docs,index"
             );
             Response response = restClient.performRequest(checkShardsRequest);
             logger.info("---> document distribution: " + EntityUtils.toString(response.getEntity()));

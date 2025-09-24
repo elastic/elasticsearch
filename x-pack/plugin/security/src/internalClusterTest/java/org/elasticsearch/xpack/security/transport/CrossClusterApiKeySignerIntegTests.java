@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_CERT_PATH;
@@ -124,20 +123,8 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
         return builder.build();
     }
 
-    static CrossClusterApiKeySigner getCrossClusterApiKeySignerInstance(InternalTestCluster cluster) {
-        RemoteClusterTransportInterceptor interceptor = cluster.getInstance(
-            RemoteClusterTransportInterceptor.class,
-            internalCluster().getRandomNodeName()
-        );
-        if (interceptor instanceof CrossClusterAccessTransportInterceptor ccaInterceptor) {
-            return ccaInterceptor.getCrossClusterApiKeySigner();
-        } else {
-            throw new AssertionError("expected " + CrossClusterAccessTransportInterceptor.class + " but got " + interceptor.getClass());
-        }
-    }
-
     private static CrossClusterApiKeySigner getCrossClusterApiKeySignerInstance() {
-        return getCrossClusterApiKeySignerInstance(internalCluster());
+        return CrossClusterTestHelper.getCrossClusterApiKeySigner(internalCluster());
     }
 
 }

@@ -93,7 +93,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     public void testRetrieveFieldType() {
         var query = """
             FROM test
-            | EVAL k = v_l2_norm(vector, [1])
+            | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
             | DROP k
             """;
 
@@ -107,7 +107,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     public void testRetrieveTopNDenseVectorFieldData() {
         var query = """
                 FROM test
-                | EVAL k = v_l2_norm(vector, [1])
+                | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
                 | KEEP id, vector
                 | SORT id ASC
             """;
@@ -135,7 +135,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     public void testRetrieveDenseVectorFieldData() {
         var query = """
             FROM test
-            | EVAL k = v_l2_norm(vector, [1])
+            | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
             | KEEP id, vector
             """;
 

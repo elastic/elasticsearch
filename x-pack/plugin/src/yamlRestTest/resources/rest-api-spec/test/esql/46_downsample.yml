@@ -100,7 +100,7 @@ setup:
         body:
           query: |
             FROM test-downsample
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
             | DROP a
             | STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx)
             | LIMIT 100
@@ -145,7 +145,7 @@ setup:
         body:
           query: |
             FROM test-downsample
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
             | DROP a
             | WHERE @timestamp == "2021-04-28T19:00:00.000Z"
             | KEEP k8s.pod.network.rx
@@ -348,7 +348,7 @@ setup:
         body:
           query: |
             FROM test-*
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
             | WHERE k8s.pod.uid == \"947e4ced-1786-4e53-9e0c-5c447e959507\"
             | STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx), avg(k8s.pod.network.rx)
             | LIMIT 100
@@ -688,7 +688,7 @@ setup:
         body:
           query: |
             FROM test-*
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
             | DROP a
             | SORT some_field, @timestamp, k8s.pod.uid
             | KEEP k8s.pod.network.rx, some_field, @timestamp
@@ -744,7 +744,7 @@ setup:
         body:
           query: |
             FROM test-downsample
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)
+            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
             | DROP a
             | MV_EXPAND k8s.pod.network.rx
             | SORT @timestamp, k8s.pod.uid

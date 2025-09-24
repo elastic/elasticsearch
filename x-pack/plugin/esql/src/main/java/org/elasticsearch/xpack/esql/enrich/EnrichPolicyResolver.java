@@ -450,6 +450,7 @@ public class EnrichPolicyResolver {
                             IndexResolver.ALL_FIELDS,
                             null,
                             false,
+                            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
                             false,
                             false,
                             refs.acquire(indexResult -> {

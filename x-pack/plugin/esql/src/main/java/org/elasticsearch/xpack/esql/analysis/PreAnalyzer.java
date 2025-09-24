@@ -60,6 +60,15 @@ public class PreAnalyzer {
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
+        /*
+         * Enable aggregate_metric_double and dense_vector when we see certain function
+         * or the TS command. This allows us to release these when not all nodes understand
+         * these types. These functions are only supported on newer nodes, so we use them
+         * as a signal that the query is only for nodes that support these types.
+         *
+         * This work around is temporary until we flow the minimum transport version
+         * back through a cross cluster search field caps call.
+         */
         Holder<Boolean> supportsAggregateMetricDouble = new Holder<>(false);
         Holder<Boolean> supportsDenseVector = new Holder<>(false);
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {

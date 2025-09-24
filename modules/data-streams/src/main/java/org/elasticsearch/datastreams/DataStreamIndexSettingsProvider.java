@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -132,14 +133,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             dimensions
                         );
                         if (dimensions.isEmpty() == false) {
-                            if (matchesAllDimensions && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+                            if (matchesAllDimensions
+                                && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG
+                                && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
                                 // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
                                 // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
                                 additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);
+                            } else {
+                                // For older index versions, or when not all dimension fields can be matched via the dimensions list,
+                                // we fall back to use index.routing_path.
+                                // This is less efficient, because the dimensions need to be hashed twice:
+                                // once to determine the shard during routing, and once to create the tsid during document parsing.
+                                additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                             }
-                            // always populate index.routing_path, so that routing works for older index versions
-                            // this applies to indices created during a rolling upgrade
-                            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                         }
                     }
                 }
@@ -167,9 +173,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
         if (matchesAllDimensions == false) {
             // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
-            // so that index.routing_path is used instead.
-            // This can happen if a new dynamic template is added to an existing index that matches by mapping type instead of path_match.
+            // and set index.routing_path instead.
+            // This can happen if a new dynamic template with time_series_dimension: true is added to an existing index.
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
+            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions);
         } else if (hasChanges) {
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
         }

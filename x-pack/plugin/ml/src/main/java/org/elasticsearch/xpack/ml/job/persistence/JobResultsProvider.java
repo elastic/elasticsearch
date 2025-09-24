@@ -705,6 +705,7 @@ public class JobResultsProvider {
             .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)))
             .addSort(
                 SortBuilders.fieldSort(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
+                    .setNumericType("double")
                     .unmappedType("double")
                     .order(SortOrder.DESC)
             );

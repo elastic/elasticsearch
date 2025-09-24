@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.inference.TaskType;
@@ -112,23 +113,23 @@ public class InferenceResolver {
 
         final InferenceResolution.Builder inferenceResolutionBuilder = InferenceResolution.builder();
 
-        final CountDownActionListener countdownListener = new CountDownActionListener(inferenceIds.size(), ActionListener.wrap(_r -> {
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                .execute(() -> listener.onResponse(inferenceResolutionBuilder.build()));
-        }, listener::onFailure));
+        final CountDownActionListener countdownListener = new CountDownActionListener(
+            inferenceIds.size(),
+            listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(inferenceResolutionBuilder.build()))
+        );
 
         for (var inferenceId : inferenceIds) {
             client.execute(
                 GetInferenceModelAction.INSTANCE,
                 new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
-                ActionListener.wrap(r -> {
+                new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), ActionListener.wrap(r -> {
                     ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
                     inferenceResolutionBuilder.withResolvedInference(resolvedInference);
                     countdownListener.onResponse(null);
                 }, e -> {
                     inferenceResolutionBuilder.withError(inferenceId, e.getMessage());
                     countdownListener.onResponse(null);
-                })
+                }))
             );
         }
     }

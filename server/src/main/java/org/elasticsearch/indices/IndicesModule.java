@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -94,13 +95,18 @@ import java.util.function.Function;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+    public IndicesModule(List<MapperPlugin> mapperPlugins, RootObjectMapperNamespaceValidator namespaceValidator) {
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
-            getFieldFilter(mapperPlugins)
+            getFieldFilter(mapperPlugins),
+            namespaceValidator
         );
+    }
+
+    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+        this(mapperPlugins, null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

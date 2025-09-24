@@ -128,9 +128,7 @@ public class InferenceResolverTests extends ESTestCase {
 
         inferenceResolver.resolveInferenceIds(
             inferenceIds,
-            assertAnswerUsingThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-                throw new RuntimeException(e);
-            }))
+            assertAnswerUsingSearchCoordinationThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, ESTestCase::fail))
         );
 
         assertBusy(() -> {
@@ -148,9 +146,7 @@ public class InferenceResolverTests extends ESTestCase {
 
         inferenceResolver.resolveInferenceIds(
             inferenceIds,
-            assertAnswerUsingThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-                throw new RuntimeException(e);
-            }))
+            assertAnswerUsingSearchCoordinationThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, ESTestCase::fail))
         );
 
         assertBusy(() -> {
@@ -176,9 +172,7 @@ public class InferenceResolverTests extends ESTestCase {
 
         inferenceResolver.resolveInferenceIds(
             inferenceIds,
-            assertAnswerUsingThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-                throw new RuntimeException(e);
-            }))
+            assertAnswerUsingSearchCoordinationThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, ESTestCase::fail))
         );
 
         assertBusy(() -> {
@@ -214,7 +208,7 @@ public class InferenceResolverTests extends ESTestCase {
         return client;
     }
 
-    private <T> ActionListener<T> assertAnswerUsingThreadPool(ActionListener<T> actionListener) {
+    private <T> ActionListener<T> assertAnswerUsingSearchCoordinationThreadPool(ActionListener<T> actionListener) {
         return ActionListener.runBefore(actionListener, () -> ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION));
     }
 

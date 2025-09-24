@@ -85,8 +85,8 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        int relocatingFrozenShards = allocation.routingNodes().getRelocatingFrozenShardCount();
         if (isFrozenShard(allocation, shardRouting)) {
-            int relocatingFrozenShards = countRelocatingFrozenShards(allocation);
             if (clusterConcurrentFrozenRebalance == -1) {
                 return allocation.decision(Decision.YES, NAME, "unlimited concurrent frozen rebalances are allowed");
             }
@@ -108,7 +108,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
                 relocatingFrozenShards
             );
         } else {
-            int relocatingShards = allocation.routingNodes().getRelocatingShardCount() - countRelocatingFrozenShards(allocation);
+            int relocatingShards = allocation.routingNodes().getRelocatingShardCount() - relocatingFrozenShards;
             if (clusterConcurrentRebalance == -1) {
                 return allocation.decision(Decision.YES, NAME, "unlimited concurrent rebalances are allowed");
             }
@@ -139,7 +139,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
-        int relocatingFrozenShards = countRelocatingFrozenShards(allocation);
+        int relocatingFrozenShards = allocation.routingNodes().getRelocatingFrozenShardCount();
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
         if (allocation.isSimulating() && relocatingShards >= 2) {
             // BalancedShardAllocator is prone to perform unnecessary moves when cluster_concurrent_rebalance is set to high values (>2).
@@ -149,70 +149,48 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
             // Separately: keep overall limit in simulation to two including frozen shards
             return allocation.decision(Decision.THROTTLE, NAME, "allocation should move one shard at the time when simulating");
         }
-        if (clusterConcurrentRebalance == -1) {
-            return allocation.decision(Decision.YES, NAME, "unlimited concurrent rebalances are allowed");
-        }
-        if (clusterConcurrentFrozenRebalance == -1) {
-            return allocation.decision(Decision.YES, NAME, "unlimited concurrent frozen rebalances are allowed");
-        }
 
         // separate into frozen/non-frozen counts
         relocatingShards = relocatingShards - relocatingFrozenShards;
 
-        // either frozen or non-frozen having some allowance before the combined limit means the allocator has room to rebalance
-        if (relocatingShards + relocatingFrozenShards < clusterConcurrentRebalance + clusterConcurrentFrozenRebalance) {
+        // either frozen or non-frozen having some allowance before their limit means the allocator has room to rebalance
+        if (clusterConcurrentRebalance == -1 || relocatingShards < clusterConcurrentRebalance) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d], "
-                    + "or threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
-                clusterConcurrentRebalance,
-                relocatingShards,
-                clusterConcurrentFrozenRebalance,
-                relocatingFrozenShards
-            );
-        }
-        if (relocatingShards >= clusterConcurrentRebalance) {
-            return allocation.decision(
-                Decision.THROTTLE,
-                NAME,
-                "reached the limit of concurrently rebalancing shards [%d], cluster setting [%s=%d]",
+                "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
                 relocatingShards,
                 CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
                 clusterConcurrentRebalance
             );
         }
-        if (relocatingFrozenShards >= clusterConcurrentFrozenRebalance) {
+        if (clusterConcurrentFrozenRebalance == -1 || relocatingFrozenShards < clusterConcurrentFrozenRebalance) {
             return allocation.decision(
-                Decision.THROTTLE,
+                Decision.YES,
                 NAME,
-                "reached the limit of concurrently rebalancing frozen shards [%d], cluster setting [%s=%d]",
+                "below threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
                 relocatingFrozenShards,
                 CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING.getKey(),
                 clusterConcurrentFrozenRebalance
             );
         }
-
-        assert false : "this should logically never be reached, as one of frozen or non-frozen is exceeding the already tested limit";
-        return allocation.decision(Decision.YES, NAME, "unreachable yes");
+        return allocation.decision(
+            Decision.THROTTLE,
+            NAME,
+            "above threshold [%d] for concurrent rebalances, current rebalance shard count [%d], "
+                + "and threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
+            clusterConcurrentRebalance,
+            relocatingShards,
+            clusterConcurrentFrozenRebalance,
+            relocatingFrozenShards
+        );
     }
 
     private boolean isFrozenShard(RoutingAllocation allocation, ShardRouting shard) {
-        for (var routingNode : allocation.routingNodes()) {
-            if (routingNode.node().isDedicatedFrozenNode() && routingNode.getByShardId(shard.shardId()) != null) {
-                return true;
-            }
+        String nodeId = shard.currentNodeId();
+        if (nodeId != null && allocation.routingNodes().node(nodeId).node().isDedicatedFrozenNode()) {
+            return true;
         }
         return false;
-    }
-
-    private int countRelocatingFrozenShards(RoutingAllocation allocation) {
-        int frozenRelocations = 0;
-        for (var routingNode : allocation.routingNodes()) {
-            if (routingNode.node().isDedicatedFrozenNode()) {
-                frozenRelocations += routingNode.shardCountsWithState(ShardRoutingState.RELOCATING);
-            }
-        }
-        return frozenRelocations;
     }
 }

@@ -94,7 +94,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        assert Objects.equals(EsExecutors.executorName(Thread.currentThread().getName()), Stateless.SHARD_READ_THREAD_POOL) == false
+        assert Objects.equals(EsExecutors.executorName(Thread.currentThread()), Stateless.SHARD_READ_THREAD_POOL) == false
             : Thread.currentThread().getName() + " is a shard read thread";
         getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, ActionListener.wrap(rbr -> {
             // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the

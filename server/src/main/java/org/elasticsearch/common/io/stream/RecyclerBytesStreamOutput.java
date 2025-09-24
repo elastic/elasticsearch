@@ -95,24 +95,12 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
         Objects.checkFromIndexSize(offset, length, b.length);
 
-        final int currentPageOffset = this.currentPageOffset;
-        if (length > pageSize - currentPageOffset) {
-            writeMultiplePages(b, offset, length);
-        } else {
-            // Add a hot path that can be easily optimized at call sites where the bytes fit in the page.
-            final BytesRef currentPage = currentBytesRef;
-            final byte[] bytes = currentPage.bytes;
-            final int destOffset = currentPage.offset + currentPageOffset;
-            System.arraycopy(b, offset, bytes, destOffset, length);
-            this.currentPageOffset = currentPageOffset + length;
-        }
-    }
-
-    private void writeMultiplePages(byte[] b, int offset, int length) {
-        ensureCapacity(length);
-
-        BytesRef currentPage = currentBytesRef;
         int currentPageOffset = this.currentPageOffset;
+        BytesRef currentPage = currentBytesRef;
+        if (length > pageSize - currentPageOffset) {
+            ensureCapacity(length);
+        }
+
         int bytesToCopy = length;
         int srcOff = offset;
         while (true) {

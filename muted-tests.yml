@@ -642,6 +642,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/135333
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testSortMixedFieldTypes
+  issue: https://github.com/elastic/elasticsearch/issues/129445
 
 # Examples:
 #

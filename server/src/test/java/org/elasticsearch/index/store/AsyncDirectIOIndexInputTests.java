@@ -12,6 +12,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -22,6 +23,11 @@ import java.util.List;
 
 public class AsyncDirectIOIndexInputTests extends ESTestCase {
 
+    @SuppressForbidden(reason = "requires Files.getFileStore")
+    private static int getBlockSize(Path path) throws IOException {
+        return Math.toIntExact(Files.getFileStore(path).getBlockSize());
+    }
+
     public void testPrefetchEdgeCase() throws IOException {
         byte[] bytes = new byte[8192 * 32 + randomIntBetween(1, 8192)];
         int offset = 84;
@@ -29,7 +35,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         int[] toSeek = new int[] { 1, 2, 3, 5, 6, 9, 11, 14, 15, 16, 18, 23, 24, 25, 26, 29, 30, 31 };
         int byteSize = 768 * 4;
         Path path = createTempDir("testDirectIODirectory");
-        int blockSize = Math.toIntExact(Files.getFileStore(path).getBlockSize());
+        int blockSize = getBlockSize(path);
         int bufferSize = 8192;
         random().nextBytes(bytes);
         try (Directory dir = new NIOFSDirectory(path)) {
@@ -65,7 +71,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         byte[] trueBytes = new byte[numBytes];
         System.arraycopy(bytes, offset, trueBytes, 0, numBytes);
         Path path = createTempDir("testDirectIODirectory");
-        int blockSize = Math.toIntExact(Files.getFileStore(path).getBlockSize());
+        int blockSize = getBlockSize(path);
         try (Directory dir = new NIOFSDirectory(path)) {
             try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
                 output.writeBytes(bytes, bytes.length);
@@ -92,7 +98,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         byte[] bytes = new byte[8192 * 8 + randomIntBetween(1, 8192)];
         random().nextBytes(bytes);
         Path path = createTempDir("testDirectIODirectory");
-        int blockSize = Math.toIntExact(Files.getFileStore(path).getBlockSize());
+        int blockSize = getBlockSize(path);
         int bufferSize = 1024 * 4;
         List<Integer> seeks = new ArrayList<>();
         int lastSeek = 0;

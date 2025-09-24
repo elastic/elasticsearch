@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.StandardIOBehaviorHint;
@@ -159,6 +160,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
+    @SuppressForbidden(reason = "requires Files.getFileStore for blockSize")
+    private static int getBlockSize(Path path) throws IOException {
+        return Math.toIntExact(Files.getFileStore(path).getBlockSize());
+    }
+
     public static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
@@ -171,7 +177,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             try {
                 // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
                 directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
-                    final int blockSize = Math.toIntExact(Files.getFileStore(delegate.getDirectory()).getBlockSize());
+                    final int blockSize = getBlockSize(delegate.getDirectory());
 
                     @Override
                     protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {

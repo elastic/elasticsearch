@@ -35,6 +35,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryTestCase;
+import org.elasticsearch.core.SuppressForbidden;
 import org.junit.BeforeClass;
 
 import java.io.EOFException;
@@ -62,6 +63,11 @@ public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "requires Files.getFileStore")
+    private static int getBlockSize(Path path) throws IOException {
+        return Math.toIntExact(Files.getFileStore(path).getBlockSize());
+    }
+
     @Override
     protected Directory getDirectory(Path path) throws IOException {
         return new DirectIODirectory(open(path)) {
@@ -72,7 +78,7 @@ public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 
             @Override
             public IndexInput openInput(String name, IOContext context) throws IOException {
-                int blockSize = Math.toIntExact(Files.getFileStore(path).getBlockSize());
+                int blockSize = getBlockSize(path);
                 ensureOpen();
                 if (useDirectIO(name, context, OptionalLong.of(fileLength(name)))) {
                     return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, 32);
@@ -103,7 +109,7 @@ public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 
     public void testIllegalEOFWithFileSizeMultipleOfBlockSize() throws Exception {
         Path path = createTempDir("testIllegalEOF");
-        final int fileSize = Math.toIntExact(Files.getFileStore(path).getBlockSize()) * 2;
+        final int fileSize = getBlockSize(path) * 2;
 
         try (Directory dir = getDirectory(path)) {
             IndexOutput o = dir.createOutput("out", newIOContext(random()));

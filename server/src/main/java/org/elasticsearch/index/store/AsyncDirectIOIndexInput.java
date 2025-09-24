@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.LongArrayDeque;
 import com.carrotsearch.hppc.LongDeque;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -74,6 +75,11 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             );
         }
         return ExtendedOpenOption_DIRECT;
+    }
+
+    @SuppressForbidden(reason = "requires FileChannel#read")
+    private static void readDirectChannel(FileChannel c, ByteBuffer bb, long p) throws IOException {
+        c.read(bb, p);
     }
 
     private final DirectIOPrefetcher prefetcher;
@@ -218,7 +224,8 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             // EOF
             // when filePos > channel.size(), an EOFException will be thrown from above
             // we failed, log stacktrace to figure out why
-            channel.read(buffer, filePos);
+            assert filePos % blockSize == 0 : "filePos [" + filePos + "] must be aligned to block size [" + blockSize + "]";
+            readDirectChannel(channel, buffer, filePos);
             buffer.flip();
             buffer.position(delta);
         } catch (IOException ioe) {
@@ -503,7 +510,8 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                     } else {
                         prefetchBuffer.clear();
                     }
-                    channel.read(prefetchBuffer, pos);
+                    assert pos % blockSize == 0 : "prefetch pos [" + pos + "] must be aligned to block size [" + blockSize + "]";
+                    readDirectChannel(channel, buffer, filePos);
                     prefetchBuffer.flip();
                 } catch (IOException e) {
                     prefetchExceptions[slot] = e;

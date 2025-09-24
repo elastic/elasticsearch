@@ -98,6 +98,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
             public float bulkScore(int[] nodes, float[] scores, int numNodes) {
                 int i = 0;
                 final int limit = numNodes - 3;
+                float max = Float.NEGATIVE_INFINITY;
                 for (; i < limit; i += 4) {
                     ESVectorUtil.squareDistanceBulk(
                         centers[scoringOrdinal],
@@ -109,9 +110,9 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                     );
                     for (int j = 0; j < 4; j++) {
                         scores[i + j] = VectorUtil.normalizeDistanceToUnitInterval(distances[j]);
+                        max = Math.max(max, scores[i + j]);
                     }
                 }
-                float max = Float.NEGATIVE_INFINITY;
                 for (; i < numNodes; i++) {
                     scores[i] = score(nodes[i]);
                     max = Math.max(max, scores[i]);

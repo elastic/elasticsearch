@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.AggregatorState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -60,25 +61,28 @@ final class SpatialExtentState implements AggregatorState {
      * This method is used when extents are extracted from the doc-values field by the {@link GeometryDocValueReader}.
      * This optimization is enabled when the field has doc-values and is only used in the ST_EXTENT aggregation.
      */
-    public void add(int[] values) {
-        if (values.length == 6) {
+    public void add(int p, IntBlock values) {
+        int count = values.getValueCount(p);
+        if (count == 6) {
             // Values are stored according to the order defined in the Extent class
-            int top = values[0];
-            int bottom = values[1];
-            int negLeft = values[2];
-            int negRight = values[3];
-            int posLeft = values[4];
-            int posRight = values[5];
+            int i = values.getFirstValueIndex(p);
+            int top = values.getInt(i++);
+            int bottom = values.getInt(i++);
+            int negLeft = values.getInt(i++);
+            int negRight = values.getInt(i++);
+            int posLeft = values.getInt(i++);
+            int posRight = values.getInt(i);
             add(Math.min(negLeft, posLeft), Math.max(negRight, posRight), top, bottom);
-        } else if (values.length == 4) {
+        } else if (count == 4) {
             // Values are stored according to the order defined in the Rectangle class
-            int minX = values[0];
-            int maxX = values[1];
-            int maxY = values[2];
-            int minY = values[3];
+            int i = values.getFirstValueIndex(p);
+            int minX = values.getInt(i++);
+            int maxX = values.getInt(i++);
+            int maxY = values.getInt(i++);
+            int minY = values.getInt(i);
             add(minX, maxX, maxY, minY);
         } else {
-            throw new IllegalArgumentException("Expected 4 or 6 values, got " + values.length);
+            throw new IllegalArgumentException("Expected 4 or 6 values, got " + count);
         }
     }
 

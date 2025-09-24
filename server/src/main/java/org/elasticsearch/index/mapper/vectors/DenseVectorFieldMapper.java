@@ -33,10 +33,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -2448,10 +2445,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
-                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-                if (hnswEarlyTermination) {
-                    knnQuery = maybeWrapPatience(knnQuery);
-                }
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2492,10 +2486,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
-                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-                if (hnswEarlyTermination) {
-                    knnQuery = maybeWrapPatience(knnQuery);
-                }
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2505,23 +2496,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             return knnQuery;
-        }
-
-        private Query maybeWrapPatience(Query knnQuery) {
-            Query finalQuery = knnQuery;
-            if (knnQuery instanceof KnnByteVectorQuery knnByteVectorQuery && canApplyPatienceQuery()) {
-                finalQuery = PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery);
-            } else if (knnQuery instanceof KnnFloatVectorQuery knnFloatVectorQuery && canApplyPatienceQuery()) {
-                finalQuery = PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery);
-            }
-            return finalQuery;
-        }
-
-        private boolean canApplyPatienceQuery() {
-            return indexOptions instanceof HnswIndexOptions
-                || indexOptions instanceof Int8HnswIndexOptions
-                || indexOptions instanceof Int4HnswIndexOptions
-                || indexOptions instanceof BBQHnswIndexOptions;
         }
 
         private Query createKnnFloatQuery(
@@ -2600,10 +2574,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         parentFilter,
                         knnSearchStrategy
                     )
-                    : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
-                if (hnswEarlyTermination) {
-                    knnQuery = maybeWrapPatience(knnQuery);
-                }
+                    : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy, hnswEarlyTermination);
             }
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(

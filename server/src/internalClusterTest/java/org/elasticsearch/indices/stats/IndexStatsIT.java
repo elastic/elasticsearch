@@ -1095,7 +1095,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/124447")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder()
             .put(indexSettings())
@@ -1369,9 +1368,10 @@ public class IndexStatsIT extends ESIntegTestCase {
             final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
+                    // Wait for global checkpoint to stabilize first to avoid it changing while sync() is in progress.
+                    assertBusy(() -> assertEquals(indexShard.getLocalCheckpoint(), indexShard.getLastKnownGlobalCheckpoint()));
                     indexShard.sync();
                     assertThat(
-                        "Routing entry for shard " + indexShard.routingEntry().toString(),
                         indexShard.getLastSyncedGlobalCheckpoint(),
                         equalTo(indexShard.getLastKnownGlobalCheckpoint())
                     );

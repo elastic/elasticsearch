@@ -756,48 +756,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         featureFlags.add(new FeatureFlag(feature, from, until));
     }
 
-    private boolean isUbuntu2404OrLater() {
-        try {
-            if (OS.current() != OS.LINUX) {
-                return false;
-            }
-
-            // Read /etc/os-release file to get distribution info
-            Path osRelease = Path.of("/etc/os-release");
-            if (!Files.exists(osRelease)) {
-                return false;
-            }
-
-            String content = Files.readString(osRelease);
-            boolean isUbuntu = content.contains("ID=ubuntu");
-
-            if (!isUbuntu) {
-                return false;
-            }
-
-            // Extract version
-            String versionLine = content.lines().filter(line -> line.startsWith("VERSION_ID=")).findFirst().orElse("");
-
-            if (versionLine.isEmpty()) {
-                return false;
-            }
-
-            String version = versionLine.substring("VERSION_ID=".length()).replace("\"", "");
-            String[] parts = version.split("\\.");
-
-            if (parts.length >= 2) {
-                int major = Integer.parseInt(parts[0]);
-                int minor = Integer.parseInt(parts[1]);
-                return major > 24 || (major == 24 && minor >= 4);
-            }
-
-            return false;
-        } catch (Exception e) {
-            LOGGER.debug("Failed to detect Ubuntu version", e);
-            return false;
-        }
-    }
-
     private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
         if (Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false
             && Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false) {

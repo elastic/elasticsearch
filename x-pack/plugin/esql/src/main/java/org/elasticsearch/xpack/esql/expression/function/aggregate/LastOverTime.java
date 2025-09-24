@@ -52,7 +52,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long", "integer", "double" },
         description = "The latest value of a field, where recency determined by the `@timestamp` field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
         examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") }
     )

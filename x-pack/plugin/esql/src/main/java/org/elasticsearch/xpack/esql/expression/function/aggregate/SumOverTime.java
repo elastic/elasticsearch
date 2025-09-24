@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -36,10 +37,11 @@ public class SumOverTime extends TimeSeriesAggregateFunction {
     );
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long" },
+        returnType = { "double", "long" },
         description = "The sum over time value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        type = FunctionType.AGGREGATE
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        examples = { @Example(file = "k8s-timeseries", tag = "sum_over_time") }
     )
     public SumOverTime(
         Source source,

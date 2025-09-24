@@ -556,7 +556,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(
                         "logs-extrahop.investigation-*",
                         "logs-qualys_gav.asset-*",
-                        "logs-sentinel_one.application-*",                       
+                        "logs-sentinel_one.application-*",
                         "logs-island_browser.user-*",
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",

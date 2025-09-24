@@ -647,15 +647,14 @@ public class EsqlSession {
             ThreadPool.Names.SYSTEM_READ
         );
         if (preAnalysis.indexPattern() != null) {
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
+            if (executionInfo.clusterAliases().isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
                     result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
                 );
             } else {
                 indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
+                    EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo),
                     result.fieldNames,
                     // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     switch (preAnalysis.indexMode()) {

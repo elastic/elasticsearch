@@ -550,7 +550,7 @@ public class AuthorizationService {
                         authzInfo,
                         projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(authorizedIndices -> {
-                            if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsCrossProjectSearch()) {
+                            if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.supportsCrossProjectSearch()) {
                                 crossProjectSearchAuthzService.loadAuthorizedProjects(new ActionListener<>() {
                                     @Override
                                     public void onResponse(AuthorizedProjects authorizedProjects) {

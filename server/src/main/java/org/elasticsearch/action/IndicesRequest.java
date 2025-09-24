@@ -81,7 +81,7 @@ public interface IndicesRequest {
             return false;
         }
 
-        default boolean allowsCrossProjectSearch() {
+        default boolean supportsCrossProjectSearch() {
             return false;
         }
     }

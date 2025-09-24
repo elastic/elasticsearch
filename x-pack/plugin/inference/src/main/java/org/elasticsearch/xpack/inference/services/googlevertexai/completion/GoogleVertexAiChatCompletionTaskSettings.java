@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,7 +43,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
         this.maxTokens = DEFAULT_MAX_TOKENS;
     }
 
-    public GoogleVertexAiChatCompletionTaskSettings(ThinkingConfig thinkingConfig, Integer maxTokens) {
+    public GoogleVertexAiChatCompletionTaskSettings(ThinkingConfig thinkingConfig, @Nullable Integer maxTokens) {
         this.thinkingConfig = Objects.requireNonNullElse(thinkingConfig, EMPTY_THINKING_CONFIG);
         this.maxTokens = Objects.requireNonNullElse(maxTokens, DEFAULT_MAX_TOKENS);
     }

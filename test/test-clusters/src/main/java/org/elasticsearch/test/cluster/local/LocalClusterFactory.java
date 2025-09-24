@@ -66,6 +66,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final String TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP = "tests.cluster.debug.enabled";
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final int DEFAULT_DEBUG_PORT = 5007;
+    public static final String DISTRO_WITH_JDK_LOWER_21 = "8.11.0";
 
     private final DistributionResolver distributionResolver;
     private Path baseWorkingDir;
@@ -570,6 +571,12 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
 
         private Map<String, String> getEnvironmentVariables() {
             Map<String, String> environment = new HashMap<>(spec.resolveEnvironment());
+
+            String esFallbackJavaHome = System.getenv("ES_FALLBACK_JAVA_HOME");
+            if (spec.getVersion().before(DISTRO_WITH_JDK_LOWER_21) && esFallbackJavaHome != null && esFallbackJavaHome.isEmpty() == false) {
+                environment.put("ES_JAVA_HOME", esFallbackJavaHome);
+            }
+
             environment.put("ES_PATH_CONF", workingDir.resolve("config").toString());
             environment.put("ES_TMPDIR", workingDir.resolve("tmp").toString());
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR

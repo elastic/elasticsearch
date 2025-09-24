@@ -26,10 +26,15 @@ import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskState;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaLauncher;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -79,6 +84,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(JdkDownloadPlugin.class);
         project.getPlugins().apply(DistributionDownloadPlugin.class);
+        project.getPlugins().apply(JvmToolchainsPlugin.class);
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
         // register legacy jdk distribution for testing pre-7.0 BWC clusters
         Jdk bwcJdk = JdkDownloadPlugin.getContainer(project).create("bwc_jdk", jdk -> {
@@ -92,6 +98,13 @@ public class TestClustersPlugin implements Plugin<Project> {
             project.getGradle().getSharedServices(),
             ReaperPlugin.REAPER_SERVICE_NAME
         );
+
+        JavaToolchainService toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
+        Provider<JavaLauncher> fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
+            spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
+            spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
+        });
+
         runtimeJavaProvider = providerFactory.provider(
             () -> System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"))
         );
@@ -99,7 +112,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(
             project,
             reaperServiceProvider,
-            bwcJdk
+            bwcJdk,
+            fallbackJdk17Launcher
         );
 
         // provide a task to be able to list defined clusters.
@@ -124,7 +138,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
         Project project,
         Provider<ReaperService> reaper,
-        Jdk bwcJdk
+        Jdk bwcJdk,
+        Provider<JavaLauncher> fallbackJdk17Launcher
     ) {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(ElasticsearchCluster.class, name -> {
@@ -137,7 +152,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                 getArchiveOperations(),
                 getExecOperations(),
                 bwcJdk,
-                runtimeJavaProvider
+                runtimeJavaProvider,
+                fallbackJdk17Launcher
             );
         });
         project.getExtensions().add(EXTENSION_NAME, container);

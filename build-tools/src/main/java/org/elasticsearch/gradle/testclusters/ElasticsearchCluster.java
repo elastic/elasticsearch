@@ -23,6 +23,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -63,6 +64,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final Provider<File> runtimeJava;
     private int nodeIndex = 0;
 
+    private final Provider<JavaLauncher> jdk17FallbackLauncher;
+
     public ElasticsearchCluster(
         String clusterName,
         Project project,
@@ -72,7 +75,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
         Jdk bwcJdk,
-        Provider<File> runtimeJava
+        Provider<File> runtimeJava,
+        Provider<JavaLauncher> jdk17FallbackLauncher
     ) {
         this.path = project.getPath();
         this.clusterName = clusterName;
@@ -84,6 +88,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.workingDirBase = workingDirBase;
         this.runtimeJava = runtimeJava;
         this.nodes = project.container(ElasticsearchNode.class);
+        this.jdk17FallbackLauncher = jdk17FallbackLauncher;
         this.bwcJdk = bwcJdk;
 
         this.nodes.add(
@@ -98,7 +103,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 archiveOperations,
                 execOperations,
                 bwcJdk,
-                runtimeJava
+                runtimeJava,
+                jdk17FallbackLauncher
             )
         );
 
@@ -131,7 +137,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     archiveOperations,
                     execOperations,
                     bwcJdk,
-                    runtimeJava
+                    runtimeJava,
+                    jdk17FallbackLauncher
                 )
             );
         }

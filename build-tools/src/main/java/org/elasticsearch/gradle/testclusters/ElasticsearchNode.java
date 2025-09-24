@@ -51,6 +51,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.process.ExecOperations;
 
 import java.io.ByteArrayInputStream;
@@ -94,6 +95,7 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.Optional.ofNullable;
+import static org.elasticsearch.gradle.util.OsUtils.jdkIsIncompatibleWithOS;
 
 public class ElasticsearchNode implements TestClusterConfiguration {
 
@@ -160,6 +162,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path esInputFile;
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
+    private final Provider<JavaLauncher> jdk17FallbackLauncher;
 
     private int currentDistro = 0;
     private TestDistribution testDistribution;
@@ -186,7 +189,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
         Jdk bwcJdk,
-        Provider<File> runtimeJava
+        Provider<File> runtimeJava,
+        Provider<JavaLauncher> jdk17FallbackLauncher
     ) {
         this.clusterName = clusterName;
         this.path = path;
@@ -198,6 +202,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.execOperations = execOperations;
         this.bwcJdk = bwcJdk;
         this.runtimeJava = runtimeJava;
+        this.jdk17FallbackLauncher = jdk17FallbackLauncher;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -874,6 +879,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             return java.util.Optional.of(runtimeJava.map(File::getAbsolutePath).get());
         } else if (getVersion().before("7.0.0")) {
             return java.util.Optional.of(bwcJdk.getJavaHomePath().toString());
+        } else if (jdkIsIncompatibleWithOS(getVersion())) {
+            // Older distributions ship with openjdk versions that are not compatible with newer kernels of ubuntu 24.04 and later
+            // Therefore we pass explicitly the runtime java to use the adoptium jdk that is maintained longer and compatible
+            // with newer kernels.
+            // 8.10.4 is the last version shipped with jdk < 21. We configure these cluster to run with jdk 17 adoptium as 17 was
+            // the last LTS release before 21
+            return java.util.Optional.of(
+                jdk17FallbackLauncher.map(j -> j.getMetadata().getInstallationPath().getAsFile().getAbsolutePath()).get()
+            );
         } else { // otherwise use the bundled JDK
             return java.util.Optional.empty();
         }

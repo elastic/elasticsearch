@@ -39,10 +39,14 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -51,6 +55,8 @@ import java.util.List;
 import java.util.Optional;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.util.OsUtils.jdkIsIncompatibleWithOS;
 
 /**
  * Base plugin used for wiring up build tasks to REST testing tasks using new JUnit rule-based test clusters framework.
@@ -85,6 +91,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
         project.getPluginManager().apply(JdkDownloadPlugin.class);
+        project.getPluginManager().apply(JvmToolchainsPlugin.class);
 
         // Register integ-test and default distributions
         ElasticsearchDistribution defaultDistro = createDistribution(
@@ -182,6 +189,17 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
 
+                    if (jdkIsIncompatibleWithOS(Version.fromString(versionString))) {
+                        var toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
+                        var fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
+                            spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
+                            spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
+                        });
+                        task.environment(
+                            "ES_FALLBACK_JAVA_HOME",
+                            fallbackJdk17Launcher.get().getMetadata().getInstallationPath().getAsFile().getPath()
+                        );
+                    }
                     task.dependsOn(bwcDistro);
                     registerDistributionInputs(task, bwcDistro);
 

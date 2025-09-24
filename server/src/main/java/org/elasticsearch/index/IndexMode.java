@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -442,8 +443,6 @@ public enum IndexMode {
     }
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
-        IndexSortConfig.INDEX_SORT_FIELD_SETTING,
-        IndexSortConfig.INDEX_SORT_ORDER_SETTING,
         IndexSortConfig.INDEX_SORT_MODE_SETTING,
         IndexSortConfig.INDEX_SORT_MISSING_SETTING
     );
@@ -629,6 +628,29 @@ public enum IndexMode {
             }
             if (indexMode == LOOKUP) {
                 additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            } else if (indexMode == TIME_SERIES) {
+                var sortFields = List.of(TimeSeriesIdFieldMapper.NAME, DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                var sortOrder = List.of(SortOrder.ASC, SortOrder.DESC);
+
+                if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(indexTemplateAndCreateRequestSettings)) {
+                    if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).equals(sortFields) == false) {
+                        throw new IllegalArgumentException(
+                            tsdbMode() + " is incompatible with [" + IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey() + "]"
+                        );
+                    }
+                } else {
+                    additionalSettings.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), sortFields);
+                }
+
+                if (IndexSortConfig.INDEX_SORT_ORDER_SETTING.exists(indexTemplateAndCreateRequestSettings)) {
+                    if (IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(indexTemplateAndCreateRequestSettings).equals(sortOrder) == false) {
+                        throw new IllegalArgumentException(
+                            tsdbMode() + " is incompatible with [" + IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey() + "]"
+                        );
+                    }
+                } else {
+                    additionalSettings.putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), List.of("asc", "desc"));
+                }
             }
         }
     }

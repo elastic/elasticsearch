@@ -152,7 +152,7 @@ public final class IndexSortConfig {
         }
     }
 
-    public static class IndexSortConfigDefaults {
+    public static class LegacyIndexSortConfigDefaults {
         public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
 
         static {
@@ -173,7 +173,12 @@ public final class IndexSortConfig {
                 new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
         }
 
-        public static FieldSortSpec[] getDefaultSortSpecs(IndexSettings indexSettings) {
+        public static FieldSortSpec[] getLegacyDefaultSortSpecs(IndexSettings indexSettings) {
+            var version = indexSettings.getIndexVersionCreated();
+            if (version.onOrAfter(IndexVersions.LOGSDB_EXPLICIT_INDEX_SORTING_DEFAULTS)) {
+                return null;
+            }
+
             final Settings settings = indexSettings.getSettings();
 
             IndexMode indexMode = indexSettings.getMode();
@@ -181,11 +186,6 @@ public final class IndexSortConfig {
                 return TIME_SERIES_SORT;
             } else if (indexMode == IndexMode.LOGSDB) {
                 if (INDEX_SORT_FIELD_SETTING.exists(settings)) {
-                    return null;
-                }
-
-                var version = indexSettings.getIndexVersionCreated();
-                if (version.onOrAfter(IndexVersions.LOGSDB_EXPLICIT_INDEX_SORTING_DEFAULTS)) {
                     return null;
                 }
 
@@ -231,9 +231,9 @@ public final class IndexSortConfig {
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
 
-        var defaultSortSpecs = IndexSortConfigDefaults.getDefaultSortSpecs(indexSettings);
-        if (defaultSortSpecs != null) {
-            this.sortSpecs = defaultSortSpecs;
+        var legacyDefaultSortSpecs = LegacyIndexSortConfigDefaults.getLegacyDefaultSortSpecs(indexSettings);
+        if (legacyDefaultSortSpecs != null) {
+            this.sortSpecs = legacyDefaultSortSpecs;
             return;
         }
 

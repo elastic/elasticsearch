@@ -19,6 +19,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -49,6 +50,10 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
                 spec.getParameters().getTransportResourcesDirectory().set(transportResources);
                 spec.getParameters().getRootDirectory().set(project.getLayout().getSettingsDirectory().getAsFile());
+                Provider<String> upstreamRef = project.getProviders().gradleProperty("org.elasticsearch.transport.upstreamRef");
+                if (upstreamRef.isPresent()) {
+                    spec.getParameters().getUpstreamRefOverride().set(upstreamRef.get());
+                }
             });
 
         var depsHandler = project.getDependencies();
@@ -116,10 +121,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
     }
 
     private static String getResourceRoot(Project project) {
-        var resourceRoot = project.findProperty("org.elasticsearch.transport.resourceRoot");
-        if (resourceRoot == null) {
-            resourceRoot = "transport";
-        }
-        return resourceRoot.toString();
+        Provider<String> resourceRootProperty = project.getProviders().gradleProperty("org.elasticsearch.transport.resourceRoot");
+        return resourceRootProperty.isPresent() ? resourceRootProperty.get() : "transport";
     }
 }

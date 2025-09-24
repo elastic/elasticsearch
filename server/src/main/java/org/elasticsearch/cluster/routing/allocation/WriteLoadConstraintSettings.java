@@ -15,6 +15,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 
 /**
@@ -23,6 +24,10 @@ import org.elasticsearch.core.TimeValue;
 public class WriteLoadConstraintSettings {
 
     private static final String SETTING_PREFIX = "cluster.routing.allocation.write_load_decider.";
+
+    private static final FeatureFlag WRITE_LOAD_DECIDER_ENABLED_FF = new FeatureFlag(
+        "cluster.routing.allocation.write_load_decider_enabled"
+    );
 
     public enum WriteLoadDeciderStatus {
         /**
@@ -59,7 +64,7 @@ public class WriteLoadConstraintSettings {
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(
         WriteLoadDeciderStatus.class,
         SETTING_PREFIX + "enabled",
-        WriteLoadDeciderStatus.ENABLED,
+        WriteLoadDeciderStatus.DISABLED,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -113,7 +118,11 @@ public class WriteLoadConstraintSettings {
     private volatile TimeValue queueLatencyThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
+        if (WRITE_LOAD_DECIDER_ENABLED_FF.isEnabled()) {
+            clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
+        } else {
+            writeLoadDeciderStatus = WriteLoadDeciderStatus.DISABLED;
+        }
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
             timeValue -> this.minimumRerouteInterval = timeValue

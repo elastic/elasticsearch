@@ -233,7 +233,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     private record DefaultModelStatsKey(String service, TaskType taskType, String modelId) {
 
         // Some of the default models have optimized variants for linux that will have the following suffix.
-        private static final String MODEL_ID_LINUX_SUFFIX = "-x86_64";
+        private static final String MODEL_ID_LINUX_SUFFIX = "_linux-x86_64";
 
         @Override
         public String toString() {

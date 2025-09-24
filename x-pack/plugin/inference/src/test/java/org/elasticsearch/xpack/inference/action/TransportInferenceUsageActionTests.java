@@ -222,8 +222,8 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
     public void testGivenDefaultModelWithLinuxSuffix() throws Exception {
         givenInferenceEndpoints(
-            new ModelConfigurations(".endpoint-001", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001-x86_64")),
-            new ModelConfigurations("endpoint-002", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001-x86_64"))
+            new ModelConfigurations(".endpoint-001", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001_linux-x86_64")),
+            new ModelConfigurations("endpoint-002", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001_linux-x86_64"))
         );
 
         givenDefaultEndpoints(".endpoint-001");

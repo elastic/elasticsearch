@@ -19,6 +19,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -722,76 +723,100 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         );
     }
 
+    private static class HistogramFromDocValuesReader {
+
+        private final BinaryDocValues histoDocValues;
+        private final NumericDocValues zeroThresholds;
+        private final NumericDocValues valueCounts;
+        private final NumericDocValues valueSums;
+        private final NumericDocValues valueMinima;
+        private final NumericDocValues valueMaxima;
+
+        private int currentDocId = -1;
+        private final CompressedExponentialHistogram tempHistogram = new CompressedExponentialHistogram();
+
+        HistogramFromDocValuesReader(LeafReader leafReader, String fullPath) throws IOException {
+            histoDocValues = leafReader.getBinaryDocValues(fullPath);
+            zeroThresholds = leafReader.getNumericDocValues(zeroThresholdSubFieldName(fullPath));
+            valueCounts = leafReader.getNumericDocValues(valuesCountSubFieldName(fullPath));
+            valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath));
+            valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath));
+            valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath));
+        }
+
+        boolean hasAnyValues() {
+            return histoDocValues != null;
+        }
+
+        boolean advanceExact(int docId) throws IOException {
+            boolean isPresent = histoDocValues != null && histoDocValues.advanceExact(docId);
+            currentDocId = isPresent ? docId : -1;
+            return isPresent;
+        }
+
+        ExponentialHistogram histogramValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
+            boolean valueCountsPresent = valueCounts.advanceExact(currentDocId);
+            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+            assert zeroThresholdPresent && valueCountsPresent && valueSumsPresent;
+
+            BytesRef encodedHistogram = histoDocValues.binaryValue();
+            double zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
+            long valueCount = valueCounts.longValue();
+            double valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            double valueMin;
+            if (valueMinima != null && valueMinima.advanceExact(currentDocId)) {
+                valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
+            } else {
+                valueMin = Double.NaN;
+            }
+            double valueMax;
+            if (valueMaxima != null && valueMaxima.advanceExact(currentDocId)) {
+                valueMax = NumericUtils.sortableLongToDouble(valueMaxima.longValue());
+            } else {
+                valueMax = Double.NaN;
+            }
+            tempHistogram.reset(zeroThreshold, valueCount, valueSum, valueMin, valueMax, encodedHistogram);
+            return tempHistogram;
+        }
+    }
+
     private class ExponentialHistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
-        private final CompressedExponentialHistogram histogram = new CompressedExponentialHistogram();
-        private BytesRef binaryValue;
-        private double zeroThreshold;
-        private long valueCount;
-        private double valueSum;
-        private double valueMin;
-        private double valueMax;
+        @Nullable
+        private ExponentialHistogram currentHistogram;
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
             throws IOException {
-            BinaryDocValues histoDocValues = leafReader.getBinaryDocValues(fieldType().name());
-            if (histoDocValues == null) {
-                // No values in this leaf
-                binaryValue = null;
+            HistogramFromDocValuesReader histogramReader = new HistogramFromDocValuesReader(leafReader, fullPath());
+            if (histogramReader.hasAnyValues() == false) {
                 return null;
             }
-            NumericDocValues zeroThresholds = leafReader.getNumericDocValues(zeroThresholdSubFieldName(fullPath()));
-            NumericDocValues valueCounts = leafReader.getNumericDocValues(valuesCountSubFieldName(fullPath()));
-            NumericDocValues valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
-            NumericDocValues valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
-            NumericDocValues valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
-            assert zeroThresholds != null;
-            assert valueCounts != null;
-            assert valueSums != null;
             return docId -> {
-                if (histoDocValues.advanceExact(docId)) {
-
-                    boolean zeroThresholdPresent = zeroThresholds.advanceExact(docId);
-                    boolean valueCountsPresent = valueCounts.advanceExact(docId);
-                    boolean valueSumsPresent = valueSums.advanceExact(docId);
-                    assert zeroThresholdPresent && valueCountsPresent && valueSumsPresent;
-
-                    binaryValue = histoDocValues.binaryValue();
-                    zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
-                    valueCount = valueCounts.longValue();
-                    valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
-
-                    if (valueMinima != null && valueMinima.advanceExact(docId)) {
-                        valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
-                    } else {
-                        valueMin = Double.NaN;
-                    }
-                    if (valueMaxima != null && valueMaxima.advanceExact(docId)) {
-                        valueMax = NumericUtils.sortableLongToDouble(valueMaxima.longValue());
-                    } else {
-                        valueMax = Double.NaN;
-                    }
+                if (histogramReader.advanceExact(docId)) {
+                    currentHistogram = histogramReader.histogramValue();
                     return true;
                 }
-                binaryValue = null;
+                currentHistogram = null;
                 return false;
             };
         }
 
         @Override
         public boolean hasValue() {
-            return binaryValue != null;
+            return currentHistogram != null;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (binaryValue == null) {
+            if (currentHistogram == null) {
                 return;
             }
-
-            histogram.reset(zeroThreshold, valueCount, valueSum, valueMin, valueMax, binaryValue);
-            ExponentialHistogramXContent.serialize(b, histogram);
+            ExponentialHistogramXContent.serialize(b, currentHistogram);
         }
 
         @Override
@@ -801,7 +826,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public long valueCount() {
-            return binaryValue != null ? 1 : 0;
+            return currentHistogram != null ? 1 : 0;
         }
     };
 

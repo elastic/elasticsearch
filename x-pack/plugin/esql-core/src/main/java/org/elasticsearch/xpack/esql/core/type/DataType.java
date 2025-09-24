@@ -753,7 +753,7 @@ public enum DataType implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (createdVersion.supports(out) == false) {
+        if (createdVersion.supports(out.getTransportVersion()) == false) {
             /*
              * TODO when we implement version aware planning flip this to an IllegalStateException
              * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
@@ -814,6 +814,10 @@ public enum DataType implements Writeable {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    public CreatedVersion createdVersion() {
+        return createdVersion;
     }
 
     public static DataType suggestedCast(Set<DataType> originalTypes) {

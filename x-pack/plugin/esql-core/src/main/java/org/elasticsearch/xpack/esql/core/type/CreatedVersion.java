@@ -8,17 +8,16 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 /**
  * Version that supports a {@link DataType}.
  */
-interface CreatedVersion {
-    boolean supports(StreamOutput out);
+public interface CreatedVersion {
+    boolean supports(TransportVersion version);
 
     CreatedVersion SUPPORTED_ON_ALL_NODES = new CreatedVersion() {
         @Override
-        public boolean supports(StreamOutput out) {
+        public boolean supports(TransportVersion version) {
             return true;
         }
 
@@ -31,8 +30,8 @@ interface CreatedVersion {
     static CreatedVersion supportedOn(TransportVersion createdVersion) {
         return new CreatedVersion() {
             @Override
-            public boolean supports(StreamOutput out) {
-                return out.getTransportVersion().supports(createdVersion);
+            public boolean supports(TransportVersion version) {
+                return version.supports(createdVersion);
             }
 
             @Override

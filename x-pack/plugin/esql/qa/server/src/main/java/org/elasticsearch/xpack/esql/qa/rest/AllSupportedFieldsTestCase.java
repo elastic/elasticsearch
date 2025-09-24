@@ -10,9 +10,8 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -29,9 +28,7 @@ import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.Rule;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -39,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -91,7 +90,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         this.indexMode = indexMode;
     }
 
-    protected record NodeInfo(String cluster, String id, Version version) {}
+    protected record NodeInfo(String cluster, String id, TransportVersion version) {}
 
     private static Map<String, NodeInfo> nodeToInfo;
 
@@ -111,18 +110,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected static Map<String, NodeInfo> fetchNodeToInfo(RestClient client, String cluster) throws IOException {
         Map<String, NodeInfo> nodeToInfo = new TreeMap<>();
-        Request getIds = new Request("GET", "_cat/nodes");
-        getIds.addParameter("h", "name,id,version");
-        getIds.addParameter("full_id", "");
-        Response idsResponse = client.performRequest(getIds);
-        BufferedReader idsReader = new BufferedReader(new InputStreamReader(idsResponse.getEntity().getContent()));
-        String line;
-        while ((line = idsReader.readLine()) != null) {
-            logger.info("node: {}", line);
-            String[] l = line.split(" ");
-            // TODO what's the right thing to use instead of Version?
-            nodeToInfo.put(l[0], new NodeInfo(cluster, l[1], Version.fromString(l[2])));
+        Request request = new Request("GET", "/_nodes");
+        Map<String, Object> response = responseAsMap(client.performRequest(request));
+        Map<?, ?> nodes = (Map<?, ?>) extractValue(response, "nodes");
+        for (Map.Entry<?, ?> n : nodes.entrySet()) {
+            String id = (String) n.getKey();
+            Map<?, ?> nodeInfo = (Map<?, ?>) n.getValue();
+            String nodeName = (String) extractValue(nodeInfo, "name");
+            TransportVersion transportVersion = TransportVersion.fromId((Integer) extractValue(nodeInfo, "transport_version"));
+            nodeToInfo.put(nodeName, new NodeInfo(cluster, id, transportVersion));
         }
+
         return nodeToInfo;
     }
 
@@ -138,11 +136,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
             """);
+        if ((Boolean) response.get("is_partial")) {
+            throw new AssertionError("partial results: " + response);
+        }
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
 
         MapMatcher expectedColumns = matchesMap();
-        Version minVersion = minVersion();
+        TransportVersion minVersion = minVersion();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
                 continue;
@@ -190,15 +191,31 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 | KEEP _index, f_dense_vector
                 | LIMIT 1000
                 """);
+            if ((Boolean) response.get("is_partial")) {
+                TransportVersion minVersion = minVersion();
+                Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
+                Map<?, ?> details = (Map<?, ?>) clusters.get("details");
+                for (Map.Entry<?, ?> cluster : details.entrySet()) {
+                    String failures = cluster.getValue().toString();
+                    if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+                        throw new AssertionError("versions on or after 9.2.0 should support correctly fetch the dense_vector: " + failures);
+                    }
+                    assertThat(failures, containsString("doesn't understand data type [DENSE_VECTOR]"));
+                }
+                return;
+            }
         } catch (ResponseException e) {
-            Version minVersion = minVersion();
-            if (minVersion.onOrAfter(Version.V_9_2_0)) {
+            TransportVersion minVersion = minVersion();
+            if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
                 throw new AssertionError("versions on or after 9.2.0 should support correctly fetch the dense_vector", e);
             }
             assertThat(
                 "old version should fail with this error",
                 EntityUtils.toString(e.getResponse().getEntity()),
-                containsString("Unknown function [v_l2_norm]")
+                anyOf(
+                    containsString("Unknown function [v_l2_norm]"),
+                    containsString("Cannot use field [f_dense_vector] with unsupported type")
+                )
             );
             // Failure is expected and fine
             return;
@@ -240,9 +257,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
         Map<String, Object> response = responseAsMap(client().performRequest(request));
         profileLogger.extractProfile(response, true);
-        if ((Boolean) response.get("is_partial")) {
-            throw new AssertionError("partial results: " + response);
-        }
         return response;
     }
 
@@ -343,7 +357,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    private Matcher<?> expectedValue(Version minVersion, Version version, DataType type) {
+    private Matcher<?> expectedValue(TransportVersion minVersion, TransportVersion version, DataType type) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
             case COUNTER_LONG, LONG, COUNTER_INTEGER, INTEGER, UNSIGNED_LONG, SHORT, BYTE -> equalTo(1);
@@ -362,14 +376,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
-                if (minVersion.onOrAfter(Version.V_9_2_0)) {
+                if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
                     yield nullValue();
                 }
                 Matcher<String> expected = equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
                 yield anyOf(nullValue(), expected);
             }
             case DENSE_VECTOR -> {
-                if (minVersion.onOrAfter(Version.V_9_2_0)) {
+                if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
                     yield nullValue();
                 }
                 yield anyOf(nullValue(), expectedDenseVector(version));
@@ -378,8 +392,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         };
     }
 
-    private Matcher<List<?>> expectedDenseVector(Version version) {
-        return version.onOrAfter(Version.V_9_2_0)
+    private Matcher<List<?>> expectedDenseVector(TransportVersion version) {
+        return version.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)
             ? matchesList().item(0.5).item(10.0).item(5.9999995)
             : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }
@@ -441,7 +455,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    private Matcher<String> expectedType(Version minVersion, DataType type) {
+    private Matcher<String> expectedType(TransportVersion minVersion, DataType type) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
@@ -454,7 +468,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> equalTo("keyword");
             // Currently unsupported without TS command or KNN function
             case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
-                if (false == minVersion.onOrAfter(Version.V_9_2_0)) {
+                if (false == minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
                     yield either(equalTo("unsupported")).or(equalTo(type.esType()));
                 }
                 yield equalTo("unsupported");
@@ -483,7 +497,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return nodeInfo.cluster + ":" + expectedIndex;
     }
 
-    private Version minVersion() throws IOException {
-        return allNodeToInfo().values().stream().map(n -> n.version).min(Comparator.comparing(v -> v.id)).get();
+    private TransportVersion minVersion() throws IOException {
+        return allNodeToInfo().values().stream().map(n -> n.version).min(Comparator.naturalOrder()).get();
     }
 }

@@ -243,7 +243,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public int rerouteAtSourceDuringResharding (IndexRouting indexRouting) {
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
         return indexRouting.rerouteDeleteRequestIfResharding(id, routing);
     }
 

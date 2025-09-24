@@ -518,11 +518,19 @@ public abstract class TransportReplicationAction<
                     assert numSplitRequests > 0 : "expected atleast 1 split request";
                     assert numSplitRequests <= 2 : "number of split requests too many";
 
+                    // System.out.println("numSplitRequests = " + numSplitRequests);
+                    // System.out.println("source shardId = " + primaryRequest.getRequest().shardId().toString());
                     if (numSplitRequests == 1) {
+                        // System.out.println("shardId = " + splitRequests.entrySet().iterator().next().getKey().toString());
                         // If the request is for source, same behaviour as before
-                        if (splitRequests.containsKey(primaryRequest.getRequest().shardId)) {
-                            executePrimaryRequest(primaryShardReference, "primary_reshardSplit");
+                        if (splitRequests.containsKey(primaryRequest.getRequest().shardId())) {
+                            // System.out.println("Execute request on source");
+                            executePrimaryRequest(primaryShardReference, "primary");
+                            // executePrimaryRequest(primaryShardReference, "primary_reshardSplit");
                         } else {
+                            // System.out.println("Execute request on target");
+                            // If the request is for target, forward request to target.
+                            // TODO: Note that the request still contains the original shardId. We need to test if this will be a problem.
                             setPhase(replicationTask, "primary_reshardSplit_delegation");
                             // If the request is for target, send request to target node
                             ShardId targetShardId = splitRequests.entrySet().iterator().next().getKey();
@@ -559,9 +567,11 @@ public abstract class TransportReplicationAction<
                                 }
                             );
                         }
-                    } else {  // We have requests for both source and target shards
+                    } else {
+                        // We have requests for both source and target shards.
+                        // Use a refcounted listener to run both requests async in parallel
 
-                        // Merge responses from source and target
+                        // Merge responses from source and target before calling onCompletionListener
                     }
                 } else {
                     executePrimaryRequest(primaryShardReference, "primary");

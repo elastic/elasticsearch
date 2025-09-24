@@ -172,6 +172,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
+        // System.out.println("I am splitting");
         ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         Index index = request.shardId().getIndex();
@@ -191,14 +192,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkItemRequest bulkItemRequest = items[i];
             DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
             int shardId = docWriteRequest.rerouteAtSourceDuringResharding(routing);
-
+            // int shardId = docWriteRequest.route(routing);
+            // System.out.println("shardId = " + shardId);
             List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                 new ShardId(index, shardId),
                 shardNum -> new ArrayList<>()
             );
             shardRequests.add(bulkItemRequest);
         }
-        
+
+        // System.out.println("requestsByShard = " + requestsByShard.size());
         // All items belong to either the source shard or target shard.
         if (requestsByShard.size() == 1) {
             ShardId targetShard = requestsByShard.entrySet().iterator().next().getKey();

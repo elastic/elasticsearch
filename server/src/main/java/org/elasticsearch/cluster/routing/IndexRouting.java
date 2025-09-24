@@ -158,7 +158,13 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
-    public abstract int rerouteIndexingRequestIfResharding(String id, @Nullable String routing);
+    public abstract int rerouteIndexingRequestIfResharding(
+        String id,
+        @Nullable String routing,
+        BytesRef tsid,
+        XContentType sourceType,
+        BytesReference source
+    );
 
     public abstract int rerouteDeleteRequestIfResharding(String id, @Nullable String routing);
 
@@ -245,7 +251,14 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int rerouteIndexingRequestIfResharding(String id, @Nullable String routing) {
+        public int rerouteIndexingRequestIfResharding(
+            String id,
+            @Nullable String routing,
+            BytesRef tsid,
+            XContentType sourceType,
+            BytesReference source
+        ) {
+            // System.out.println("Route based on Id");
             if (id == null) {
                 throw new IllegalStateException("id is required and should have been set by process");
             }
@@ -413,6 +426,7 @@ public abstract class IndexRouting {
             XContentType sourceType,
             BytesReference source
         ) {
+            // System.out.println("indexShard:Extract from source");
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
             if (createTsidDuringRouting) {
@@ -430,7 +444,21 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int rerouteIndexingRequestIfResharding(String id, @Nullable String routing) {
+        public int rerouteIndexingRequestIfResharding(
+            String id,
+            @Nullable String routing,
+            BytesRef tsid,
+            XContentType sourceType,
+            BytesReference source
+        ) {
+            // System.out.println("Extract from source");
+            if (createTsidDuringRouting) {
+                assert tsid != null : "expecting a valid tsid";
+                hash = hash(tsid);
+            } else {
+                // TODO: Is this always necessary ? This can be expensive. We should not do this on a transport thread I believe.
+                hash = hashRoutingFields(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
+            }
             int shardId = hashToShardId(hash);
             return rerouteWritesIfResharding(shardId);
         }

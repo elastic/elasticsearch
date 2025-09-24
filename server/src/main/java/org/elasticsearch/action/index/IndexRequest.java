@@ -927,8 +927,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public int rerouteAtSourceDuringResharding (IndexRouting indexRouting) {
-        return indexRouting.rerouteIndexingRequestIfResharding(id, routing);
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteIndexingRequestIfResharding(id, routing, tsid, indexSource.contentType(), indexSource.bytes());
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

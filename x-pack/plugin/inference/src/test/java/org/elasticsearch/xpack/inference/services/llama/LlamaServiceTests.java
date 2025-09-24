@@ -130,8 +130,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             }
 
             @Override
-            protected void assertModel(Model model, TaskType taskType) {
-                LlamaServiceTests.assertModel(model, taskType);
+            protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                LlamaServiceTests.assertModel(model, taskType, modelIncludesSecrets);
             }
 
             @Override
@@ -146,43 +146,46 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         }).build();
     }
 
-    private static void assertModel(Model model, TaskType taskType) {
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         switch (taskType) {
-            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model);
-            case COMPLETION -> assertCompletionModel(model);
-            case CHAT_COMPLETION -> assertChatCompletionModel(model);
+            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
+            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
+            case CHAT_COMPLETION -> assertChatCompletionModel(model, modelIncludesSecrets);
             default -> fail("unexpected task type [" + taskType + "]");
         }
     }
 
-    private static void assertTextEmbeddingModel(Model model) {
-        var llamaModel = assertCommonModelFields(model);
+    private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
+        var llamaModel = assertCommonModelFields(model, modelIncludesSecrets);
 
         assertThat(llamaModel.getTaskType(), Matchers.is(TaskType.TEXT_EMBEDDING));
     }
 
-    private static LlamaModel assertCommonModelFields(Model model) {
+    private static LlamaModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
         assertThat(model, instanceOf(LlamaModel.class));
 
         var llamaModel = (LlamaModel) model;
         assertThat(llamaModel.getServiceSettings().modelId(), is("model_id"));
         assertThat(llamaModel.uri.toString(), Matchers.is("http://www.abc.com"));
         assertThat(llamaModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
-        assertThat(
-            ((DefaultSecretSettings) llamaModel.getSecretSettings()).apiKey(),
-            Matchers.is(new SecureString("secret".toCharArray()))
-        );
+
+        if (modelIncludesSecrets) {
+            assertThat(
+                ((DefaultSecretSettings) llamaModel.getSecretSettings()).apiKey(),
+                Matchers.is(new SecureString("secret".toCharArray()))
+            );
+        }
 
         return llamaModel;
     }
 
-    private static void assertCompletionModel(Model model) {
-        var llamaModel = assertCommonModelFields(model);
+    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
+        var llamaModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(llamaModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
     }
 
-    private static void assertChatCompletionModel(Model model) {
-        var llamaModel = assertCommonModelFields(model);
+    private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
+        var llamaModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(llamaModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
     }
 

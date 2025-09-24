@@ -110,8 +110,8 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected void assertModel(Model model, TaskType taskType) {
-                    Ai21ServiceTests.assertModel(model, taskType);
+                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                    Ai21ServiceTests.assertModel(model, taskType, modelIncludesSecrets);
                 }
 
                 @Override
@@ -122,32 +122,35 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         ).build();
     }
 
-    private static void assertModel(Model model, TaskType taskType) {
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         switch (taskType) {
-            case COMPLETION -> assertCompletionModel(model);
-            case CHAT_COMPLETION -> assertChatCompletionModel(model);
+            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
+            case CHAT_COMPLETION -> assertChatCompletionModel(model, modelIncludesSecrets);
             default -> fail("unexpected task type [" + taskType + "]");
         }
     }
 
-    private static Ai21Model assertCommonModelFields(Model model) {
+    private static Ai21Model assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
         assertThat(model, instanceOf(Ai21Model.class));
 
         var customModel = (Ai21Model) model;
         assertThat(customModel.uri.toString(), Matchers.is("https://api.ai21.com/studio/v1/chat/completions"));
         assertThat(customModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
-        assertThat(customModel.getSecretSettings().apiKey(), Matchers.is(new SecureString("secret".toCharArray())));
+
+        if (modelIncludesSecrets) {
+            assertThat(customModel.getSecretSettings().apiKey(), Matchers.is(new SecureString("secret".toCharArray())));
+        }
 
         return customModel;
     }
 
-    private static void assertCompletionModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(customModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
     }
 
-    private static void assertChatCompletionModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(customModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
     }
 

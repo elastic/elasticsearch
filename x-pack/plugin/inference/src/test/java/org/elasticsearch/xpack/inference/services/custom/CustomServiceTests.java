@@ -96,8 +96,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             }
 
             @Override
-            protected void assertModel(Model model, TaskType taskType) {
-                CustomServiceTests.assertModel(model, taskType);
+            protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                CustomServiceTests.assertModel(model, taskType, modelIncludesSecrets);
             }
 
             @Override
@@ -112,38 +112,40 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         }).build();
     }
 
-    private static void assertModel(Model model, TaskType taskType) {
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         switch (taskType) {
-            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model);
-            case COMPLETION -> assertCompletionModel(model);
+            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
+            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
             default -> fail("unexpected task type [" + taskType + "]");
         }
     }
 
-    private static void assertTextEmbeddingModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
 
         assertThat(customModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(TextEmbeddingResponseParser.class));
     }
 
-    private static CustomModel assertCommonModelFields(Model model) {
+    private static CustomModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
         assertThat(model, instanceOf(CustomModel.class));
 
         var customModel = (CustomModel) model;
 
         assertThat(customModel.getServiceSettings().getUrl(), is("http://www.abc.com"));
         assertThat(customModel.getTaskSettings().getParameters(), is(Map.of("test_key", "test_value")));
-        assertThat(
-            customModel.getSecretSettings().getSecretParameters(),
-            is(Map.of("test_key", new SecureString("test_value".toCharArray())))
-        );
+        if (modelIncludesSecrets) {
+            assertThat(
+                customModel.getSecretSettings().getSecretParameters(),
+                is(Map.of("test_key", new SecureString("test_value".toCharArray())))
+            );
+        }
 
         return customModel;
     }
 
-    private static void assertCompletionModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(customModel.getTaskType(), is(TaskType.COMPLETION));
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
     }

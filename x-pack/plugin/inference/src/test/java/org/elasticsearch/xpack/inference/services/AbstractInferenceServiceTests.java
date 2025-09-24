@@ -62,6 +62,8 @@ import static org.mockito.Mockito.mock;
  */
 public abstract class AbstractInferenceServiceTests extends InferenceServiceTestCase {
 
+    private final TestConfiguration testConfiguration;
+
     protected final MockWebServer webServer = new MockWebServer();
     protected ThreadPool threadPool;
     protected HttpClientManager clientManager;
@@ -84,8 +86,6 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
         terminate(threadPool);
         webServer.close();
     }
-
-    private final TestConfiguration testConfiguration;
 
     public AbstractInferenceServiceTests(TestConfiguration testConfiguration, TestCase testCase) {
         this.testConfiguration = Objects.requireNonNull(testConfiguration);
@@ -128,6 +128,14 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
             this.unsupportedTaskType = unsupportedTaskType;
         }
 
+        public TaskType taskType() {
+            return taskType;
+        }
+
+        public TaskType unsupportedTaskType() {
+            return unsupportedTaskType;
+        }
+
         protected abstract SenderService createService(ThreadPool threadPool, HttpClientManager clientManager);
 
         protected abstract Map<String, Object> createServiceSettingsMap(TaskType taskType);
@@ -140,7 +148,11 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
         protected abstract Map<String, Object> createSecretSettingsMap();
 
-        protected abstract void assertModel(Model model, TaskType taskType);
+        protected abstract void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets);
+
+        protected void assertModel(Model model, TaskType taskType) {
+            assertModel(model, taskType, true);
+        }
 
         protected abstract EnumSet<TaskType> supportedStreamingTasks();
     }
@@ -347,10 +359,12 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
 
     @ParametersFactory
     public static Iterable<TestCase[]> parameters() throws IOException {
+        var chunkingSettingsMap = createRandomChunkingSettingsMap();
+
         return Arrays.asList(
             new TestCase[][] {
                 {
-                    new TestCase(
+                    new TestCaseBuilder(
                         "Test parsing persisted config without chunking settings",
                         testConfiguration -> getPersistedConfigMap(
                             testConfiguration.commonConfig.createServiceSettingsMap(
@@ -360,36 +374,106 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
                             testConfiguration.commonConfig.createTaskSettingsMap(),
                             null
                         ),
-                        (service, persistedConfig) -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config()),
-                        null
-                    ) } }
+                        (service, persistedConfig) -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config())
+                    ).withNullChunkingSettingsMap().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config with chunking settings",
+                        testConfiguration -> getPersistedConfigMap(
+                            testConfiguration.commonConfig.createServiceSettingsMap(
+                                TaskType.TEXT_EMBEDDING,
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            testConfiguration.commonConfig.createTaskSettingsMap(),
+                            chunkingSettingsMap,
+                            null
+                        ),
+                        (service, persistedConfig) -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config())
+                    ).withChunkingSettingsMap(chunkingSettingsMap).build() } }
         );
     }
 
     public record TestCase(
-        @Nullable String description,
+        String description,
         Function<TestConfiguration, Utils.PersistedConfig> createPersistedConfig,
         BiFunction<SenderService, Utils.PersistedConfig, Model> serviceCallback,
-        @Nullable Map<String, Object> chunkingSettingsMap
+        @Nullable Map<String, Object> chunkingSettingsMap,
+        boolean validateChunkingSettings,
+        boolean modelIncludesSecrets
     ) {}
+
+    private static class TestCaseBuilder {
+        private final String description;
+        private final Function<TestConfiguration, Utils.PersistedConfig> createPersistedConfig;
+        private final BiFunction<SenderService, Utils.PersistedConfig, Model> serviceCallback;
+        @Nullable
+        private Map<String, Object> chunkingSettingsMap;
+        private boolean validateChunkingSettings;
+        private boolean modelIncludesSecrets;
+
+        TestCaseBuilder(
+            String description,
+            Function<TestConfiguration, Utils.PersistedConfig> createPersistedConfig,
+            BiFunction<SenderService, Utils.PersistedConfig, Model> serviceCallback
+        ) {
+            this.description = description;
+            this.createPersistedConfig = createPersistedConfig;
+            this.serviceCallback = serviceCallback;
+        }
+
+        public TestCaseBuilder withSecrets() {
+            this.modelIncludesSecrets = true;
+            return this;
+        }
+
+        public TestCaseBuilder withChunkingSettingsMap(Map<String, Object> chunkingSettingsMap) {
+            this.chunkingSettingsMap = chunkingSettingsMap;
+            this.validateChunkingSettings = true;
+            return this;
+        }
+
+        /**
+         * Use an empty chunking settings map but still do validation that the chunking settings are set to the appropriate
+         * defaults.
+         */
+        public TestCaseBuilder withEmptyChunkingSettingsMap() {
+            this.chunkingSettingsMap = Map.of();
+            this.validateChunkingSettings = true;
+            return this;
+        }
+
+        public TestCaseBuilder withNullChunkingSettingsMap() {
+            this.chunkingSettingsMap = null;
+            this.validateChunkingSettings = true;
+            return this;
+        }
+
+        public TestCase build() {
+            return new TestCase(
+                description,
+                createPersistedConfig,
+                serviceCallback,
+                chunkingSettingsMap,
+                validateChunkingSettings,
+                modelIncludesSecrets
+            );
+        }
+    }
 
     public void testPersistedConfig() throws Exception {
         var parseConfigTestConfig = testConfiguration.commonConfig;
         var persistedConfig = testCase.createPersistedConfig.apply(testConfiguration);
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-
             var model = testCase.serviceCallback.apply(service, persistedConfig);
 
-            var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(
-                testCase.chunkingSettingsMap == null ? Map.of() : testCase.chunkingSettingsMap
-            );
-            assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
+            if (testCase.validateChunkingSettings) {
+                var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(testCase.chunkingSettingsMap);
+                assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
+            }
 
             parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
         }
-
-        parseConfigHelper(service -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfigMap.config()), null);
     }
 
     // parsePersistedConfig tests

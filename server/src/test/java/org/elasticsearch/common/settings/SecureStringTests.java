@@ -12,6 +12,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -76,16 +77,91 @@ public class SecureStringTests extends ESTestCase {
     }
 
     public void testEquals() {
-        final String string = randomAlphaOfLengthBetween(8, 128);
-        final SecureString secureString = new SecureString(string.toCharArray());
-        final StringBuilder stringBuilder = new StringBuilder(string);
+        final List<String> strings = List.of(
+            randomAlphaOfLengthBetween(8, 128),
+            (char) 0 + randomAlphanumericOfLength(9),
+            Character.MAX_VALUE + randomAlphanumericOfLength(10),
+            randomAlphanumericOfLength(11) + (char) 0,
+            randomAlphanumericOfLength(12) + Character.MAX_VALUE,
+            randomAlphanumericOfLength(3) + (char) 0 + randomAlphanumericOfLength(10),
+            randomAlphanumericOfLength(4) + Character.MAX_VALUE + randomAlphanumericOfLength(10)
+        );
+        for (var string : strings) {
+            final SecureString secureString = new SecureString(string.toCharArray());
 
-        assertThat(secureString.equals(string), is(true));
-        assertThat(secureString.equals(stringBuilder), is(true));
+            verifyEquals(secureString, string, true);
 
-        final int split = randomIntBetween(1, string.length() - 1);
-        final String altString = string.substring(0, split) + randomAlphanumericOfLength(1) + string.substring(split);
-        assertThat(secureString.equals(altString), is(false));
+            // Comparison has extra character in the middle
+            final int split = randomIntBetween(1, string.length() - 1);
+            final String altString = string.substring(0, split) + randomAlphanumericOfLength(1) + string.substring(split);
+            verifyEquals(secureString, altString, false);
+
+            // Comparison has extra characters at beginning
+            verifyEquals(secureString, randomAlphanumericOfLength(1) + string, false);
+            verifyEquals(secureString, randomAlphaOfLengthBetween(2, 8) + string, false);
+            verifyEquals(secureString, "\0" + string, false);
+            verifyEquals(secureString, (char) -1 + string, false);
+
+            // Comparison has extra characters at end
+            verifyEquals(secureString, string + randomAlphanumericOfLength(1), false);
+            verifyEquals(secureString, string + randomAlphaOfLengthBetween(2, 8), false);
+            verifyEquals(secureString, string + '\0', false);
+            verifyEquals(secureString, string + (char) -1, false);
+
+            // Comparison is missing characters at beginning
+            verifyEquals(secureString, string.substring(1), false);
+            verifyEquals(secureString, string.substring(randomIntBetween(2, string.length() - 2)), false);
+
+            // Comparison is missing characters at end
+            verifyEquals(secureString, string.substring(0, string.length() - 1), false);
+            verifyEquals(secureString, string.substring(0, string.length() - randomIntBetween(2, string.length() - 2)), false);
+
+            // Comparison has different character at beginning
+            verifyEquals(
+                secureString,
+                randomValueOtherThan(string.substring(0, 1), () -> randomAlphanumericOfLength(1)) + string.substring(1),
+                false
+            );
+            if (string.charAt(0) != 0) {
+                verifyEquals(secureString, "\0" + string.substring(1), false);
+            }
+            if (string.charAt(0) != (char) -1) {
+                verifyEquals(secureString, (char) -1 + string.substring(1), false);
+            }
+            // Comparison has different character at end
+            verifyEquals(
+                secureString,
+                string.substring(0, string.length() - 1) + randomValueOtherThan(
+                    string.substring(string.length() - 1),
+                    () -> randomAlphanumericOfLength(1)
+                ),
+                false
+            );
+            if (string.endsWith("\0") == false) {
+                verifyEquals(secureString, string.substring(0, string.length() - 1) + '\0', false);
+            }
+            if (string.charAt(string.length() - 1) != (char) -1) {
+                verifyEquals(secureString, string.substring(0, string.length() - 1) + (char) -1, false);
+            }
+
+            assertThat(secureString.equals(""), is(false));
+            final Object obj = null;
+            // noinspection ConstantValue
+            assertThat(secureString.equals(obj), is(false));
+
+            final CharSequence cs = null;
+            assertThat(secureString.equals(cs), is(false));
+        }
+
+    }
+
+    @SuppressWarnings("EqualsBetweenInconvertibleTypes")
+    private void verifyEquals(SecureString secure, String string, boolean expected) {
+        // Verify that we get the same result for different types of CharSequence
+        assertThat(secure + " == " + string, secure.equals(string), is(expected));
+        assertThat(secure.equals(new SecureString(string.toCharArray())), is(expected));
+        assertThat(secure.equals(new StringBuilder(string)), is(expected));
+        assertThat(secure.equals((Object) string), is(expected));
     }
 
     public void testStartsWith() {

@@ -54,10 +54,6 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             "Tests using INSIST are not supported for now",
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
         );
-        assumeFalse(
-            "NOCOMMIT decide if we should keep this",
-            testCase.requiredCapabilities.contains(DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.capabilityName())
-        );
 
         assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));
     }

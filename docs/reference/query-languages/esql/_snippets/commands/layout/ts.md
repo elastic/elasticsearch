@@ -30,8 +30,8 @@ TS index_pattern [METADATA fields]
 
 The `TS` source command enables time series semantics and enables the usage of
 time series aggregation functions in the `STATS` command, such as
-[`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions#esql-avg_over_time),
-or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions#esql-rate).
+[`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-avg_over_time),
+or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-rate).
 These functions are implicitly evaluated per per time-series, with their results
 then aggregated per grouping bucket using a secondary aggregation
 function. More concretely, consider the following query:
@@ -55,7 +55,7 @@ and apply to downsampled data too, with the same semantics as for raw data.
 
 ::::{note}
 If a query is missing an inner (time-series) aggregation function,
-[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions#esql-last_over_time)
+[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-last_over_time)
 is assumed and used implicitly. For instance, the following two queries are
 equivalent, returning the average of the last memory usage values per time-series:
 

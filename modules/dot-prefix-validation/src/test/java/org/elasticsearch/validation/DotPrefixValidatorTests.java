@@ -65,7 +65,8 @@ public class DotPrefixValidatorTests extends ESTestCase {
         nonOpV.validateIndices(Set.of(".elastic-connectors-v1"));
         nonOpV.validateIndices(Set.of(".elastic-connectors-sync-jobs-v1"));
         nonOpV.validateIndices(Set.of(".ml-state"));
-        nonOpV.validateIndices(Set.of(".ml-state-001"));
+        nonOpV.validateIndices(Set.of(".ml-state-000001"));
+        nonOpV.validateIndices(Set.of(".ml-stats-000001"));
         nonOpV.validateIndices(Set.of(".ml-anomalies-unrelated"));
 
         // Test ignored patterns

@@ -68,6 +68,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
             "\\.ml-anomalies-.*",
             "\\.ml-annotations-\\d+",
             "\\.ml-state-\\d+",
+            "\\.ml-stats-\\d+",
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
             "\\.entities\\.v\\d+\\..*",

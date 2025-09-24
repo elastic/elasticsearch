@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -38,8 +39,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DIMENSIONS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -62,7 +61,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public void provideAdditionalMetadata(
+    public void provideAdditionalSettings(
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
@@ -70,8 +69,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> additionalCustomMetadata
+        IndexVersion indexVersion,
+        Settings.Builder additionalSettings
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
@@ -134,14 +133,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             dimensions
                         );
                         if (dimensions.isEmpty() == false) {
-                            if (matchesAllDimensions && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+                            if (matchesAllDimensions
+                                && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG
+                                && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
                                 // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
                                 // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
                                 additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);
+                            } else {
+                                // For older index versions, or when not all dimension fields can be matched via the dimensions list,
+                                // we fall back to use index.routing_path.
+                                // This is less efficient, because the dimensions need to be hashed twice:
+                                // once to determine the shard during routing, and once to create the tsid during document parsing.
+                                additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                             }
-                            // always populate index.routing_path, so that routing works for older index versions
-                            // this applies to indices created during a rolling upgrade
-                            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                         }
                     }
                 }
@@ -157,12 +161,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
      * dimension fields via a wildcard pattern.
      */
     @Override
-    public void onUpdateMappings(
-        IndexMetadata indexMetadata,
-        DocumentMapper documentMapper,
-        Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> additionalCustomMetadata
-    ) {
+    public void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {
         List<String> indexDimensions = indexMetadata.getTimeSeriesDimensions();
         if (indexDimensions.isEmpty()) {
             return;
@@ -174,9 +173,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
         if (matchesAllDimensions == false) {
             // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
-            // so that index.routing_path is used instead.
-            // This can happen if a new dynamic template is added to an existing index that matches by mapping type instead of path_match.
+            // and set index.routing_path instead.
+            // This can happen if a new dynamic template with time_series_dimension: true is added to an existing index.
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
+            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions);
         } else if (hasChanges) {
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
         }
@@ -254,13 +254,17 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (template.isTimeSeriesDimension() == false) {
                 continue;
             }
-            if (template.isSimplePathMatch() == false) {
-                // If the template is not using a simple path match, the dimensions list can't match all potential dimensions.
-                // For example, if the dynamic template matches by mapping type (all strings are mapped as dimensions),
-                // the coordinating node can't rely on the dimensions list to match all dimensions.
-                // In this case, the index.routing_path setting will be used instead.
-                matchesAllDimensions = false;
-            }
+            // At this point, we don't support index.dimensions when dimensions are mapped via a dynamic template.
+            // This is because more specific matches with a higher priority can exist that exclude certain fields from being mapped as a
+            // dimension. For example:
+            // - path_match: "labels.host_ip", time_series_dimension: false
+            // - path_match: "labels.*", time_series_dimension: true
+            // In this case, "labels.host_ip" is not a dimension,
+            // and adding labels.* to index.dimensions would lead to non-dimension fields being included in the tsid.
+            // Therefore, we fall back to using index.routing_path.
+            // While this also may include non-dimension fields in the routing path,
+            // it at least guarantees that the tsid only includes dimension fields and includes all dimension fields.
+            matchesAllDimensions = false;
             if (template.pathMatch().isEmpty() == false) {
                 dimensions.addAll(template.pathMatch());
             }

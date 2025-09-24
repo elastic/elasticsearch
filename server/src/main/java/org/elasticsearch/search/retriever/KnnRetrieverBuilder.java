@@ -34,7 +34,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -69,29 +68,16 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             } else {
                 vectorArray = null;
             }
-            if (IVF_FORMAT.isEnabled()) {
-                return new KnnRetrieverBuilder(
-                    (String) args[0],
-                    vectorArray,
-                    (QueryVectorBuilder) args[2],
-                    (int) args[3],
-                    (int) args[4],
-                    (Float) args[5],
-                    (RescoreVectorBuilder) args[7],
-                    (Float) args[6]
-                );
-            } else {
-                return new KnnRetrieverBuilder(
-                    (String) args[0],
-                    vectorArray,
-                    (QueryVectorBuilder) args[2],
-                    (int) args[3],
-                    (int) args[4],
-                    null,
-                    (RescoreVectorBuilder) args[6],
-                    (Float) args[5]
-                );
-            }
+            return new KnnRetrieverBuilder(
+                (String) args[0],
+                vectorArray,
+                (QueryVectorBuilder) args[2],
+                (int) args[3],
+                (int) args[4],
+                (Float) args[5],
+                (RescoreVectorBuilder) args[7],
+                (Float) args[6]
+            );
         }
     );
 
@@ -105,9 +91,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         );
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-        if (IVF_FORMAT.isEnabled()) {
-            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
-        }
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
         PARSER.declareField(
             optionalConstructorArg(),
@@ -286,7 +270,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
-        if (IVF_FORMAT.isEnabled() && visitPercentage != null) {
+        if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
 

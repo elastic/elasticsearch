@@ -688,6 +688,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY);
     }
 
+    @TestLogging(reason = "debugging", value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:DEBUG")
     public void testCommitsOfScrollAreDeletedAfterIndexIsClosedAndOpened() throws Exception {
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED);
     }

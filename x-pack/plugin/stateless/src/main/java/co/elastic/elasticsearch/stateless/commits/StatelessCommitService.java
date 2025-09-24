@@ -2011,6 +2011,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // No search nodes hold shard commit references.
                 // Initializing or deleting the index.
 
+                logger.debug("shardRoutingTable.isEmpty() == true");
+                logger.debug("allSearchNodesRetainingCommits: \n{}", allSearchNodesRetainingCommits);
+
                 // This is a noop, but do it for completeness anyway.
                 trackOutstandingUnpromotableShardCommitRef(Set.of(), blobReference);
                 lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();

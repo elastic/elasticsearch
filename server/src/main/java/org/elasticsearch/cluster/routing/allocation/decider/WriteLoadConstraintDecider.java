@@ -95,7 +95,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return Decision.single(Decision.Type.NO, NAME, explain);
         }
 
-        return Decision.YES;
+        return Decision.single(Decision.Type.YES, NAME, "There is sufficient write thread-pool capacity to accept this allocation");
     }
 
     @Override

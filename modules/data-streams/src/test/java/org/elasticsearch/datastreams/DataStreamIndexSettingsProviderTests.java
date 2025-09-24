@@ -93,7 +93,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -101,8 +101,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping)),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -147,7 +147,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -155,8 +155,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping)),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -221,7 +221,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -229,8 +229,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3)),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -255,7 +255,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -263,8 +263,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -284,7 +284,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -292,8 +292,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent("{}")),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -313,7 +313,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         TimeValue lookBackTime = TimeValue.timeValueHours(12);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_back_time", lookBackTime.getStringRep()).build();
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -321,8 +321,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent("{}")),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -349,7 +349,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -357,8 +357,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent("{}")),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         var result = additionalSettings.build();
         assertThat(result.size(), equalTo(2));
@@ -389,7 +389,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> provider.provideAdditionalMetadata(
+            () -> provider.provideAdditionalSettings(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
                 IndexMode.TIME_SERIES,
@@ -397,8 +397,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 now,
                 settings,
                 null,
-                builder(),
-                (k, v) -> {}
+                IndexVersion.current(),
+                builder()
             )
         );
         assertThat(
@@ -418,7 +418,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             null,
@@ -426,8 +426,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             null,
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
@@ -444,7 +444,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Settings settings = Settings.EMPTY;
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -452,8 +452,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -477,7 +477,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -485,8 +485,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             Settings.EMPTY,
             List.of(),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
@@ -954,7 +954,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
 
         Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -962,8 +962,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings,
             List.of(new CompressedXContent(mapping)),
-            additionalSettings,
-            (k, v) -> {}
+            IndexVersion.current(),
+            additionalSettings
         );
         var result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
@@ -1002,7 +1002,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             documentMapper = mapperService.documentMapper();
         }
         Settings.Builder additionalSettings = builder();
-        provider.onUpdateMappings(im, documentMapper, additionalSettings, (k, v) -> {});
+        provider.onUpdateMappings(im, documentMapper, additionalSettings);
         return additionalSettings.build();
     }
 

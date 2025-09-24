@@ -32,17 +32,16 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     public static final class Builder {
         private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
+        /**
+         * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it
+         */
         public void addLocalExpressions(
             String original,
-            Set<String> localExpressions,
+            HashSet<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
         ) {
             expressions.add(
-                new ResolvedIndexExpression(
-                    original,
-                    new LocalExpressions(new HashSet<>(localExpressions), resolutionResult, null),
-                    new HashSet<>()
-                )
+                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), new HashSet<>())
             );
         }
 

@@ -74,7 +74,7 @@ public class IndexAbstractionResolver {
 
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
-                Set<String> resolvedIndices = new HashSet<>();
+                HashSet<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
@@ -103,7 +103,7 @@ public class IndexAbstractionResolver {
                     }
                 }
             } else {
-                Set<String> resolvedIndices = new HashSet<>();
+                HashSet<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     resolvedExpressionsBuilder.excludeAll(resolvedIndices);
@@ -129,7 +129,7 @@ public class IndexAbstractionResolver {
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     boolean includeIndices = indicesOptions.ignoreUnavailable() == false || authorized;
-                    Set<String> finalIndices = includeIndices ? resolvedIndices : new HashSet<>();
+                    HashSet<String> finalIndices = includeIndices ? resolvedIndices : new HashSet<>();
                     resolvedExpressionsBuilder.addLocalExpressions(index, finalIndices, result);
                 }
             }

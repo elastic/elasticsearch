@@ -42,7 +42,6 @@ import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -51,21 +50,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.getRawFieldVectorDelegate;
-import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.getRawVectorDelegate;
-import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99FlatVectorsWriter_writeField;
-import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99FlatVectorsWriter_writeSortingField;
-import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer;
-import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_writeField;
-import static org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils.lucene99ScalarQuantizedVectorsWriter_writeSortingField;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
@@ -74,7 +64,7 @@ import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 
 /**
- * Writer that builds a Nvidia Carga Graph on GPU and than writes it into the Lucene99 HNSW format,
+ * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
  * so that it can be searched on CPU with Lucene99HNSWVectorReader.
  */
 final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
@@ -85,7 +75,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
-    private final IndexOutput vectorData;
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
@@ -107,11 +96,9 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
-            vectorData = VectorsFormatReflectionUtils.getQuantizedVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
             assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
-            vectorData = VectorsFormatReflectionUtils.getVectorDataIndexOutput(flatVectorWriter);
             dataType = CuVSMatrix.DataType.FLOAT;
         }
         this.segmentWriteState = state;
@@ -161,8 +148,6 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return newField;
     }
 
-    private record FieldEntry(long vectorDataOffset, long vectorDataLength) {}
-
     /**
      * Flushes vector data and associated data to disk.
      * <p>
@@ -176,135 +161,72 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
      */
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
-        // var mappedFields = new HashMap<Integer, FieldEntry>();
-        // flatVectorWriterFlush(maxDoc, sortMap, mappedFields);
         flatVectorWriter.flush(maxDoc, sortMap);
-        flushFieldsWithoutMemoryMappedFile(sortMap);
-    }
-
-    private void flatVectorWriterFlush(int maxDoc, Sorter.DocMap sortMap, HashMap<Integer, FieldEntry> mappedFields) throws IOException {
-        if (flatVectorWriter instanceof Lucene99FlatVectorsWriter lucene99FlatVectorsWriter) {
-            flushLucene99FlatVectorsWriter(lucene99FlatVectorsWriter, maxDoc, sortMap, mappedFields);
-        } else {
-            assert flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter;
-            var quantizedVectorsWriter = (ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) flatVectorWriter;
-            Lucene99FlatVectorsWriter rawVectorDelegate = getRawVectorDelegate(quantizedVectorsWriter);
-            flushLucene99FlatVectorsWriter(rawVectorDelegate, maxDoc, sortMap, mappedFields);
-            flushLucene99ScalarQuantizedVectorsWriter(quantizedVectorsWriter, maxDoc, sortMap);
+        try {
+            flushFieldsWithoutMemoryMappedFile(sortMap);
+        } catch (Throwable t) {
+            throw new IOException("Failed to flush GPU index: ", t);
         }
     }
 
-    private void flushLucene99ScalarQuantizedVectorsWriter(
-        ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter quantizedVectorsWriter,
-        int maxDoc,
-        Sorter.DocMap sortMap
-    ) throws IOException {
-        for (var field : fields) {
-            ScalarQuantizer quantizer = lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer(field.flatFieldVectorsWriter);
-            if (sortMap == null) {
-                lucene99ScalarQuantizedVectorsWriter_writeField(
-                    quantizedVectorsWriter.delegate,
-                    field.flatFieldVectorsWriter,
-                    maxDoc,
-                    quantizer
-                );
-            } else {
-                lucene99ScalarQuantizedVectorsWriter_writeSortingField(
-                    quantizedVectorsWriter.delegate,
-                    field.flatFieldVectorsWriter,
-                    maxDoc,
-                    sortMap,
-                    quantizer
-                );
-            }
-            field.flatFieldVectorsWriter.finish();
-        }
-    }
-
-    private void flushLucene99FlatVectorsWriter(
-        Lucene99FlatVectorsWriter lucene99FlatVectorsWriter,
-        int maxDoc,
-        Sorter.DocMap sortMap,
-        Map<Integer, FieldEntry> mappedFields
-    ) throws IOException {
-        for (var field : fields) {
-            FlatFieldVectorsWriter<float[]> flatFieldVectorsWriter = getRawFieldVectorDelegate(field.flatFieldVectorsWriter);
-
-            long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-            long vectorDataLength = (long) field.fieldInfo.getVectorDimension() * Float.BYTES * flatFieldVectorsWriter.getVectors().size();
-            mappedFields.put(field.fieldInfo.number, new FieldEntry(vectorDataOffset, vectorDataLength));
-
-            if (sortMap == null) {
-                lucene99FlatVectorsWriter_writeField(lucene99FlatVectorsWriter, flatFieldVectorsWriter, maxDoc);
-            } else {
-                lucene99FlatVectorsWriter_writeSortingField(lucene99FlatVectorsWriter, flatFieldVectorsWriter, maxDoc, sortMap);
-            }
-            flatFieldVectorsWriter.finish();
-        }
-    }
-
-    private void flushFieldsWithMemoryMappedFile(
-        Sorter.DocMap sortMap,
-        MemorySegmentAccessInput memorySegmentAccessInput,
-        HashMap<Integer, FieldEntry> mappedFields
-    ) throws IOException {
-        for (FieldWriter field : fields) {
-            var fieldInfo = field.fieldInfo;
-
-            var numVectors = field.flatFieldVectorsWriter.getVectors().size();
-            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                // Will not be indexed on the GPU
-                assert mappedFields.containsKey(fieldInfo.number) == false;
-                flushField(fieldInfo, null, numVectors, sortMap);
-            } else {
-                var fieldEntry = mappedFields.get(fieldInfo.number);
-                assert fieldEntry != null;
-
-                flushField(
-                    fieldInfo,
-                    DatasetUtils.getInstance()
-                        .fromSlice(
-                            memorySegmentAccessInput,
-                            fieldEntry.vectorDataOffset,
-                            fieldEntry.vectorDataLength,
-                            numVectors,
-                            fieldInfo.getVectorDimension(),
-                            CuVSMatrix.DataType.FLOAT
-                        ),
-                    numVectors,
-                    sortMap
-                );
-            }
-        }
-    }
-
-    private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException {
+    private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException, InterruptedException {
         // No tmp file written, or the file cannot be mmapped
         for (FieldWriter field : fields) {
             var fieldInfo = field.fieldInfo;
 
             var numVectors = field.flatFieldVectorsWriter.getVectors().size();
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                // Will not be indexed on the GPU
-                flushField(fieldInfo, null, numVectors, sortMap);
-            } else {
-                var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
-                for (var vector : field.flatFieldVectorsWriter.getVectors()) {
-                    builder.addVector(vector);
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Skip building carga index; vectors length {} < {} (min for GPU)",
+                        numVectors,
+                        MIN_NUM_VECTORS_FOR_GPU_BUILD
+                    );
                 }
-                try (var dataset = builder.build()) {
-                    flushField(fieldInfo, dataset, numVectors, sortMap);
+                // Will not be indexed on the GPU
+                flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
+            } else {
+                var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
+                try {
+                    var builder = CuVSMatrix.deviceBuilder(
+                        cuVSResources,
+                        numVectors,
+                        fieldInfo.getVectorDimension(),
+                        CuVSMatrix.DataType.FLOAT
+                    );
+                    for (var vector : field.flatFieldVectorsWriter.getVectors()) {
+                        builder.addVector(vector);
+                    }
+                    try (var dataset = builder.build()) {
+                        flushFieldWithGpuGraph(cuVSResources, fieldInfo, dataset, sortMap);
+                    }
+                } finally {
+                    cuVSResourceManager.release(cuVSResources);
                 }
             }
         }
     }
 
-    private void flushField(FieldInfo fieldInfo, CuVSMatrix dataset, int numVectors, Sorter.DocMap sortMap) throws IOException {
+    private void flushFieldWithMockGraph(FieldInfo fieldInfo, int numVectors, Sorter.DocMap sortMap) throws IOException {
         if (sortMap == null) {
-            writeFieldInternal(fieldInfo, dataset, numVectors);
+            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
         } else {
             // TODO: use sortMap
-            writeFieldInternal(fieldInfo, dataset, numVectors);
+            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+        }
+    }
+
+    private void flushFieldWithGpuGraph(
+        CuVSResourceManager.ManagedCuVSResources resources,
+        FieldInfo fieldInfo,
+        CuVSMatrix dataset,
+        Sorter.DocMap sortMap
+    ) throws IOException {
+        if (sortMap == null) {
+            generateGpuGraphAndWriteMeta(resources, fieldInfo, dataset);
+        } else {
+            // TODO: use sortMap
+            generateGpuGraphAndWriteMeta(resources, fieldInfo, dataset);
         }
     }
 
@@ -336,31 +258,35 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
-    private void writeFieldInternal(FieldInfo fieldInfo, CuVSMatrix dataset, int datasetSize) throws IOException {
+    private void generateGpuGraphAndWriteMeta(
+        CuVSResourceManager.ManagedCuVSResources cuVSResources,
+        FieldInfo fieldInfo,
+        CuVSMatrix dataset
+    ) throws IOException {
         try {
+            assert dataset.size() >= MIN_NUM_VECTORS_FOR_GPU_BUILD;
+
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            if (dataset == null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        datasetSize,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
-                }
-                graph = writeMockGraph(datasetSize, graphLevelNodeOffsets);
-            } else {
-                var cuVSResources = cuVSResourceManager.acquire((int) dataset.size(), (int) dataset.columns(), dataset.dataType());
-                try {
-                    try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
-                        assert index != null : "GPU index should be built for field: " + fieldInfo.name;
-                        graph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
-                    }
-                } finally {
-                    cuVSResourceManager.release(cuVSResources);
-                }
+            try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
+                assert index != null : "GPU index should be built for field: " + fieldInfo.name;
+                graph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
             }
+            long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
+            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, (int) dataset.size(), graph, graphLevelNodeOffsets);
+        } catch (IOException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IOException("Failed to write GPU index: ", t);
+        }
+    }
+
+    private void generateMockGraphAndWriteMeta(FieldInfo fieldInfo, int datasetSize) throws IOException {
+        try {
+            long vectorIndexOffset = vectorIndex.getFilePointer();
+            int[][] graphLevelNodeOffsets = new int[1][];
+            final HnswGraph graph = writeMockGraph(datasetSize, graphLevelNodeOffsets);
             long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
             writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetSize, graph, graphLevelNodeOffsets);
         } catch (IOException e) {
@@ -542,50 +468,60 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
             var input = FilterIndexInput.unwrapOnlyTest(in);
 
-            final CuVSMatrix dataset;
             if (numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                     // Direct access to mmapped file
-                    dataset = DatasetUtils.getInstance()
+                    final var dataset = DatasetUtils.getInstance()
                         .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
+
+                    var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType);
+                    try {
+                        generateGpuGraphAndWriteMeta(cuVSResources, fieldInfo, dataset);
+                    } finally {
+                        dataset.close();
+                        cuVSResourceManager.release(cuVSResources);
+                    }
                 } else {
                     logger.debug(
                         () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
                     );
 
-                    // Read vector-by-vector
-                    var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+                    var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType);
+                    try {
+                        // Read vector-by-vector
+                        var builder = CuVSMatrix.deviceBuilder(cuVSResources, numVectors, fieldInfo.getVectorDimension(), dataType);
 
-                    // During merging, we use quantized data, so we need to support byte[] too.
-                    // That's how our current formats work: use floats during indexing, and quantized data to build a graph during merging.
-                    if (dataType == CuVSMatrix.DataType.FLOAT) {
-                        float[] vector = new float[fieldInfo.getVectorDimension()];
-                        for (int i = 0; i < numVectors; ++i) {
-                            input.readFloats(vector, 0, fieldInfo.getVectorDimension());
-                            builder.addVector(vector);
+                        // During merging, we use quantized data, so we need to support byte[] too.
+                        // That's how our current formats work: use floats during indexing, and quantized data to build a graph
+                        // during merging.
+                        if (dataType == CuVSMatrix.DataType.FLOAT) {
+                            float[] vector = new float[fieldInfo.getVectorDimension()];
+                            for (int i = 0; i < numVectors; ++i) {
+                                input.readFloats(vector, 0, fieldInfo.getVectorDimension());
+                                builder.addVector(vector);
+                            }
+                        } else {
+                            assert dataType == CuVSMatrix.DataType.BYTE;
+                            byte[] vector = new byte[fieldInfo.getVectorDimension()];
+                            for (int i = 0; i < numVectors; ++i) {
+                                input.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                                builder.addVector(vector);
+                            }
                         }
-                    } else {
-                        assert dataType == CuVSMatrix.DataType.BYTE;
-                        byte[] vector = new byte[fieldInfo.getVectorDimension()];
-                        for (int i = 0; i < numVectors; ++i) {
-                            input.readBytes(vector, 0, fieldInfo.getVectorDimension());
-                            builder.addVector(vector);
+                        try (var dataset = builder.build()) {
+                            generateGpuGraphAndWriteMeta(cuVSResources, fieldInfo, dataset);
                         }
+                    } finally {
+                        cuVSResourceManager.release(cuVSResources);
                     }
-                    dataset = builder.build();
                 }
             } else {
                 // we don't really need real value for vectors here,
                 // we just build a mock graph where every node is connected to every other node
-                dataset = null;
+                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             }
-            try {
-                writeFieldInternal(fieldInfo, dataset, numVectors);
-            } finally {
-                if (dataset != null) {
-                    dataset.close();
-                }
-            }
+        } catch (Throwable t) {
+            throw new IOException("Failed to merge GPU index: ", t);
         } finally {
             deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
@@ -596,12 +532,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
         final byte bits = 7;
         final Float confidenceInterval = null;
         ScalarQuantizer quantizer = mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval, bits);
-        MergedQuantizedVectorValues byteVectorValues = MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(
-            fieldInfo,
-            mergeState,
-            quantizer
-        );
-        return byteVectorValues;
+        return MergedQuantizedVectorValues.mergeQuantizedByteVectorValues(fieldInfo, mergeState, quantizer);
     }
 
     private static int writeByteVectorValues(IndexOutput out, ByteVectorValues vectorValues) throws IOException {

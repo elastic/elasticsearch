@@ -45,7 +45,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             );
         }
 
-        public void excludeAll(Set<String> expressionsToExclude) {
+        public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
             if (expressionsToExclude.isEmpty() == false) {
                 for (ResolvedIndexExpression prior : expressions) {
                     prior.localExpressions().expressions().removeAll(expressionsToExclude);

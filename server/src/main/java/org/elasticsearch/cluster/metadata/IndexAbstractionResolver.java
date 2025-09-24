@@ -97,7 +97,7 @@ public class IndexAbstractionResolver {
                     resolvedExpressionsBuilder.addLocalExpressions(index, new HashSet<>(), SUCCESS);
                 } else {
                     if (minus) {
-                        resolvedExpressionsBuilder.excludeAll(resolvedIndices);
+                        resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
                     } else {
                         resolvedExpressionsBuilder.addLocalExpressions(index, resolvedIndices, SUCCESS);
                     }
@@ -106,7 +106,7 @@ public class IndexAbstractionResolver {
                 HashSet<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
-                    resolvedExpressionsBuilder.excludeAll(resolvedIndices);
+                    resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
                 } else {
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
                     boolean visible = authorized

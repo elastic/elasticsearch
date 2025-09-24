@@ -32,14 +32,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import static java.lang.Integer.parseInt;
@@ -85,7 +84,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
     }
 
     @Override
-    public void provideAdditionalMetadata(
+    public void provideAdditionalSettings(
         String indexName,
         @Nullable String dataStreamName,
         IndexMode templateIndexMode,
@@ -93,8 +92,8 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings,
-        Settings.Builder additionalSettings,
-        BiConsumer<String, Map<String, String>> additionalCustomMetadata
+        IndexVersion indexVersion,
+        Settings.Builder additionalSettings
     ) {
         assert systemNamePredicate != null : "object is not initialized properly";
         // TODO find a prover way to bypass index template validation
@@ -103,7 +102,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         }
 
         final Settings.Builder indexModeSettingsBuilder = Settings.builder();
-        indexModeSettingsProvider.provideAdditionalMetadata(
+        indexModeSettingsProvider.provideAdditionalSettings(
             indexName,
             dataStreamName,
             templateIndexMode,
@@ -111,8 +110,8 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
             resolvedAt,
             indexTemplateAndCreateRequestSettings,
             combinedTemplateMappings,
-            indexModeSettingsBuilder,
-            additionalCustomMetadata
+            indexVersion,
+            indexModeSettingsBuilder
         );
         Settings indexModeSettings = indexModeSettingsBuilder.build();
 

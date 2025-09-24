@@ -1221,7 +1221,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      * </p>
      */
     public void testInlineStatsNow() throws IOException {
-        assumeTrue("INLINE STATS only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("INLINE STATS only available on snapshots", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(

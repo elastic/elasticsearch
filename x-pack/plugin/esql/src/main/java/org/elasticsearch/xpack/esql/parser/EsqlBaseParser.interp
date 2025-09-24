@@ -21,8 +21,8 @@ null
 'ts'
 'fork'
 null
-null
-null
+'inline'
+'inlinestats'
 'lookup'
 null
 null
@@ -175,8 +175,8 @@ FROM
 TS
 FORK
 DEV_FUSE
-DEV_INLINE
-DEV_INLINESTATS
+INLINE
+INLINESTATS
 JOIN_LOOKUP
 DEV_JOIN_FULL
 DEV_JOIN_LEFT

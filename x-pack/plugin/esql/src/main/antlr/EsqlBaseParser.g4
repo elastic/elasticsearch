@@ -328,9 +328,9 @@ lookupCommand
     ;
 
 inlineStatsCommand
-    : DEV_INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
+    : INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
     // TODO: drop after next minor release
-    | DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    | INLINESTATS stats=aggFields (BY grouping=fields)?
     ;
 
 insistCommand

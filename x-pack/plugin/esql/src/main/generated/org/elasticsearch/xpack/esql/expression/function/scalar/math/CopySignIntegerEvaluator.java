@@ -95,7 +95,9 @@ public final class CopySignIntegerEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        result.appendInt(CopySign.processInteger(magnitudeBlock.getInt(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        int magnitude = magnitudeBlock.getInt(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendInt(CopySign.processInteger(magnitude, sign));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class CopySignIntegerEvaluator implements EvalOperator.ExpressionEv
   public IntVector eval(int positionCount, IntVector magnitudeVector, DoubleVector signVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, CopySign.processInteger(magnitudeVector.getInt(p), signVector.getDouble(p)));
+        int magnitude = magnitudeVector.getInt(p);
+        double sign = signVector.getDouble(p);
+        result.appendInt(p, CopySign.processInteger(magnitude, sign));
       }
       return result.build();
     }

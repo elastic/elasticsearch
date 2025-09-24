@@ -1191,9 +1191,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
          * @param copySecureSettings if <code>true</code> all settings including secure settings are copied.
          */
         public Builder put(Settings settings, boolean copySecureSettings) {
-            Map<String, Object> settingsMap = new HashMap<>(settings.settings);
-            processLegacyLists(settingsMap);
-            map.putAll(settingsMap);
+            map.putAll(settings.settings);
+            processLegacyLists(map);
             if (copySecureSettings && settings.getSecureSettings() != null) {
                 setSecureSettings(settings.getSecureSettings());
             }

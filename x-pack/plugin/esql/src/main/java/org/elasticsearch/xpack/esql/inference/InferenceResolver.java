@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -30,13 +32,16 @@ public class InferenceResolver {
 
     private final Client client;
 
+    private final ThreadPool threadPool;
+
     /**
      * Constructs a new {@code InferenceResolver}.
      *
      * @param client The Elasticsearch client for executing inference deployment lookups
      */
-    public InferenceResolver(Client client) {
+    public InferenceResolver(Client client, ThreadPool threadPool) {
         this.client = client;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -101,21 +106,21 @@ public class InferenceResolver {
 
         final CountDownActionListener countdownListener = new CountDownActionListener(
             inferenceIds.size(),
-            ActionListener.wrap(_r -> listener.onResponse(inferenceResolutionBuilder.build()), listener::onFailure)
+            listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(inferenceResolutionBuilder.build()))
         );
 
         for (var inferenceId : inferenceIds) {
             client.execute(
                 GetInferenceModelAction.INSTANCE,
                 new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
-                ActionListener.wrap(r -> {
+                new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), ActionListener.wrap(r -> {
                     ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
                     inferenceResolutionBuilder.withResolvedInference(resolvedInference);
                     countdownListener.onResponse(null);
                 }, e -> {
                     inferenceResolutionBuilder.withError(inferenceId, e.getMessage());
                     countdownListener.onResponse(null);
-                })
+                }))
             );
         }
     }
@@ -145,18 +150,20 @@ public class InferenceResolver {
     }
 
     public static Factory factory(Client client) {
-        return new Factory(client);
+        return new Factory(client, client.threadPool());
     }
 
     public static class Factory {
         private final Client client;
+        private final ThreadPool threadPool;
 
-        private Factory(Client client) {
+        private Factory(Client client, ThreadPool threadPool) {
             this.client = client;
+            this.threadPool = threadPool;
         }
 
         public InferenceResolver create() {
-            return new InferenceResolver(client);
+            return new InferenceResolver(client, threadPool);
         }
     }
 }

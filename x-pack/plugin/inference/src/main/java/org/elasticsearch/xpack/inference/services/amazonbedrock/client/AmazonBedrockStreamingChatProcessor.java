@@ -151,7 +151,7 @@ class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStre
         }
 
         private void requestOnMlThread(long n) {
-            var currentThreadPool = EsExecutors.executorName(Thread.currentThread().getName());
+            var currentThreadPool = EsExecutors.executorName(Thread.currentThread());
             if (UTILITY_THREAD_POOL_NAME.equalsIgnoreCase(currentThreadPool)) {
                 upstream.request(n);
             } else {

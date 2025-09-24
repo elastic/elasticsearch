@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,7 +26,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
  * Implementation of bulk inference execution with throttling and concurrency control.
@@ -88,7 +88,7 @@ public class BulkInferenceRunner {
     public BulkInferenceRunner(Client client, int maxRunningTasks) {
         this.permits = new Semaphore(maxRunningTasks);
         this.client = client;
-        this.executor = client.threadPool().executor(ESQL_WORKER_THREAD_POOL_NAME);
+        this.executor = client.threadPool().executor(ThreadPool.Names.SEARCH);
     }
 
     /**
@@ -99,7 +99,7 @@ public class BulkInferenceRunner {
      */
     public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
         List<InferenceAction.Response> responses = new ArrayList<>();
-        executeBulk(requests, responses::add, ActionListener.wrap(ignored -> listener.onResponse(responses), listener::onFailure));
+        executeBulk(requests, responses::add, listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(responses)));
     }
 
     /**
@@ -253,48 +253,51 @@ public class BulkInferenceRunner {
                             executionState.finish();
                         }
 
-                        final ActionListener<InferenceAction.Response> inferenceResponseListener = ActionListener.runAfter(
-                            ActionListener.wrap(
-                                r -> executionState.onInferenceResponse(bulkRequestItem.seqNo(), r),
-                                e -> executionState.onInferenceException(bulkRequestItem.seqNo(), e)
-                            ),
-                            () -> {
-                                // Release the permit we used
-                                permits.release();
+                        final ActionListener<InferenceAction.Response> inferenceResponseListener = new ThreadedActionListener<>(
+                            executor,
+                            ActionListener.runAfter(
+                                ActionListener.wrap(
+                                    r -> executionState.onInferenceResponse(bulkRequestItem.seqNo(), r),
+                                    e -> executionState.onInferenceException(bulkRequestItem.seqNo(), e)
+                                ),
+                                () -> {
+                                    // Release the permit we used
+                                    permits.release();
 
-                                try {
-                                    synchronized (executionState) {
-                                        persistPendingResponses();
-                                    }
-
-                                    if (executionState.finished() && responseSent.compareAndSet(false, true)) {
-                                        onBulkCompletion();
-                                    }
-
-                                    if (responseSent.get()) {
-                                        // Response has already been sent
-                                        // No need to continue processing this bulk.
-                                        // Check if another bulk request is pending for execution.
-                                        BulkInferenceRequest nexBulkRequest = pendingBulkRequests.poll();
-                                        if (nexBulkRequest != null) {
-                                            executor.execute(nexBulkRequest::executePendingRequests);
+                                    try {
+                                        synchronized (executionState) {
+                                            persistPendingResponses();
                                         }
-                                        return;
-                                    }
-                                    if (executionState.finished() == false) {
-                                        // Execute any pending requests if any
-                                        if (recursionDepth > 100) {
-                                            executor.execute(this::executePendingRequests);
-                                        } else {
-                                            this.executePendingRequests(recursionDepth + 1);
+
+                                        if (executionState.finished() && responseSent.compareAndSet(false, true)) {
+                                            onBulkCompletion();
                                         }
-                                    }
-                                } catch (Exception e) {
-                                    if (responseSent.compareAndSet(false, true)) {
-                                        completionListener.onFailure(e);
+
+                                        if (responseSent.get()) {
+                                            // Response has already been sent
+                                            // No need to continue processing this bulk.
+                                            // Check if another bulk request is pending for execution.
+                                            BulkInferenceRequest nexBulkRequest = pendingBulkRequests.poll();
+                                            if (nexBulkRequest != null) {
+                                                executor.execute(nexBulkRequest::executePendingRequests);
+                                            }
+                                            return;
+                                        }
+                                        if (executionState.finished() == false) {
+                                            // Execute any pending requests if any
+                                            if (recursionDepth > 100) {
+                                                executor.execute(this::executePendingRequests);
+                                            } else {
+                                                this.executePendingRequests(recursionDepth + 1);
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        if (responseSent.compareAndSet(false, true)) {
+                                            completionListener.onFailure(e);
+                                        }
                                     }
                                 }
-                            }
+                            )
                         );
 
                         // Handle null requests (edge case in some iterators)

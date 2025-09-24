@@ -1,0 +1,5 @@
+pr: 135096
+summary: Tolerate mixed types in datafeed stats sort
+area: Machine Learning
+type: bug
+issues: []

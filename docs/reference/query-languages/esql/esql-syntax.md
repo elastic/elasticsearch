@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Basic syntax"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-syntax.html

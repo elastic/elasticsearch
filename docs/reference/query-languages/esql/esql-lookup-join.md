@@ -1,4 +1,7 @@
 ---
+applies_to:
+   stack: preview 9.0, ga 9.1
+   serverless: ga
 navigation_title: "Join data with LOOKUP JOIN"
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html

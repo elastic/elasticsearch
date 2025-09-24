@@ -90,6 +90,7 @@ setup:
   - set: { esql.functions.to_long: functions_to_long }
   - set: { esql.functions.coalesce: functions_coalesce }
   - set: { esql.functions.categorize: functions_categorize }
+  - set: {esql.functions.text_embedding: functions_text_embedding}
 
   - do:
       esql.query:
@@ -133,6 +134,7 @@ setup:
   - gt: { esql.functions.to_long: $functions_to_long }
   - match: { esql.functions.coalesce: $functions_coalesce }
   - gt: { esql.functions.categorize: $functions_categorize }
+  - match: {esql.functions.text_embedding: $functions_text_embedding}
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - exists: esql.functions.delay

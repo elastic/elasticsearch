@@ -47,7 +47,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BIT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,15 +107,13 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             )
         );
 
-        if (IVF_FORMAT.isEnabled()) {
-            options.add(
-                new DenseVectorFieldMapper.BBQIVFIndexOptions(
-                    randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
-                    randomFloatBetween(0.0f, 100.0f, true),
-                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-                )
-            );
-        }
+        options.add(
+            new DenseVectorFieldMapper.BBQIVFIndexOptions(
+                randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                randomFloatBetween(0.0f, 100.0f, true),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            )
+        );
 
         return randomFrom(options);
     }
@@ -253,7 +250,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(queryVector),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -297,7 +294,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 vectorData,
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -316,7 +313,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 vectorData,
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -395,7 +392,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(new float[] { 0.3f, 0.1f, 1.0f, 0.0f }),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -427,7 +424,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(queryVector),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -455,7 +452,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(new float[BBQ_MIN_DIMS]),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -488,7 +485,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(queryVector),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -531,7 +528,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 vectorData,
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -565,7 +562,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(new float[] { 0.3f, 0.1f, 1.0f }),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -593,7 +590,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(new float[] { 0.0f, 0.0f, 0.0f }),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -610,7 +607,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 new VectorData(null, new byte[] { 0, 0, 0 }),
                 10,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null,
                 null,
@@ -640,7 +637,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new VectorData(null, new byte[] { 1, 4, 10 }),
             10,
             100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
+            10f,
             randomFloatBetween(1.0F, 10.0F, false),
             null,
             null,
@@ -690,20 +687,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Total results is k, internal k is multiplied by oversample
-        checkRescoreQueryParameters(fieldType, 10, 200, IVF_FORMAT.isEnabled() ? 10f : null, 2.5F, 25, 200, 10);
+        checkRescoreQueryParameters(fieldType, 10, 200, 10f, 2.5F, 25, 200, 10);
         // If numCands < k, update numCands to k
-        checkRescoreQueryParameters(fieldType, 10, 20, IVF_FORMAT.isEnabled() ? 10f : null, 2.5F, 25, 25, 10);
+        checkRescoreQueryParameters(fieldType, 10, 20, 10f, 2.5F, 25, 25, 10);
         // Oversampling limits for k
-        checkRescoreQueryParameters(
-            fieldType,
-            1000,
-            1000,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            11.0F,
-            OVERSAMPLE_LIMIT,
-            OVERSAMPLE_LIMIT,
-            1000
-        );
+        checkRescoreQueryParameters(fieldType, 1000, 1000, 10f, 11.0F, OVERSAMPLE_LIMIT, OVERSAMPLE_LIMIT, 1000);
     }
 
     public void testRescoreOversampleQueryOverrides() {
@@ -723,7 +711,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorData.fromFloats(new float[] { 1, 4, 10 }),
             10,
             100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
+            10f,
             0f,
             null,
             null,
@@ -753,7 +741,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorData.fromFloats(new float[] { 1, 4, 10 }),
             10,
             100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
+            10f,
             2f,
             null,
             null,
@@ -794,7 +782,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 VectorData.fromFloats(new float[] { 1, 4, 10 }),
                 10,
                 100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 0f,
                 null,
                 null,
@@ -811,7 +799,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                     VectorData.fromFloats(new float[] { 1, 4, 10 }),
                     10,
                     100,
-                    IVF_FORMAT.isEnabled() ? 10f : null,
+                    10f,
                     0f,
                     null,
                     null,

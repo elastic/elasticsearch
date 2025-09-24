@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -50,14 +49,9 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
 
     @Override
     protected KnnVectorQueryBuilder createQueryBuilder(String field) {
-        return new KnnVectorQueryBuilder(
-            field,
-            new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"),
-            30,
-            200,
-            IVF_FORMAT.isEnabled() ? 30f : null,
-            0.2f
-        ).boost(randomFloatBetween(0.1f, 4.0f, true))
+        return new KnnVectorQueryBuilder(field, new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"), 30, 200, 30f, 0.2f).boost(
+            randomFloatBetween(0.1f, 4.0f, true)
+        )
             .queryName(randomAlphanumericOfLength(5))
             .addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, randomAlphanumericOfLength(5)));
     }
@@ -158,7 +152,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"),
             50,
             500,
-            IVF_FORMAT.isEnabled() ? 50f : null,
+            50f,
             null
         ).boost(3.0f).queryName("bar").addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, "test-index-*"));
 

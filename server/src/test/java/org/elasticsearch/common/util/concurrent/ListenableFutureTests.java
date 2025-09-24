@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Assert;
@@ -82,7 +83,7 @@ public class ListenableFutureTests extends ESTestCase {
             "testConcurrentListenerRegistrationAndCompletion",
             numberOfThreads,
             1000,
-            EsExecutors.daemonThreadFactory("listener"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("listener"),
             threadContext,
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
@@ -157,7 +158,7 @@ public class ListenableFutureTests extends ESTestCase {
             "testRejection",
             1,
             1,
-            EsExecutors.daemonThreadFactory("testRejection"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("testRejection"),
             threadContext,
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

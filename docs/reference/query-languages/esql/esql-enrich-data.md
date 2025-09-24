@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack:
+  stack: ga
   serverless: unavailable
 navigation_title: "Combine data with ENRICH"
 mapped_pages:

@@ -2988,12 +2988,12 @@ required_capability: std_dev
 FROM employees
 | STATS std_dev_height = STD_DEV(height)
 // end::stdev[]
-| EVAL std_dev_height = ROUND(std_dev_height, 10)
+| EVAL std_dev_height = ROUND(std_dev_height, 7)
 ;
 
 // tag::stdev-result[]
 std_dev_height:double
-0.2063704436
+0.2063704
 // end::stdev-result[]
 ;
 
@@ -3003,12 +3003,12 @@ required_capability: std_dev
 FROM employees
 | STATS stddev_salary_change = STD_DEV(MV_MAX(salary_change))
 // end::docsStatsStdDevNestedExpression[]
-| EVAL stddev_salary_change = ROUND(stddev_salary_change, 10)
+| EVAL stddev_salary_change = ROUND(stddev_salary_change, 5)
 ;
 
 // tag::docsStatsStdDevNestedExpression-result[]
 stddev_salary_change:double
-6.8758295929
+6.87583
 // end::docsStatsStdDevNestedExpression-result[]
 ;
 
@@ -3017,22 +3017,22 @@ stdDeviationWithLongs
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(avg_worked_seconds)
-| EVAL std_dev = ROUND(std_dev, 10)
+| EVAL std_dev = ROUND(std_dev, 0)
 ;
 
 std_dev:double
-5.76010425971634E7
+5.7601043E7
 ;
 
 stdDeviationWithInts
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(salary)
-| EVAL std_dev = ROUND(std_dev, 9)
+| EVAL std_dev = ROUND(std_dev, 5)
 ;
 
 std_dev:double
-13765.125502788
+13765.1255
 ;
 
 stdDeviationConstantValue
@@ -3050,18 +3050,18 @@ stdDeviationGroupedDoublesOnly
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(height) BY languages
-| EVAL std_dev = ROUND(std_dev, 10)
+| EVAL std_dev = ROUND(std_dev, 5)
 | SORT languages asc
 | KEEP std_dev, languages
 ;
 
 std_dev:double | languages:integer
-0.2210640933   | 1
-0.2279719087   | 2
-0.1889307008   | 3
-0.14656141     | 4
-0.1773386015   | 5
-0.2486543786   | null
+0.22106        | 1
+0.22797        | 2
+0.18893        | 3
+0.14656        | 4
+0.17734        | 5
+0.24865        | null
 ;
 
 stdDeviationGroupedAllTypes
@@ -3073,14 +3073,14 @@ FROM employees
     int_std_dev = STD_DEV(salary),
     long_std_dev = STD_DEV(avg_worked_seconds)
   BY languages
-| EVAL double_std_dev = ROUND(double_std_dev, 10), int_std_dev = ROUND(int_std_dev, 10), long_std_dev = ROUND(long_std_dev, 10)
+| EVAL double_std_dev = ROUND(double_std_dev, 5), int_std_dev = ROUND(int_std_dev, 5), long_std_dev = ROUND(long_std_dev, 5)
 | SORT languages asc
 | KEEP double_std_dev, int_std_dev, long_std_dev, languages
 ;
 
-double_std_dev:double | int_std_dev:double | long_std_dev:double  | languages:integer
-0.2210640933          | 15166.2441787309   | 5.1998715922156096E7 | 1
-0.2279719087          | 12139.6109937812   | 5.309085506583288E7  | 2
+double_std_dev:double | int_std_dev:double | long_std_dev:double | languages:integer
+0.22106               | 15166.24418        | 5.199871592216E7    | 1
+0.22797               | 12139.61099        | 5.309085506583E7    | 2
 ;
 
 stdDeviationNoRows
@@ -3098,11 +3098,11 @@ stdDevMultiValue
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(salary_change)
-| EVAL std_dev = ROUND(std_dev, 10)
+| EVAL std_dev = ROUND(std_dev, 5)
 ;
 
 std_dev:double
-7.0622267887
+7.06223
 ;
 
 stdDevFilter
@@ -3112,28 +3112,28 @@ FROM employees
 , less_than = STD_DEV(salary_change) WHERE languages <= 3
 , salary = STD_DEV(salary * 2)
 , count = COUNT(*) BY gender
-| EVAL greater_than = ROUND(greater_than, 10)
-, less_than = ROUND(less_than, 10)
-, salary = ROUND(salary, 10)
+| EVAL greater_than = ROUND(greater_than, 5)
+, less_than = ROUND(less_than, 5)
+, salary = ROUND(salary, 5)
 | SORT gender asc
 | KEEP greater_than, less_than, salary, count, gender
 ;
 
-greater_than:double | less_than:double | salary:double    | count:long | gender:keyword
-6.4543266953        | 7.5778678879     | 29045.7706669697 | 33         | F
-6.9752323339        | 6.6048070755     | 26171.3311096413 | 57         | M
-6.9492070979        | 7.1272294758     | 27921.2207362071 | 10         | null
+greater_than:double | less_than:double | salary:double | count:long | gender:keyword
+6.45433             | 7.57787          | 29045.77067   | 33         | F
+6.97523             | 6.60481          | 26171.33111   | 57         | M
+6.94921             | 7.12723          | 27921.22074   | 10         | null
 ;
 
 stdDevRow
 required_capability: std_dev
 ROW a = [1,2,3], b = 5
 | STATS std_dev_a = STD_DEV(a), std_dev_b = STD_DEV(b)
-| EVAL std_dev_a = ROUND(std_dev_a, 10), std_dev_b = ROUND(std_dev_b, 10)
+| EVAL std_dev_a = ROUND(std_dev_a, 5), std_dev_b = ROUND(std_dev_b, 5)
 ;
 
 std_dev_a:double | std_dev_b:double
-0.8164965809     | 0.0
+0.8165           | 0.0
 ;
 
 resolveGroupingsBeforeResolvingImplicitReferencesToGroupings

@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -90,7 +91,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             "test",
             1,
             10,
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );

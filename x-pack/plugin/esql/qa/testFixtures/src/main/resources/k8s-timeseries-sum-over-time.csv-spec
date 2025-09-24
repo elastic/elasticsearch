@@ -220,17 +220,13 @@ sum:long | pod:keyword | time_bucket:datetime
 
 sum_over_time_nested_expression_in_grouping_with_alias
 required_capability: ts_command_v0
-TS k8s | STATS min = min(sum_over_time(network.bytes_in)) by rx = (network.eth0.rx + 2000), time_bucket = bucket(@timestamp, 1minute) | SORT rx desc, time_bucket  | LIMIT 10;
+TS k8s | STATS min = min(sum_over_time(network.bytes_in)) by time_bucket = bucket(date_trunc(2 minutes, @timestamp), 5 minutes) | SORT time_bucket  | LIMIT 10;
 
-min:long | rx:long | time_bucket:datetime
-1114     | 3398    | 2024-05-10T00:21:00.000Z
-206      | 3398    | 2024-05-10T00:22:00.000Z
-1114     | 3300    | 2024-05-10T00:21:00.000Z
-936      | 3262    | 2024-05-10T00:18:00.000Z
-936      | 3206    | 2024-05-10T00:18:00.000Z
-936      | 3205    | 2024-05-10T00:18:00.000Z
-1583     | 3167    | 2024-05-10T00:17:00.000Z
-913      | 3141    | 2024-05-10T00:20:00.000Z
-72       | 3122    | 2024-05-10T00:22:00.000Z
-1583     | 3120    | 2024-05-10T00:17:00.000Z
+
+min:long | time_bucket:datetime
+6160     | 2024-05-10T00:00:00.000Z
+6160     | 2024-05-10T00:05:00.000Z
+6160     | 2024-05-10T00:10:00.000Z
+6160     | 2024-05-10T00:15:00.000Z
+6160     | 2024-05-10T00:20:00.000Z
 ;

@@ -58,7 +58,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -1371,10 +1370,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     // Wait for global checkpoint to stabilize first to avoid it changing while sync() is in progress.
                     assertBusy(() -> assertEquals(indexShard.getLocalCheckpoint(), indexShard.getLastKnownGlobalCheckpoint()));
                     indexShard.sync();
-                    assertThat(
-                        indexShard.getLastSyncedGlobalCheckpoint(),
-                        equalTo(indexShard.getLastKnownGlobalCheckpoint())
-                    );
+                    assertThat(indexShard.getLastSyncedGlobalCheckpoint(), equalTo(indexShard.getLastKnownGlobalCheckpoint()));
                 }
             }
         }

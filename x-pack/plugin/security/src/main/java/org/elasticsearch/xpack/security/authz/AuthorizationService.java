@@ -554,7 +554,10 @@ public class AuthorizationService {
                                 crossProjectSearchAuthzService.loadAuthorizedProjects(new ActionListener<>() {
                                     @Override
                                     public void onResponse(AuthorizedProjects authorizedProjects) {
-
+                                        logger.debug("Loaded authorized projects: [{}]", authorizedProjects);
+                                        resolvedIndicesListener.onResponse(
+                                            indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
+                                        );
                                     }
 
                                     @Override

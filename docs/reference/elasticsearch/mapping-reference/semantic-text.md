@@ -99,10 +99,6 @@ PUT my-index-000001
 
 ::::::{tab-item} Using the default ELSER endpoint
 
-```{applies_to}
-stack: ga 9.2
-```
-
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
 
 ```console
@@ -124,8 +120,7 @@ PUT my-index-000001
 
 ### Using a custom endpoint
 
-To use a custom {{infer}} endpoint instead of the default
-`.elser-2-elasticsearch`, you
+To use a custom {{infer}} endpoint instead of the default, you
 must [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 and specify its `inference_id` when setting up the `semantic_text` field type.
 
@@ -171,13 +166,44 @@ PUT my-index-000003
 
 ```{applies_to}
 stack: preview 9.1 ga 9.2
-deploymen:
+deployment:
   self: unavailable
 serverless: ga
 ```
 
 If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic Inference Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
 set up `semantic_text` with the following API request:
+
+:::::::{tab-set}
+
+::::::{tab-item} Using ELSER on EIS on Serverless
+
+```{applies_to}
+serverless: ga
+```
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+::::::{tab-item} Using ELSER on EIS in Cloud
+
+```{applies_to}
+stack: ga 9.2
+deployment:
+  self: unavailable
+```
 
 ```console
 PUT my-index-000001
@@ -192,6 +218,10 @@ PUT my-index-000001
   }
 }
 ```
+
+::::::
+
+:::::::
 
 ## Parameters for `semantic_text` fields [semantic-text-params]
 

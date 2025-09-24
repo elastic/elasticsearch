@@ -21,12 +21,6 @@ public final class OsUtils {
 
     private static final Logger LOGGER = Logging.getLogger(OsUtils.class);
 
-    static {
-        // Trigger static initialization of OS class
-        OS current = OS.current();
-        LOGGER.debug("Detected operating system: {}", current);
-    }
-
     private OsUtils() {}
 
     /**

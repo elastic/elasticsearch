@@ -567,18 +567,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/135055
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:stats.StdDevFilter}
-  issue: https://github.com/elastic/elasticsearch/issues/135100
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:inlinestats.StdDevFilter}
-  issue: https://github.com/elastic/elasticsearch/issues/135101
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:stats.StdDeviationWithLongs}
-  issue: https://github.com/elastic/elasticsearch/issues/135102
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:stats.StdDeviationGroupedAllTypes}
-  issue: https://github.com/elastic/elasticsearch/issues/135103
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkWithStats}
   issue: https://github.com/elastic/elasticsearch/issues/135116
@@ -612,45 +600,21 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/135260
-- class: org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT
-  method: testUsage {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135312
-- class: org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testLogsIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/135313
-- class: org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testLogsIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135314
-- class: org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testLogsIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135315
-- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
-  method: testUsage {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135316
-- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
-  method: testUsage {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135319
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135320
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135238
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135237
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text single unified from reanalysis}
   issue: https://github.com/elastic/elasticsearch/issues/135323
-- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
+  method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
+  issue: https://github.com/elastic/elasticsearch/issues/135333
+- class: org.elasticsearch.search.sort.FieldSortIT
+  method: testSortMixedFieldTypes
+  issue: https://github.com/elastic/elasticsearch/issues/129445
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
   method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135324
-- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/135338
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
   method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135325
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135327
+  issue: https://github.com/elastic/elasticsearch/issues/135344
 
 # Examples:
 #

@@ -17,7 +17,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Types;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.geometry.Geometry;
@@ -361,8 +360,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
             if (value instanceof Map<?, ?> map) {
-                return ExponentialHistogramXContent.parseForTesting(Types.<Map<String,Object>>forciblyCast(map));
-            } if (value instanceof String json) {
+                return ExponentialHistogramXContent.parseForTesting(Types.<Map<String, Object>>forciblyCast(map));
+            }
+            if (value instanceof String json) {
                 try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
                     return ExponentialHistogramXContent.parseForTesting(parser);
                 } catch (IOException e) {

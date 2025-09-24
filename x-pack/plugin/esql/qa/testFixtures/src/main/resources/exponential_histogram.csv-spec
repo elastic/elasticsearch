@@ -2,6 +2,7 @@ loadAll
 
 FROM exp_histo_sample | KEEP histo
 ;
+ignoreOrder:true
 
 histo:exponential_histogram
 "{""scale"":-7}"
@@ -17,6 +18,7 @@ loadFiltered
 
 from exp_histo_sample | WHERE STARTS_WITH(name, "zero_") | KEEP name, histo
 ;
+ignoreOrder:true
 
 name:keyword | histo:exponential_histogram
 zero_threshold_only | "{""scale"":0}"

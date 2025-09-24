@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -188,7 +189,7 @@ public class Delta$Type$Aggregator {
                         values.appendNull();
                     }
                 }
-                blocks[offset] = samples.asBlock();
+                blocks[offset] = samples.build().asBlock();
                 blocks[offset + 1] = timestamps.build();
                 blocks[offset + 2] = values.build();
             }

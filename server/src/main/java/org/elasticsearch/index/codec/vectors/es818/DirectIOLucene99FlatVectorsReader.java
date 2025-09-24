@@ -22,7 +22,6 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
-import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
 import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
@@ -36,9 +35,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
-import org.apache.lucene.search.ConjunctionUtils;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -48,12 +44,10 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.RescorableVectorValues;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
@@ -209,18 +203,15 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.FLOAT32);
-        return new RescorerOffHeapVectorValues(
-            OffHeapFloatVectorValues.load(
-                fieldEntry.similarityFunction,
-                vectorScorer,
-                fieldEntry.ordToDoc,
-                fieldEntry.vectorEncoding,
-                fieldEntry.dimension,
-                fieldEntry.vectorDataOffset,
-                fieldEntry.vectorDataLength,
-                vectorData
-            ),
-            fieldEntry.similarityFunction
+        return new OffHeapFloatVectorValues.load(
+            fieldEntry.similarityFunction,
+            vectorScorer,
+            fieldEntry.ordToDoc,
+            fieldEntry.vectorEncoding,
+            fieldEntry.dimension,
+            fieldEntry.vectorDataOffset,
+            fieldEntry.vectorDataLength,
+            vectorData
         );
     }
 
@@ -354,118 +345,6 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
             final var size = input.readInt();
             final var ordToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(input, size);
             return new FieldEntry(similarityFunction, vectorEncoding, vectorDataOffset, vectorDataLength, dimension, size, ordToDoc, info);
-        }
-    }
-
-    static class RescorerOffHeapVectorValues extends FloatVectorValues implements RescorableVectorValues {
-
-        VectorSimilarityFunction similarityFunction;
-        FloatVectorValues inner;
-        IndexInput inputSlice;
-
-        RescorerOffHeapVectorValues(FloatVectorValues inner, VectorSimilarityFunction similarityFunction) {
-            this.inner = inner;
-            if (inner instanceof HasIndexSlice slice) {
-                this.inputSlice = slice.getSlice();
-            } else {
-                this.inputSlice = null;
-            }
-            this.inputSlice = inputSlice;
-            this.similarityFunction = similarityFunction;
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return inner.vectorValue(ord);
-        }
-
-        @Override
-        public int dimension() {
-            return inner.dimension();
-        }
-
-        @Override
-        public int size() {
-            return inner.size();
-        }
-
-        @Override
-        public RescorerOffHeapVectorValues copy() throws IOException {
-            return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction);
-        }
-
-        @Override
-        public VectorReScorer rescorer(float[] target) throws IOException {
-            DocIndexIterator indexIterator = inner.iterator();
-            return new VectorReScorer() {
-                @Override
-                public DocIdSetIterator iterator() {
-                    return indexIterator;
-                }
-
-                @Override
-                public Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
-                    DocIdSetIterator conjunctionScorer = ConjunctionUtils.intersectIterators(List.of(matchingDocs, indexIterator));
-                    if (conjunctionScorer.docID() == -1) {
-                        conjunctionScorer.nextDoc();
-                    }
-                    long byteSize = (long) dimension() * Float.BYTES;
-                    return (nextCount, liveDocs, buffer) -> {
-                        buffer.growNoCopy(nextCount);
-                        int size = 0;
-                        for (int doc = conjunctionScorer.docID(); doc != DocIdSetIterator.NO_MORE_DOCS && size < nextCount; doc =
-                            conjunctionScorer.nextDoc()) {
-                            if (liveDocs == null || liveDocs.get(doc)) {
-                                buffer.docs[size++] = indexIterator.index();
-                            }
-                        }
-                        int bulkSize = 32;
-                        int loopBound = size - (size % bulkSize);
-                        int i = 0;
-                        float maxScore = Float.NEGATIVE_INFINITY;
-                        for (; i < loopBound; i += bulkSize) {
-                            for (int j = 0; j < bulkSize; j++) {
-                                long ord = buffer.docs[i + j];
-                                inputSlice.prefetch(ord * byteSize, byteSize);
-                            }
-                            for (int j = 0; j < bulkSize; j++) {
-                                float[] vector = inner.vectorValue(buffer.docs[i + j]);
-                                assert inputSlice.getFilePointer() == (buffer.docs[i + j] + 1l) * byteSize
-                                    : "file pointer mismatch at doc="
-                                        + buffer.docs[i + j]
-                                        + " fp="
-                                        + inputSlice.getFilePointer()
-                                        + " expected="
-                                        + ((buffer.docs[i + j] + 1l) * byteSize);
-                                buffer.features[i + j] = similarityFunction.compare(vector, target);
-                                if (buffer.features[i + j] > maxScore) {
-                                    maxScore = buffer.features[i + j];
-                                }
-                                buffer.docs[i + j] = inner.ordToDoc(buffer.docs[i + j]);
-                            }
-                        }
-                        for (int j = i; j < size; j++) {
-                            long ord = buffer.docs[j];
-                            inputSlice.prefetch(ord * byteSize, byteSize);
-                        }
-                        for (; i < size; i++) {
-                            float[] vector = inner.vectorValue(buffer.docs[i]);
-                            buffer.features[i] = similarityFunction.compare(vector, target);
-                            if (buffer.features[i] > maxScore) {
-                                maxScore = buffer.features[i];
-                            }
-                            buffer.docs[i] = inner.ordToDoc(buffer.docs[i]);
-                        }
-                        buffer.size = size;
-                        return maxScore;
-                    };
-                }
-            };
-        }
-
-        @Override
-        public VectorScorer scorer(float[] target) throws IOException {
-            return inner.scorer(target);
         }
     }
 }

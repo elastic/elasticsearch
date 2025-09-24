@@ -75,7 +75,6 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -639,9 +638,9 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     /**
-     * Tests the case where totalShardCount == 0 during cluster health calculation.
-     * This happens when indices exist in metadata but their routing tables are missing,
-     * causing totalShardCount to remain 0 and triggering the division by zero fix.
+     * Tests the case where indices exist in metadata but their routing tables are missing.
+     * This happens during cluster restart where metadata is loaded but routing table is not yet built.
+     * All shards should be considered completely unassigned and the cluster should be RED.
      */
     public void testActiveShardsPercentDuringClusterRestart() {
         final String indexName = "test-idx";
@@ -661,7 +660,6 @@ public class ClusterStateHealthTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
             .metadata(mdBuilder.build())
             .routingTable(rtBuilder.build())
-            // Add global block to force RED status while keeping totalShardCount == 0
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(new ClusterBlock(1, "test", true, true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL))
@@ -671,13 +669,30 @@ public class ClusterStateHealthTests extends ESTestCase {
         String[] concreteIndices = new String[] { indexName };
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, projectId);
 
-        assertThat(clusterStateHealth.getStatus(), not(equalTo(ClusterHealthStatus.GREEN)));
+        // The cluster should be RED because all shards are unassigned
+        assertThat(clusterStateHealth.getStatus(), equalTo(ClusterHealthStatus.RED));
 
+        // All shards are unassigned, so activeShardsPercent should be 0.0
         assertThat(
-            "activeShardsPercent should be 0.0 when totalShardCount is 0",
+            "activeShardsPercent should be 0.0 when all shards are unassigned",
             clusterStateHealth.getActiveShardsPercent(),
             equalTo(0.0)
         );
+
+        // Verify that totalShardCount is correctly calculated
+        int expectedTotalShards = indexMetadata.getTotalNumberOfShards();
+        assertThat("All shards should be counted as unassigned", clusterStateHealth.getUnassignedShards(), equalTo(expectedTotalShards));
+
+        // All primary shards should be unassigned
+        assertThat(
+            "All primary shards should be unassigned",
+            clusterStateHealth.getUnassignedPrimaryShards(),
+            equalTo(indexMetadata.getNumberOfShards())
+        );
+
+        // No active shards
+        assertThat(clusterStateHealth.getActiveShards(), equalTo(0));
+        assertThat(clusterStateHealth.getActivePrimaryShards(), equalTo(0));
     }
 
     private void assertClusterHealth(ClusterStateHealth clusterStateHealth, RoutingTableGenerator.ShardCounter counter) {

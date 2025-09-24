@@ -8,16 +8,20 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,8 +43,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
 
         // grouping references
         List<Alias> groupingAlias = new ArrayList<>();
-        // TODO: replace this with AttributeSet
-        Map<String, ReferenceAttribute> groupingRefs = new LinkedHashMap<>();
+        AttributeSet.Builder groupingRefs = AttributeSet.builder();
 
         // perform only one iteration that does two things
         // first checks any aggregate that declares expressions inside the grouping
@@ -50,7 +53,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
                 // collect references
                 for (Expression g : aggregate.groupings()) {
                     if (g instanceof ReferenceAttribute ref) {
-                        groupingRefs.put(ref.name(), ref);
+                        groupingRefs.add(ref);
                     }
                 }
             }
@@ -65,7 +68,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
                 List<Alias> remainingEvals = new ArrayList<>(fields.size());
                 for (Alias f : fields) {
                     // TODO: look into identifying refs by their NameIds instead
-                    if (groupingRefs.remove(f.name()) != null) {
+                    if (groupingRefs.remove(f.toAttribute())) {
                         groupingAlias.add(f);
                     } else {
                         remainingEvals.add(f);
@@ -82,6 +85,56 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         // copy found evals on the left side
         if (groupingAlias.size() > 0) {
             left = new Eval(plan.source(), plan.left(), groupingAlias);
+        }
+
+        // check if any DATE_FORMAT has been optimized into DATE_TRUNC by ReplaceAggregateNestedExpressionWithEval
+        List<Attribute> leftFields = plan.config().leftFields();
+        List<Attribute> rightFields = plan.config().rightFields();
+        AttributeSet.Builder shadowing = AttributeSet.builder();
+        for (Alias a : groupingAlias) {
+            if (rightFields.contains(a.toAttribute()) == false) {
+                shadowing.add(a.toAttribute());
+            }
+        }
+        if (shadowing.isEmpty() == false && right instanceof Project project) {
+            AttributeSet.Builder builder = AttributeSet.builder();
+            builder.addAll(project.output());
+            AttributeSet projectOutput = builder.build();
+
+            if (project.child() instanceof Eval eval && projectOutput.containsAll(leftFields)) {
+                Map<Attribute, Attribute> replacements = new HashMap<>();
+
+                for (Alias f : eval.fields()) {
+                    if (f.child() instanceof DateFormat df && shadowing.remove(df.field())) {
+                        Attribute original = (Attribute) df.field();
+                        Attribute aliasAttr = f.toAttribute();
+                        replacements.put(original, aliasAttr);
+
+                        // Replace aliasAttr with original in rightFields
+                        int rIndex = rightFields.indexOf(aliasAttr);
+                        if (rIndex >= 0) rightFields.set(rIndex, original);
+
+                        // Replace aliasAttr with original in leftFields
+                        int lIndex = leftFields.indexOf(aliasAttr);
+                        if (lIndex >= 0) leftFields.set(lIndex, original);
+                    }
+                }
+
+                // If all shadowing attributes are handled
+                if (shadowing.isEmpty()) {
+                    right = eval.child();
+
+                    List<Attribute> output = plan.output();
+                    output.replaceAll(attr -> replacements.getOrDefault(attr, attr));
+
+                    LogicalPlan join = plan.replaceChildren(
+                        left,
+                        InlineJoin.replaceStub(new StubRelation(right.source(), left.output()), right)
+                    );
+                    LogicalPlan evalPlan = eval.replaceChild(join);
+                    return new Project(evalPlan.source(), evalPlan, output);
+                }
+            }
         }
 
         // replace the old stub with the new out to capture the new output

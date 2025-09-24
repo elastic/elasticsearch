@@ -177,8 +177,17 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
                 return as.replaceChild(replaced);
             });
-            if (groupingChanged && agg instanceof ReferenceAttribute ra) {
-                Attribute ref = evalNames.get(ra.name());
+            if (groupingChanged) {
+                Attribute ref = null;
+
+                if (agg instanceof ReferenceAttribute ra) {
+                    // stats
+                    ref = evalNames.get(ra.name());
+                } else if (agg instanceof Alias alias) {
+                    // inline stats
+                    ref = evalNames.get(alias.toAttribute().name());
+                }
+
                 if (ref != null) {
                     aggsChanged.set(true);
                     newAggs.add(ref);

@@ -107,39 +107,39 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             this.currentPageOffset = currentPageOffset + length;
         }
     }
-//    public void writeBytes(byte[] b, int offset, int length) {
-//        // nothing to copy
-//        if (length == 0) {
-//            return;
-//        }
-//
-//        Objects.checkFromIndexSize(offset, length, b.length);
-//
-//        int currentPageOffset = this.currentPageOffset;
-//        BytesRef currentPage = currentBytesRef;
-//        if (length > pageSize - currentPageOffset) {
-//            ensureCapacity(length);
-//        }
-//
-//        int bytesToCopy = length;
-//        int srcOff = offset;
-//        while (true) {
-//            final int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
-//            final int destOffset = currentPage.offset + currentPageOffset;
-//            System.arraycopy(b, srcOff, currentPage.bytes, destOffset, toCopyThisLoop);
-//            srcOff += toCopyThisLoop;
-//            bytesToCopy -= toCopyThisLoop;
-//            if (bytesToCopy > 0) {
-//                currentPageOffset = 0;
-//                currentPage = pages.get(++pageIndex).v();
-//            } else {
-//                currentPageOffset += toCopyThisLoop;
-//                break;
-//            }
-//        }
-//        this.currentPageOffset = currentPageOffset;
-//        this.currentBytesRef = currentPage;
-//    }
+    // public void writeBytes(byte[] b, int offset, int length) {
+    // // nothing to copy
+    // if (length == 0) {
+    // return;
+    // }
+    //
+    // Objects.checkFromIndexSize(offset, length, b.length);
+    //
+    // int currentPageOffset = this.currentPageOffset;
+    // BytesRef currentPage = currentBytesRef;
+    // if (length > pageSize - currentPageOffset) {
+    // ensureCapacity(length);
+    // }
+    //
+    // int bytesToCopy = length;
+    // int srcOff = offset;
+    // while (true) {
+    // final int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
+    // final int destOffset = currentPage.offset + currentPageOffset;
+    // System.arraycopy(b, srcOff, currentPage.bytes, destOffset, toCopyThisLoop);
+    // srcOff += toCopyThisLoop;
+    // bytesToCopy -= toCopyThisLoop;
+    // if (bytesToCopy > 0) {
+    // currentPageOffset = 0;
+    // currentPage = pages.get(++pageIndex).v();
+    // } else {
+    // currentPageOffset += toCopyThisLoop;
+    // break;
+    // }
+    // }
+    // this.currentPageOffset = currentPageOffset;
+    // this.currentBytesRef = currentPage;
+    // }
 
     private void writeMultiplePages(byte[] b, int offset, int length) {
         ensureCapacity(length);

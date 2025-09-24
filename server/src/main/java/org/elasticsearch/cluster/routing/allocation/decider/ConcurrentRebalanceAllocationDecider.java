@@ -194,11 +194,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         }
 
         assert false : "this should logically never be reached, as one of frozen or non-frozen is exceeding the already tested limit";
-        return allocation.decision(
-            Decision.YES,
-            NAME,
-            "unreachable yes"
-        );
+        return allocation.decision(Decision.YES, NAME, "unreachable yes");
     }
 
     private boolean isFrozenShard(RoutingAllocation allocation, ShardRouting shard) {

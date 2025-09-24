@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -73,7 +72,7 @@ public class DfsProfilerIT extends ESIntegTestCase {
                 new float[] { randomFloat(), randomFloat(), randomFloat() },
                 randomIntBetween(5, 10),
                 50,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );

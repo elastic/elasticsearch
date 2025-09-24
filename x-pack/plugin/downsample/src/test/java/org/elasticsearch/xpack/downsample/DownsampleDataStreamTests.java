@@ -205,13 +205,14 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
                             setting.getAsList(IndexMetadata.INDEX_DIMENSIONS.getKey()),
                             containsInAnyOrder("routing_field", "dimension")
                         );
+                        assertThat(setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()), empty());
                     } else {
                         assertThat(setting.getAsList(IndexMetadata.INDEX_DIMENSIONS.getKey()), empty());
+                        assertThat(
+                            setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
+                            containsInAnyOrder("routing_field", "dimension")
+                        );
                     }
-                    assertThat(
-                        setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
-                        containsInAnyOrder("routing_field", "dimension")
-                    );
                 }
             });
         });

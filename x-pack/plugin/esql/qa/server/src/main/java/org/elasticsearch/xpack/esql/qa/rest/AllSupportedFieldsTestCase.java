@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -42,6 +44,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -139,7 +142,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> values = (List<?>) response.get("values");
 
         MapMatcher expectedColumns = matchesMap();
-        Version minVersion = allNodeToInfo().values().stream().map(n -> n.version).min(Comparator.comparing(v -> v.id)).get();
+        Version minVersion = minVersion();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
                 continue;
@@ -180,11 +183,26 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     public final void testFetchDenseVector() throws IOException {
-        Map<String, Object> response = esql("""
-            | EVAL k = SCORE(v_l2_norm(f_dense_vector, [1]))
-            | KEEP _index, f_dense_vector
-            | LIMIT 1000
-            """);
+        Map<String, Object> response;
+        try {
+            response = esql("""
+                | EVAL k = SCORE(v_l2_norm(f_dense_vector, [1]))
+                | KEEP _index, f_dense_vector
+                | LIMIT 1000
+                """);
+        } catch (ResponseException e) {
+            Version minVersion = minVersion();
+            if (minVersion.onOrAfter(Version.V_9_2_0)) {
+                throw new AssertionError("versions on or after 9.2.0 should support correctly fetch the dense_vector", e);
+            }
+            assertThat(
+                "old version should fail with this error",
+                EntityUtils.toString(e.getResponse().getEntity()),
+                containsString("Unknown function [v_l2_norm]")
+            );
+            // Failure is expected and fine
+            return;
+        }
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
 
@@ -463,5 +481,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             return expectedIndex;
         }
         return nodeInfo.cluster + ":" + expectedIndex;
+    }
+
+    private Version minVersion() throws IOException {
+        return allNodeToInfo().values().stream().map(n -> n.version).min(Comparator.comparing(v -> v.id)).get();
     }
 }

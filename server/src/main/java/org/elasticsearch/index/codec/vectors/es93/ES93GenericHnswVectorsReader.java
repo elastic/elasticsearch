@@ -49,7 +49,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.GroupVIntUtil;
 import org.apache.lucene.util.IOSupplier;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
@@ -59,6 +58,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -83,6 +83,7 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
     private final IndexInput vectorIndex;
     private final int version;
 
+    @SuppressWarnings("this-escape")
     public ES93GenericHnswVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> flatVectorsReaders) throws IOException {
         this.fields = new IntObjectHashMap<>();
         this.flatVectorsReaders = flatVectorsReaders;
@@ -237,7 +238,7 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
 
     private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
         String flatVectorFormatName = input.readString();
-        if (!flatVectorsReaders.containsKey(flatVectorFormatName)) {
+        if (flatVectorsReaders.containsKey(flatVectorFormatName) == false) {
             throw new IllegalArgumentException("Invalid flat vector format: " + flatVectorFormatName);
         }
         VectorEncoding vectorEncoding = readVectorEncoding(input);
@@ -269,17 +270,23 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
     }
 
     private FlatVectorsReader getReaderForField(String field) {
-        return flatVectorsReaders.get(getFieldEntryOrThrow(field).flatVectorFormatName);
+        FieldInfo info = fieldInfos.fieldInfo(field);
+        if (info == null) return null;
+        return flatVectorsReaders.get(fields.get(info.number).flatVectorFormatName);
     }
 
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-        return getReaderForField(field).getFloatVectorValues(field);
+        var reader = getReaderForField(field);
+        if (reader == null) return null;
+        return reader.getFloatVectorValues(field);
     }
 
     @Override
     public ByteVectorValues getByteVectorValues(String field) throws IOException {
-        return getReaderForField(field).getByteVectorValues(field);
+        var reader = getReaderForField(field);
+        if (reader == null) return null;
+        return reader.getByteVectorValues(field);
     }
 
     private FieldEntry getFieldEntryOrThrow(String field) {
@@ -304,13 +311,21 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.FLOAT32);
-        search(fieldEntry, knnCollector, acceptDocs, () -> getReaderForField(field).getRandomVectorScorer(field, target));
+        search(fieldEntry, knnCollector, acceptDocs, () -> {
+            var reader = getReaderForField(field);
+            if (reader == null) return null;
+            return reader.getRandomVectorScorer(field, target);
+        });
     }
 
     @Override
     public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.BYTE);
-        search(fieldEntry, knnCollector, acceptDocs, () -> getReaderForField(field).getRandomVectorScorer(field, target));
+        search(fieldEntry, knnCollector, acceptDocs, () -> {
+            var reader = getReaderForField(field);
+            if (reader == null) return null;
+            return reader.getRandomVectorScorer(field, target);
+        });
     }
 
     private void search(
@@ -323,6 +338,7 @@ public class ES93GenericHnswVectorsReader extends KnnVectorsReader implements Qu
             return;
         }
         final RandomVectorScorer scorer = scorerSupplier.get();
+        if (scorer == null) return;
         final KnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
         HnswGraph graph = getGraph(fieldEntry);
         // Take into account if quantized? E.g. some scorer cost?

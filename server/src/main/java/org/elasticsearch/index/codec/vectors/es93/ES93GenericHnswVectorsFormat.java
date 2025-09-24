@@ -36,7 +36,6 @@ import java.util.concurrent.ExecutorService;
 
 public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFormat {
 
-    static final String NAME = "ES93GenericHnswVectorsFormat";
     static final String META_CODEC_NAME = "ES93GenericHnswVectorsFormatMeta";
     static final String VECTOR_INDEX_CODEC_NAME = "ES93GenericHnswVectorsFormatIndex";
     static final String META_EXTENSION = "vem";
@@ -50,16 +49,16 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
 
     private final int writeVersion = VERSION_CURRENT;
 
-    public ES93GenericHnswVectorsFormat() {
-        super(NAME);
+    public ES93GenericHnswVectorsFormat(String name) {
+        super(name);
     }
 
-    public ES93GenericHnswVectorsFormat(int maxConn, int beamWidth) {
-        super(NAME, maxConn, beamWidth);
+    public ES93GenericHnswVectorsFormat(String name, int maxConn, int beamWidth) {
+        super(name, maxConn, beamWidth);
     }
 
-    public ES93GenericHnswVectorsFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService mergeExec) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
+    public ES93GenericHnswVectorsFormat(String name, int maxConn, int beamWidth, int numMergeWorkers, ExecutorService mergeExec) {
+        super(name, maxConn, beamWidth, numMergeWorkers, mergeExec);
     }
 
     @Override
@@ -72,7 +71,7 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
     protected abstract Map<String, FlatVectorsFormat> supportedReadFlatVectorsFormats();
 
     @Override
-    public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+    public final KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         var flatFormat = writeFlatVectorsFormat();
         return new ES93GenericHnswVectorsWriter(
             state,
@@ -87,7 +86,7 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
     }
 
     @Override
-    public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+    public final KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         var readFormats = supportedReadFlatVectorsFormats();
         Map<String, FlatVectorsReader> readers = CollectionUtil.newHashMap(readFormats.size());
         for (var fe : readFormats.entrySet()) {
@@ -98,7 +97,10 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
 
     @Override
     public String toString() {
-        return "ES93GenericHnswVectorsFormat(name=ES93GenericHnswVectorsFormat, maxConn="
+        return getName()
+            + "(name="
+            + getName()
+            + ", maxConn="
             + maxConn
             + ", beamWidth="
             + beamWidth

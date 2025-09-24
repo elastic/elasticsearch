@@ -22,8 +22,8 @@ class MergedDocValuesRangeQuery {
         Class<? extends Query> queryClass = query.getClass();
         Class<? extends Query> extraQueryClass = extraQuery.getClass();
 
-        if (queryClass.equals(extraQueryClass) == false ||
-            queryClass.getCanonicalName().equals("org.apache.lucene.document.SortedNumericDocValuesRangeQuery") == false) {
+        if (queryClass.equals(extraQueryClass) == false
+            || queryClass.getCanonicalName().equals("org.apache.lucene.document.SortedNumericDocValuesRangeQuery") == false) {
             return null;
         }
 

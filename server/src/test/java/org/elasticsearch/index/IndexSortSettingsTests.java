@@ -50,6 +50,10 @@ public class IndexSortSettingsTests extends ESTestCase {
         return new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
     }
 
+    private static IndexSettings indexSettings(Settings settings, IndexVersion indexVersion) {
+        return new IndexSettings(newIndexMeta("test", settings, indexVersion), Settings.EMPTY);
+    }
+
     public void testNoIndexSort() {
         IndexSettings indexSettings = indexSettings(Settings.EMPTY);
         assertFalse(indexSettings.getIndexSortConfig().hasIndexSort());
@@ -230,6 +234,36 @@ public class IndexSortSettingsTests extends ESTestCase {
         }
     }
 
+    public void testLegacyTimeSeriesMode() {
+        IndexSettings indexSettings = indexSettings(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build(),
+            IndexVersions.UPGRADE_TO_LUCENE_10_2_2
+        );
+        Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
+        assertThat(sort.getSort(), arrayWithSize(2));
+        assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
+        assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
+    }
+
+    public void testLegacyTimeSeriesModeNoTimestamp() {
+        IndexSettings indexSettings = indexSettings(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build(),
+            IndexVersions.UPGRADE_TO_LUCENE_10_2_2
+        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
+        assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
+    }
+
     public void testTimeSeriesMode() {
         IndexSettings indexSettings = indexSettings(
             Settings.builder()
@@ -239,23 +273,109 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
-        Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
-        assertThat(sort.getSort(), arrayWithSize(2));
-        assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
-        assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
+        assertFalse(indexSettings.getIndexSortConfig().hasIndexSort());
     }
 
-    public void testTimeSeriesModeNoTimestamp() {
-        IndexSettings indexSettings = indexSettings(
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "time_series")
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-                .build()
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
-        assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
+    public void testLegacyLogsdbIndexSortWithArrays() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.field", "field1", "field2")
+            .putList("index.sort.order", "asc", "desc")
+            .putList("index.sort.missing", "_last", "_first")
+            .build();
+        IndexSettings indexSettings = indexSettings(settings, IndexVersions.UPGRADE_TO_LUCENE_10_2_2);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("field1"));
+        assertThat(config.sortSpecs[1].field, equalTo("field2"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
+        assertNull(config.sortSpecs[0].mode);
+        assertNull(config.sortSpecs[1].mode);
+    }
+
+    public void testLegacyLogsdbInvalidIndexSortOrder() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.order", new String[] { "asc", "desc" })
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("index.sort.field:[] index.sort.order:[asc, desc], size mismatch"));
+    }
+
+    public void testLegacyLogsdbInvalidIndexSortMode() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.mode", new String[] { "max" })
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("index.sort.field:[] index.sort.mode:[max], size mismatch"));
+    }
+
+    public void testLegacyLogsdbInvalidIndexSortMissing() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.missing", new String[] { "_last", "_last" })
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("index.sort.field:[] index.sort.missing:[_last, _last], size mismatch"));
+    }
+
+    public void testLegacyLogsdbIndexSortWithHostname() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings, IndexVersions.UPGRADE_TO_LUCENE_10_2_2);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("host.name"));
+        assertThat(config.sortSpecs[1].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertNull(config.sortSpecs[1].missingValue);
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertNull(config.sortSpecs[1].mode);
+    }
+
+    public void testLegacyLogsdbIndexSortTimestampOnly() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), false)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings, IndexVersions.UPGRADE_TO_LUCENE_10_2_2);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(1));
+
+        assertThat(config.sortSpecs[0].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.DESC));
+        assertNull(config.sortSpecs[0].missingValue);
+        assertNull(config.sortSpecs[0].mode);
+    }
+
+    public void testLegacyLogsdbIndexSortTimestampBWC() {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+        IndexSettings indexSettings = indexSettings(settings, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("host.name"));
+        assertThat(config.sortSpecs[1].field, equalTo("@timestamp"));
+        assertNull(config.sortSpecs[0].order);
+        assertNull(config.sortSpecs[1].order);
+        assertNull(config.sortSpecs[0].missingValue);
+        assertNull(config.sortSpecs[1].missingValue);
+        assertNull(config.sortSpecs[0].mode);
+        assertNull(config.sortSpecs[1].mode);
     }
 
     private Sort buildIndexSort(IndexSettings indexSettings, MappedFieldType... mfts) {

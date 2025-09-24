@@ -927,7 +927,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public int rerouteAtSourceDuringResharding (IndexRouting indexRouting) {
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
         return indexRouting.rerouteIndexingRequestIfResharding(id, routing);
     }
 

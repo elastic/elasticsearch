@@ -689,7 +689,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
-    public int rerouteAtSourceDuringResharding (IndexRouting indexRouting) {
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
         return indexRouting.rerouteUpdateRequestIfResharding(id, routing);
     }
 

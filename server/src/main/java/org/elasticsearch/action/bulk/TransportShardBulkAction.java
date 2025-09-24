@@ -198,7 +198,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
             shardRequests.add(bulkItemRequest);
         }
-        
+
         // All items belong to either the source shard or target shard.
         if (requestsByShard.size() == 1) {
             ShardId targetShard = requestsByShard.entrySet().iterator().next().getKey();

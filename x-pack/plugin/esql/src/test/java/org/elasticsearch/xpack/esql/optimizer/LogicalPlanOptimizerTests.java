@@ -6448,8 +6448,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_Eval[[$$SUM$avg_salary$0{r$}#20 / $$COUNT$avg_salary$1{r$}#21 AS avg_salary#4]]
      *           \_Aggregate[[year_hired{r$}#19],[SUM(salary{f}#13,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg_salary$0#20, COUNT(salar
      * y{f}#13,true[BOOLEAN]) AS $$COUNT$avg_salary$1#21, year_hired{r$}#19]]
-     *             \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
-     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, year_hired{r$}#19]]
+     *             \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     * languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, year_hired{r$}#19]]
      */
     public void testInlineStatsDateFormatOptimization() {
         var query = """
@@ -6553,8 +6553,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_Eval[[$$SUM$avg_salary$0{r$}#20 / $$COUNT$avg_salary$1{r$}#21 AS avg_salary#4]]
      *           \_Aggregate[[quarter{r$}#19],[SUM(salary{f}#13,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg_salary$0#20, COUNT(salary{f
      * }#13,true[BOOLEAN]) AS $$COUNT$avg_salary$1#21, quarter{r$}#19]]
-     *             \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
-     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, quarter{r$}#19]]
+     *             \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     * languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, quarter{r$}#19]]
      */
     public void testInlineStatsNonOptimizableDateFormat() {
         var query = """
@@ -6590,8 +6590,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Project[[_meta_field{f}#1197, emp_no{f}#1191, first_name{f}#1192, gender{f}#1193, hire_date{f}#1198, job{f}#1199, job.
-     * raw{f}#1200, languages{f}#1194, last_name{f}#1195, long_noidx{f}#1201, salary{f}#1196, count{r}#1178, avg_salary{r}#1181, year_hired{r}#1184, month_hired{r}#1187, day_hired{r}#1190]]
+     * Project[[_meta_field{f}#1197, emp_no{f}#1191, first_name{f}#1192, gender{f}#1193, hire_date{f}#1198, job{f}#1199, job.raw{f}#1200,
+     * languages{f}#1194, last_name{f}#1195, long_noidx{f}#1201, salary{f}#1196, count{r}#1178, avg_salary{r}#1181, year_hired{r}#1184,
+     * month_hired{r}#1187, day_hired{r}#1190]]
      * \_Eval[[DATEFORMAT(yyyy[KEYWORD],year_hired{r$}#1202) AS year_hired#1184, DATEFORMAT(yyyy-MM[KEYWORD],month_hired{r$}
      * #1203) AS month_hired#1187, DATEFORMAT(yyyy-MM-dd[KEYWORD],day_hired{r$}#1204) AS day_hired#1190]]
      *   \_Limit[1000[INTEGER],false]
@@ -6603,9 +6604,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_Project[[count{r}#1178, avg_salary{r}#1181, year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204]]
      *         \_Eval[[$$SUM$avg_salary$0{r$}#1205 / $$COUNT$avg_salary$1{r$}#1206 AS avg_salary#1181]]
      *           \_Aggregate[[year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#1178,
-     *  SUM(salary{f}#1196,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg_salary$0#1205, COUNT(salary{f}#1196,true[BOOLEAN]) AS $$COUNT$avg_salary$1#1206, year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204]]
-     *             \_StubRelation[[_meta_field{f}#1197, emp_no{f}#1191, first_name{f}#1192, gender{f}#1193, hire_date{f}#1198, job{f}#1199, job.
-     * raw{f}#1200, languages{f}#1194, last_name{f}#1195, long_noidx{f}#1201, salary{f}#1196, year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204]]
+     *  SUM(salary{f}#1196,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg_salary$0#1205, COUNT(salary{f}#1196,true[BOOLEAN]) AS $$COUNT$
+     *  avg_salary$1#1206, year_hired{r$}#1202, month_hired{r$}#1203, day_hired{r$}#1204]]
+     *             \_StubRelation[[_meta_field{f}#1197, emp_no{f}#1191, first_name{f}#1192, gender{f}#1193, hire_date{f}#1198, job{f}#1199,
+     * job.raw{f}#1200, languages{f}#1194, last_name{f}#1195, long_noidx{f}#1201, salary{f}#1196, year_hired{r$}#1202, month_hired{r$}#1203,
+     * day_hired{r$}#1204]]
      */
     public void testInlineStatsMultipleDateFormatOptimizations() {
         var query = """

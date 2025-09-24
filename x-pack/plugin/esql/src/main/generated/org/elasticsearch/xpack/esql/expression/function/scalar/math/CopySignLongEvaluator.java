@@ -95,7 +95,9 @@ public final class CopySignLongEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
-        result.appendLong(CopySign.processLong(magnitudeBlock.getLong(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        long magnitude = magnitudeBlock.getLong(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendLong(CopySign.processLong(magnitude, sign));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class CopySignLongEvaluator implements EvalOperator.ExpressionEvalu
   public LongVector eval(int positionCount, LongVector magnitudeVector, DoubleVector signVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, CopySign.processLong(magnitudeVector.getLong(p), signVector.getDouble(p)));
+        long magnitude = magnitudeVector.getLong(p);
+        double sign = signVector.getDouble(p);
+        result.appendLong(p, CopySign.processLong(magnitude, sign));
       }
       return result.build();
     }

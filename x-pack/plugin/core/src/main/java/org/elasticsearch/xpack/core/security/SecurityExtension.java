@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccou
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchIndexExpressionsRewriter;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchAuthorizationService;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -150,7 +150,7 @@ public interface SecurityExtension {
         return getClass().getName();
     }
 
-    default CrossProjectSearchIndexExpressionsRewriter getCrossProjectSearchIndexExpressionsRewriter(SecurityComponents components) {
+    default CrossProjectSearchAuthorizationService getCrossProjectSearchIndexExpressionsRewriter(SecurityComponents components) {
         return null;
     }
 }

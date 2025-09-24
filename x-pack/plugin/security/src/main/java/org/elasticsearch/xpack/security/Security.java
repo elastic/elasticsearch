@@ -209,7 +209,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchIndexExpressionsRewriter;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchAuthorizationService;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1142,7 +1142,7 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        final CrossProjectSearchIndexExpressionsRewriter crossProjectSearchIndexExpressionsRewriter =
+        final CrossProjectSearchAuthorizationService crossProjectSearchIndexExpressionsRewriter =
             getCrossProjectSearchIndexExpressionsRewriter(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
@@ -1163,7 +1163,7 @@ public class Security extends Plugin
             linkedProjectConfigService,
             projectResolver,
             crossProjectSearchIndexExpressionsRewriter == null
-                ? new CrossProjectSearchIndexExpressionsRewriter.Default()
+                ? new CrossProjectSearchAuthorizationService.Default()
                 : crossProjectSearchIndexExpressionsRewriter
         );
 
@@ -1318,7 +1318,7 @@ public class Security extends Plugin
         }
     }
 
-    private CrossProjectSearchIndexExpressionsRewriter getCrossProjectSearchIndexExpressionsRewriter(
+    private CrossProjectSearchAuthorizationService getCrossProjectSearchIndexExpressionsRewriter(
         SecurityExtension.SecurityComponents extensionComponents
     ) {
         return findValueFromExtensions(

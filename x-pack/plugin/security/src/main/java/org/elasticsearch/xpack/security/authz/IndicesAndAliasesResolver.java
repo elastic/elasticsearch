@@ -110,7 +110,6 @@ class IndicesAndAliasesResolver {
      * resolving wildcards.
      * </p>
      */
-
     ResolvedIndices resolve(
         String action,
         TransportRequest request,

@@ -49,6 +49,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.AuthorizedProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -71,7 +72,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchIndexExpressionsRewriter;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchAuthorizationService;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -150,7 +151,7 @@ public class AuthorizationService {
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
-    private final CrossProjectSearchIndexExpressionsRewriter crossProjectSearchIndexExpressionsRewriter;
+    private final CrossProjectSearchAuthorizationService crossProjectSearchAuthzService;
 
     public AuthorizationService(
         Settings settings,
@@ -189,7 +190,7 @@ public class AuthorizationService {
             authorizationDenialMessages,
             linkedProjectConfigService,
             projectResolver,
-            new CrossProjectSearchIndexExpressionsRewriter.Default()
+            new CrossProjectSearchAuthorizationService.Default()
         );
     }
 
@@ -211,7 +212,7 @@ public class AuthorizationService {
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
-        CrossProjectSearchIndexExpressionsRewriter crossProjectSearchIndexExpressionsRewriter
+        CrossProjectSearchAuthorizationService crossProjectSearchIndexExpressionsRewriter
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -237,7 +238,7 @@ public class AuthorizationService {
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
-        this.crossProjectSearchIndexExpressionsRewriter = crossProjectSearchIndexExpressionsRewriter;
+        this.crossProjectSearchAuthzService = crossProjectSearchIndexExpressionsRewriter;
     }
 
     public void checkPrivileges(
@@ -549,11 +550,11 @@ public class AuthorizationService {
                         authzInfo,
                         projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(authorizedIndices -> {
-                            if (request instanceof IndicesRequest.Replaceable replaceable) {
-                                crossProjectSearchIndexExpressionsRewriter.rewriteIndexExpressions(replaceable, new ActionListener<Void>() {
+                            if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsCrossProjectSearch()) {
+                                crossProjectSearchAuthzService.loadAuthorizedProjects(new ActionListener<>() {
                                     @Override
-                                    public void onResponse(Void unused) {
-                                        indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices);
+                                    public void onResponse(AuthorizedProjects authorizedProjects) {
+
                                     }
 
                                     @Override

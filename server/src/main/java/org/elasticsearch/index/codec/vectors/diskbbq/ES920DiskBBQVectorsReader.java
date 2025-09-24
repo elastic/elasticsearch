@@ -19,7 +19,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -38,7 +37,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHeapStats {
+public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
     public ES920DiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);

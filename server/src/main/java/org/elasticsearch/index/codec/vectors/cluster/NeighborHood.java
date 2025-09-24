@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -32,8 +31,8 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
     public static NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
         assert centers.length > clustersPerNeighborhood;
-        // experiments shows that below 15k, we better use brute force, otherwise hnsw gives us a nice speed up
-        if (centers.length < 15_000) {
+        // experiments shows that below 10k, we better use brute force, otherwise hnsw gives us a nice speed up
+        if (centers.length < 10_000) {
             return computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
         } else {
             return computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
@@ -88,10 +87,33 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
     public static NeighborHood[] computeNeighborhoodsGraph(float[][] centers, int clustersPerNeighborhood) throws IOException {
         final UpdateableRandomVectorScorer scorer = new UpdateableRandomVectorScorer() {
             int scoringOrdinal;
+            private final float[] distances = new float[4];
 
             @Override
             public float score(int node) {
-                return VectorSimilarityFunction.EUCLIDEAN.compare(centers[scoringOrdinal], centers[node]);
+                return VectorUtil.normalizeDistanceToUnitInterval(VectorUtil.squareDistance(centers[scoringOrdinal], centers[node]));
+            }
+
+            @Override
+            public void bulkScore(int[] nodes, float[] scores, int numNodes) {
+                int i = 0;
+                final int limit = numNodes - 3;
+                for (; i < limit; i += 4) {
+                    ESVectorUtil.squareDistanceBulk(
+                        centers[scoringOrdinal],
+                        centers[nodes[i]],
+                        centers[nodes[i + 1]],
+                        centers[nodes[i + 2]],
+                        centers[nodes[i + 3]],
+                        distances
+                    );
+                    for (int j = 0; j < 4; j++) {
+                        scores[i + j] = VectorUtil.normalizeDistanceToUnitInterval(distances[j]);
+                    }
+                }
+                for (; i < numNodes; i++) {
+                    scores[i] = score(nodes[i]);
+                }
             }
 
             @Override

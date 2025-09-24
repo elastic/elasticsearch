@@ -1,0 +1,5 @@
+pr: 135370
+summary: Remove `pattern_text` feature flag
+area: Mapping
+type: feature
+issues: []

@@ -1293,7 +1293,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     false,
                     keepAliveInMillis
                 );
-                logger.debug("Recreated reader context [{}]", readerContext.id());
+                logger.debug(
+                    "Recreated reader context [{}] on node [{}]",
+                    readerContext.id(),
+                    clusterService.state().nodes().getLocalNode()
+                );
                 return readerContext;
             }
         }
@@ -1377,6 +1381,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+                logger.debug(
+                    "Opening new reader context [{}] on node [{}]",
+                    readerContext.id(),
+                    clusterService.state().nodes().getLocalNode()
+                );
                 putReaderContext(readerContext);
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());

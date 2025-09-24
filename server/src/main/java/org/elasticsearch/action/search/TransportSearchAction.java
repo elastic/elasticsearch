@@ -381,7 +381,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             frozenIndexCheck(resolvedIndices);
         }
-        logger.info("Executing search request on node [{}] with indices [{}]", clusterService.getNodeName(), resolvedIndices);
+        logger.info(
+            "Executing search request on node [{}] with local indices [{}] and remotes [{}]",
+            clusterService.getNodeName(),
+            resolvedIndices.getLocalIndices() == null ? "" : resolvedIndices.getLocalIndices().indices(),
+            resolvedIndices.getRemoteClusterIndices().keySet()
+        );
 
         final SearchSourceBuilder source = original.source();
         if (shouldOpenPIT(source)) {

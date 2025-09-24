@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -15,6 +16,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +33,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,6 +47,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 
+
+@TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
+        value = "org.elasticsearch.action.search:DEBUG,"
+                + "org.elasticsearch.search:TRACE"
+)
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -49,6 +60,10 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockSearchService.TestPlugin.class);
         return plugins;
+    }
+
+    protected boolean addMockHttpTransport() {
+        return false;
     }
 
     public void testSearcherId() throws Exception {
@@ -132,6 +147,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         );
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         final int docCount = between(0, 100);
+        logger.info("---> number of docs: " + docCount);
         for (int i = 0; i < docCount; i++) {
             indexRequestBuilders.add(prepareIndex(indexName).setSource("created_date", "2011-02-02"));
         }
@@ -151,6 +167,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final int numberOfReplicas = between(0, 2);
+        logger.info("---> number of replicas: " + numberOfReplicas);
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
 
@@ -166,6 +183,15 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             "---> Original PIT id: "
                 + new PointInTimeBuilder(pitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
         );
+        // for debugging, we try to see where the documents are located
+        try (RestClient restClient = createRestClient()) {
+            Request checkShardsRequest = new Request(
+                    "GET",
+                    "/_cat/shards/" + indexName + "?format=json&h=index,node,shard,prirep,state,docs,index"
+            );
+            Response response = restClient.performRequest(checkShardsRequest);
+            logger.info("---> document distribution: " + EntityUtils.toString(response.getEntity()));
+        }
         SetOnce<BytesReference> updatedPit = new SetOnce<>();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {

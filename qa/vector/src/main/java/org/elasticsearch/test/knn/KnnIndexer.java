@@ -32,21 +32,13 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
-import org.elasticsearch.index.store.AsyncDirectIOIndexInput;
-import org.elasticsearch.index.store.LuceneFilesExtensions;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -58,7 +50,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -237,7 +228,7 @@ class KnnIndexer {
     static Directory getDirectory(Path indexPath) throws IOException {
         Directory dir = FSDirectory.open(indexPath);
         if (dir instanceof MMapDirectory mmapDir) {
-            return new HybridDirectory(mmapDir);
+            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir);
         }
         return dir;
     }
@@ -377,107 +368,6 @@ class KnnIndexer {
         synchronized void next(byte[] dest) throws IOException {
             readNext();
             bytes.get(dest);
-        }
-    }
-
-    // Copy of Elastic's HybridDirectory which extends NIOFSDirectory and uses MMapDirectory for certain files.
-    static final class HybridDirectory extends NIOFSDirectory implements DirectIOIndexInputSupplier {
-        private final MMapDirectory delegate;
-        private final DirectIODirectory directIODelegate;
-
-        HybridDirectory(MMapDirectory delegate) throws IOException {
-            super(delegate.getDirectory(), NativeFSLockFactory.INSTANCE);
-            this.delegate = delegate;
-            DirectIODirectory directIO;
-            int blockSize = Math.toIntExact(Files.getFileStore(delegate.getDirectory()).getBlockSize());
-            try {
-                // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
-                directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
-                    @Override
-                    protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
-                        return true;
-                    }
-
-                    @Override
-                    public IndexInput openInput(String name, IOContext context) throws IOException {
-                        ensureOpen();
-                        if (useDirectIO(name, context, OptionalLong.of(fileLength(name)))) {
-                            return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, 128);
-                        } else {
-                            return in.openInput(name, context);
-                        }
-                    }
-                };
-            } catch (Exception e) {
-                // directio not supported
-                logger.warn("Could not initialize DirectIO access", e);
-                directIO = null;
-            }
-            logger.info("HybridDirectory: using DirectIO={} blockSize={}", directIO != null, blockSize);
-            this.directIODelegate = directIO;
-        }
-
-        @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (useDelegate(name, context)) {
-                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-                ensureOpen();
-                ensureCanRead(name);
-                // we switch the context here since mmap checks for the READONCE context by identity
-                context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
-                // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-                // we might run into trouble with files that are pendingDelete in one directory but still
-                // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-                // and intersect for perf reasons.
-                return delegate.openInput(name, context);
-            } else {
-                return super.openInput(name, context);
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(super::close, delegate);
-        }
-
-        private static String getExtension(String name) {
-            // Unlike FileSwitchDirectory#getExtension, we treat `tmp` as a normal file extension, which can have its own rules for mmaping.
-            final int lastDotIndex = name.lastIndexOf('.');
-            if (lastDotIndex == -1) {
-                return "";
-            } else {
-                return name.substring(lastDotIndex + 1);
-            }
-        }
-
-        static boolean useDelegate(String name, IOContext ioContext) {
-            if (ioContext == Store.READONCE_CHECKSUM) {
-                // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
-                // if pre-loading is enabled on this file.
-                return false;
-            }
-
-            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
-            if (extension == null || extension.shouldMmap() == false) {
-                // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
-                // or are large and have a random access pattern and mmap leads to page cache trashing
-                // (e.g. stored fields and term vectors).
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public IndexInput openInputDirect(String name, IOContext context) throws IOException {
-            if (directIODelegate == null) {
-                logger.warn("DirectIODirectory not initialized, falling back to normal openInput");
-                return openInput(name, context);
-            }
-            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-            ensureOpen();
-            ensureCanRead(name);
-            logger.info("Opening {} with direct IO", name);
-            return directIODelegate.openInput(name, context);
         }
     }
 }

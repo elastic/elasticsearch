@@ -159,11 +159,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory {
+    public static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
 
-        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
+        public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
 

@@ -97,11 +97,15 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             validateBase(entry.getKey(), entry.getValue());
         }
 
-        for (var upperBound : upperBounds.values()) {
-            validateUpperBound(upperBound, allDefinitions, idsByBase);
-        }
+        if (onReleaseBranch) {
+            // on release branches we only check the current upper bound, others may be inaccurate
+            TransportVersionUpperBound currentUpperBound = upperBounds.get(getCurrentUpperBoundName().get());
+            validateUpperBound(currentUpperBound, allDefinitions, idsByBase);
+        } else {
+            for (var upperBound : upperBounds.values()) {
+                validateUpperBound(upperBound, allDefinitions, idsByBase);
+            }
 
-        if (onReleaseBranch == false) {
             validatePrimaryIds(resources, upperBounds, allDefinitions);
         }
     }

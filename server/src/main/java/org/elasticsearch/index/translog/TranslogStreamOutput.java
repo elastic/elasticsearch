@@ -10,12 +10,12 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.OldRecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 
 import java.io.IOException;
 
-public class TranslogStreamOutput extends OldRecyclerBytesStreamOutput {
+public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
 
     public static final int FIXED_INDEX_HEADER_SIZE = 39;
     public static final int FIXED_DELETE_HEADER_SIZE = 30;

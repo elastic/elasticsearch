@@ -625,7 +625,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 namedWriteableRegistry,
                 mintransportVersion
             );
-            if (bytesReference == source.pointInTimeBuilder().getEncodedId() == false) {
+            if ((bytesReference == source.pointInTimeBuilder().getEncodedId()) == false) {
                 logger.info(
                     "Changing PIT to: [{}]",
                     new PointInTimeBuilder(bytesReference).getSearchContextId(namedWriteableRegistry).toString().replace("},", "\n")

@@ -159,7 +159,8 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
         verify(client).execute(eq(CreateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
 
         final CreateCrossClusterApiKeyRequest request = requestCaptor.getValue();
-        assertThat(request.getCertificateIdentity(), equalTo("CN=test,OU=engineering,DC=example,DC=com"));
+        Assert.assertNotNull(request.getCertificateIdentity());
+        assertThat(request.getCertificateIdentity().value(), equalTo("CN=test,OU=engineering,DC=example,DC=com"));
         assertThat(request.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(request.getName(), equalTo("my-cert-key"));
     }

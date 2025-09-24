@@ -3322,7 +3322,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         BulkRequest bulkRequest = bulkRequestCaptor.getValue();
         IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
         Map<String, Object> sourceMap = indexRequest.sourceAsMap();
-        assertEquals(certIdentity, sourceMap.get("certificate_identity"));
+        assertEquals(certIdentity.value(), sourceMap.get("certificate_identity"));
     }
 
     public void testUpdateApiKeyWithCertificateIdentity() throws ExecutionException, InterruptedException {

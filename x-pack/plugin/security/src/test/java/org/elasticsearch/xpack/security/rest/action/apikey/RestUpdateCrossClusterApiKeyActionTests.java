@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRol
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.security.Security;
+import org.junit.Assert;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
@@ -135,7 +136,8 @@ public class RestUpdateCrossClusterApiKeyActionTests extends ESTestCase {
         verify(client).execute(eq(UpdateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
 
         final UpdateCrossClusterApiKeyRequest request = requestCaptor.getValue();
-        assertThat(request.getCertificateIdentity(), equalTo(certificateIdentity));
+        Assert.assertNotNull(request.getCertificateIdentity());
+        assertThat(request.getCertificateIdentity().value(), equalTo(certificateIdentity));
     }
 
     public void testUpdateWithExplicitNullCertificateIdentity() throws Exception {

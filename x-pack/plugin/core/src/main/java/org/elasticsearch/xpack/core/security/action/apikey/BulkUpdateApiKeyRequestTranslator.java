@@ -11,6 +11,7 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -42,7 +43,7 @@ public interface BulkUpdateApiKeyRequestTranslator {
                     (List<RoleDescriptor>) a[1],
                     (Map<String, Object>) a[2],
                     TimeValue.parseTimeValue((String) a[3], null, "expiration"),
-                    null
+                    (CertificateIdentity) a[4]
                 )
             );
             parser.declareStringArray(constructorArg(), new ParseField("ids"));
@@ -52,6 +53,14 @@ public interface BulkUpdateApiKeyRequestTranslator {
             }, new ParseField("role_descriptors"));
             parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
             parser.declareString(optionalConstructorArg(), new ParseField("expiration"));
+            parser.declareField(
+                optionalConstructorArg(),
+                (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL
+                    ? new CertificateIdentity(null)
+                    : new CertificateIdentity(p.text()),
+                new ParseField("certificate_identity"),
+                ObjectParser.ValueType.STRING_OR_NULL
+            );
             return parser;
         }
 

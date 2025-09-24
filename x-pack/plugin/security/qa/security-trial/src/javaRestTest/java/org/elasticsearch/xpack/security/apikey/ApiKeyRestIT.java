@@ -2301,7 +2301,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final String apiKeyId2 = assertOKAndCreateObjectPath(client().performRequest(createRequest2)).evaluate("id");
 
         // Attempt to update both with a certificate identity - should fail
-        final Request bulkUpdateRequest = new Request("PUT", "/_security/cross_cluster/api_key");
+        final Request bulkUpdateRequest = new Request("POST", "/_security/api_key/_bulk_update");
         bulkUpdateRequest.setJsonEntity(Strings.format("""
             {
               "ids": ["%s", "%s"],

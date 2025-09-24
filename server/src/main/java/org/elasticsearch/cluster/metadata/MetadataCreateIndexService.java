@@ -1099,18 +1099,26 @@ public class MetadataCreateIndexService {
         // index (see more comments below)
         final Settings.Builder templateSettings = Settings.builder().put(combinedTemplateSettings);
         final Settings.Builder requestSettings = Settings.builder().put(request.settings());
-        IndexVersion createdVersion;
-        IndexVersion requestSettingsIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(request.settings());
-        if (requestSettingsIndexVersion.after(IndexVersions.ZERO)) {
-            createdVersion = requestSettingsIndexVersion;
-        } else {
-            createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
-        }
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
-
+            // Create a combined builder that serves two purposes:
+            // 1) It is used to pass to the IndexSettingProviders so they can see the combined settings
+            // that will be applied to the new index
+            // 2) It is used to create the IndexVersion to be passed in to the IndexSettingProviders.
+            // After the IndexSettingProviders have added their settings, the version is re-calculated
+            // in case one of the providers set a specific version.
+            Settings.Builder templateAndRequestSettingsBuilder = Settings.builder().put(combinedTemplateSettings).put(request.settings());
+            if (request.isFailureIndex()) {
+                DataStreamFailureStoreDefinition.filterUserDefinedSettings(templateAndRequestSettingsBuilder);
+            }
+            final Settings templateAndRequestSettings = templateAndRequestSettingsBuilder.build();
+            IndexVersion createdVersion;
+            if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.exists(templateAndRequestSettings)) {
+                createdVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(templateAndRequestSettings);
+            } else {
+                createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
+            }
             final IndexMode templateIndexMode = Optional.of(request)
                 .filter(r -> r.isFailureIndex() == false)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
@@ -1209,7 +1217,10 @@ public class MetadataCreateIndexService {
             }
         }
 
-        indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
+        if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
+            IndexVersion createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
+        }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }

@@ -28,17 +28,17 @@ setup:
   - match: { inference.models.2.count: 1 }
   - is_false: inference.models.2.semantic_text
 
-  - match: { inference.models.3.service: "_elasticsearch__elser_model_2" }
+  - match: { inference.models.3.service: "/_elasticsearch__elser_model_2.*/" }
   - match: { inference.models.3.task_type: "SPARSE_EMBEDDING" }
   - match: { inference.models.3.count: 1 }
   - is_false: inference.models.3.semantic_text
 
-  - match: { inference.models.4.service: "_elasticsearch__multilingual-e5-small" }
+  - match: { inference.models.4.service: "/_elasticsearch__multilingual-e5-small.*/" }
   - match: { inference.models.4.task_type: "TEXT_EMBEDDING" }
   - match: { inference.models.4.count: 1 }
   - is_false: inference.models.4.semantic_text
 
-  - match: { inference.models.5.service: "_elasticsearch__rerank-v1" }
+  - match: { inference.models.5.service: "/_elasticsearch__rerank-v1.*/" }
   - match: { inference.models.5.task_type: "RERANK" }
   - match: { inference.models.5.count: 1 }
   - is_false: inference.models.5.semantic_text
@@ -107,21 +107,21 @@ setup:
   - match: { inference.models.2.semantic_text.indices_count: 1 }
   - match: { inference.models.2.semantic_text.inference_id_count: 1 }
 
-  - match: { inference.models.3.service: "_elasticsearch__elser_model_2" }
+  - match: { inference.models.3.service: "/_elasticsearch__elser_model_2.*/" }
   - match: { inference.models.3.task_type: "SPARSE_EMBEDDING" }
   - match: { inference.models.3.count: 1 }
   - match: { inference.models.3.semantic_text.field_count: 2 }
   - match: { inference.models.3.semantic_text.indices_count: 2 }
   - match: { inference.models.3.semantic_text.inference_id_count: 1 }
 
-  - match: { inference.models.4.service: "_elasticsearch__multilingual-e5-small" }
+  - match: { inference.models.4.service: "/_elasticsearch__multilingual-e5-small.*/" }
   - match: { inference.models.4.task_type: "TEXT_EMBEDDING" }
   - match: { inference.models.4.count: 1 }
   - match: { inference.models.4.semantic_text.field_count: 1 }
   - match: { inference.models.4.semantic_text.indices_count: 1 }
   - match: { inference.models.4.semantic_text.inference_id_count: 1 }
 
-  - match: { inference.models.5.service: "_elasticsearch__rerank-v1" }
+  - match: { inference.models.5.service: "/_elasticsearch__rerank-v1.*/" }
   - match: { inference.models.5.task_type: "RERANK" }
   - match: { inference.models.5.count: 1 }
   - is_false: inference.models.5.semantic_text

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
  * {@link TextEmbeddingOperatorOutputBuilder} builds the output page for text embedding by converting
  * {@link TextEmbeddingResults} into a {@link FloatBlock} containing dense vector embeddings.
  */
-public class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
+class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
     private final Page inputPage;
     private final FloatBlock.Builder outputBlockBuilder;
 
@@ -89,7 +89,7 @@ public class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.Out
     /**
      * Extracts the embedding as a float array from the embedding result.
      */
-    private float[] getEmbeddingAsFloatArray(TextEmbeddingResults<?> embedding) {
+    private static float[] getEmbeddingAsFloatArray(TextEmbeddingResults<?> embedding) {
         return switch (embedding.embeddings().get(0)) {
             case TextEmbeddingFloatResults.Embedding floatEmbedding -> floatEmbedding.values();
             case TextEmbeddingByteResults.Embedding byteEmbedding -> toFloatArray(byteEmbedding.values());
@@ -101,7 +101,7 @@ public class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.Out
         };
     }
 
-    private float[] toFloatArray(byte[] values) {
+    private static float[] toFloatArray(byte[] values) {
         float[] floatArray = new float[values.length];
         for (int i = 0; i < values.length; i++) {
             floatArray[i] = ((Byte) values[i]).floatValue();

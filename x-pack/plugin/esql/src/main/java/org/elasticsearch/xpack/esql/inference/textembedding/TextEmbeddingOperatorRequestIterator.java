@@ -21,7 +21,7 @@ import java.util.NoSuchElementException;
  * This iterator reads text inputs from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
  * of type {@link TaskType#TEXT_EMBEDDING}.
  */
-public class TextEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterator {
+class TextEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;

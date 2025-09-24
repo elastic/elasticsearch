@@ -21,7 +21,7 @@ import java.util.NoSuchElementException;
  *  This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
  *  of type {@link TaskType#COMPLETION}.
  */
-public class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
+class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;

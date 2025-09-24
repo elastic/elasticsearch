@@ -66,7 +66,7 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
                     "retrievers",
                     Map.of(
                         "text_similarity_reranker",
-                        Map.of("chunk_rescorer", (Long) randomValueOtherThan(current, () -> randomLongBetween(1, 10)))
+                        Map.of("chunk_rescorer", randomLongBetween(11, 20))
                     )
                 );
             }

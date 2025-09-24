@@ -187,8 +187,6 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         assertEquals(10L, searchUsageStats.getTotalSearchCount());
         assertEquals(extendedSearchUsageStats, searchUsageStats.getExtendedSearchUsage());
 
-
-
         searchUsageStats.add(
             new SearchUsageStats(
                 Map.of("term", 1L, "match", 1L),
@@ -196,7 +194,8 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 Map.of("query", 10L, "knn", 1L),
                 Map.of("knn", 10L, "rrf", 2L),
                 anotherExtendedSearchUsageStats,
-                10L)
+                10L
+            )
         );
         assertEquals(Map.of("match", 11L, "term", 1L), searchUsageStats.getQueryUsage());
         assertEquals(Map.of("query", 20L, "knn", 1L), searchUsageStats.getSectionsUsage());

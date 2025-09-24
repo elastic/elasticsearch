@@ -161,7 +161,16 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         assertEquals(0, searchUsageStats.getTotalSearchCount());
         assertEquals(new ExtendedSearchUsageStats(), searchUsageStats.getExtendedSearchUsage());
 
-        ExtendedSearchUsageStats extendedSearchUsageStats = randomExtendedSearchUsage();
+        ExtendedSearchUsageStats extendedSearchUsageStats = new ExtendedSearchUsageStats(
+            Map.of("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", 10L)))
+        );
+        ExtendedSearchUsageStats anotherExtendedSearchUsageStats = new ExtendedSearchUsageStats(
+            Map.of("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", 5L)))
+        );
+        ExtendedSearchUsageStats combinedExtendedSearchUsageStats = new ExtendedSearchUsageStats(
+            Map.of("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", 15L)))
+        );
+
         searchUsageStats.add(
             new SearchUsageStats(
                 Map.of("match", 10L),
@@ -178,21 +187,22 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         assertEquals(10L, searchUsageStats.getTotalSearchCount());
         assertEquals(extendedSearchUsageStats, searchUsageStats.getExtendedSearchUsage());
 
+
+
         searchUsageStats.add(
             new SearchUsageStats(
                 Map.of("term", 1L, "match", 1L),
                 Map.of("query", 5L, "learning_to_rank", 2L),
                 Map.of("query", 10L, "knn", 1L),
                 Map.of("knn", 10L, "rrf", 2L),
-                extendedSearchUsageStats,
-                10L
-            )
+                anotherExtendedSearchUsageStats,
+                10L)
         );
         assertEquals(Map.of("match", 11L, "term", 1L), searchUsageStats.getQueryUsage());
         assertEquals(Map.of("query", 20L, "knn", 1L), searchUsageStats.getSectionsUsage());
         assertEquals(Map.of("query", 10L, "learning_to_rank", 2L), searchUsageStats.getRescorerUsage());
         assertEquals(Map.of("knn", 20L, "rrf", 2L), searchUsageStats.getRetrieversUsage());
-        assertEquals(extendedSearchUsageStats, searchUsageStats.getExtendedSearchUsage());
+        assertEquals(combinedExtendedSearchUsageStats, searchUsageStats.getExtendedSearchUsage());
         assertEquals(20L, searchUsageStats.getTotalSearchCount());
     }
 

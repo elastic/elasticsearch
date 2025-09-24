@@ -60,7 +60,7 @@ public class TextEmbeddingOperatorRequestIteratorTests extends ComputeTestCase {
         final BytesRefBlock inputBlock = createMultiValueBlock();
 
         try (TextEmbeddingOperatorRequestIterator requestIterator = new TextEmbeddingOperatorRequestIterator(inputBlock, inferenceId)) {
-            // First position: multi-value concatenated with newlines
+            // First position: multi-value, keep only the first value
             InferenceAction.Request request1 = requestIterator.next();
             assertThat(request1.getInferenceEntityId(), equalTo(inferenceId));
             assertThat(request1.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));

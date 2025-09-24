@@ -106,18 +106,18 @@ required_capability: knn_function_v5
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
-| where knn(rgb_vector, [128,255,0])
+| where knn(rgb_vector, [128,250,0])
 | sort _score desc, color asc
-| keep rgb_vector
+| keep color, rgb_vector
 | limit 5
 ;
 
-rgb_vector:dense_vector
-[127.0, 255.0, 0.0]
-[128.0, 128.0, 0.0]
-[255.0, 255.0, 0.0]
-[0.0, 255.0, 0.0]
-[218.0, 165.0, 32.0]
+color:text     | rgb_vector: dense_vector       
+chartreuse     | [127.0, 255.0, 0.0]  
+olive          | [128.0, 128.0, 0.0] 
+yellow         | [255.0, 255.0, 0.0] 
+golden rod     | [218.0, 165.0, 32.0]
+lime           | [0.0, 255.0, 0.0] 
 ;
 
 knnAfterDrop

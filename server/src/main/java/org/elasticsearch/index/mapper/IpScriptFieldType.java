@@ -33,7 +33,9 @@ import org.elasticsearch.search.runtime.IpScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldTermsQuery;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -213,6 +215,50 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::bytesRefs,
+            this::fallbackSyntheticSourceBlockLoaderReader
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
         return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
     }
+
+    private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+        return new FallbackSyntheticSourceBlockLoader.SingleValueReader<InetAddress>(null) {
+            @Override
+            public void convertValue(Object value, List<InetAddress> accumulator) {
+                try {
+                    if (value instanceof InetAddress ia) {
+                        accumulator.add(ia);
+                    } else {
+                        accumulator.add(InetAddresses.forString(value.toString()));
+                    }
+                } catch (Exception e) {
+                    // value is malformed, skip it
+                }
+            }
+
+            @Override
+            public void writeToBlock(List<InetAddress> values, BlockLoader.Builder blockBuilder) {
+                BlockLoader.BytesRefBuilder builder = (BlockLoader.BytesRefBuilder) blockBuilder;
+                for (InetAddress addr : values) {
+                    builder.appendBytesRef(new BytesRef(InetAddressPoint.encode(addr)));
+                }
+            }
+
+            @Override
+            protected void parseNonNullValue(XContentParser parser, List<InetAddress> accumulator) throws IOException {
+                try {
+                    accumulator.add(InetAddresses.forString(parser.text()));
+                } catch (Exception e) {
+                    // value is malformed, skip it
+                }
+            }
+        };
+    }
+
 }

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,12 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.expression.function.*;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,12 +30,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * TEXT_EMBEDDING function converts text to dense vector embeddings using an inference endpoint.
  */
 public class TextEmbedding extends InferenceFunction<TextEmbedding> {
-
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "TextEmbedding",
-        TextEmbedding::new
-    );
 
     private final Expression inferenceId;
     private final Expression inputText;
@@ -73,20 +60,14 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         this.inputText = inputText;
     }
 
-    private TextEmbedding(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(inputText);
-        out.writeNamedWriteable(inferenceId);
+        throw new UnsupportedOperationException("doesn't escape the node");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("doesn't escape the node");
     }
 
     public Expression inputText() {

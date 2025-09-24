@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -60,5 +59,10 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new TextEmbedding(source, args.get(0), args.get(1));
+    }
+
+    @Override
+    protected boolean canSerialize() {
+        return false;
     }
 }

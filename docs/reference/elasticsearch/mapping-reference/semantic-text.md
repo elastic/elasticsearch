@@ -25,9 +25,12 @@ type make it simpler to perform semantic search on your data. The
 with [match](/reference/query-languages/query-dsl/query-dsl-match-query.md), [sparse_vector](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md)
 or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
 
-If you don’t specify an inference endpoint, the `inference_id` field defaults to
-`.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch
-service.
+{applies_to}`serverless` If you don’t specify an {infer} endpoint, the `inference_id` field defaults to
+`.elser-2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
+This endpoint uses the [Elastic {infer-cap} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
+
+{applies_to}`stack` If you don’t specify an inference endpoint, the `inference_id` field defaults to
+`.elser-2-elasticsearch`, a preconfigured endpoint for the `elasticsearch` service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
@@ -43,10 +46,15 @@ You can use either preconfigured endpoints in your `semantic_text` fields which
 are ideal for most use cases or create custom endpoints and reference them in
 the field mappings.
 
-### Using the default ELSER endpoint
+:::::::{tab-set}
 
-If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
-`semantic_text` with the following API request:
+::::::{tab-item} Using the default ELSER on EIS endpoint on Serverless
+
+```{applies_to}
+serverless: ga
+```
+
+If you use the default `.elser-2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001
@@ -60,6 +68,59 @@ PUT my-index-000001
   }
 }
 ```
+
+::::::
+
+::::::{tab-item} Using the preconfigured ELSER on EIS endpoint in Cloud
+
+```{applies_to}
+stack: ga 9.2
+deployment:
+  self: unavailable
+```
+
+If you use the preconfigured `.elser-2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elastic"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+::::::{tab-item} Using the default ELSER endpoint
+
+```{applies_to}
+stack: ga 9.2
+```
+
+If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+```
+
+::::::
+
+:::::::
 
 ### Using a custom endpoint
 
@@ -107,9 +168,12 @@ PUT my-index-000003
 ```
 
 ### Using ELSER on EIS
+
 ```{applies_to}
-stack: preview 9.1
-serverless: preview
+stack: preview 9.1 ga 9.2
+deploymen:
+  self: unavailable
+serverless: ga
 ```
 
 If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic Inference Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
@@ -128,11 +192,6 @@ PUT my-index-000001
   }
 }
 ```
-
-::::{note}
-While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
-
-::::
 
 ## Parameters for `semantic_text` fields [semantic-text-params]
 

@@ -299,10 +299,11 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         given:
         file("myserver/build.gradle") << """
             tasks.named('validateTransportVersionResources') {
-                currentUpperBoundName = '9.1'
+                currentUpperBoundName = '9.0'
             }
         """
-        transportVersionUpperBound("9.2", "some_tv", "8125123")
+        referableAndReferencedTransportVersion("some_tv", "8124000,8012004")
+        transportVersionUpperBound("9.1", "some_tv", "8012004")
 
         when:
         def result = gradleRunner("validateTransportVersionResources").build()

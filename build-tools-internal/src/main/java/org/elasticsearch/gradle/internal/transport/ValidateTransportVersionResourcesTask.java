@@ -83,6 +83,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<String, TransportVersionDefinition> allDefinitions = collectAllDefinitions(referableDefinitions, unreferableDefinitions);
         Map<Integer, List<IdAndDefinition>> idsByBase = collectIdsByBase(allDefinitions.values());
         Map<String, TransportVersionUpperBound> upperBounds = resources.getUpperBounds();
+        TransportVersionUpperBound currentUpperBound = upperBounds.get(getCurrentUpperBoundName().get());
         boolean onReleaseBranch = checkIfDefinitelyOnReleaseBranch(upperBounds);
 
         for (var definition : referableDefinitions.values()) {
@@ -94,12 +95,15 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
 
         for (var entry : idsByBase.entrySet()) {
-            validateBase(entry.getKey(), entry.getValue());
+            int baseId = entry.getKey();
+            // on main we validate all bases, but on release branches we only validate up to the current upper bound
+            if (onReleaseBranch == false || baseId <= currentUpperBound.definitionId().base()) {
+                validateBase(baseId, entry.getValue());
+            }
         }
 
         if (onReleaseBranch) {
             // on release branches we only check the current upper bound, others may be inaccurate
-            TransportVersionUpperBound currentUpperBound = upperBounds.get(getCurrentUpperBoundName().get());
             validateUpperBound(currentUpperBound, allDefinitions, idsByBase);
         } else {
             for (var upperBound : upperBounds.values()) {

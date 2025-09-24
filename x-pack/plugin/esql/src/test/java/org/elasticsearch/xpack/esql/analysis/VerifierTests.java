@@ -2683,6 +2683,27 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNoMetricInStatsByClause() {
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)", tsdb),
+            equalTo(
+                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in", tsdb),
+            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)", tsdb),
+            equalTo(
+                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+    }
+
     public void testSortInTimeSeries() {
         assertThat(
             error("TS test | SORT host | STATS avg(last_over_time(network.connections))", tsdb),

@@ -1463,11 +1463,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                Object directRawVectorReadsNode = indexOptionsMap.remove("direct_raw_vector_reads");
-                boolean directRawVectorReads = XContentMapValues.nodeBooleanValue(directRawVectorReadsNode, false);
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, directRawVectorReads);
+                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, onDiskRescore);
             }
 
             @Override
@@ -1543,11 +1543,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                Object directRawVectorReadsNode = indexOptionsMap.remove("direct_raw_vector_reads");
-                boolean directRawVectorReads = XContentMapValues.nodeBooleanValue(directRawVectorReadsNode, false);
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, rescoreVector, directRawVectorReads);
+                return new BBQIVFIndexOptions(clusterSize, visitPercentage, rescoreVector, onDiskRescore);
             }
 
             @Override
@@ -2007,20 +2007,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
-        private final boolean directRawVectorReads;
+        private final boolean onDiskRescore;
 
-        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean directRawVectorReads) {
+        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean onDiskRescore) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
-            this.directRawVectorReads = directRawVectorReads;
+            this.onDiskRescore = onDiskRescore;
         }
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
             var format = new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction);
-            if (directRawVectorReads) {
+            if (onDiskRescore) {
                 format.useDirectIO();
             }
             return format;
@@ -2038,12 +2038,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return m == that.m
                 && efConstruction == that.efConstruction
                 && Objects.equals(rescoreVector, that.rescoreVector)
-                && directRawVectorReads == that.directRawVectorReads;
+                && onDiskRescore == that.onDiskRescore;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, rescoreVector, directRawVectorReads);
+            return Objects.hash(m, efConstruction, rescoreVector, onDiskRescore);
         }
 
         @Override
@@ -2060,8 +2060,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            if (directRawVectorReads) {
-                builder.field("direct_raw_vector_reads", true);
+            if (onDiskRescore) {
+                builder.field("on_disk_rescore", true);
             }
             builder.endObject();
             return builder;
@@ -2141,20 +2141,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static class BBQIVFIndexOptions extends QuantizedIndexOptions {
         final int clusterSize;
         final double defaultVisitPercentage;
-        final boolean directRawVectorReads;
+        final boolean onDiskRescore;
 
-        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector, boolean directRawVectorReads) {
+        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector, boolean onDiskRescore) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
-            this.directRawVectorReads = directRawVectorReads;
+            this.onDiskRescore = onDiskRescore;
         }
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
             var format = new ES920DiskBBQVectorsFormat(clusterSize, ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
-            if (directRawVectorReads) {
+            if (onDiskRescore) {
                 format.useDirectIO();
             }
             return format;
@@ -2171,12 +2171,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return clusterSize == that.clusterSize
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && Objects.equals(rescoreVector, that.rescoreVector)
-                && directRawVectorReads == that.directRawVectorReads;
+                && onDiskRescore == that.onDiskRescore;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector, directRawVectorReads);
+            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector, onDiskRescore);
         }
 
         @Override
@@ -2193,8 +2193,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            if (directRawVectorReads) {
-                builder.field("direct_raw_vector_reads", true);
+            if (onDiskRescore) {
+                builder.field("on_disk_rescore", true);
             }
             builder.endObject();
             return builder;

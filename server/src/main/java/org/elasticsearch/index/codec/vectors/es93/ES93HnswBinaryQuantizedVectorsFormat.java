@@ -25,9 +25,6 @@ import org.apache.lucene.util.SetOnce;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-/**
- * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
- */
 public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectorsFormat {
 
     public static final String NAME = "ES93HnswBinaryQuantizedVectorsFormat";

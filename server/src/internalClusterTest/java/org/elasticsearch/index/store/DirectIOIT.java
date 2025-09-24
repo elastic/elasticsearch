@@ -72,7 +72,7 @@ public class DirectIOIT extends ESIntegTestCase {
     }
 
     private void indexVectors() {
-        String type = randomFrom("bbq_hnsw");
+        String type = randomFrom("bbq_hnsw", "bbq_disk");
         assertAcked(
             prepareCreate("foo-vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
                 .setMapping("""
@@ -86,7 +86,7 @@ public class DirectIOIT extends ESIntegTestCase {
                           "similarity": "l2_norm",
                           "index_options": {
                             "type": "%type%",
-                            "direct_raw_vector_reads": true
+                            "on_disk_rescore": true
                           }
                         }
                       }

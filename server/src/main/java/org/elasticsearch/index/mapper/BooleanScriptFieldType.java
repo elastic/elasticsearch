@@ -134,8 +134,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             @Override
             public void convertValue(Object value, List<Boolean> accumulator) {
                 try {
-                    if (value instanceof Boolean) {
-                        accumulator.add((Boolean) value);
+                    if (value instanceof Boolean b) {
+                        accumulator.add(b);
                     } else {
                         accumulator.add(Booleans.parseBoolean(value.toString(), false));
                     }

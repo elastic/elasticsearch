@@ -642,23 +642,20 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     public void testSuccess() {
-        Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
-        final ProjectId projectId = randomProjectIdOrDefault();
-        metaBuilder.put(ProjectMetadata.builder(projectId));
+        final var projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.getProject(projectId).put(indexMetadata, false);
+        projectBuilder.put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.getProject(projectId).put(indexMetadata, false);
-        Metadata metadata = metaBuilder.build();
+        projectBuilder.put(indexMetadata, false);
+        Metadata metadata = Metadata.builder(Metadata.EMPTY_METADATA).put(projectBuilder).build();
         NodeJoinExecutor.ensureIndexCompatibility(
             // randomCompatibleVersionSettings() can set a version as low as MINIMUM_READONLY_COMPATIBLE
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,

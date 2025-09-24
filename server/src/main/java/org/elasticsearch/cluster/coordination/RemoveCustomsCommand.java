@@ -69,7 +69,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
         );
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
         @FixForMultiProject
-        final ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(ProjectId.DEFAULT);
+        final ProjectMetadata.Builder projectBuilder = metadataBuilder.createNewProjectBuilder(ProjectId.DEFAULT);
         for (String customToRemove : customsToRemove) {
             @FixForMultiProject
             boolean matched = false;
@@ -98,6 +98,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
                 throw new UserException(ExitCodes.USAGE, "No custom metadata matching [" + customToRemove + "] were found on this node");
             }
         }
+        metadataBuilder.put(projectBuilder);
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(metadataBuilder.build()).build();
         terminal.println(
             Terminal.Verbosity.VERBOSE,

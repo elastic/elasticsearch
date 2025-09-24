@@ -35,7 +35,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
 
     public void testClusterConcurrentRebalance() {
-        boolean testFrozen = randomBoolean();
+        testClusterConcurrentInternal(false);
+    }
+
+    public void testClusterConcurrentRebalanceFrozen() {
+        testClusterConcurrentInternal(true);
+    }
+
+    void testClusterConcurrentInternal(boolean testFrozen) {
         AllocationService strategy;
         if (testFrozen) {
             strategy = createAllocationService(

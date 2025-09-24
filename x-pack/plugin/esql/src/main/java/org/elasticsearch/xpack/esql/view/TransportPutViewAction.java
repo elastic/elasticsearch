@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class TransportPutViewAction extends AcknowledgedTransportMasterNodeAction<PutViewAction.Request> {
-    private final ViewService viewService;
+    private final ClusterViewService viewService;
 
     @Inject
     public TransportPutViewAction(
@@ -36,7 +36,7 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        ViewService viewService
+        ClusterViewService viewService
     ) {
         super(
             PutViewAction.NAME,

@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Encapsulates enrich policies as custom metadata inside cluster state.
+ * Encapsulates view definitions as custom metadata inside cluster state.
  */
 public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
     public static final String TYPE = "esql_view";

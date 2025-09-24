@@ -9,12 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -31,21 +26,21 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-public class ViewService {
+public abstract class ViewService {
     /**
      * Maximum number of views referencing views referencing views.
      */
     private static final int MAX_VIEW_DEPTH = 10;
-    private final ClusterService clusterService;
     private final EsqlFunctionRegistry functionRegistry;
 
-    public ViewService(ClusterService clusterService, EsqlFunctionRegistry functionRegistry) {
-        this.clusterService = clusterService;
+    public ViewService(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
     }
 
+    protected abstract ViewMetadata getMetadata();
+
     public LogicalPlan replaceViews(LogicalPlan plan, PlanTelemetry telemetry, Configuration configuration) {
-        ViewMetadata views = clusterService.state().metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+        ViewMetadata views = getMetadata();
 
         List<String> seen = new ArrayList<>();
         while (true) {
@@ -99,13 +94,13 @@ public class ViewService {
      * Adds or modifies a view by name. This method can only be invoked on the master node.
      */
     public void put(String name, View view, ActionListener<Void> callback, Configuration configuration) {
-        assert clusterService.localNode().isMasterNode();
+        assertMasterNode();
         new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry), configuration);
         // TODO should we validate this in the transport action and make it async? like plan like a query
         // TODO postgresql does.
 
-        updateClusterState(callback, current -> {
-            Map<String, View> original = current.metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views();
+        updateViewMetadata(callback, current -> {
+            Map<String, View> original = getMetadata().views();
             Map<String, View> updated = new HashMap<>(original);
             updated.put(name, view);
             return updated;
@@ -116,28 +111,27 @@ public class ViewService {
      * Gets the view by name.
      */
     public View get(String name) {
-        return clusterService.state().metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views().get(name);
+        return getMetadata().views().get(name);
     }
 
     /**
      * List current view names.
      */
     public Set<String> list() {
-        return clusterService.state().metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views().keySet();
+        return getMetadata().views().keySet();
     }
 
     /**
      * Removes a view from the cluster state. This method can only be invoked on the master node.
      */
     public void delete(String name, ActionListener<Void> callback) {
-        assert clusterService.localNode().isMasterNode();
-
+        assertMasterNode();
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
 
-        updateClusterState(callback, current -> {
-            Map<String, View> original = current.metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views();
+        updateViewMetadata(callback, current -> {
+            Map<String, View> original = current.views();
             if (original.containsKey(name) == false) {
                 throw new ResourceNotFoundException("policy [{}] not found", name);
             }
@@ -147,31 +141,7 @@ public class ViewService {
         });
     }
 
-    private void updateClusterState(ActionListener<Void> callback, Function<ClusterState, Map<String, View>> function) {
-        submitUnbatchedTask("update-esql-view-metadata", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Map<String, View> policies = function.apply(currentState);
-                Metadata metadata = Metadata.builder(currentState.metadata())
-                    .putCustom(ViewMetadata.TYPE, new ViewMetadata(policies))
-                    .build();
-                return ClusterState.builder(currentState).metadata(metadata).build();
-            }
+    protected abstract void assertMasterNode();
 
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                callback.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                callback.onFailure(e);
-            }
-        });
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
+    protected abstract void updateViewMetadata(ActionListener<Void> callback, Function<ViewMetadata, Map<String, View>> function);
 }

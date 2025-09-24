@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.view.ViewService;
+import org.elasticsearch.xpack.esql.view.ClusterViewService;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -81,7 +81,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewService viewService;
+    private final ClusterViewService viewService;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
@@ -103,7 +103,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
-        ViewService viewService,
+        ClusterViewService viewService,
         ProjectResolver projectResolver,
         ThreadPool threadPool,
         BigArrays bigArrays,

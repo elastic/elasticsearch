@@ -18,10 +18,10 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetViewAction extends HandledTransportAction<GetViewAction.Request, GetViewAction.Response> {
     public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
-    private final ViewService viewService;
+    private final ClusterViewService viewService;
 
     @Inject
-    public TransportGetViewAction(TransportService transportService, ActionFilters actionFilters, ViewService viewService) {
+    public TransportGetViewAction(TransportService transportService, ActionFilters actionFilters, ClusterViewService viewService) {
         super(GetViewAction.NAME, transportService, actionFilters, GetViewAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.viewService = viewService;
     }

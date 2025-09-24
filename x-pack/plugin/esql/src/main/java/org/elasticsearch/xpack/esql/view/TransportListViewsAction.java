@@ -21,10 +21,10 @@ import java.util.Map;
 
 public class TransportListViewsAction extends HandledTransportAction<ListViewsAction.Request, ListViewsAction.Response> {
     public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(ListViewsAction.NAME);
-    private final ViewService viewService;
+    private final ClusterViewService viewService;
 
     @Inject
-    public TransportListViewsAction(TransportService transportService, ActionFilters actionFilters, ViewService viewService) {
+    public TransportListViewsAction(TransportService transportService, ActionFilters actionFilters, ClusterViewService viewService) {
         super(ListViewsAction.NAME, transportService, actionFilters, ListViewsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.viewService = viewService;
     }

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.view.ClusterViewService;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.ListViewsAction;
@@ -231,7 +232,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        ViewService viewService = new ViewService(services.clusterService(), functionRegistry);
+        ViewService viewService = new ClusterViewService(functionRegistry, services.clusterService());
         setupSharedSecrets();
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())

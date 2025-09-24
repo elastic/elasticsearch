@@ -16,6 +16,9 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.AllSupportedFieldsTestCase;
 import org.junit.ClassRule;
 
+/**
+ * Fetch all field types in a mixed version cluster, simulating a rolling upgrade.
+ */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     @ClassRule

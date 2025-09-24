@@ -16,6 +16,9 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.AllSupportedFieldsTestCase;
 import org.junit.ClassRule;
 
+/**
+ * Simple test for fetching all supported field types.
+ */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     @ClassRule

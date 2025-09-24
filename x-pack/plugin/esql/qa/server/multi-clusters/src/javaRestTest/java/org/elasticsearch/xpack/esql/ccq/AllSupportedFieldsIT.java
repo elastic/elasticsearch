@@ -27,6 +27,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * Fetch all field types via cross cluster search, possible on a different version.
+ */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();

@@ -18,7 +18,7 @@ denseBitVectorWithEval
 required_capability: dense_vector_field_type_bit_elements
 
 FROM dense_vector
-| EVAL v = bit_vector, k = SCORE(v_l2_norm(bit_vector, [1]))
+| EVAL v = bit_vector, k = v_l2_norm(bit_vector, [1])
 | KEEP id, v
 | SORT id
 ;

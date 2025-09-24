@@ -18,8 +18,10 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es93.DirectIOLucene99FlatVectorsFormat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,10 +62,18 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+    private static final FlatVectorsFormat defaultRawVectorFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
-    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(rawVectorFormat.getName(), rawVectorFormat);
+    private static final FlatVectorsFormat directIORawVectorFormat = new DirectIOLucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(
+        defaultRawVectorFormat.getName(),
+        defaultRawVectorFormat,
+        directIORawVectorFormat.getName(),
+        directIORawVectorFormat
+    );
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
@@ -109,12 +119,24 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
     }
 
+    private final SetOnce<FlatVectorsFormat> flatVectorsFormat = new SetOnce<>();
+
+    public void useDirectIO() {
+        flatVectorsFormat.set(directIORawVectorFormat);
+    }
+
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        var rawFormat = flatVectorsFormat.get();
+        if (rawFormat == null) {
+            rawFormat = defaultRawVectorFormat;
+            flatVectorsFormat.set(rawFormat);
+        }
+
         return new ES920DiskBBQVectorsWriter(
-            rawVectorFormat.getName(),
+            rawFormat.getName(),
             state,
-            rawVectorFormat.fieldsWriter(state),
+            rawFormat.fieldsWriter(state),
             vectorPerCluster,
             centroidsPerParentCluster
         );

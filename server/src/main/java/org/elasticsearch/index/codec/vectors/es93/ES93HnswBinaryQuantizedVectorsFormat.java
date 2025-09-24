@@ -32,14 +32,13 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectors
 
     public static final String NAME = "ES93HnswBinaryQuantizedVectorsFormat";
 
-    /** The format for storing, reading, merging vectors on disk */
     private static final FlatVectorsFormat defaultFlatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(false);
     private static final FlatVectorsFormat directIOFlatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(true);
 
     private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(
         defaultFlatVectorsFormat.getName(),
         defaultFlatVectorsFormat,
-        directIOFlatVectorsFormat.getName() + "+DirectIO",
+        directIOFlatVectorsFormat.getName(),
         directIOFlatVectorsFormat
     );
 
@@ -80,10 +79,12 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectors
 
     @Override
     protected FlatVectorsFormat writeFlatVectorsFormat() {
-        if (writeFormat.get() == null) {
+        var format = writeFormat.get();
+        if (format == null) {
+            format = defaultFlatVectorsFormat;
             writeFormat.set(defaultFlatVectorsFormat);
         }
-        return writeFormat.get();
+        return format;
     }
 
     @Override

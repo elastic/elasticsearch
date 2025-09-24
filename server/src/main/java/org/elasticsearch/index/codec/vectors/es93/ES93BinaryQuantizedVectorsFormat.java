@@ -90,7 +90,7 @@ import java.io.IOException;
  */
 public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat {
 
-    public static final String NAME = "ES818BinaryQuantizedVectorsFormat";
+    public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 
     private final FlatVectorsFormat rawVectorFormat;
 
@@ -98,9 +98,8 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    /** Creates a new instance with the default number of vectors per cluster. */
     public ES93BinaryQuantizedVectorsFormat(boolean useDirectIO) {
-        super(NAME);
+        super(useDirectIO ? "DirectIO" + NAME : NAME);
         rawVectorFormat = useDirectIO
             ? new DirectIOLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
             : new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());

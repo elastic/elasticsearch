@@ -27,7 +27,7 @@ public class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
             request.getRoleDescriptors(),
             request.getMetadata(),
             request.getExpiration(),
-            null
+            request.getCertificateIdentity()
         );
     }
 
@@ -36,9 +36,9 @@ public class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration,
-        @Nullable final String certificateIdentity
+        @Nullable final CertificateIdentity certificateIdentity
     ) {
-        super(ids, roleDescriptors, metadata, expiration, null);
+        super(ids, roleDescriptors, metadata, expiration, certificateIdentity);
     }
 
     @Override

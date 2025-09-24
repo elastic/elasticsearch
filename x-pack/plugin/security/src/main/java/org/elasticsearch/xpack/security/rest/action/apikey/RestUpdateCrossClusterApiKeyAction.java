@@ -15,7 +15,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
@@ -37,7 +40,7 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
             (CrossClusterApiKeyRoleDescriptorBuilder) a[0],
             (Map<String, Object>) a[1],
             TimeValue.parseTimeValue((String) a[2], null, "expiration"),
-            (String) a[3]
+            (CertificateIdentity) a[3]
         )
     );
 
@@ -45,7 +48,12 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         PARSER.declareObject(optionalConstructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("certificate_identity")); // Add this
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? new CertificateIdentity(null) : new CertificateIdentity(p.text()),
+            new ParseField("certificate_identity"),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
     }
 
     public RestUpdateCrossClusterApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
@@ -93,6 +101,6 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         CrossClusterApiKeyRoleDescriptorBuilder builder,
         Map<String, Object> metadata,
         TimeValue expiration,
-        String certificateIdentity
+        CertificateIdentity certificateIdentity
     ) {}
 }

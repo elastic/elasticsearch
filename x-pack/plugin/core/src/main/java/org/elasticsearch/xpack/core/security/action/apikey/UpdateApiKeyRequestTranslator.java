@@ -38,7 +38,7 @@ public interface UpdateApiKeyRequestTranslator {
                     (List<RoleDescriptor>) a[0],
                     (Map<String, Object>) a[1],
                     TimeValue.parseTimeValue((String) a[2], null, "expiration"),
-                    (String) a[3]
+                    (CertificateIdentity) a[3]
                 )
             );
             parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
@@ -74,7 +74,7 @@ public interface UpdateApiKeyRequestTranslator {
             List<RoleDescriptor> roleDescriptors,
             Map<String, Object> metadata,
             TimeValue expiration,
-            String certificateIdentity
+            CertificateIdentity certificateIdentity
         ) {}
     }
 }

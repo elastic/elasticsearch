@@ -24,7 +24,7 @@ public abstract class BaseSingleUpdateApiKeyRequest extends BaseUpdateApiKeyRequ
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration,
         String id,
-        @Nullable String certificateIdentity
+        @Nullable CertificateIdentity certificateIdentity
     ) {
         super(roleDescriptors, metadata, expiration, certificateIdentity);
         this.id = Objects.requireNonNull(id, "API key ID must not be null");

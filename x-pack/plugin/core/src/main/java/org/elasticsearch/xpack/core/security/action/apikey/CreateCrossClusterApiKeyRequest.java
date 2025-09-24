@@ -21,14 +21,14 @@ import java.util.Objects;
 
 public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyRequest {
 
-    private final String certificateIdentity;
+    private final CertificateIdentity certificateIdentity;
 
     public CreateCrossClusterApiKeyRequest(
         String name,
         CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
         @Nullable TimeValue expiration,
         @Nullable Map<String, Object> metadata,
-        @Nullable String certificateIdentity
+        @Nullable CertificateIdentity certificateIdentity
     ) {
         super();
         this.name = Objects.requireNonNull(name);
@@ -77,7 +77,7 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
         return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null, null);
     }
 
-    public String getCertificateIdentity() {
+    public CertificateIdentity getCertificateIdentity() {
         return certificateIdentity;
     }
 

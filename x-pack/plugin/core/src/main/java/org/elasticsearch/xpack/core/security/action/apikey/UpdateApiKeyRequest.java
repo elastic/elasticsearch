@@ -24,7 +24,7 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration,
-        @Nullable final String certificateIdentity
+        @Nullable final CertificateIdentity certificateIdentity
     ) {
         super(roleDescriptors, metadata, expiration, id, certificateIdentity);
     }

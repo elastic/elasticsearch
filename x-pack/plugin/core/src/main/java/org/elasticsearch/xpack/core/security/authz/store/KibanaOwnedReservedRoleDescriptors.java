@@ -549,17 +549,19 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne Application Dataset and Cyera specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne Application Dataset, Island Browser and Cyera specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "logs-extrahop.investigation-*",
                         "logs-qualys_gav.asset-*",
-                        "logs-sentinel_one.application-*",
+                        "logs-sentinel_one.application-*",                       
+                        "logs-island_browser.user-*",
+                        "logs-island_browser.device-*",
                         "logs-cyera.classification-*",
                         "logs-cyera.issue-*",
-                        "logs-cyera.datastore-*"                       
+                        "logs-cyera.datastore-*"
                     )
                     .privileges(
                         "manage",
@@ -602,7 +604,15 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.v1.latest.security*").privileges("read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.*").privileges("read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*history*")
+                    .privileges("create_index", "manage", "read", "write")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*reset*")
+                    .privileges("create_index", "manage", "read", "write")
+                    .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

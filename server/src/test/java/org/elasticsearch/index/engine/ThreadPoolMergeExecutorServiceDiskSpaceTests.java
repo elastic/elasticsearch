@@ -83,7 +83,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         // use 2 data paths
         String[] paths = new String[] { path.resolve(aPathPart).toString(), path.resolve(bPathPart).toString() };
         // some tests hold one merge thread blocked, and need at least one other runnable
-        mergeExecutorThreadCount = randomIntBetween(2, 9);
+        mergeExecutorThreadCount = randomIntBetween(2, 8);
         Settings.Builder settingsBuilder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths)

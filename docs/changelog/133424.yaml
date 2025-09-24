@@ -1,5 +1,0 @@
-pr: 133424
-summary: Ensuring only a single request executor object is created
-area: Machine Learning
-type: bug
-issues: []

@@ -12,11 +12,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -94,7 +96,7 @@ public final class DocumentParser {
                 )
             )
         ) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
+            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser, source.tsid());
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
@@ -1048,7 +1050,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Optional.empty(), Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Defaults.SUBOBJECTS, Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
         }
 
         @Override
@@ -1069,12 +1071,14 @@ public final class DocumentParser {
         private final long maxAllowedNumNestedDocs;
         private long numNestedDocs;
         private boolean docsReversed = false;
+        private final BytesRef tsid;
 
         RootDocumentParserContext(
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser
+            XContentParser parser,
+            BytesRef tsid
         ) throws IOException {
             super(
                 mappingLookup,
@@ -1083,6 +1087,9 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
+            this.tsid = tsid;
+            assert tsid == null || mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES
+                : "tsid should only be set for time series indices";
             if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
@@ -1138,6 +1145,11 @@ public final class DocumentParser {
                 );
             }
             this.documents.add(doc);
+        }
+
+        @Override
+        public BytesRef getTsid() {
+            return this.tsid;
         }
 
         @Override

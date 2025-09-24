@@ -60,11 +60,6 @@ public class PatternTextNestedObjectTests extends ESSingleNodeTestCase {
         .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
         .build();
 
-    @Before
-    public void setup() {
-        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
-    }
-
     @After
     public void cleanup() {
         assertAcked(admin().indices().prepareDelete(INDEX).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());

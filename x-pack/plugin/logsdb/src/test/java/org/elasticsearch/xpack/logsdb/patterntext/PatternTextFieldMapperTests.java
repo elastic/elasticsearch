@@ -91,11 +91,6 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         assertNoFieldNamesField(fields);
     }
 
-    @Before
-    public void setup() {
-        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
-    }
-
     public void testExistsStandardSource() throws IOException {
         assertExistsQuery(createMapperService(fieldMapping(b -> b.field("type", "pattern_text"))));
     }

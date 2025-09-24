@@ -110,16 +110,9 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
 
     private static final Settings LOGSDB_SETTING = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
 
-    @Before
-    public void setup() {
-        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
-    }
-
     @After
     public void cleanup() {
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            assertAcked(admin().indices().prepareDelete(INDEX));
-        }
+        assertAcked(admin().indices().prepareDelete(INDEX));
     }
 
     private String getMapping(String indexOptions, boolean disableTemplating) {

@@ -77,11 +77,8 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             builder
         );
         var result = builder.build();
-        var expectedBuilder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED");
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            expectedBuilder.put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
-        }
-        assertEquals(expectedBuilder.build(), result);
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build();
+        assertEquals(expected, result);
     }
 
     public void testGetAdditionalIndexSettingsApm() throws IOException {
@@ -101,17 +98,13 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             builder
         );
         var result = builder.build();
-        Settings expectedAdditionalSettings = PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()
-            ? Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build()
-            : Settings.EMPTY;
+        Settings expectedAdditionalSettings = Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build();
         assertEquals(expectedAdditionalSettings, result);
     }
 
     public void testGetAdditionalIndexSettingsProfiling() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
-        Settings expectedAdditionalSettings = PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()
-            ? Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build()
-            : Settings.EMPTY;
+        Settings expectedAdditionalSettings = Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build();
         for (String dataStreamName : new String[] { "profiling-metrics", "profiling-events" }) {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
             Settings.Builder builder = Settings.builder();
@@ -155,9 +148,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             builder
         );
         var result = builder.build();
-        Settings expectedAdditionalSettings = PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()
-            ? Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build()
-            : Settings.EMPTY;
+        Settings expectedAdditionalSettings = Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build();
         assertEquals(expectedAdditionalSettings, result);
     }
 
@@ -200,13 +191,9 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             IndexVersion.current(),
             builder
         );
+
         var result = builder.build();
-
-        var expectedBuilder = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED");
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            expectedBuilder.put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
-        }
-
-        assertEquals(expectedBuilder.build(), result);
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true).build();
+        assertEquals(expected, result);
     }
 }

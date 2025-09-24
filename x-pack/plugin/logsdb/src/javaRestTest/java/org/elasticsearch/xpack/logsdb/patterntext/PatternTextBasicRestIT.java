@@ -39,7 +39,6 @@ public class PatternTextBasicRestIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.PATTERN_TEXT)
         .build();
 
     @Override

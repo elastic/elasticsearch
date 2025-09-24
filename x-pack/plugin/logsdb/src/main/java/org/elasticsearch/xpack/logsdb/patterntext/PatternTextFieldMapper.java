@@ -50,7 +50,6 @@ import java.util.function.Supplier;
  */
 public class PatternTextFieldMapper extends FieldMapper {
 
-    public static final FeatureFlag PATTERN_TEXT_MAPPER = new FeatureFlag("pattern_text");
     private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
 
     /**

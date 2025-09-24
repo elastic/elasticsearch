@@ -3,7 +3,13 @@
 **Example**
 
 ```esql
-null
+TS k8s
+| STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
 ```
+
+| sum_cost:double | cluster:keyword | time_bucket:datetime |
+| --- | --- | --- |
+| 67.625 | qa | 2024-05-10T00:17:00.000Z |
+| 65.75 | staging | 2024-05-10T00:09:00.000Z |
 
 

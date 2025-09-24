@@ -130,34 +130,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    public final void test() throws IOException {
-        Request request = new Request("POST", "_query");
-        XContentBuilder body = JsonXContent.contentBuilder().startObject();
-        body.field("query", """
-            FROM *:%mode%*,%mode%* METADATA _id, _ignored, _index, _index_mode, _score, _source, _version
+    public final void testFetchAll() throws IOException {
+        Map<String, Object> response = esql("""
+            , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
-            """.replace("%mode%", indexMode.toString()));
-        {
-            body.startObject("pragma");
-            if (extractPreference != null) {
-                body.field("field_extract_preference", extractPreference);
-            }
-            body.endObject();
-        }
-        body.field("accept_pragma_risks", "true");
-        body.field("profile", true);
-        body.field("include_ccs_metadata", true);
-        body.endObject();
-        request.setJsonEntity(Strings.toString(body));
-
-        Map<String, Object> response = responseAsMap(client().performRequest(request));
-        if ((Boolean) response.get("is_partial")) {
-            throw new AssertionError("partial results: " + response);
-        }
-
+            """);
         List<?> columns = (List<?>) response.get("columns");
         List<?> values = (List<?>) response.get("values");
-        profileLogger.extractProfile(response, true);
 
         MapMatcher expectedColumns = matchesMap();
         Version minVersion = allNodeToInfo().values().stream().map(n -> n.version).min(Comparator.comparing(v -> v.id)).get();
@@ -187,21 +166,66 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 expectedValues = expectedValues.entry(fieldName(type), expectedValue(minVersion, nodeInfo.version, type));
             }
-            String expectedIndex = indexMode + "_" + nodeName;
-            if (nodeInfo.cluster != null) {
-                expectedIndex = nodeInfo.cluster + ":" + expectedIndex;
-            }
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
-                .entry("_index", expectedIndex)
+                .entry("_index", expectedIndex(nodeName, nodeInfo))
                 .entry("_index_mode", indexMode.toString())
                 .entry("_score", 0.0)
                 .entry("_source", matchesMap().extraOk())
                 .entry("_version", 1);
-            expectedAllValues = expectedAllValues.entry(expectedIndex, expectedValues);
+            expectedAllValues = expectedAllValues.entry(expectedIndex(nodeName, nodeInfo), expectedValues);
         }
         assertMap(indexToRow(columns, values), expectedAllValues);
         profileLogger.clearProfile();
+    }
+
+    public final void testFetchDenseVector() throws IOException {
+        Map<String, Object> response = esql("""
+            | EVAL k = SCORE(v_l2_norm(f_dense_vector, [1]))
+            | KEEP _index, f_dense_vector
+            | LIMIT 1000
+            """);
+        List<?> columns = (List<?>) response.get("columns");
+        List<?> values = (List<?>) response.get("values");
+
+        MapMatcher expectedColumns = matchesMap().entry("f_dense_vector", "dense_vector").entry("_index", "keyword");
+        assertMap(nameToType(columns), expectedColumns);
+
+        MapMatcher expectedAllValues = matchesMap();
+        for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
+            String nodeName = e.getKey();
+            NodeInfo nodeInfo = e.getValue();
+            MapMatcher expectedValues = matchesMap();
+            expectedValues = expectedValues.entry("f_dense_vector", expectedDenseVector(nodeInfo.version));
+            expectedValues = expectedValues.entry("_index", expectedIndex(nodeName, nodeInfo));
+            expectedAllValues = expectedAllValues.entry(expectedIndex(nodeName, nodeInfo), expectedValues);
+        }
+        assertMap(indexToRow(columns, values), expectedAllValues);
+    }
+
+    private Map<String, Object> esql(String query) throws IOException {
+        Request request = new Request("POST", "_query");
+        XContentBuilder body = JsonXContent.contentBuilder().startObject();
+        body.field("query", "FROM *:%mode%*,%mode%* METADATA _index".replace("%mode%", indexMode.toString()) + query);
+        {
+            body.startObject("pragma");
+            if (extractPreference != null) {
+                body.field("field_extract_preference", extractPreference);
+            }
+            body.endObject();
+        }
+        body.field("accept_pragma_risks", "true");
+        body.field("profile", true);
+        body.field("include_ccs_metadata", true);
+        body.endObject();
+        request.setJsonEntity(Strings.toString(body));
+
+        Map<String, Object> response = responseAsMap(client().performRequest(request));
+        profileLogger.extractProfile(response, true);
+        if ((Boolean) response.get("is_partial")) {
+            throw new AssertionError("partial results: " + response);
+        }
+        return response;
     }
 
     protected void createIndexForNode(RestClient client, String nodeName, String nodeId) throws IOException {
@@ -330,13 +354,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (minVersion.onOrAfter(Version.V_9_2_0)) {
                     yield nullValue();
                 }
-                Matcher<List<?>> expected = version.onOrAfter(Version.V_9_2_0)
-                    ? matchesList().item(0.5).item(10.0).item(5.9999995)
-                    : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
-                yield anyOf(nullValue(), expected);
+                yield anyOf(nullValue(), expectedDenseVector(version));
             }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
+    }
+
+    private Matcher<List<?>> expectedDenseVector(Version version) {
+        return version.onOrAfter(Version.V_9_2_0)
+            ? matchesList().item(0.5).item(10.0).item(5.9999995)
+            : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }
 
     /**
@@ -377,6 +404,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private Map<String, Map<String, Object>> indexToRow(List<?> columns, List<?> values) {
         List<String> names = names(columns);
         int timestampIdx = names.indexOf("_index");
+        if (timestampIdx < 0) {
+            throw new IllegalStateException("query didn't return _index");
+        }
         Map<String, Map<String, Object>> result = new TreeMap<>();
         for (Object r : values) {
             List<?> row = (List<?>) r;
@@ -425,5 +455,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case TIME_SERIES, LOGSDB -> true;
             case STANDARD, LOOKUP -> false;
         };
+    }
+
+    private String expectedIndex(String nodeName, NodeInfo nodeInfo) {
+        String expectedIndex = indexMode + "_" + nodeName;
+        if (nodeInfo.cluster == null) {
+            return expectedIndex;
+        }
+        return nodeInfo.cluster + ":" + expectedIndex;
     }
 }

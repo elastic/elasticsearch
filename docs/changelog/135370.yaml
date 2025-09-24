@@ -1,5 +1,6 @@
 pr: 135370
-summary: Remove `pattern_text` feature flag
+summary: Add new `pattern_text` field mapper in tech preview
 area: Mapping
 type: feature
-issues: []
+issues:
+  - 128931

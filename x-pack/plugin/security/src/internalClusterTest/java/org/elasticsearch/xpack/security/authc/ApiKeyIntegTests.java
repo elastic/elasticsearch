@@ -2811,7 +2811,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response.getId());
         assertNotNull(response.getKey());
 
-        // Verify certificate identity is stored in the document
         final Map<String, Object> apiKeyDoc = getApiKeyDocument(response.getId());
         assertThat(apiKeyDoc.get("certificate_identity"), equalTo(certificateIdentity));
         assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
@@ -2834,7 +2833,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response.getId());
         assertNotNull(response.getKey());
 
-        // Verify certificate identity is not in the document
         final Map<String, Object> apiKeyDoc = getApiKeyDocument(response.getId());
         assertThat(apiKeyDoc.containsKey("certificate_identity"), is(false));
         assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
@@ -2865,9 +2863,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var createRequest = new CreateCrossClusterApiKeyRequest(
             keyName,
             roleBuilder,
-            null, // expiration
-            null, // metadata
-            new CertificateIdentity("CN=original-cert") // Start with original certificate identity
+            null,
+            null,
+            new CertificateIdentity("CN=original-cert")
         );
         createRequest.setRefreshPolicy(IMMEDIATE);
 
@@ -2898,7 +2896,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
-        // Verify the certificate identity was updated in the document
         apiKeyDoc = getApiKeyDocument(apiKeyId);
         assertThat(apiKeyDoc.get("certificate_identity"), equalTo(newCertIdentity));
         assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
@@ -2926,7 +2923,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final CreateApiKeyResponse createdApiKey = createFuture.actionGet();
         final var apiKeyId = createdApiKey.getId();
 
-        // Update to clear certificate identity with explicit null
         final UpdateCrossClusterApiKeyRequest updateRequest = new UpdateCrossClusterApiKeyRequest(
             apiKeyId,
             null,
@@ -2942,7 +2938,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
-        // Verify the certificate identity was cleared from the document
         final Map<String, Object> apiKeyDoc = getApiKeyDocument(apiKeyId);
         assertThat(apiKeyDoc.containsKey("certificate_identity"), is(false));
     }
@@ -2972,10 +2967,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Update without specifying certificate identity (should preserve existing)
         final UpdateCrossClusterApiKeyRequest updateRequest = new UpdateCrossClusterApiKeyRequest(
             apiKeyId,
-            null, // roleDescriptorBuilder
-            Map.of("updated", "true"), // metadata - set this to force an update
-            null, // expiration
-            null  // certificateIdentity - don't specify, should preserve existing
+            null,
+            Map.of("updated", "true"),
+            null,
+            null
         );
 
         final PlainActionFuture<UpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
@@ -2991,7 +2986,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testBulkUpdateApiKeyWithCertificateIdentityMultipleKeys() throws Exception {
-        // Create two cross-cluster API keys
         final String keyName1 = randomAlphaOfLengthBetween(3, 8);
         final String keyName2 = randomAlphaOfLengthBetween(3, 8);
         final CrossClusterApiKeyRoleDescriptorBuilder roleBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse("""
@@ -3016,9 +3010,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Try to update both with certificate identity - should fail
         final BulkUpdateApiKeyRequest request = new BulkUpdateApiKeyRequest(
             List.of(apiKeyId1, apiKeyId2),
-            null, // roleDescriptors
-            null, // metadata
-            null, // expiration
+            null,
+            null,
+            null,
             new CertificateIdentity("CN=multi-key-cert") // certificateIdentity
         );
 
@@ -3027,7 +3021,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             () -> executeBulkUpdateApiKey(TEST_USER_NAME, request)
         );
         assertThat(ex.getMessage(), containsString("Certificate identity can only be updated for a single API key at a time"));
-        assertThat(ex.getMessage(), containsString("Found 2 API key IDs"));
+        assertThat(ex.getMessage(), containsString("Found [2] API key IDs"));
     }
 
     private List<RoleDescriptor> randomRoleDescriptors() {

@@ -30,7 +30,7 @@ Please refer to the connector's source code repository for issues and support re
 
 This connector is available as a self-managed connector.
 
-This self-managed connector is compatible with Elastic versions **8.19.0+**.
+This self-managed connector is compatible with Elastic versions **9.1.0+**.
 
 To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 

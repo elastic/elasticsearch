@@ -31,7 +31,7 @@ TS index_pattern [METADATA fields]
 The `TS` source command enables time series semantics and enables the usage of
 time series aggregation functions in the `STATS` command, such as
 [`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions#esql-avg_over_time),
-or [`RATE`](reference/query-languages/esql/functions-operators/time-series-aggregation-functions#esql-rate).
+or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions#esql-rate).
 These functions are implicitly evaluated per per time-series, with their results
 then aggregated per grouping bucket using a secondary aggregation
 function. More concretely, consider the following query:
@@ -103,7 +103,7 @@ TS metrics | STATS RATE(search_requests)
 - Prefer the `TS` command for aggregations on time-series data. `FROM` is still
   applicable, e.g. to list document contents, but it's not optimized to process
   time-series data efficiently. More so, the  `TS` command can't be combined
-  with certain operation such as [`FORK`]((/reference/query-languages/esql/commands/fork.md)),
+  with certain operation such as [`FORK`](/reference/query-languages/esql/commands/fork.md),
   before the `STATS` command is applied. That said, once `STATS` is applied, its
   tabular output can be further processed as applicable, in line with regular
   ES|QL processing.

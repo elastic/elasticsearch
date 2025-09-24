@@ -298,7 +298,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.Property.NodeScope
     );
 
-    private static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
+    public static final FeatureFlag BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase");
 
     /**
      * The size of the buffer used for memory accounting.
@@ -433,7 +433,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
-        if (BATCHED_QUERY_PHASE_FEATURE_FLAG) {
+        if (BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()) {
             batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         } else {
             batchQueryPhase = false;
@@ -615,7 +615,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shardId,
                 taskId
             );
-            // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
+            // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse.
+            // Besides, log at DEBUG level when the service is stopped or closed, as at that point the HttpServerTransport
+            // will already be closed and thus any error will not be reported or seen by the REST layer
             if (ExceptionsHelper.status(e).getStatus() < 500
                 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)
                 || lifecycle.stoppedOrClosed()) {

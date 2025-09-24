@@ -1973,9 +1973,7 @@ public class MetadataIndexTemplateService {
             .build();
 
         // Validate index metadata (settings)
-        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName)
-            .settings(finalResolvedSettings)
-            .build();
+        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings).build();
         indicesService.withTempIndexService(tmpIndexMetadata, tempIndexService -> {
             // Validate aliases
             MetadataCreateIndexService.resolveAndValidateAliases(

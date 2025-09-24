@@ -561,7 +561,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (Resolvables.resolved(groupings) == false) {
                 List<Expression> newGroupings = new ArrayList<>(groupings.size());
                 for (Expression g : groupings) {
-                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> {
+                        Attribute attribute = maybeResolveAttribute(ua, childrenOutput);
+                        if (attribute.resolved() && attribute.dataType() == TEXT) {
+                            attribute = attribute.withDataType(KEYWORD);
+                        }
+                        return attribute;
+                    });
                     if (resolved != g) {
                         changed.set(true);
                     }

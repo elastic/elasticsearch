@@ -29,7 +29,7 @@ or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
 `.elser-2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
 This endpoint uses the [Elastic {infer-cap} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
-{applies_to}`stack: 9.0` If you don’t specify an inference endpoint, the `inference_id` field defaults to
+{applies_to}`stack: ga 9.0` If you don’t specify an inference endpoint, the `inference_id` field defaults to
 `.elser-2-elasticsearch`, a preconfigured endpoint for the `elasticsearch` service.
 
 Using `semantic_text`, you won’t need to specify how to generate embeddings for

@@ -331,7 +331,7 @@ public class DeploymentManager {
         }
     }
 
-    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task) {
+    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task, ActionListener<AcknowledgedResponse> listener) {
         ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
             logger.info(
@@ -339,7 +339,7 @@ public class DeploymentManager {
                 task.getDeploymentId(),
                 task.stoppedReason().orElse("unknown")
             );
-            processContext.stopProcessAfterCompletingPendingWork();
+            processContext.stopProcessAfterCompletingPendingWork(listener);
         } else {
             logger.warn("[{}] No process context to stop gracefully", task.getDeploymentId());
         }
@@ -569,7 +569,7 @@ public class DeploymentManager {
 
                 processContextByAllocation.remove(task.getId());
                 isStopped = true;
-                resultProcessor.stop();
+                resultProcessor.signalIntentToStop();
                 stateStreamer.cancel();
 
                 if (startsCount.get() <= NUM_RESTART_ATTEMPTS) {
@@ -648,7 +648,7 @@ public class DeploymentManager {
 
         private void prepareInternalStateForShutdown() {
             isStopped = true;
-            resultProcessor.stop();
+            resultProcessor.signalIntentToStop();
             stateStreamer.cancel();
         }
 
@@ -669,43 +669,33 @@ public class DeploymentManager {
             }
         }
 
-        private synchronized void stopProcessAfterCompletingPendingWork() {
+        private synchronized void stopProcessAfterCompletingPendingWork(ActionListener<AcknowledgedResponse> listener) {
             logger.debug(() -> format("[%s] Stopping process after completing its pending work", task.getDeploymentId()));
             prepareInternalStateForShutdown();
-            signalAndWaitForWorkerTermination();
-            stopProcessGracefully();
-            closeNlpTaskProcessor();
+
+            // Waiting for the process worker to finish the pending work could
+            // take a long time. Best not to block the thread so register
+            // a function with the process worker that is called when the
+            // work is finished. Then proceed to closing the native process
+            // and wait for all results to be processed, the second part can be
+            // done synchronously as it is not expected to take long.
+            // The ShutdownTracker will handle this.
+
+            // Shutdown tracker will stop the process work and start a race with
+            // a timeout condition.
+            new ShutdownTracker(() -> {
+                // Stopping the process worker timed out, kill the process
+                logger.warn(format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId()));
+                forcefullyStopProcess();
+            }, () -> {
+                // process worker stopped within allotted time, close process
+                closeProcessAndWaitForResultProcessor();
+                closeNlpTaskProcessor();
+            }, threadPool, priorityProcessWorker, listener);
+
         }
 
-        private void signalAndWaitForWorkerTermination() {
-            try {
-                awaitTerminationAfterCompletingWork();
-            } catch (TimeoutException e) {
-                logger.warn(format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId()), e);
-                // The process failed to stop in the time period allotted, so we'll mark it for shut down
-                priorityProcessWorker.shutdown();
-                priorityProcessWorker.notifyQueueRunnables();
-            }
-        }
-
-        private void awaitTerminationAfterCompletingWork() throws TimeoutException {
-            try {
-                priorityProcessWorker.shutdown();
-
-                if (priorityProcessWorker.awaitTermination(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
-                    throw new TimeoutException(
-                        Strings.format("Timed out waiting for process worker to complete for process %s", PROCESS_NAME)
-                    );
-                } else {
-                    priorityProcessWorker.notifyQueueRunnables();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.info(Strings.format("[%s] Interrupted waiting for process worker to complete", PROCESS_NAME));
-            }
-        }
-
-        private void stopProcessGracefully() {
+        private void closeProcessAndWaitForResultProcessor() {
             try {
                 closeProcessIfPresent();
                 resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES);

@@ -104,7 +104,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertEquals(
             "Assigning a new shard to a node that is above the threshold should fail",
-            Decision.Type.NO,
+            Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canAllocate(
                 testHarness.shardRouting2,
                 testHarness.exceedingThresholdRoutingNode,
@@ -128,7 +128,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertEquals(
             "Assigning a new shard that would cause the node to exceed capacity should fail",
-            Decision.Type.NO,
+            Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.nearThresholdRoutingNode, testHarness.routingAllocation)
                 .type()
         );

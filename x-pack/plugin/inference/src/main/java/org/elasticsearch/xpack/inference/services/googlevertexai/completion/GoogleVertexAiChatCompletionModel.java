@@ -69,11 +69,14 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             var streamingUri = serviceSettings.streamingUri();
             // For Google Model Garden uri or streamingUri must be set. If not - location, projectId and modelId must be set
             if (uri != null || streamingUri != null) {
-                // If both URIs are provided, use them as is. If only one is provided, use it for both streaming and non-streaming
+                // If both uris are provided, each will be used as-is (non-streaming vs. streaming).
+                // If only one is provided, it will be reused for both non-streaming and streaming requests.
+                // Some providers require both (e.g. Anthropic, Mistral, Ai21).
+                // Some providers work fine with a single URL (e.g. Meta, Hugging Face).
                 this.nonStreamingUri = Objects.requireNonNullElse(uri, streamingUri);
                 this.streamingURI = Objects.requireNonNullElse(streamingUri, uri);
             } else {
-                // If neither URI is provided, build them from location, projectId and modelId
+                // If neither uri nor streamingUri is provided, build them from location, projectId, and modelId.
                 var location = serviceSettings.location();
                 var projectId = serviceSettings.projectId();
                 var model = serviceSettings.modelId();

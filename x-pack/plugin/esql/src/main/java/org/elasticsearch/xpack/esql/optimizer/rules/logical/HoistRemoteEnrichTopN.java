@@ -42,53 +42,46 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
             LogicalPlan plan = en.child();
             // This loop only takes care of one TopN, repeated application will stack them in correct order.
             while (true) {
-                if (plan instanceof TopN top) {
-                    if (top.isLocal()) {
-                        plan = top.child();
-                        continue;
-                    } else {
-                        // Create a fake OrderBy and "push" Enrich through it to generate aliases
-                        Enrich topWithEnrich = (Enrich) en.replaceChild(new OrderBy(top.source(), en.child(), top.order()));
-                        LogicalPlan pushPlan = PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(topWithEnrich);
-                        // If we needed to alias any names, the result would look like this:
-                        // Project[[host{f}#14, timestamp{f}#16, user{f}#15, ip{r}#19, os{r}#20]]
-                        // \_OrderBy[[Order[timestamp{f}#16,ASC,LAST], Order[user{f}#15,ASC,LAST],
-                        // Order[$$ip$temp_name$21{r$}#22,ASC,LAST]]]
-                        // \_Enrich[REMOTE,hosts[KEYWORD],ip{r}#3,{"match":{"indices":[],"match_field":"ip",
-                        // "enrich_fields":["ip","os"]}},{},[ip{r}#19,os{r}#20]]
-                        // \_Eval[[ip{r}#3 AS $$ip$temp_name$21#22]]
-                        if (pushPlan instanceof Project proj) {
-                            // We needed renaming - deconstruct the plan from above and extract the relevant parts
-                            if ((proj.child() instanceof OrderBy o
-                                && o.child() instanceof Enrich e
-                                && e.child() instanceof Eval) == false) {
-                                throw new IllegalStateException("Unexpected pushed plan structure: " + pushPlan);
-                            }
-                            OrderBy order = (OrderBy) proj.child();
-                            Enrich enrich = (Enrich) order.child();
-                            Eval eval = (Eval) enrich.child();
-                            // We insert the evals above the original TopN, so that the copy TopN works on the renamed fields
-                            LogicalPlan replacementTop = eval.replaceChild(top.withLocal(true));
-                            LogicalPlan transformedEnrich = en.transformDown(p -> switch (p) {
-                                case TopN t when t == top -> replacementTop;
-                                // We only need to take care of Project because Drop can't drop our newly created fields
-                                case Project pr -> {
-                                    List<NamedExpression> allFields = new LinkedList<>(pr.projections());
-                                    allFields.addAll(eval.fields());
-                                    yield pr.withProjections(allFields);
-                                }
-                                default -> p;
-                            });
-
-                            // Create the copied topN on top of the Enrich
-                            var copyTop = new TopN(top.source(), transformedEnrich, order.order(), top.limit(), false);
-                            // And use the project to remove the fields that we don't need anymore
-                            return proj.replaceChild(copyTop);
-                        } else {
-                            // No need for aliasing - then it's simple, just copy the TopN on top and mark the original as local
-                            LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == top ? top.withLocal(true) : t);
-                            return new TopN(top.source(), transformedEnrich, top.order(), top.limit());
+                if (plan instanceof TopN top && top.isLocal() == false) {
+                    // Create a fake OrderBy and "push" Enrich through it to generate aliases
+                    Enrich topWithEnrich = (Enrich) en.replaceChild(new OrderBy(top.source(), en.child(), top.order()));
+                    LogicalPlan pushPlan = PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(topWithEnrich);
+                    // If we needed to alias any names, the result would look like this:
+                    // Project[[host{f}#14, timestamp{f}#16, user{f}#15, ip{r}#19, os{r}#20]]
+                    // \_OrderBy[[Order[timestamp{f}#16,ASC,LAST], Order[user{f}#15,ASC,LAST],
+                    // Order[$$ip$temp_name$21{r$}#22,ASC,LAST]]]
+                    // \_Enrich[REMOTE,hosts[KEYWORD],ip{r}#3,{"match":{"indices":[],"match_field":"ip",
+                    // "enrich_fields":["ip","os"]}},{},[ip{r}#19,os{r}#20]]
+                    // \_Eval[[ip{r}#3 AS $$ip$temp_name$21#22]]
+                    if (pushPlan instanceof Project proj) {
+                        // We needed renaming - deconstruct the plan from above and extract the relevant parts
+                        if ((proj.child() instanceof OrderBy o && o.child() instanceof Enrich e && e.child() instanceof Eval) == false) {
+                            throw new IllegalStateException("Unexpected pushed plan structure: " + pushPlan);
                         }
+                        OrderBy order = (OrderBy) proj.child();
+                        Enrich enrich = (Enrich) order.child();
+                        Eval eval = (Eval) enrich.child();
+                        // We insert the evals above the original TopN, so that the copy TopN works on the renamed fields
+                        LogicalPlan replacementTop = eval.replaceChild(top.withLocal(true));
+                        LogicalPlan transformedEnrich = en.transformDown(p -> switch (p) {
+                            case TopN t when t == top -> replacementTop;
+                            // We only need to take care of Project because Drop can't drop our newly created fields
+                            case Project pr -> {
+                                List<NamedExpression> allFields = new LinkedList<>(pr.projections());
+                                allFields.addAll(eval.fields());
+                                yield pr.withProjections(allFields);
+                            }
+                            default -> p;
+                        });
+
+                        // Create the copied topN on top of the Enrich
+                        var copyTop = new TopN(top.source(), transformedEnrich, order.order(), top.limit(), false);
+                        // And use the project to remove the fields that we don't need anymore
+                        return proj.replaceChild(copyTop);
+                    } else {
+                        // No need for aliasing - then it's simple, just copy the TopN on top and mark the original as local
+                        LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == top ? top.withLocal(true) : t);
+                        return new TopN(top.source(), transformedEnrich, top.order(), top.limit());
                     }
                 }
                 if ((plan instanceof CardinalityPreserving) == false // can change the number of rows, so we can't just pull a TopN from

@@ -251,7 +251,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 AggregationReduceContext aggReduceContext = performFinalReduce
                     ? aggReduceContextBuilder.forFinalReduction()
                     : aggReduceContextBuilder.forPartialReduction();
-                aggReduceContext.setFinalReduceHasBatchedResult(hasBatchedResults);
+                aggReduceContext.setHasBatchedResult(hasBatchedResults);
                 aggs = aggregate(buffer.iterator(), new Iterator<>() {
                     @Override
                     public boolean hasNext() {

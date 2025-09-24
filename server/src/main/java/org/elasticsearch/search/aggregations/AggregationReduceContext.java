@@ -47,7 +47,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     @Nullable
     private final AggregationBuilder builder;
     private final AggregatorFactories.Builder subBuilders;
-    private boolean finalReduceHasBatchedResult;
+    private boolean hasBatchedResult;
 
     private AggregationReduceContext(
         BigArrays bigArrays,
@@ -137,12 +137,12 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
     protected abstract AggregationReduceContext forSubAgg(AggregationBuilder sub);
 
-    public boolean doesFinalReduceHaveBatchedResult() {
-        return finalReduceHasBatchedResult;
+    public boolean hasBatchedResult() {
+        return hasBatchedResult;
     }
 
-    public void setFinalReduceHasBatchedResult(boolean finalReduceHasBatchedResult) {
-        this.finalReduceHasBatchedResult = finalReduceHasBatchedResult;
+    public void setHasBatchedResult(boolean hasBatchedResult) {
+        this.hasBatchedResult = hasBatchedResult;
     }
 
     /**
@@ -244,7 +244,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         @Override
         protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
             ForFinal subContext = new ForFinal(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, pipelineTreeRoot);
-            subContext.setFinalReduceHasBatchedResult(doesFinalReduceHaveBatchedResult());
+            subContext.setHasBatchedResult(hasBatchedResult());
             return subContext;
         }
     }

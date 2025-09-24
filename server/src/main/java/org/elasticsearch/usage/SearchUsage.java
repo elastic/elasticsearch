@@ -40,9 +40,6 @@ public final class SearchUsage {
      */
     public void trackSectionUsage(String section) {
         sections.add(section);
-        if (section.equals("extended")) {
-            throw new IllegalStateException("foo");
-        }
     }
 
     /**

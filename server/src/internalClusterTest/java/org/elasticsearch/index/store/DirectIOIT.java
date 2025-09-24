@@ -86,7 +86,8 @@ public class DirectIOIT extends ESIntegTestCase {
                           "index": true,
                           "similarity": "l2_norm",
                           "index_options": {
-                            "type": "%type%"
+                            "type": "%type%",
+                            "direct_raw_vector_reads": true
                           }
                         }
                       }

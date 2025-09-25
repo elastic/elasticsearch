@@ -59,6 +59,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -93,7 +94,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -128,6 +131,8 @@ import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryT
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.blobcache.CachePopulationSource.BlobStore;
+import static org.elasticsearch.blobcache.CachePopulationSource.Peer;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -152,6 +157,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
@@ -292,6 +298,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         plugins.remove(Stateless.class);
         plugins.add(TestStateless.class);
         plugins.add(MockRepository.Plugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -1608,6 +1615,41 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         threads.forEach(Thread::start);
 
         safeAwait(threadCounter);
+    }
+
+    public void testSearchTriggeredDownloadsTelemetry() {
+        startMasterAndIndexNode();
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String searchNode = startSearchNode();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        for (int i = 0; i < 10; i++) {
+            indexDocs(indexName, 1_000);
+            refresh(indexName);
+        }
+        flush(indexName);
+
+        evictSearchShardCache(indexName);
+        SearchResponse searchResponse = null;
+        try {
+            searchResponse = prepareSearch(indexName).setQuery(matchAllQuery()).get();
+        } finally {
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
+        }
+
+        TestTelemetryPlugin telemetryPlugin = getTelemetryPlugin(searchNode);
+        List<Measurement> searchOriginMeasurement = telemetryPlugin.getLongHistogramMeasurement(
+            BlobCacheMetrics.SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME
+        );
+        assertThat(searchOriginMeasurement.size(), greaterThan(0));
+        Measurement measurement = searchOriginMeasurement.stream().findFirst().get();
+        assertThat(measurement.getLong(), greaterThanOrEqualTo(0L));
+        assertThat(
+            measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
+            is(oneOf(BlobStore.name(), Peer.name()))
+        );
     }
 
     private void assertScrollResponses(SearchRequestBuilder searchRequestBuilder) {

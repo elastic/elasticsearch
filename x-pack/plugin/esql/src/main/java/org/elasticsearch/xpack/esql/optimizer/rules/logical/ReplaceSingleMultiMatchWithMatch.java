@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -52,7 +53,7 @@ public final class ReplaceSingleMultiMatchWithMatch extends OptimizerRules.Optim
         // Filter the map entries to only include allowed options
         List<Map.Entry<Expression, Expression>> filteredEntries = mapExpr.map().entrySet().stream().filter(entry -> {
             if (entry.getKey() instanceof Literal literal && literal.dataType() == KEYWORD) {
-                String optionName = literal.value().toString();
+                String optionName = ((BytesRef) literal.value()).utf8ToString();
                 return Match.ALLOWED_OPTIONS.containsKey(optionName);
             }
             return false;

@@ -9248,4 +9248,68 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Match match = (Match) matchFunction;
         assertThat(((FieldAttribute) match.field()).name(), equalTo("message"));
     }
+
+    // TODO: test that options are passed correctly
+    public void testReplaceSingleMultiMatchWithMatchOptionsPassedCorrectly() {
+        String query = """
+            from test
+            | where MULTI_MATCH("Anna Smith", first_name, {
+                "analyzer": "standard",
+                "auto_generate_synonyms_phrase_query": false,
+                "boost": 2.0,
+                "fuzziness": "AUTO",
+                "fuzzy_transpositions": false,
+                "fuzzy_rewrite": "constant_score",
+                "lenient": false,
+                "max_expansions": 100,
+                "minimum_should_match": 10,
+                "operator": "AND",
+                "prefix_length": 2
+            })
+            """;
+
+        LogicalPlan plan = optimizedPlan(query);
+
+        Limit limit = asLimit(plan, 1000);
+        Filter filter = as(limit.child(), Filter.class);
+        Expression matchFunction = filter.condition();
+
+        assertThat(matchFunction, instanceOf(Match.class));
+
+        Match match = (Match) matchFunction;
+        Expression options = match.options();
+
+        assertOption(options, "analyzer", "standard");
+        assertOption(options, "auto_generate_synonyms_phrase_query", "false");
+        assertOption(options, "boost", "2.0");
+        assertOption(options, "fuzziness", "AUTO");
+        assertOption(options, "fuzzy_transpositions", "false");
+        assertOption(options, "fuzzy_rewrite", "constant_score");
+        assertOption(options, "lenient", "false");
+        assertOption(options, "max_expansions", "100");
+        assertOption(options, "minimum_should_match", "10");
+        assertOption(options, "operator", "AND");
+        assertOption(options, "prefix_length", "2");
+    }
+
+    private void assertOption(Expression options, String optionKey, String expectedValue) {
+        for (EntryExpression entry : ((MapExpression) options).entryExpressions()) {
+            Expression option = entry.key();
+            Object optionExprLiteral = ((Literal) option).value();
+            String currentOptionKey = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+
+            if (optionKey.equals(currentOptionKey) == false) {
+                continue;
+            }
+
+            Expression value = entry.value();
+            Object valueExprLiteral = ((Literal) value).value();
+            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
+
+            assertThat(optionValue, equalTo(expectedValue));
+            return;
+        }
+
+        fail("Expected option [" + optionKey + "] to be present in options.");
+    }
 }

@@ -3250,13 +3250,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
-    public void testExpressionJoinNonSnapshotBuild() {
-        assumeFalse("LOOKUP JOIN is not yet in non-snapshot builds", Build.current().isSnapshot());
-        expectThrows(
-            ParsingException.class,
-            startsWith("line 1:31: JOIN ON clause only supports fields at the moment."),
-            () -> statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field")
-        );
+    /**
+     * Verify that both in snapshot and in release build the feature is enabled and the parsing works
+     * without checking for the capability
+     */
+    public void testExpressionJoinEnabled() {
+        var plan = statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field");
+        var join = as(plan, LookupJoin.class);
     }
 
     public void testValidJoinPatternExpressionJoin() {
@@ -3290,7 +3290,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
         }
 
-        // add a check that the feature is disabled on non-snaphsot build
         String query = "FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString;
         var plan = statement(query);
 
@@ -4219,7 +4218,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V5.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
@@ -4229,11 +4228,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
 
         var fuse = as(plan, Fuse.class);
-        assertThat(fuse.groupings().size(), equalTo(2));
-        assertThat(fuse.groupings().get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.groupings().get(0).name(), equalTo("_id"));
-        assertThat(fuse.groupings().get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.groupings().get(1).name(), equalTo("_index"));
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("_id"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("_index"));
         assertThat(fuse.discriminator().name(), equalTo("_fork"));
         assertThat(fuse.score().name(), equalTo("_score"));
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
@@ -4278,16 +4277,70 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(((MapExpression) options.get("weights")).get("fork1"), equalTo(Literal.fromDouble(null, 0.33)));
 
         assertThat(fuse.child(), instanceOf(Fork.class));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE SCORE BY my_score KEY BY my_key1,my_key2 GROUP BY my_group WITH {"rank_constant": 15 }
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("my_group"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE GROUP BY my_group KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("my_group"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
     }
 
     public void testInvalidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V5.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
         expectError(queryPrefix + " | FUSE BLA", "line 1:75: Fuse type BLA is not supported");
 
         expectError(queryPrefix + " | FUSE WITH 1", "line 1:85: mismatched input '1' expecting '{'");
+
+        expectError(
+            queryPrefix + " | FUSE  WITH {\"rank_constant\": 15 }  WITH {\"rank_constant\": 15 }",
+            "line 1:110: Only one WITH can be specified"
+        );
+
+        expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score GROUP BY bar", "line 1:111: Only one GROUP BY can be specified");
+
+        expectError(
+            queryPrefix + " | FUSE SCORE BY my_score GROUP BY bar SCORE BY another_score",
+            "line 1:111: Only one SCORE BY can be specified"
+        );
+
+        expectError(queryPrefix + " | FUSE KEY BY bar SCORE BY another_score KEY BY bar", "line 1:114: Only one KEY BY can be specified");
+
+        expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score LINEAR", "line 1:111: extraneous input 'LINEAR' expecting <EOF>");
     }
 
     public void testDoubleParamsForIdentifier() {

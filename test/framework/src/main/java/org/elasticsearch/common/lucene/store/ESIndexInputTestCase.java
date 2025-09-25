@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -44,7 +45,7 @@ public class ESIndexInputTestCase extends ESTestCase {
             name,
             10,
             0,
-            EsExecutors.daemonThreadFactory(name),
+            TestEsExecutors.testOnlyDaemonThreadFactory(name),
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -278,6 +279,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
             PhysicalSettings.DEFAULT_DATA_PARTITIONING,
             PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
+            PhysicalSettings.LUCENE_TOPN_LIMIT,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
@@ -343,6 +345,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
+        entries.add(LinearScoreEvalOperator.Status.ENTRY);
+
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
 

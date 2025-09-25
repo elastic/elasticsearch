@@ -108,8 +108,8 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             .collect(Collectors.toMap(ModelConfigurations::getInferenceEntityId, Function.identity()));
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldByIndexServiceAndTask = new HashMap<>();
         for (IndexMetadata indexMetadata : indicesMetadata) {
-            if (indexMetadata.isSystem()) {
-                // Usage for system indices should be reported through the corresponding application usage
+            if (indexMetadata.isSystem() || indexMetadata.isHidden()) {
+                // Usage for system or hidden indices should be reported through the corresponding application usage
                 continue;
             }
             indexMetadata.getInferenceFields()

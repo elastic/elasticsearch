@@ -10,11 +10,18 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
@@ -50,14 +57,63 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
         return randomList(min, max, () -> FieldAttributeTests.createFieldAttribute(0, onlyRepresentable));
     }
 
+    /**
+     * Reuses existing {@link NameId}s when deserializing a tree, rather than creating new ones all the time. This makes testing for
+     * equality easier because deserialized nodes will have the same {@link NameId} instances as the original ones.
+     */
+    private static class TestIdsNameMapper extends PlanStreamInput.NameIdMapper {
+        private void add(NameId id) {
+            seen().computeIfAbsent(id.id(), unused -> id);
+        }
+
+        public void collectNameIds(Node<?> node) {
+            if (node instanceof Expression e) {
+                e.forEachDown(
+                    NamedExpression.class,
+                    ne -> add(ne.id())
+                );
+                return;
+            }
+
+            if (node instanceof QueryPlan<?> p) {
+                p.forEachExpressionDown(
+                    NamedExpression.class,
+                    ne -> add(ne.id())
+                );
+            }
+
+            if (node instanceof LogicalPlan lp) {
+                lp.forEachDown(Lookup.class, lookup -> {
+                    if (lookup.localRelation() != null) {
+                        // The LocalRelation is not seen as part of the plan tree so we need to explicitly collect its NameIds.
+                        collectNameIds(lookup.localRelation());
+                    }
+                });
+            }
+
+            if (node instanceof PhysicalPlan p) {
+                p.forEachDown(FragmentExec.class, fragmentExec -> {
+                    // The fragment is not seen as part of the plan tree so we need to explicitly collect its NameIds.
+                    LogicalPlan fragment = fragmentExec.fragment();
+                    collectNameIds(fragment);
+                });
+            }
+        }
+    }
+
+
+
     @Override
     protected T copyInstance(T instance, TransportVersion version) throws IOException {
+        TestIdsNameMapper idsNameMapper = new TestIdsNameMapper();
+        idsNameMapper.collectNameIds(instance);
+
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
             (out, v) -> new PlanStreamOutput(out, configuration()).writeNamedWriteable(v),
             in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration());
+                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration(), idsNameMapper);
                 @SuppressWarnings("unchecked")
                 T deser = (T) pin.readNamedWriteable(categoryClass());
                 if (alwaysEmptySource()) {

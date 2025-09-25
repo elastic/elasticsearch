@@ -1,0 +1,5 @@
+pr: 135403
+summary: Take INLINE STATS out of snapshot
+area: ES|QL
+type: enhancement
+issues: []

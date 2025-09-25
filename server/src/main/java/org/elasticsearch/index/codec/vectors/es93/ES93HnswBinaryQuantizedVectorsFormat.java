@@ -20,7 +20,6 @@
 package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.util.SetOnce;
 
 import java.util.Map;
 import java.util.concurrent.ExecutorService;

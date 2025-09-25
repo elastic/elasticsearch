@@ -283,8 +283,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                     if (fullyQualifiedInferenceId.clusterAlias().equals(queryRewriteContext.getLocalClusterAlias()) == false) {
                         // Catch if we are missing inference results that should have been generated on another cluster
                         throw new IllegalStateException(
-                            "Cannot get inference results for cluster ["
-                                + fullyQualifiedInferenceId.clusterAlias()
+                            "Cannot get inference results for inference endpoint ["
+                                + fullyQualifiedInferenceId
                                 + "] on cluster ["
                                 + queryRewriteContext.getLocalClusterAlias()
                                 + "]"

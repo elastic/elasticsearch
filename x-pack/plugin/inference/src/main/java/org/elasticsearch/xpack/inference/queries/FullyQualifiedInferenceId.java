@@ -32,6 +32,6 @@ public record FullyQualifiedInferenceId(String clusterAlias, String inferenceId)
 
     @Override
     public String toString() {
-        return "{" + "clusterAlias=" + clusterAlias + ", inferenceId=" + inferenceId + "}";
+        return "{clusterAlias=" + clusterAlias + ", inferenceId=" + inferenceId + "}";
     }
 }

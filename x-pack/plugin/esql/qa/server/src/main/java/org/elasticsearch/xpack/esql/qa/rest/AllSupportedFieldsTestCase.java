@@ -34,8 +34,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.INITIAL_ELASTICSEARCH_9_0;
 import static org.elasticsearch.TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -90,7 +93,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         this.indexMode = indexMode;
     }
 
-    protected record NodeInfo(String cluster, String id, TransportVersion version) {}
+    protected record NodeInfo(String cluster, String id, TransportVersion version, Set<String> roles) {}
 
     private static Map<String, NodeInfo> nodeToInfo;
 
@@ -114,6 +117,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS")).orElse(false);
     }
 
+    private static Boolean supportsNodeAssignment;
+
+    protected boolean supportsNodeAssignment() throws IOException {
+        if (supportsNodeAssignment == null) {
+            supportsNodeAssignment = allNodeToInfo().values()
+                .stream()
+                .allMatch(i -> i.roles.contains("index") && i.roles.contains("search"));
+        }
+        return supportsNodeAssignment;
+    }
+
     /**
      * Map from node name to information about the node.
      */
@@ -129,10 +143,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         for (Map.Entry<?, ?> n : nodes.entrySet()) {
             String id = (String) n.getKey();
             Map<?, ?> nodeInfo = (Map<?, ?>) n.getValue();
-            logger.error("DAFADFS {}", nodeInfo);
             String nodeName = (String) extractValue(nodeInfo, "name");
             TransportVersion transportVersion = TransportVersion.fromId((Integer) extractValue(nodeInfo, "transport_version"));
-            nodeToInfo.put(nodeName, new NodeInfo(cluster, id, transportVersion));
+            List<?> roles = (List<?>) nodeInfo.get("roles");
+            nodeToInfo.put(
+                nodeName,
+                new NodeInfo(cluster, id, transportVersion, roles.stream().map(Object::toString).collect(Collectors.toSet()))
+            );
         }
 
         return nodeToInfo;
@@ -140,8 +157,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     @Before
     public void createIndices() throws IOException {
-        for (Map.Entry<String, NodeInfo> e : nodeToInfo().entrySet()) {
-            createIndexForNode(client(), e.getKey(), e.getValue().id());
+        if (supportsNodeAssignment()) {
+            for (Map.Entry<String, NodeInfo> e : nodeToInfo().entrySet()) {
+                createIndexForNode(client(), e.getKey(), e.getValue().id());
+            }
+        } else {
+            createIndexForNode(client(), null, null);
         }
     }
 
@@ -173,8 +194,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
-            String nodeName = e.getKey();
+        for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
+            String indexName = e.getKey();
             NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
             for (DataType type : DataType.values()) {
@@ -185,12 +206,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
-                .entry("_index", expectedIndex(nodeName, nodeInfo))
+                .entry("_index", indexName)
                 .entry("_index_mode", indexMode.toString())
                 .entry("_score", 0.0)
                 .entry("_source", matchesMap().extraOk())
                 .entry("_version", 1);
-            expectedAllValues = expectedAllValues.entry(expectedIndex(nodeName, nodeInfo), expectedValues);
+            expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
         }
         assertMap(indexToRow(columns, values), expectedAllValues);
         profileLogger.clearProfile();
@@ -228,7 +249,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 EntityUtils.toString(e.getResponse().getEntity()),
                 anyOf(
                     containsString("Unknown function [v_l2_norm]"),
-                    containsString("Cannot use field [f_dense_vector] with unsupported type")
+                    containsString("Cannot use field [f_dense_vector] with unsupported type"),
+                    containsString("doesn't understand data type [DENSE_VECTOR]")
                 )
             );
             // Failure is expected and fine
@@ -241,13 +263,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(nameToType(columns), expectedColumns);
 
         MapMatcher expectedAllValues = matchesMap();
-        for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
-            String nodeName = e.getKey();
+        for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
+            String indexName = e.getKey();
             NodeInfo nodeInfo = e.getValue();
             MapMatcher expectedValues = matchesMap();
             expectedValues = expectedValues.entry("f_dense_vector", expectedDenseVector(nodeInfo.version));
-            expectedValues = expectedValues.entry("_index", expectedIndex(nodeName, nodeInfo));
-            expectedAllValues = expectedAllValues.entry(expectedIndex(nodeName, nodeInfo), expectedValues);
+            expectedValues = expectedValues.entry("_index", indexName);
+            expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
         }
         assertMap(indexToRow(columns, values), expectedAllValues);
     }
@@ -275,7 +297,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected void createIndexForNode(RestClient client, String nodeName, String nodeId) throws IOException {
-        String indexName = indexMode + "_" + nodeName.toLowerCase(Locale.ROOT);
+        String indexName = indexMode.toString();
+        if (nodeName != null) {
+            indexName += "_" + nodeName.toLowerCase(Locale.ROOT);
+        }
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, indexName, nodeId);
             createAllTypesDoc(client, indexName);
@@ -291,7 +316,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (indexMode == IndexMode.TIME_SERIES) {
                 config.field("routing_path", "f_keyword");
             }
-            config.field("routing.allocation.include._id", nodeId);
+            if (nodeId != null) {
+                config.field("routing.allocation.include._id", nodeId);
+            }
             config.endObject();
             config.endObject();
         }
@@ -409,7 +436,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Matcher<List<?>> expectedDenseVector(TransportVersion version) {
-        return version.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)
+        return version.onOrAfter(INITIAL_ELASTICSEARCH_9_0)
             ? matchesList().item(0.5).item(10.0).item(5.9999995)
             : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }
@@ -506,11 +533,29 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         };
     }
 
-    private String expectedIndex(String nodeName, NodeInfo nodeInfo) {
-        String expectedIndex = indexMode + "_" + nodeName.toLowerCase(Locale.ROOT);
-        if (nodeInfo.cluster == null) {
-            return expectedIndex;
+    private Map<String, NodeInfo> expectedIndices() throws IOException {
+        logger.error("ADFADF NOCOMMIT");
+        Map<String, NodeInfo> result = new TreeMap<>();
+        if (supportsNodeAssignment()) {
+            logger.error("supports {}", allNodeToInfo());
+            for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
+                String name = indexMode + "_" + e.getKey();
+                if (e.getValue().cluster != null) {
+                    name = e.getValue().cluster + ":" + name;
+                }
+                result.put(name, e.getValue());
+            }
+        } else {
+            logger.error("one per {}", allNodeToInfo());
+            for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
+                String name = indexMode.toString();
+                if (e.getValue().cluster != null) {
+                    name = e.getValue().cluster + ":" + name;
+                }
+                // We should only end up with one per cluster
+                result.put(name, new NodeInfo(e.getValue().cluster, null, e.getValue().version(), null));
+            }
         }
-        return nodeInfo.cluster + ":" + expectedIndex;
+        return result;
     }
 }

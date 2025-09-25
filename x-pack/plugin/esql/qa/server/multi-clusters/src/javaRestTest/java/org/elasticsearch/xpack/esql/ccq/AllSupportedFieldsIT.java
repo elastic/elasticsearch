@@ -48,8 +48,12 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
 
     @Before
     public void createRemoteIndices() throws IOException {
-        for (Map.Entry<String, NodeInfo> e : remoteNodeToInfo().entrySet()) {
-            createIndexForNode(remoteClient(), e.getKey(), e.getValue().id());
+        if (supportsNodeAssignment()) {
+            for (Map.Entry<String, NodeInfo> e : remoteNodeToInfo().entrySet()) {
+                createIndexForNode(remoteClient(), e.getKey(), e.getValue().id());
+            }
+        } else {
+            createIndexForNode(remoteClient(), null, null);
         }
     }
 

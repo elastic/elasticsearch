@@ -1,5 +1,5 @@
 pr: 135401
-summary: "OTLP: remove feature flag"
+summary: "Adds an OTLP metrics endpoint (`_otlp/v1/metrics`) as tech preview"
 area: TSDB
 type: enhancement
 issues: []

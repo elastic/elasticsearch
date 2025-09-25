@@ -1920,11 +1920,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             equalTo(2)
         );
 
-        // TODO This should work once we have the logic to copy commits that arrive during handoff, ES-11531 ?
+        // TODO:
+        // This should work once we have the logic to copy commits that arrive during handoff, ES-11531 and logic to route search
+        // requests post-handoff.
         // assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 1);
         // assertSearchHits(prepareSearch(indexName).setQuery(matchQuery("foo", "bar")), targetDocId);
 
-        // TODO Modify this once ES-11531 is merged ?
+        // Note that stats won't include data copied from the source shard to target shard,
+        // since they didn't go through the "normal" indexing logic.
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo((long) 1));
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 1), equalTo((long) 0));
 

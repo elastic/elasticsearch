@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.inference.usage.ModelStats;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -93,7 +92,6 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             mapInferenceFieldsByIndexServiceAndTask(indicesMetadata, endpoints);
         Map<String, ModelStats> endpointStats = new TreeMap<>();
         addStatsByServiceAndTask(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
-        addTopLevelSemanticTextStatsByTask(inferenceFieldsByIndexServiceAndTask, endpointStats);
         addStatsForDefaultModels(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
         return new InferenceFeatureSetUsage(endpointStats.values().stream().filter(stats -> stats.count() > 0).toList());
     }
@@ -149,13 +147,17 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 endpointStats.get(serviceAndTaskType.toString())
             )
         );
+        addTopLevelSemanticTextStatsByTask(inferenceFieldsByIndexServiceAndTask, endpointStats);
     }
 
     private static void addTopLevelSemanticTextStatsByTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         Map<String, ModelStats> endpointStats
     ) {
-        for (TaskType taskType : Arrays.stream(TaskType.values()).filter(t -> t != TaskType.ANY).toList()) {
+        for (TaskType taskType : TaskType.values()) {
+            if (taskType == TaskType.ANY) {
+                continue;
+            }
             ModelStats allStatsForTaskType = endpointStats.computeIfAbsent(
                 new ServiceAndTaskType(Metadata.ALL, taskType).toString(),
                 key -> new ModelStats(Metadata.ALL, taskType)

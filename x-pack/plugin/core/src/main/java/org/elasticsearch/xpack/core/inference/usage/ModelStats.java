@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -19,6 +20,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ModelStats implements ToXContentObject, Writeable {
+
+    public static final NodeFeature SEMANTIC_TEXT_USAGE = new NodeFeature("inference.semantic_text_usage");
 
     static final TransportVersion INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS = TransportVersion.fromName(
         "inference_telemetry_added_semantic_text_stats"

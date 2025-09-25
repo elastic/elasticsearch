@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
+import org.elasticsearch.xpack.core.inference.usage.ModelStats;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
@@ -96,7 +96,7 @@ public class InferenceFeatures implements FeatureSpecification {
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
-                InferenceFeatureSetUsage.SEMANTIC_TEXT_USAGE
+                ModelStats.SEMANTIC_TEXT_USAGE
             )
         );
         testFeatures.addAll(getFeatures());

@@ -1,7 +1,7 @@
 setup:
   - requires:
       cluster_features: "inference.semantic_text_usage"
-      reason: tests added after semantic_text usage was added
+      reason: semantic text stats added to inference usage
 
 ---
 "Test usage given default endpoints":
@@ -16,47 +16,47 @@ setup:
   - match: { inference.models.0.service: "_all" }
   - match: { inference.models.0.task_type: "RERANK" }
   - match: { inference.models.0.count: 1 }
-  - is_false: inference.models.0.semantic_text
+  - not_exists: inference.models.0.semantic_text
 
   - match: { inference.models.1.service: "_all" }
   - match: { inference.models.1.task_type: "SPARSE_EMBEDDING" }
   - match: { inference.models.1.count: 1 }
-  - is_false: inference.models.1.semantic_text
+  - not_exists: inference.models.1.semantic_text
 
   - match: { inference.models.2.service: "_all" }
   - match: { inference.models.2.task_type: "TEXT_EMBEDDING" }
   - match: { inference.models.2.count: 1 }
-  - is_false: inference.models.2.semantic_text
+  - not_exists: inference.models.2.semantic_text
 
   - match: { inference.models.3.service: "_elasticsearch__elser_model_2" }
   - match: { inference.models.3.task_type: "SPARSE_EMBEDDING" }
   - match: { inference.models.3.count: 1 }
-  - is_false: inference.models.3.semantic_text
+  - not_exists: inference.models.3.semantic_text
 
   - match: { inference.models.4.service: "_elasticsearch__multilingual-e5-small" }
   - match: { inference.models.4.task_type: "TEXT_EMBEDDING" }
   - match: { inference.models.4.count: 1 }
-  - is_false: inference.models.4.semantic_text
+  - not_exists: inference.models.4.semantic_text
 
   - match: { inference.models.5.service: "_elasticsearch__rerank-v1" }
   - match: { inference.models.5.task_type: "RERANK" }
   - match: { inference.models.5.count: 1 }
-  - is_false: inference.models.5.semantic_text
+  - not_exists: inference.models.5.semantic_text
 
   - match: { inference.models.6.service: "elasticsearch" }
   - match: { inference.models.6.task_type: "RERANK" }
   - match: { inference.models.6.count: 1 }
-  - is_false: inference.models.6.semantic_text
+  - not_exists: inference.models.6.semantic_text
 
   - match: { inference.models.7.service: "elasticsearch" }
   - match: { inference.models.7.task_type: "SPARSE_EMBEDDING" }
   - match: { inference.models.7.count: 1 }
-  - is_false: inference.models.7.semantic_text
+  - not_exists: inference.models.7.semantic_text
 
   - match: { inference.models.8.service: "elasticsearch" }
   - match: { inference.models.8.task_type: "TEXT_EMBEDDING" }
   - match: { inference.models.8.count: 1 }
-  - is_false: inference.models.8.semantic_text
+  - not_exists: inference.models.8.semantic_text
 
 ---
 "Test usage given default endpoints and semantic_text fields":
@@ -91,7 +91,7 @@ setup:
   - match: { inference.models.0.service: "_all" }
   - match: { inference.models.0.task_type: "RERANK" }
   - match: { inference.models.0.count: 1 }
-  - is_false: inference.models.0.semantic_text
+  - not_exists: inference.models.0.semantic_text
 
   - match: { inference.models.1.service: "_all" }
   - match: { inference.models.1.task_type: "SPARSE_EMBEDDING" }
@@ -124,12 +124,12 @@ setup:
   - match: { inference.models.5.service: "_elasticsearch__rerank-v1" }
   - match: { inference.models.5.task_type: "RERANK" }
   - match: { inference.models.5.count: 1 }
-  - is_false: inference.models.5.semantic_text
+  - not_exists: inference.models.5.semantic_text
 
   - match: { inference.models.6.service: "elasticsearch" }
   - match: { inference.models.6.task_type: "RERANK" }
   - match: { inference.models.6.count: 1 }
-  - is_false: inference.models.6.semantic_text
+  - not_exists: inference.models.6.semantic_text
 
   - match: { inference.models.7.service: "elasticsearch" }
   - match: { inference.models.7.task_type: "SPARSE_EMBEDDING" }

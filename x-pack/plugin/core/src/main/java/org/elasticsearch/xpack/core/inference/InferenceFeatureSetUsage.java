@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
@@ -23,8 +22,6 @@ import java.util.List;
 import java.util.Objects;
 
 public class InferenceFeatureSetUsage extends XPackFeatureUsage {
-
-    public static final NodeFeature SEMANTIC_TEXT_USAGE = new NodeFeature("inference.semantic_text_usage");
 
     public static final InferenceFeatureSetUsage EMPTY = new InferenceFeatureSetUsage(List.of());
 

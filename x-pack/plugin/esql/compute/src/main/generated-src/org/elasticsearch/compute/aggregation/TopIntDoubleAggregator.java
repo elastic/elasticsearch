@@ -96,6 +96,7 @@ class TopIntDoubleAggregator {
             Releasables.close(blocks[0]);
             return blocks[1];
         }
+
         @Override
         public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block

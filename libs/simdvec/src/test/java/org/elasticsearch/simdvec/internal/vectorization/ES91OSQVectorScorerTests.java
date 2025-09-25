@@ -28,7 +28,7 @@ import java.io.IOException;
 public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
 
     public void testQuantizeScore() throws Exception {
-        final int dimensions = random().nextInt(1, 2000);
+        final int dimensions = random().nextInt(1, 10_000);
         final int length = BQVectorUtils.discretize(dimensions, 64) / 8;
         final int numVectors = random().nextInt(1, 100);
         final byte[] vector = new byte[length];
@@ -58,7 +58,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
     }
 
     public void testScore() throws Exception {
-        final int maxDims = random().nextInt(1, 1000) * 2;
+        final int maxDims = random().nextInt(1, 10_000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
         final int length = BQVectorUtils.discretize(dimensions, 64) / 8;
         final int numVectors = random().nextInt(10, 50);
@@ -157,7 +157,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
     }
 
     public void testScoreBulk() throws Exception {
-        final int maxDims = random().nextInt(1, 1000) * 2;
+        final int maxDims = random().nextInt(1, 10_000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
         final int length = BQVectorUtils.discretize(dimensions, 64) / 8;
         final int numVectors = ES91OSQVectorsScorer.BULK_SIZE * random().nextInt(1, 10);

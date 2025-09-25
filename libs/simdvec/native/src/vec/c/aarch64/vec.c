@@ -300,79 +300,105 @@ EXPORT float sqrf32(const float *a, const float *b, size_t elementCount) {
     return result;
 }
 
-EXPORT int64_t int4Bit(uint8_t* query, uint8_t* doc, int64_t offset, int length) {
-   const size_t stride = (length / 8) * 8;
-   uint64_t dot_q0 = 0;
-   uint64_t dot_q1 = 0;
-   uint64_t dot_q2 = 0;
-   uint64_t dot_q3 = 0;
-   const uint8_t* doc_idx = doc + offset;
-   const uint8_t* query_j0 = query;
-   const uint8_t* query_j1 = query + length;
-   const uint8_t* query_j2 = query + 2 * length;
-   const uint8_t* query_j3 = query + 3 * length;
-   int i = 0;
-   for (; i < stride; i += 8) {
+static inline int64_t int4Bit_inner(uint8_t* query, uint8_t* doc, int64_t offset, int length) {
+  uint64_t sum0 = 0;
+  uint64_t sum1 = 0;
+  uint64_t sum2 = 0;
+  uint64_t sum3 = 0;
+  uint64_t chunk_size = 16;
+
+  const uint8_t* doc_idx = doc + offset;
+  const uint8_t* query_j0 = query;
+  const uint8_t* query_j1 = query + length;
+  const uint8_t* query_j2 = query + 2 * length;
+  const uint8_t* query_j3 = query + 3 * length;
+
+  int i = 0;
+
+  if (length >= chunk_size)
+  {
+    uint64_t iters = length / chunk_size;
+    uint64x2_t sumP0 = vcombine_u64(vcreate_u64(0), vcreate_u64(0));
+    uint64x2_t sumP1 = sumP0;
+    uint64x2_t sumP2 = sumP0;
+    uint64x2_t sumP3 = sumP0;
+    uint8x16_t zero = vcombine_u8(vcreate_u8(0), vcreate_u8(0));
+    int j = 0;
+
+    do
+    {
+      uint8x16_t qDot0 = zero;
+      uint8x16_t qDot1 = zero;
+      uint8x16_t qDot2 = zero;
+      uint8x16_t qDot3 = zero;
+
+      /*
+       * After every 31 iterations we need to add the
+       * temporary sums (qDot0, qDot1, qDot2, qDot3) to the total sum.
+       * We must ensure that the temporary sums <= 255
+       * and 31 * 8 bits = 248 which is OK.
+       */
+      uint64_t limit = (j + 31 < iters) ? j + 31 : iters;
+
+      for (; j < limit; j++, i+= chunk_size)
+      {
+       const uint8x16_t qv0 = vld1q_u8(query_j0 + i);
+       const uint8x16_t qv1 = vld1q_u8(query_j1 + i);
+       const uint8x16_t qv2 = vld1q_u8(query_j2 + i);
+       const uint8x16_t qv3 = vld1q_u8(query_j3 + i);
+       const uint8x16_t yv = vld1q_u8(doc_idx + i);
+
+        qDot0 = vaddq_u8(qDot0, vcntq_u8(vandq_u8(qv0,yv)));
+        qDot1 = vaddq_u8(qDot1, vcntq_u8(vandq_u8(qv1,yv)));
+        qDot2 = vaddq_u8(qDot2, vcntq_u8(vandq_u8(qv2,yv)));
+        qDot3 = vaddq_u8(qDot3, vcntq_u8(vandq_u8(qv3,yv)));
+      }
+
+      sumP0 = vpadalq_u32(sumP0, vpaddlq_u16(vpaddlq_u8(qDot0)));
+      sumP1 = vpadalq_u32(sumP1, vpaddlq_u16(vpaddlq_u8(qDot1)));
+      sumP2 = vpadalq_u32(sumP2, vpaddlq_u16(vpaddlq_u8(qDot2)));
+      sumP3 = vpadalq_u32(sumP3, vpaddlq_u16(vpaddlq_u8(qDot3)));
+    }
+    while (j < iters);
+
+    sum0 += sumP0[0] + sumP0[1];
+    sum1 += sumP1[0] + sumP1[1];
+    sum2 += sumP2[0] + sumP2[1];
+    sum3 += sumP3[0] + sumP3[1];
+  }
+
+   for (; i < length - 7; i += 8) {
        const uint64_t qv0 = *(const uint64_t*)(query_j0 + i);
        const uint64_t qv1 = *(const uint64_t*)(query_j1 + i);
        const uint64_t qv2 = *(const uint64_t*)(query_j2 + i);
        const uint64_t qv3 = *(const uint64_t*)(query_j3 + i);
        const uint64_t yv = *(const uint64_t*)(doc_idx + i);
-       dot_q0 += __builtin_popcountll(qv0 & yv);
-       dot_q1 += __builtin_popcountll(qv1 & yv);
-       dot_q2 += __builtin_popcountll(qv2 & yv);
-       dot_q3 += __builtin_popcountll(qv3 & yv);
+       sum0 += __builtin_popcountll(qv0 & yv);
+       sum1 += __builtin_popcountll(qv1 & yv);
+       sum2 += __builtin_popcountll(qv2 & yv);
+       sum3 += __builtin_popcountll(qv3 & yv);
    }
+
    for (; i < length; i++) {
        const uint8_t qv0 = *(query_j0 + i);
        const uint8_t qv1 = *(query_j1 + i);
        const uint8_t qv2 = *(query_j2 + i);
        const uint8_t qv3 = *(query_j3 + i);
-       const uint8_t yv = *(doc_idx + i);
-       dot_q0 += __builtin_popcountll(qv0 & yv);
-       dot_q1 += __builtin_popcountll(qv1 & yv);
-       dot_q2 += __builtin_popcountll(qv2 & yv);
-       dot_q3 += __builtin_popcountll(qv3 & yv);
+      const uint8_t yv = *(doc_idx + i);
+       sum0 += __builtin_popcountll(qv0 & yv);
+       sum1 += __builtin_popcountll(qv1 & yv);
+       sum2 += __builtin_popcountll(qv2 & yv);
+       sum3 += __builtin_popcountll(qv3 & yv);
    }
-   return dot_q0 + (dot_q1 << 1) + (dot_q2 << 2) + (dot_q3 << 3);
+   return sum0 + (sum1 << 1) + (sum2 << 2) + (sum3 << 3);
+}
+
+EXPORT int64_t int4Bit(uint8_t* query, uint8_t* doc, int64_t offset, int length) {
+  return int4Bit_inner(query, doc, offset, length);
 }
 
 EXPORT void int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float_t* scores, int count, int length) {
-    const size_t stride = (length / 8) * 8;
-    const uint8_t* query_j0 = query;
-    const uint8_t* query_j1 = query + length;
-    const uint8_t* query_j2 = query + 2 * length;
-    const uint8_t* query_j3 = query + 3 * length;
-    // assumption that the query bits are 4, and doc bits are singular
     for (size_t idx = 0; idx < count; idx++) {
-      uint64_t dot_q0 = 0;
-      uint64_t dot_q1 = 0;
-      uint64_t dot_q2 = 0;
-      uint64_t dot_q3 = 0;
-      const uint8_t* doc_idx = doc + offset + idx * length;
-      int i = 0;
-      for (; i < stride; i += 8) {
-        const uint64_t qv0 = *(const uint64_t*)(query_j0 + i);
-        const uint64_t qv1 = *(const uint64_t*)(query_j1 + i);
-        const uint64_t qv2 = *(const uint64_t*)(query_j2 + i);
-        const uint64_t qv3 = *(const uint64_t*)(query_j3 + i);
-        const uint64_t yv = *(const uint64_t*)(doc_idx + i);
-        dot_q0 += __builtin_popcountll(qv0 & yv);
-        dot_q1 += __builtin_popcountll(qv1 & yv);
-        dot_q2 += __builtin_popcountll(qv2 & yv);
-        dot_q3 += __builtin_popcountll(qv3 & yv);
-      }
-      for (; i < length; i++) {
-         const uint8_t qv0 = *(query_j0 + i);
-         const uint8_t qv1 = *(query_j1 + i);
-         const uint8_t qv2 = *(query_j2 + i);
-         const uint8_t qv3 = *(query_j3 + i);
-         const uint8_t yv = *(doc_idx + i);
-         dot_q0 += __builtin_popcountll(qv0 & yv);
-         dot_q1 += __builtin_popcountll(qv1 & yv);
-         dot_q2 += __builtin_popcountll(qv2 & yv);
-         dot_q3 += __builtin_popcountll(qv3 & yv);
-      }
-      scores[idx] = (float32_t)(dot_q0 + (dot_q1 << 1) + (dot_q2 << 2) + (dot_q3 << 3));
+        scores[idx] = int4Bit_inner(query, doc, offset + idx * length, length);
     }
 }

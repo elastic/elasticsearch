@@ -188,11 +188,11 @@ public final class JsonProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
+        Object value = apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing);
         if (addToRoot) {
-            Object value = apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing);
             mergeParsedJson(document.getSourceAndMetadata(), value, addToRootConflictStrategy);
         } else {
-            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing));
+            document.setFieldValue(targetField, value);
         }
         return document;
     }

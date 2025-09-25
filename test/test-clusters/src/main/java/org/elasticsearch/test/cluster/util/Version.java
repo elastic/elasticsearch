@@ -69,7 +69,7 @@ public class Version implements Comparable<Version>, Serializable {
         this(major, minor, revision, qualifier, false);
     }
 
-    private Version(int major, int minor, int revision, String qualifier, boolean detached) {
+    protected Version(int major, int minor, int revision, String qualifier, boolean detached) {
         this.major = major;
         this.minor = minor;
         this.revision = revision;

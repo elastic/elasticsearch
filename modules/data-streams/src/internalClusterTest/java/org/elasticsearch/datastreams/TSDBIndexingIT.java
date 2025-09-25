@@ -716,10 +716,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 containsInAnyOrder("metricset", "labels.*", "k8s.pod.name")
             );
         } else {
-            assertThat(
-                getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH),
-                containsInAnyOrder("metricset")
-            );
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), containsInAnyOrder("metricset"));
         }
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
 

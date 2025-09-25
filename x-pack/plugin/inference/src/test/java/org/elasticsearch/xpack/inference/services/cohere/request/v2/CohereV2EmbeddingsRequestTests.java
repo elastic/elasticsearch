@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.cohere.request.v2;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +39,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
+            null,
             inputType,
             CohereEmbeddingsModelTests.createModel(
                 null,
@@ -64,7 +66,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
+        MatcherAssert.assertThat(requestMap.get("inputs"), is(List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text"))))));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("float")));
         MatcherAssert.assertThat(requestMap.get("model"), is("model id"));
         MatcherAssert.assertThat(requestMap.get("truncate"), is("start"));
@@ -75,6 +77,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
+            null,
             InputType.UNSPECIFIED,
             CohereEmbeddingsModelTests.createModel(
                 "url",
@@ -100,6 +103,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
+            null,
             inputType,
             CohereEmbeddingsModelTests.createModel(
                 "http://localhost",
@@ -126,7 +130,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
+        MatcherAssert.assertThat(requestMap.get("inputs"), is(List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text"))))));
         MatcherAssert.assertThat(requestMap.get("model"), is("model"));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("int8")));
         MatcherAssert.assertThat(requestMap.get("truncate"), is("end"));
@@ -137,6 +141,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
+            null,
             inputType,
             CohereEmbeddingsModelTests.createModel(
                 null,
@@ -162,7 +167,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
+        MatcherAssert.assertThat(requestMap.get("inputs"), is(List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text"))))));
         MatcherAssert.assertThat(requestMap.get("model"), is("model"));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("binary")));
         MatcherAssert.assertThat(requestMap.get("truncate"), is("end"));
@@ -173,6 +178,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
+            null,
             inputType,
             CohereEmbeddingsModelTests.createModel(
                 null,
@@ -199,7 +205,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap.get("texts"), is(List.of("abc")));
+        MatcherAssert.assertThat(requestMap.get("inputs"), is(List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text"))))));
         MatcherAssert.assertThat(requestMap.get("embedding_types"), is(List.of("float")));
         MatcherAssert.assertThat(requestMap.get("truncate"), is("none"));
         validateInputType(requestMap, null, inputType);
@@ -209,6 +215,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         var entity = createRequest(
             "cohere model",
             List.of("abc"),
+            List.of("def"),
             InputType.INTERNAL_INGEST,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.START),
             CohereEmbeddingType.FLOAT
@@ -218,14 +225,40 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        MatcherAssert.assertThat(xContentResult, CoreMatchers.is("""
-            {"texts":["abc"],"model":"cohere model","input_type":"search_document","embedding_types":["float"],"truncate":"start"}"""));
+        String expectedResult = XContentHelper.stripWhitespace("""
+            {
+              "inputs": [
+                {
+                  "content": [
+                    {
+                      "type": "text", "text": "abc"
+                    }
+                  ]
+                },
+                {
+                  "content": [
+                    {
+                      "type": "image_url", "image_url": {
+                        "url": "def"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "model":"cohere model",
+              "input_type":"search_document",
+              "embedding_types":["float"],
+              "truncate":"start"
+            }
+            """);
+        MatcherAssert.assertThat(xContentResult, CoreMatchers.is(expectedResult));
     }
 
     public void testXContent_TaskSettingsInputType_EmbeddingTypesInt8_TruncateNone() throws IOException {
         var entity = createRequest(
             "cohere model",
             List.of("abc"),
+            null,
             InputType.INGEST,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
             CohereEmbeddingType.INT8
@@ -235,14 +268,31 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        MatcherAssert.assertThat(xContentResult, CoreMatchers.is("""
-            {"texts":["abc"],"model":"cohere model","input_type":"search_document","embedding_types":["int8"],"truncate":"none"}"""));
+        String expectedResult = XContentHelper.stripWhitespace("""
+            {
+              "inputs": [
+                {
+                  "content": [
+                    {
+                      "type": "text", "text": "abc"
+                    }
+                  ]
+                }
+              ],
+              "model":"cohere model",
+              "input_type":"search_document",
+              "embedding_types":["int8"],
+              "truncate":"none"
+            }
+            """);
+        MatcherAssert.assertThat(xContentResult, CoreMatchers.is(expectedResult));
     }
 
     public void testXContent_InternalInputType_EmbeddingTypesByte_TruncateNone() throws IOException {
         var entity = createRequest(
             "cohere model",
             List.of("abc"),
+            null,
             InputType.INTERNAL_SEARCH,
             new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE),
             CohereEmbeddingType.BYTE
@@ -252,14 +302,31 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        MatcherAssert.assertThat(xContentResult, CoreMatchers.is("""
-            {"texts":["abc"],"model":"cohere model","input_type":"search_query","embedding_types":["int8"],"truncate":"none"}"""));
+        String expectedResult = XContentHelper.stripWhitespace("""
+            {
+              "inputs": [
+                {
+                  "content": [
+                    {
+                      "type": "text", "text": "abc"
+                    }
+                  ]
+                }
+              ],
+              "model":"cohere model",
+              "input_type":"search_query",
+              "embedding_types":["int8"],
+              "truncate":"none"
+            }
+            """);
+        MatcherAssert.assertThat(xContentResult, CoreMatchers.is(expectedResult));
     }
 
     public void testXContent_InputTypeSearch_EmbeddingTypesBinary_TruncateNone() throws IOException {
         var entity = createRequest(
             "cohere model",
             List.of("abc"),
+            null,
             InputType.SEARCH,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
             CohereEmbeddingType.BINARY
@@ -269,14 +336,31 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        MatcherAssert.assertThat(xContentResult, CoreMatchers.is("""
-            {"texts":["abc"],"model":"cohere model","input_type":"search_query","embedding_types":["binary"],"truncate":"none"}"""));
+        String expectedResult = XContentHelper.stripWhitespace("""
+            {
+              "inputs": [
+                {
+                  "content": [
+                    {
+                      "type": "text", "text": "abc"
+                    }
+                  ]
+                }
+              ],
+              "model":"cohere model",
+              "input_type":"search_query",
+              "embedding_types":["binary"],
+              "truncate":"none"
+            }
+            """);
+        MatcherAssert.assertThat(xContentResult, CoreMatchers.is(expectedResult));
     }
 
     public void testXContent_InputTypeSearch_EmbeddingTypesBit_TruncateNone() throws IOException {
         var entity = createRequest(
             "cohere model",
             List.of("abc"),
+            null,
             InputType.SEARCH,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
             CohereEmbeddingType.BIT
@@ -286,23 +370,45 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        MatcherAssert.assertThat(xContentResult, CoreMatchers.is("""
-            {"texts":["abc"],"model":"cohere model","input_type":"search_query","embedding_types":["binary"],"truncate":"none"}"""));
+        String expectedResult = XContentHelper.stripWhitespace("""
+            {
+              "inputs": [
+                {
+                  "content": [
+                    {
+                      "type": "text", "text": "abc"
+                    }
+                  ]
+                }
+              ],
+              "model":"cohere model",
+              "input_type":"search_query",
+              "embedding_types":["binary"],
+              "truncate":"none"
+            }
+            """);
+        MatcherAssert.assertThat(xContentResult, CoreMatchers.is(expectedResult));
     }
 
-    public static CohereV2EmbeddingsRequest createRequest(List<String> input, InputType inputType, CohereEmbeddingsModel model) {
-        return new CohereV2EmbeddingsRequest(input, inputType, model);
+    public static CohereV2EmbeddingsRequest createRequest(
+        List<String> input,
+        List<String> imageUrls,
+        InputType inputType,
+        CohereEmbeddingsModel model
+    ) {
+        return new CohereV2EmbeddingsRequest(input, inputType, model, imageUrls);
     }
 
     public static CohereV2EmbeddingsRequest createRequest(
         String modelId,
         List<String> input,
+        List<String> imageUrls,
         InputType inputType,
         CohereEmbeddingsTaskSettings taskSettings,
         CohereEmbeddingType embeddingType
     ) {
         var model = CohereEmbeddingsModelTests.createModel(null, "secret", taskSettings, null, null, modelId, embeddingType);
-        return new CohereV2EmbeddingsRequest(input, inputType, model);
+        return new CohereV2EmbeddingsRequest(input, inputType, model, imageUrls);
     }
 
     private void validateInputType(Map<String, Object> requestMap, InputType taskSettingsInputType, InputType requestInputType) {

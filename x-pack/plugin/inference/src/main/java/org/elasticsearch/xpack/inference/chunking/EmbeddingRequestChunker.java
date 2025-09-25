@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.chunking;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.inference.ChunkInferenceImageInput;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -44,15 +45,27 @@ import java.util.stream.Collectors;
 public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
-    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, String input) {
+    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, String input, boolean isImage) {
         public String chunkText() {
             return input.substring(chunk.start(), chunk.end());
         }
     }
 
     public record BatchRequest(List<Request> requests) {
-        public Supplier<List<String>> inputs() {
-            return () -> requests.stream().map(Request::chunkText).collect(Collectors.toList());
+        public Supplier<List<String>> textInputs() {
+            return () -> requests.stream()
+                .filter(request -> request.isImage() == false)
+                .map(Request::chunkText)
+                .collect(Collectors.toList());
+        }
+
+        /**
+         * Since images are not chunked, no String copying takes place when calling {@link Request#chunkText()}, so the list can
+         * be returned directly without using a {@link Supplier}
+         * @return a list of Strings representing image URLs
+         */
+        public List<String> imageUrlInputs() {
+            return requests.stream().filter(Request::isImage).map(Request::chunkText).collect(Collectors.toList());
         }
     }
 
@@ -98,7 +111,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         }
 
         Map<ChunkingStrategy, Chunker> chunkers = inputs.stream()
-            .map(ChunkInferenceInput::chunkingSettings)
+            .map(ChunkInferenceInput::getChunkingSettings)
             .filter(Objects::nonNull)
             .map(ChunkingSettings::getChunkingStrategy)
             .distinct()
@@ -107,12 +120,21 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
         List<Request> allRequests = new ArrayList<>();
         for (int inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {
-            ChunkingSettings chunkingSettings = inputs.get(inputIndex).chunkingSettings();
+            ChunkInferenceInput chunkInferenceInput = inputs.get(inputIndex);
+            ChunkingSettings chunkingSettings = chunkInferenceInput.getChunkingSettings();
             if (chunkingSettings == null) {
                 chunkingSettings = defaultChunkingSettings;
             }
-            Chunker chunker = chunkers.getOrDefault(chunkingSettings.getChunkingStrategy(), defaultChunker);
-            String inputString = inputs.get(inputIndex).input();
+            Chunker chunker;
+            boolean isImage = chunkInferenceInput instanceof ChunkInferenceImageInput;
+            if (isImage) {
+                // Do not chunk image URLs
+                chunker = NoopChunker.INSTANCE;
+                chunkingSettings = NoneChunkingSettings.INSTANCE;
+            } else {
+                chunker = chunkers.getOrDefault(chunkingSettings.getChunkingStrategy(), defaultChunker);
+            }
+            String inputString = chunkInferenceInput.getInput();
             List<ChunkOffset> chunks = chunker.chunk(inputString, chunkingSettings);
             int resultCount = Math.min(chunks.size(), MAX_CHUNKS);
             resultEmbeddings.add(new AtomicReferenceArray<>(resultCount));
@@ -130,7 +152,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                 } else {
                     resultOffsetEnds.getLast().set(targetChunkIndex, chunks.get(chunkIndex).end());
                 }
-                allRequests.add(new Request(inputIndex, targetChunkIndex, chunks.get(chunkIndex), inputString));
+                allRequests.add(new Request(inputIndex, targetChunkIndex, chunks.get(chunkIndex), inputString, isImage));
             }
         }
 

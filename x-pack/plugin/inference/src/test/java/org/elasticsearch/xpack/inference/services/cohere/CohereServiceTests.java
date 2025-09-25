@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
@@ -39,8 +39,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -793,7 +793,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -863,7 +864,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var result = listener.actionGet(TIMEOUT);
@@ -880,7 +882,18 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document", "embedding_types", List.of("float")))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text")))),
+                        "model",
+                        "model",
+                        "input_type",
+                        "search_document",
+                        "embedding_types",
+                        List.of("float")
+                    )
+                )
             );
         }
     }
@@ -964,7 +977,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -1026,7 +1040,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var result = listener.actionGet(TIMEOUT);
@@ -1044,7 +1059,18 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document", "embedding_types", List.of("float")))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text")))),
+                        "model",
+                        "model",
+                        "input_type",
+                        "search_document",
+                        "embedding_types",
+                        List.of("float")
+                    )
+                )
             );
         }
     }
@@ -1102,7 +1128,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, null),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var result = listener.actionGet(TIMEOUT);
@@ -1119,7 +1146,18 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document", "embedding_types", List.of("float")))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text")))),
+                        "model",
+                        "model",
+                        "input_type",
+                        "search_document",
+                        "embedding_types",
+                        List.of("float")
+                    )
+                )
             );
         }
     }
@@ -1177,7 +1215,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var result = listener.actionGet(TIMEOUT);
@@ -1252,7 +1291,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             listener.actionGet(TIMEOUT);
@@ -1261,7 +1301,18 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("float"), "input_type", "search_query"))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text")))),
+                        "model",
+                        "model",
+                        "embedding_types",
+                        List.of("float"),
+                        "input_type",
+                        "search_query"
+                    )
+                )
             );
         }
     }
@@ -1338,7 +1389,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
+                List.of(new ChunkInferenceTextInput("a"), new ChunkInferenceTextInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1354,7 +1405,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1365,7 +1416,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1381,7 +1432,21 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("float"), "input_type", "search_query"))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(
+                            Map.of("content", List.of(Map.of("text", "a", "type", "text"))),
+                            Map.of("content", List.of(Map.of("text", "bb", "type", "text")))
+                        ),
+                        "model",
+                        "model",
+                        "embedding_types",
+                        List.of("float"),
+                        "input_type",
+                        "search_query"
+                    )
+                )
             );
         }
     }
@@ -1437,7 +1502,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
+                List.of(new ChunkInferenceTextInput("a"), new ChunkInferenceTextInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1451,10 +1516,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 var byteResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingByteResults.Embedding.class));
                 assertArrayEquals(
                     new byte[] { 23, -23 },
-                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                    ((DenseEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
                 );
             }
             {
@@ -1462,10 +1527,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 var byteResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingByteResults.Embedding.class));
                 assertArrayEquals(
                     new byte[] { 24, -24 },
-                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                    ((DenseEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
                 );
             }
 
@@ -1480,7 +1545,21 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("int8"), "input_type", "search_query"))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(
+                            Map.of("content", List.of(Map.of("text", "a", "type", "text"))),
+                            Map.of("content", List.of(Map.of("text", "bb", "type", "text")))
+                        ),
+                        "model",
+                        "model",
+                        "embedding_types",
+                        List.of("int8"),
+                        "input_type",
+                        "search_query"
+                    )
+                )
             );
         }
     }
@@ -1522,7 +1601,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
@@ -1541,42 +1621,44 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createCohereService()) {
-            String content = XContentHelper.stripWhitespace("""
-                {
-                        "service": "cohere",
-                        "name": "Cohere",
-                        "task_types": ["text_embedding", "rerank", "completion"],
-                        "configurations": {
-                            "api_key": {
-                                "description": "API Key for the provider you're connecting to.",
-                                "label": "API Key",
-                                "required": true,
-                                "sensitive": true,
-                                "updatable": true,
-                                "type": "str",
-                                "supported_task_types": ["text_embedding", "rerank", "completion"]
-                            },
-                            "model_id": {
-                                "description": "The name of the model to use for the inference task.",
-                                "label": "Model ID",
-                                "required": false,
-                                "sensitive": false,
-                                "updatable": false,
-                                "type": "str",
-                                "supported_task_types": ["text_embedding", "rerank", "completion"]
-                            },
-                            "rate_limit.requests_per_minute": {
-                                "description": "Minimize the number of rate limit errors.",
-                                "label": "Rate Limit",
-                                "required": false,
-                                "sensitive": false,
-                                "updatable": false,
-                                "type": "int",
-                                "supported_task_types": ["text_embedding", "rerank", "completion"]
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                            "service": "cohere",
+                            "name": "Cohere",
+                            "task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"],
+                            "configurations": {
+                                "api_key": {
+                                    "description": "API Key for the provider you're connecting to.",
+                                    "label": "API Key",
+                                    "required": true,
+                                    "sensitive": true,
+                                    "updatable": true,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"]
+                                },
+                                "model_id": {
+                                    "description": "The name of the model to use for the inference task.",
+                                    "label": "Model ID",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"]
+                                },
+                                "rate_limit.requests_per_minute": {
+                                    "description": "Minimize the number of rate limit errors.",
+                                    "label": "Rate Limit",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"]
+                                }
                             }
                         }
-                    }
-                """);
+                    """
+            );
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

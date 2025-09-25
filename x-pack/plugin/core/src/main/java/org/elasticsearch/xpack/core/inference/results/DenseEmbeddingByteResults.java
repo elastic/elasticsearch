@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
@@ -31,7 +32,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Writes a text embedding result in the follow json format
+ * Writes a dense embedding result in the follow json format. The "text_embedding" part of the array name may change depending on the
+ * {@link TaskType} used to generate the embedding
+ * <pre>
  * {
  *     "text_embedding_bytes": [
  *         {
@@ -46,13 +49,34 @@ import java.util.Objects;
  *         }
  *     ]
  * }
+ * </pre>
  */
-public record TextEmbeddingByteResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
+public final class DenseEmbeddingByteResults implements DenseEmbeddingResults<DenseEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_byte_results";
-    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
+    public static final String BYTES_SUFFIX = "_bytes";
+    private final List<Embedding> embeddings;
+    private final String arrayName;
 
-    public TextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(TextEmbeddingByteResults.Embedding::new));
+    public DenseEmbeddingByteResults(List<Embedding> embeddings) {
+        this(embeddings, TEXT_EMBEDDING);
+    }
+
+    public DenseEmbeddingByteResults(List<Embedding> embeddings, String taskName) {
+        this.embeddings = embeddings;
+        this.arrayName = getArrayNameFromTaskName(taskName);
+    }
+
+    public DenseEmbeddingByteResults(StreamInput in) throws IOException {
+        embeddings = in.readCollectionAsList(Embedding::new);
+        if (in.getTransportVersion().supports(ML_MULTIMODAL_EMBEDDINGS)) {
+            arrayName = in.readString();
+        } else {
+            arrayName = getArrayNameFromTaskName(TEXT_EMBEDDING);
+        }
+    }
+
+    public static String getArrayNameFromTaskName(String taskName) {
+        return taskName + BYTES_SUFFIX;
     }
 
     @Override
@@ -65,7 +89,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
+        return ChunkedToXContentHelper.array(arrayName, embeddings.iterator());
     }
 
     @Override
@@ -80,14 +104,12 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return embeddings.stream()
-            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
-            .toList();
+        return embeddings.stream().map(embedding -> new MlTextEmbeddingResults(arrayName, embedding.toDoubleArray(), false)).toList();
     }
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING_BYTES, embeddings);
+        map.put(arrayName, embeddings);
 
         return map;
     }
@@ -96,13 +118,23 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingByteResults that = (TextEmbeddingByteResults) o;
-        return Objects.equals(embeddings, that.embeddings);
+        DenseEmbeddingByteResults that = (DenseEmbeddingByteResults) o;
+        return Objects.equals(embeddings, that.embeddings) && Objects.equals(arrayName, that.arrayName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(embeddings);
+        return Objects.hash(embeddings, arrayName);
+    }
+
+    @Override
+    public List<Embedding> embeddings() {
+        return embeddings;
+    }
+
+    @Override
+    public String toString() {
+        return "DenseEmbeddingByteResults[" + "embeddings=" + embeddings + ", " + "arrayName=" + arrayName + ']';
     }
 
     // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging

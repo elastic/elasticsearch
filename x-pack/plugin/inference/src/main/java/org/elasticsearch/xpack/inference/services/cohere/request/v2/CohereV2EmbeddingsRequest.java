@@ -22,14 +22,27 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.CONTENT_FIELD;
+import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.CONTENT_TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.IMAGE_URL_FIELD;
+import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.INPUTS_FIELD;
+import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.TEXT_FIELD;
+import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.URL_FIELD;
+
 public class CohereV2EmbeddingsRequest extends CohereRequest {
 
     private final List<String> input;
     private final InputType inputType;
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final CohereEmbeddingType embeddingType;
+    private final List<String> imageUrls;
 
-    public CohereV2EmbeddingsRequest(List<String> input, InputType inputType, CohereEmbeddingsModel embeddingsModel) {
+    public CohereV2EmbeddingsRequest(
+        List<String> input,
+        InputType inputType,
+        CohereEmbeddingsModel embeddingsModel,
+        List<String> imageUrls
+    ) {
         super(
             CohereAccount.of(embeddingsModel),
             embeddingsModel.getInferenceEntityId(),
@@ -41,6 +54,7 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
         this.inputType = Optional.ofNullable(inputType).orElse(InputType.SEARCH); // inputType is required in v2
         taskSettings = embeddingsModel.getTaskSettings();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
+        this.imageUrls = imageUrls == null ? List.of() : imageUrls;
     }
 
     @Override
@@ -51,7 +65,15 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CohereUtils.TEXTS_FIELD, input);
+        builder.startArray(INPUTS_FIELD);
+        for (String anInput : input) {
+            addInput(builder, anInput, true);
+        }
+        for (String url : imageUrls) {
+            addInput(builder, url, false);
+        }
+        builder.endArray();
+
         builder.field(CohereUtils.MODEL_FIELD, getModelId());
         // prefer the root level inputType over task settings input type
         if (InputType.isSpecified(inputType)) {
@@ -65,5 +87,33 @@ public class CohereV2EmbeddingsRequest extends CohereRequest {
         }
         builder.endObject();
         return builder;
+    }
+
+    private static void addInput(XContentBuilder builder, String anInput, boolean isText) throws IOException {
+        builder.startObject();
+        builder.startArray(CONTENT_FIELD);
+        if (isText) {
+            addText(builder, anInput);
+        } else {
+            addImageUrl(builder, anInput);
+        }
+        builder.endArray();
+        builder.endObject();
+    }
+
+    private static void addText(XContentBuilder builder, String anInput) throws IOException {
+        builder.startObject();
+        builder.field(CONTENT_TYPE_FIELD, TEXT_FIELD);
+        builder.field(TEXT_FIELD, anInput);
+        builder.endObject();
+    }
+
+    private static void addImageUrl(XContentBuilder builder, String url) throws IOException {
+        builder.startObject();
+        builder.field(CONTENT_TYPE_FIELD, IMAGE_URL_FIELD);
+        builder.startObject(IMAGE_URL_FIELD);
+        builder.field(URL_FIELD, url);
+        builder.endObject();
+        builder.endObject();
     }
 }

@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-public interface TextEmbeddingResults<E extends EmbeddingResults.Embedding<E>> extends EmbeddingResults<E> {
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.inference.TaskType;
+
+public interface DenseEmbeddingResults<E extends EmbeddingResults.Embedding<E>> extends EmbeddingResults<E> {
+    TransportVersion ML_MULTIMODAL_EMBEDDINGS = TransportVersion.fromName("ml_multimodal_embeddings");
+    String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
     /**
      * Returns the first text embedding entry in the result list's array size.

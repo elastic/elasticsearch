@@ -109,6 +109,7 @@ public interface InferenceService extends Closeable {
      *                        Passing in null is specifically for query-time inference, when the timeout is managed by the
      *                        xpack.inference.query_timeout cluster setting.
      * @param listener        Inference result listener
+     * @param imageUrls       Inference input of image URLs
      */
     void infer(
         Model model,
@@ -120,7 +121,8 @@ public interface InferenceService extends Closeable {
         Map<String, Object> taskSettings,
         InputType inputType,
         @Nullable TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
+        ActionListener<InferenceServiceResults> listener,
+        @Nullable List<String> imageUrls
     );
 
     /**

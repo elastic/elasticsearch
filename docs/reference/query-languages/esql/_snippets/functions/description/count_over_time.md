@@ -2,5 +2,5 @@
 
 **Description**
 
-The count over time value of a field.
+Calculates the count over time value of a field.
 

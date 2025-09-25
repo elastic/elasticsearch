@@ -46,7 +46,7 @@ public class First extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword" },
-        description = "The earliest value of a field.",
+        description = "Calculates the earliest value of a field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         examples = @Example(file = "stats_first", tag = "first")
     )

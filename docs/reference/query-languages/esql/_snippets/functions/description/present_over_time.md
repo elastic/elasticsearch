@@ -2,5 +2,5 @@
 
 **Description**
 
-The presence of a field in the output result over time range.
+Calculates the presence of a field in the output result over time range.
 

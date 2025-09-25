@@ -2,5 +2,5 @@
 
 **Description**
 
-The latest value of a field.
+Calculates the latest value of a field.
 

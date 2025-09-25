@@ -39,7 +39,7 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
-        description = "The absence of a field in the output result over time range.",
+        description = "Calculates the absence of a field in the output result over time range.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "absent_over_time") }
     )

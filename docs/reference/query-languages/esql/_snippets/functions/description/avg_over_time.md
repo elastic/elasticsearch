@@ -2,5 +2,5 @@
 
 **Description**
 
-The average over time of a numeric field.
+Calculates the average over time of a numeric field.
 

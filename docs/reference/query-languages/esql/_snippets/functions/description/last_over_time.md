@@ -2,5 +2,5 @@
 
 **Description**
 
-The latest value of a field, where recency determined by the `@timestamp` field.
+Calculates the latest value of a field, where recency determined by the `@timestamp` field.
 

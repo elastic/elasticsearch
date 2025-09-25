@@ -2,5 +2,5 @@
 
 **Description**
 
-The maximum over time value of a field.
+Calculates the maximum over time value of a field.
 

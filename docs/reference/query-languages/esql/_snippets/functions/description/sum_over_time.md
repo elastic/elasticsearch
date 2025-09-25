@@ -2,5 +2,5 @@
 
 **Description**
 
-The sum over time value of a field.
+Calculates the sum over time value of a field.
 

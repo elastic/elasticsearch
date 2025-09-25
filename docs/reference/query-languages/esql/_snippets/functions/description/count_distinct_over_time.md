@@ -2,5 +2,5 @@
 
 **Description**
 
-The count of distinct values over time for a field.
+Calculates the count of distinct values over time for a field.
 

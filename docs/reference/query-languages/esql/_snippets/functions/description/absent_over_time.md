@@ -2,5 +2,5 @@
 
 **Description**
 
-The absence of a field in the output result over time range.
+Calculates the absence of a field in the output result over time range.
 

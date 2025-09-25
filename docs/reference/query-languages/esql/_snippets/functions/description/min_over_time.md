@@ -2,5 +2,5 @@
 
 **Description**
 
-The minimum over time value of a field.
+Calculates the minimum over time value of a field.
 

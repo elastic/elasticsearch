@@ -2,5 +2,5 @@
 
 **Description**
 
-The rate of a counter field.
+Calculates the rate of a counter field.
 

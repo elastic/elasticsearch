@@ -2,5 +2,5 @@
 
 **Description**
 
-The earliest value of a field, where recency determined by the `@timestamp` field.
+Calculates the earliest value of a field, where recency determined by the `@timestamp` field.
 

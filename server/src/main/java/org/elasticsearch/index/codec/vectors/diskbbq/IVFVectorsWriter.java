@@ -24,6 +24,7 @@ import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -182,7 +183,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues, globalCentroid);
             // wrap centroids with a supplier
-            final CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.centroids());
+            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(centroidAssignments.centroids());
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
             final CentroidOffsetAndLength centroidOffsetAndLength = buildAndWritePostingsLists(
@@ -313,8 +314,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
         // so the OS can optimize read ahead in low memory situations.
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.READONCE);
-            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.READONCE)
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
+                tempRawVectorsFileName,
+                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
+            );
+            IndexInput docs = docsFileName == null
+                ? null
+                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
 
@@ -543,40 +549,4 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
 
-    interface CentroidSupplier {
-        CentroidSupplier EMPTY = new CentroidSupplier() {
-            @Override
-            public int size() {
-                return 0;
-            }
-
-            @Override
-            public float[] centroid(int centroidOrdinal) {
-                throw new IllegalStateException("No centroids");
-            }
-        };
-
-        int size();
-
-        float[] centroid(int centroidOrdinal) throws IOException;
-    }
-
-    // TODO throw away rawCentroids
-    static class OnHeapCentroidSupplier implements CentroidSupplier {
-        private final float[][] centroids;
-
-        OnHeapCentroidSupplier(float[][] centroids) {
-            this.centroids = centroids;
-        }
-
-        @Override
-        public int size() {
-            return centroids.length;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) throws IOException {
-            return centroids[centroidOrdinal];
-        }
-    }
 }

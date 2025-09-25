@@ -19,7 +19,6 @@ import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndexExpressions;
-import org.elasticsearch.action.ResponseWithResolvedIndexExpressions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -507,7 +506,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject, ResponseWithResolvedIndexExpressions {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
@@ -576,7 +575,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return Objects.hash(indices, aliases, dataStreams);
         }
 
-        @Override
         public ResolvedIndexExpressions getResolvedIndexExpressions() {
             return resolvedIndexExpressions;
         }

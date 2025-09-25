@@ -39,6 +39,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     private static final String VERTEX_2023_10_16 = "vertex-2023-10-16";
     private static final String STREAM_FIELD = "stream";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
+    public static final int DEFAULT_MAX_TOKENS = 1024;
 
     private final UnifiedCompletionRequest unifiedRequest;
     private final boolean stream;
@@ -106,7 +107,11 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
             builder.field(TOP_P_FIELD, unifiedRequest.topP());
         }
         builder.field(STREAM_FIELD, stream);
-        builder.field(MAX_TOKENS_FIELD, Objects.requireNonNullElse(unifiedRequest.maxCompletionTokens(), taskSettings.maxTokens()));
+        var maxTokens = Objects.requireNonNullElse(
+            unifiedRequest.maxCompletionTokens(),
+            Objects.requireNonNullElse(taskSettings.maxTokens(), DEFAULT_MAX_TOKENS)
+        );
+        builder.field(MAX_TOKENS_FIELD, maxTokens);
         builder.endObject();
         return builder;
     }

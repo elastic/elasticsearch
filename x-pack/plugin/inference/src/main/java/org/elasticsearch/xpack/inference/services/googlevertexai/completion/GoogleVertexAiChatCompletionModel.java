@@ -132,9 +132,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         }
 
         var newTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettingsMap);
-        if (newTaskSettings.isEmpty()
-            && Objects.equals(newTaskSettings.maxTokens(), GoogleVertexAiChatCompletionTaskSettings.DEFAULT_MAX_TOKENS)
-            || model.getTaskSettings().equals(newTaskSettings)) {
+        if (newTaskSettings.isEmpty() || model.getTaskSettings().equals(newTaskSettings)) {
             return model;
         }
 

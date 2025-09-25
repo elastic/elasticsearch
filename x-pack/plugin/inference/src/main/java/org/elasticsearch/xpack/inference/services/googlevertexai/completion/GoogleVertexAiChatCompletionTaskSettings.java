@@ -30,7 +30,6 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "google_vertex_ai_chatcompletion_task_settings";
 
     private static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = TransportVersion.fromName("gemini_thinking_budget_added");
-    public static final Integer DEFAULT_MAX_TOKENS = 1024;
 
     private final ThinkingConfig thinkingConfig;
     private final Integer maxTokens;
@@ -40,21 +39,21 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
 
     public GoogleVertexAiChatCompletionTaskSettings() {
         this.thinkingConfig = EMPTY_THINKING_CONFIG;
-        this.maxTokens = DEFAULT_MAX_TOKENS;
+        this.maxTokens = null;
     }
 
     public GoogleVertexAiChatCompletionTaskSettings(ThinkingConfig thinkingConfig, @Nullable Integer maxTokens) {
         this.thinkingConfig = Objects.requireNonNullElse(thinkingConfig, EMPTY_THINKING_CONFIG);
-        this.maxTokens = Objects.requireNonNullElse(maxTokens, DEFAULT_MAX_TOKENS);
+        this.maxTokens = maxTokens;
     }
 
     public GoogleVertexAiChatCompletionTaskSettings(StreamInput in) throws IOException {
         thinkingConfig = new ThinkingConfig(in);
         TransportVersion version = in.getTransportVersion();
         if (GoogleVertexAiUtils.supportsModelGarden(version)) {
-            maxTokens = Objects.requireNonNullElse(in.readOptionalInt(), DEFAULT_MAX_TOKENS);
+            maxTokens = in.readOptionalInt();
         } else {
-            maxTokens = DEFAULT_MAX_TOKENS;
+            maxTokens = null;
         }
     }
 
@@ -101,7 +100,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public boolean isEmpty() {
-        return thinkingConfig.isEmpty();
+        return thinkingConfig.isEmpty() && Objects.isNull(maxTokens);
     }
 
     @Override
@@ -125,7 +124,9 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         thinkingConfig.writeTo(out);
-        out.writeOptionalInt(maxTokens);
+        if (GoogleVertexAiUtils.supportsModelGarden(out.getTransportVersion())) {
+            out.writeOptionalInt(maxTokens);
+        }
     }
 
     @Override

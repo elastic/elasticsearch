@@ -861,7 +861,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-            if (canRemain.type() != Decision.Type.NO) {
+            if (canRemain.type() != Decision.Type.NO && canRemain.type() != Decision.Type.NOT_PREFERRED) {
                 return MoveDecision.remain(canRemain);
             }
 
@@ -901,7 +901,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
-                    // TODO maybe we can respect throttling here too?
+                    // TODO (ES-12633): test that nothing moves when the source is not-preferred and the target is not-preferred.
+                    if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
+                        // Relocating a shard from one NOT_PREFERRED node to another would not improve the situation.
+                        continue;
+                    }
                     if (allocationDecision.type().higherThan(bestDecision)) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
@@ -911,6 +915,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 // no need to continue iterating
                                 break;
                             }
+                        } else if (bestDecision == Type.NOT_PREFERRED) {
+                            assert remainDecision.type() != Type.NOT_PREFERRED;
+                            // If we don't ever find a YES decision, we'll settle for NOT_PREFERRED as preferable to NO.
+                            targetNode = target;
                         }
                     }
                 }
@@ -1221,7 +1229,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
                     final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
-                    if (allocationDecision.type() == Type.NO) {
+                    if (allocationDecision.type() == Type.NO || allocationDecision.type() == Type.NOT_PREFERRED) {
                         continue;
                     }
 
@@ -1407,7 +1415,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public static final class NodeSorter extends IntroSorter {
 
         final ModelNode[] modelNodes;
-        /* the nodes weights with respect to the current weight function / index */
+        /** The nodes weights with respect to the current weight function / index */
         final float[] weights;
         private final WeightFunction function;
         private ProjectIndex index;

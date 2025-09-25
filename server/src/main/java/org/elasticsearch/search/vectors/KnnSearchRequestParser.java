@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -211,11 +210,7 @@ public class KnnSearchRequestParser {
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            if (IVF_FORMAT.isEnabled()) {
-                return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (Float) args[4]);
-            } else {
-                return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], null);
-            }
+            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (Float) args[4]);
         });
 
         static {
@@ -223,9 +218,7 @@ public class KnnSearchRequestParser {
             PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
             PARSER.declareInt(constructorArg(), K_FIELD);
             PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-            if (IVF_FORMAT.isEnabled()) {
-                PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
-            }
+            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         }
 
         public static KnnSearch parse(XContentParser parser) throws IOException {

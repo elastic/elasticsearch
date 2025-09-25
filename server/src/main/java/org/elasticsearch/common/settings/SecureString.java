@@ -43,25 +43,27 @@ public final class SecureString implements CharSequence, Releasable {
         this(s.toCharArray());
     }
 
-    /** Constant time equality to avoid potential timing attacks. */
     @Override
     public synchronized boolean equals(Object o) {
-        ensureNotClosed();
-        if (this == o) return true;
-        if (o == null || o instanceof CharSequence == false) return false;
-        CharSequence that = (CharSequence) o;
-        if (chars.length != that.length()) {
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof CharSequence cs) {
+            return equals(cs);
+        } else {
             return false;
         }
+    }
 
-        return compareChars(0, that, 0, chars.length);
+    /** Constant time equality to avoid potential timing attacks. */
+    public synchronized boolean equals(CharSequence that) {
+        ensureNotClosed();
+        // This is intentional to make sure the check is constant time relative to the length of the comparison string
+        return that != null && compareChars(0, that, 0, that.length()) && this.length() == that.length();
     }
 
     public boolean startsWith(CharSequence other) {
         ensureNotClosed();
-        if (this.length() < other.length()) {
-            return false;
-        }
         return compareChars(0, other, 0, other.length());
     }
 
@@ -79,8 +81,9 @@ public final class SecureString implements CharSequence, Releasable {
         }
 
         // Perform some calculations as long to prevent overflow
-        if (thisOffset + (long) len > this.length() || otherOffset + (long) len > other.length()) {
-            // cannot compare a region that runs past the end of the source
+        if (otherOffset + (long) len > other.length()) {
+            // cannot compare a region that runs past the end of the comparison string
+            // we don't check the length of our string because we want to run in constant time
             return false;
         }
 
@@ -99,13 +102,12 @@ public final class SecureString implements CharSequence, Releasable {
      * Constant time comparison of a range from {@link #chars} against an identical length range from {@code other}
      */
     private boolean compareChars(int thisOffset, CharSequence other, int otherOffset, int len) {
-        assert len <= this.chars.length : "len is longer that secure-string: " + len + " vs " + this.chars.length;
         assert len <= other.length() : "len is longer that comparison string: " + len + " vs " + other.length();
 
         int equals = 0;
         for (int i = 0; i < len; i++) {
-            final char t = chars[thisOffset + i];
             final char o = other.charAt(otherOffset + i);
+            final int t = thisOffset + i < chars.length ? chars[thisOffset + i] : (Character.MAX_VALUE + 1);
             equals |= t ^ o;
         }
 

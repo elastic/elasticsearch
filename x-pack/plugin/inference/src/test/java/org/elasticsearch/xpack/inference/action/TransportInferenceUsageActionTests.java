@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -373,6 +374,42 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
                     new InferenceFieldMetadata("semantic-3", "endpoint-002", new String[0], null)
                 )
             ),
+            Set.of("index_2"),
+            Set.of()
+        );
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(7));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, new SemanticTextStats()));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, new SemanticTextStats()));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, new SemanticTextStats()));
+        assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, new SemanticTextStats()));
+        assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
+        assertStats(response, 5, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 6, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+    }
+
+    public void testShouldExcludeHiddenIndexFields() throws Exception {
+        givenInferenceEndpoints(
+            new ModelConfigurations("endpoint-001", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings("some-model")),
+            new ModelConfigurations("endpoint-002", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("some-model"))
+        );
+        givenInferenceFields(
+            Map.of(
+                "index_1",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-002", new String[0], null)
+                ),
+                "index_2",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-002", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", "endpoint-002", new String[0], null)
+                )
+            ),
+            Set.of(),
             Set.of("index_2")
         );
 
@@ -425,15 +462,22 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
     }
 
     private void givenInferenceFields(Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex) {
-        givenInferenceFields(inferenceFieldsByIndex, Set.of());
+        givenInferenceFields(inferenceFieldsByIndex, Set.of(), Set.of());
     }
 
-    private void givenInferenceFields(Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex, Set<String> systemIndices) {
+    private void givenInferenceFields(
+        Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex,
+        Set<String> systemIndices,
+        Set<String> hiddenIndices
+    ) {
         Map<String, IndexMetadata> indices = new HashMap<>();
         for (Map.Entry<String, List<InferenceFieldMetadata>> entry : inferenceFieldsByIndex.entrySet()) {
             String index = entry.getKey();
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
-                .settings(ESTestCase.settings(IndexVersion.current()))
+                .settings(
+                    ESTestCase.settings(IndexVersion.current())
+                        .put(INDEX_HIDDEN_SETTING.getKey(), hiddenIndices.contains(index) ? "true" : "false")
+                )
                 .numberOfShards(randomIntBetween(1, 5))
                 .system(systemIndices.contains(index))
                 .numberOfReplicas(1);

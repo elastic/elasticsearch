@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.exponentialhistogram;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramAggregatorsRegistrar;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Plugin adding support for exponential histogram field types.
@@ -26,5 +30,14 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
             mappers.put(ExponentialHistogramFieldMapper.CONTENT_TYPE, ExponentialHistogramFieldMapper.PARSER);
         }
         return Collections.unmodifiableMap(mappers);
+    }
+
+    @Override
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+        if (ExponentialHistogramFieldMapper.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
+            return List.of(
+                ExponentialHistogramAggregatorsRegistrar::registerValueCountAggregator
+            );
+        }
     }
 }

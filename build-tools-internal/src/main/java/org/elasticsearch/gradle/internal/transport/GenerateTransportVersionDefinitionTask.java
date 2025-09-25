@@ -103,7 +103,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
         getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
         if (targetDefinitionName.isEmpty()) {
-            resetAllUpperBounds(resources);
+            // TODO: resetting upper bounds needs to be done locally, otherwise it pulls in some (incomplete) changes from upstream main
+            // resetAllUpperBounds(resources);
         } else {
             List<TransportVersionId> ids = updateUpperBounds(resources, upstreamUpperBounds, targetUpperBoundNames, targetDefinitionName);
             // (Re)write the definition file.

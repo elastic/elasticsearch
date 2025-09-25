@@ -1206,9 +1206,10 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support for INCREASE timeseries aggregation.
+         * Support for INCREASE, DELTA timeseries aggregations.
          */
         INCREASE,
+        DELTA_TS_AGG,
 
         /**
          * Extra field types in the k8s.csv dataset
@@ -1318,6 +1319,11 @@ public class EsqlCapabilities {
          * Support knn function
          */
         KNN_FUNCTION_V5(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
+         */
+        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.
@@ -1478,7 +1484,7 @@ public class EsqlCapabilities {
         /**
          * Allow lookup join on boolean expressions
          */
-        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
 
         /**
          * FORK with remote indices
@@ -1537,6 +1543,8 @@ public class EsqlCapabilities {
          * Support TS command in non-snapshot builds
          */
         TS_COMMAND_V0(),
+
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 
         /**
          * Support for requesting the "_tsid" metadata field.

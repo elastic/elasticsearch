@@ -142,10 +142,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     @Override
     protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
         if (isGenerationalFile(name) == false) {
-            return super.doOpenInput(name, context, blobFileRanges);
+            return super.doOpenInput(name, context, blobFileRanges, cacheService.getBlobCacheMetrics());
         }
         var releasable = acquireGenerationalFileTermAndGeneration(blobFileRanges.getBatchedCompoundCommitTermAndGeneration(), name);
-        return doOpenInput(name, context, blobFileRanges, releasable);
+        return doOpenInput(name, context, blobFileRanges, cacheService.getBlobCacheMetrics(), releasable);
     }
 
     /**

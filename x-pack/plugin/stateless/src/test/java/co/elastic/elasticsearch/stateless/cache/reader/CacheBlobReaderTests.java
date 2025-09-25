@@ -357,7 +357,9 @@ public class CacheBlobReaderTests extends ESTestCase {
                             threadPool.executor(SHARD_READ_THREAD_POOL),
                             "fileName"
                         ),
-                        new BlobFileRanges(getLastInternalLocation().getValue())
+                        new BlobFileRanges(getLastInternalLocation().getValue()),
+                        null,
+                        System::currentTimeMillis
                     ),
                     null,
                     length,
@@ -698,7 +700,13 @@ public class CacheBlobReaderTests extends ESTestCase {
             );
             final var cacheFile = node.sharedCacheService.getCacheFile(fileCacheKey, regionSize);
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(internalLocation.getKey(), internalLocation.getValue());
-            final var cacheFileReader = new CacheFileReader(cacheFile, cacheBlobReader, new BlobFileRanges(internalLocation.getValue()));
+            final var cacheFileReader = new CacheFileReader(
+                cacheFile,
+                cacheBlobReader,
+                new BlobFileRanges(internalLocation.getValue()),
+                null,
+                System::currentTimeMillis
+            );
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);
             try (var searchInput = new BlobCacheIndexInput("region", IOContext.DEFAULT, cacheFileReader, null, regionSize, 0)) {
                 // Read a byte beyond the available data length will trigger the last gap to be filled

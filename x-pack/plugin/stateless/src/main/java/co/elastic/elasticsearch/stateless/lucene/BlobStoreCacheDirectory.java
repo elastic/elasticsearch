@@ -33,6 +33,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.Assertions;
@@ -257,7 +258,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
-        return doOpenInput(name, context, blobFileRanges, null);
+        return doOpenInput(name, context, blobFileRanges, cacheService.getBlobCacheMetrics(), null);
+    }
+
+    protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges, BlobCacheMetrics blobCacheMetrics) {
+        return doOpenInput(name, context, blobFileRanges, blobCacheMetrics, null);
     }
 
     /**
@@ -266,14 +271,23 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * @param name the name of an existing file
      * @param context the IO context
      * @param blobFileRanges the {@link BlobFileRanges} associated to the file
+     * @param blobCacheMetrics the {@link BlobCacheMetrics} to use for tracking cache metrics
      * @param releasable a {@link Releasable} to be released when the {@link IndexInput} is closed
      * @return an {@link IndexInput}
      */
-    protected final IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges, @Nullable Releasable releasable) {
+    protected final IndexInput doOpenInput(
+        String name,
+        IOContext context,
+        BlobFileRanges blobFileRanges,
+        BlobCacheMetrics blobCacheMetrics,
+        @Nullable Releasable releasable
+    ) {
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
             getCacheBlobReader(name, blobFileRanges.blobLocation()),
-            blobFileRanges
+            blobFileRanges,
+            blobCacheMetrics,
+            cacheService.getThreadPool().relativeTimeInMillisSupplier()
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }

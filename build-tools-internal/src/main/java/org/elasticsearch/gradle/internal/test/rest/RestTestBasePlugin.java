@@ -244,17 +244,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString, false);
 
-                    if (jdkIsIncompatibleWithOS(Version.fromString(versionString))) {
-                        var toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
-                        var fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
-                            spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
-                            spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
-                        });
-                        task.environment(
-                            "ES_FALLBACK_JAVA_HOME",
-                            fallbackJdk17Launcher.get().getMetadata().getInstallationPath().getAsFile().getPath()
-                        );
-                    }
+                    handleJdkIncompatibleWithOS(version, project, task);
                     task.dependsOn(bwcDistro);
                     registerDistributionInputs(task, bwcDistro);
 
@@ -284,6 +274,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     String versionString = version.toString();
 
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + refSpec, versionString, isDetachedVersion);
+                    handleJdkIncompatibleWithOS(version, project, task);
 
                     task.dependsOn(bwcDistro);
                     registerDistributionInputs(task, bwcDistro);
@@ -296,6 +287,27 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
+    }
+
+    /**
+     * Older distributions ship with openjdk versions that are not compatible with newer kernels of ubuntu 24.04 and later
+     * Therefore we pass explicitly the runtime java to use the adoptium jdk that is maintained longer and compatible
+     * with newer kernels.
+     * 8.10.4 is the last version shipped with jdk < 21. We configure these cluster to run with jdk 17 adoptium as 17 was
+     * the last LTS release before 21
+     */
+    private static void handleJdkIncompatibleWithOS(Version version, Project project, StandaloneRestIntegTestTask task) {
+        if (jdkIsIncompatibleWithOS(version)) {
+            var toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
+            var fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
+                spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
+            });
+            task.environment(
+                "ES_FALLBACK_JAVA_HOME",
+                fallbackJdk17Launcher.get().getMetadata().getInstallationPath().getAsFile().getPath()
+            );
+        }
     }
 
     private void copyDependencies(Project project, DependencySet dependencies, Configuration configuration) {

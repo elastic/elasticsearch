@@ -923,7 +923,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private boolean jdkIsIncompatible(Version version) {
-            return version.after("0.0.0") && version.before(FIRST_DISTRO_WITH_JDK_21);
+            return version.before(FIRST_DISTRO_WITH_JDK_21);
         }
 
         private record ReplacementKey(String key, String fallback) {

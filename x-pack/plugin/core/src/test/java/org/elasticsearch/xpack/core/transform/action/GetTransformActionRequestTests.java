@@ -7,28 +7,37 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 
-public class GetTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+import static org.elasticsearch.xpack.core.transform.action.GetTransformAction.DANGLING_TASKS;
+
+public class GetTransformActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
         if (randomBoolean()) {
             return new Request(Metadata.ALL);
         }
-        return new Request(randomAlphaOfLengthBetween(1, 20));
+        return new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), randomPositiveTimeValue());
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        return version.onOrAfter(DANGLING_TASKS) ? instance : new Request(instance.getId(), true, TimeValue.MAX_VALUE);
     }
 }

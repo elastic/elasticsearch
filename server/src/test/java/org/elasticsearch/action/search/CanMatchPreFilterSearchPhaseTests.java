@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -53,6 +54,7 @@ import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -161,7 +163,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            new ShardSearchPhaseAPMMetrics(MeterRegistry.NOOP)
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -256,7 +259,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            new ShardSearchPhaseAPMMetrics(MeterRegistry.NOOP)
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -347,7 +351,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 true,
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                new ShardSearchPhaseAPMMetrics(MeterRegistry.NOOP)
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -446,7 +451,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 shardsIter.size() > shardToSkip.size(),
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                new ShardSearchPhaseAPMMetrics(MeterRegistry.NOOP)
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1418,7 +1424,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 true,
-                contextProvider
+                contextProvider,
+                new ShardSearchPhaseAPMMetrics(MeterRegistry.NOOP)
             ),
             requests
         );

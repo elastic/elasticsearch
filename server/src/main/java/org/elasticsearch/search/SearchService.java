@@ -705,7 +705,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        final var opsListener = shard.getSearchOperationListener();
         rewriteAndFetchShardRequest(
             shard,
             request,
@@ -718,7 +717,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 threadPool,
                 lifecycle
             ).delegateFailure((l, orig) -> {
-                final long beforeCanMatchTime = System.nanoTime();
                 // check if we can shortcut the query phase entirely.
                 if (orig.canReturnNullResponseIfMatchNoDocs()) {
                     assert orig.scroll() == null;
@@ -731,13 +729,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         maxKeepAlive
                     );
                     CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
-                    opsListener.onCanMatchPhase(orig, System.nanoTime() - beforeCanMatchTime);
                     if (canMatchResp.canMatch() == false) {
                         l.onResponse(QuerySearchResult.nullInstance());
                         return;
                     }
-                } else {
-                    opsListener.onCanMatchPhase(orig, System.nanoTime() - beforeCanMatchTime);
                 }
                 // TODO: i think it makes sense to always do a canMatch here and
                 // return an empty response (not null response) in case canMatch is false?

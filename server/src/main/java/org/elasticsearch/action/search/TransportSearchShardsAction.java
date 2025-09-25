@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -60,6 +61,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
+    private final ShardSearchPhaseAPMMetrics shardSearchPhaseAPMMetrics;
 
     @Inject
     public TransportSearchShardsAction(
@@ -70,7 +72,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ShardSearchPhaseAPMMetrics shardSearchPhaseAPMMetrics
     ) {
         super(
             TYPE.name(),
@@ -88,6 +91,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = transportService.getThreadPool();
+        this.shardSearchPhaseAPMMetrics = shardSearchPhaseAPMMetrics;
     }
 
     @Override
@@ -175,7 +179,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         timeProvider,
                         (SearchTask) task,
                         false,
-                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                        shardSearchPhaseAPMMetrics
                     )
                         .addListener(
                             delegate.map(

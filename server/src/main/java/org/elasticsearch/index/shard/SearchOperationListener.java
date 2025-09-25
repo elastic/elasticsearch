@@ -128,7 +128,7 @@ public interface SearchOperationListener {
     default void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {}
 
     /**
-     * Executed after the can match phase successfully finished. Used for APM metrics.
+     * Executed after the can match phase successfully finished.
      * Note: this is not invoked if the can match phase execution failed.
      * @param request the current shard search request
      * @param tookInNanos the number of nanoseconds the can match execution took
@@ -219,7 +219,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onCanMatchPhase(request, tookInNanos);
                 } catch (Exception e) {
-                    logger.warn(() -> "onPreDfsPhase listener [" + listener + "] failed", e);
+                    logger.warn(() -> "onCanMatchPhase listener [" + listener + "] failed", e);
                 }
             }
         }

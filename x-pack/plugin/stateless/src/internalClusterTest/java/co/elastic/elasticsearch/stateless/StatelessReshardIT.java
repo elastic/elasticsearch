@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -323,7 +324,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         assertTrue(
             StreamSupport.stream(search.getHits().spliterator(), false)
-                .allMatch(hit -> hit.getShard().getShardId().getId() == indexRouting.indexShard(hit.getId(), null, null, null, null))
+                .allMatch(hit -> hit.getShard().getShardId().getId() == indexRouting.indexShard(new IndexRequest().id(hit.getId())))
         );
 
         search.decRef();
@@ -706,7 +707,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         Function<Integer, String> findRoutingValue = shard -> {
             while (true) {
                 String routingValue = randomAlphaOfLength(5);
-                int routedShard = wouldBeAfterSplitRouting.indexShard("dummy", routingValue, null, null, null);
+                int routedShard = wouldBeAfterSplitRouting.indexShard(new IndexRequest().id("dummy").routing(routingValue));
                 if (routedShard == shard) {
                     return routingValue;
                 }
@@ -2056,7 +2057,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
      */
     private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
         return switch (between(0, 2)) {
-            case 0 -> indexRouting.indexShard(id, routing, null, null, null);
+            case 0 -> indexRouting.indexShard(new IndexRequest().id(id).routing(routing));
             case 1 -> indexRouting.updateShard(id, routing);
             case 2 -> indexRouting.deleteShard(id, routing);
             default -> throw new AssertionError("invalid option");

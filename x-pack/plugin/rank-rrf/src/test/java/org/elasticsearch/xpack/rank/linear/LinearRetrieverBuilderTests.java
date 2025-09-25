@@ -24,7 +24,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 
 public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<LinearRetrieverBuilder> {
@@ -583,7 +582,7 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             null,
             10,
             100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
+            10f,
             null,
             null
         );
@@ -613,7 +612,7 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             null,
             10,
             100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
+            10f,
             null,
             null
         );

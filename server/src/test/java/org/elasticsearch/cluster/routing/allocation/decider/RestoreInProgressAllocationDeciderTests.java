@@ -188,8 +188,8 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
                 assertThat(
                     decision.getExplanation(),
                     startsWith(
-                        "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
-                            + "Please check constraints applied in index and cluster settings, then retry the restore."
+                        "Restore from snapshot failed because the configured constraints prevented allocation on any of the available "
+                            + "nodes. Please check constraints applied in index and cluster settings, then retry the restore."
                     )
                 );
             }

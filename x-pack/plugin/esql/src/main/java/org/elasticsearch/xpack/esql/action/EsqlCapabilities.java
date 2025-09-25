@@ -670,6 +670,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -1201,9 +1206,10 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support for INCREASE timeseries aggregation.
+         * Support for INCREASE, DELTA timeseries aggregations.
          */
         INCREASE,
+        DELTA_TS_AGG,
 
         /**
          * Extra field types in the k8s.csv dataset
@@ -1315,6 +1321,11 @@ public class EsqlCapabilities {
         KNN_FUNCTION_V5(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
+         */
+        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the LIKE operator with a list of wildcards.
          */
         LIKE_WITH_LIST_OF_PATTERNS,
@@ -1357,7 +1368,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V3(Build.current().isSnapshot()),
+        FUSE_V5(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1461,6 +1472,11 @@ public class EsqlCapabilities {
         URL_ENCODE(Build.current().isSnapshot()),
 
         /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+
+        /**
          * URL decoding function.
          */
         URL_DECODE(Build.current().isSnapshot()),
@@ -1468,7 +1484,7 @@ public class EsqlCapabilities {
         /**
          * Allow lookup join on boolean expressions
          */
-        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
 
         /**
          * FORK with remote indices
@@ -1527,6 +1543,8 @@ public class EsqlCapabilities {
          * Support TS command in non-snapshot builds
          */
         TS_COMMAND_V0(),
+
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES
 
         ;
 

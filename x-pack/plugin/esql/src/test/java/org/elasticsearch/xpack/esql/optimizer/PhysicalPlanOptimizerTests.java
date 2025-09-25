@@ -7658,7 +7658,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         query = """
               FROM test
             | LOOKUP JOIN lookup_index ON first_name
-            | EVAL bar = 10Push
+            | EVAL bar = 10
             """;
         assertLookupJoinFieldNames(query, data, List.of(Set.of("foo", "baz")));
 

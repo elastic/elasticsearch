@@ -84,7 +84,12 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     /**
      * Public for testing, only. Use {@link #PlanStreamInput(StreamInput, NamedWriteableRegistry, Configuration)} in production.
      */
-    public PlanStreamInput(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, Configuration configuration, NameIdMapper nameIdFunction) {
+    public PlanStreamInput(
+        StreamInput streamInput,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Configuration configuration,
+        NameIdMapper nameIdFunction
+    ) {
         super(streamInput, namedWriteableRegistry);
         this.configuration = configuration;
         this.nameIdFunction = nameIdFunction;

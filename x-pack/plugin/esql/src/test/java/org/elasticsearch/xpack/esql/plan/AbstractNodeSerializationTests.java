@@ -68,18 +68,12 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
 
         public void collectNameIds(Node<?> node) {
             if (node instanceof Expression e) {
-                e.forEachDown(
-                    NamedExpression.class,
-                    ne -> add(ne.id())
-                );
+                e.forEachDown(NamedExpression.class, ne -> add(ne.id()));
                 return;
             }
 
             if (node instanceof QueryPlan<?> p) {
-                p.forEachExpressionDown(
-                    NamedExpression.class,
-                    ne -> add(ne.id())
-                );
+                p.forEachExpressionDown(NamedExpression.class, ne -> add(ne.id()));
             }
 
             if (node instanceof LogicalPlan lp) {
@@ -100,8 +94,6 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
             }
         }
     }
-
-
 
     @Override
     protected T copyInstance(T instance, TransportVersion version) throws IOException {

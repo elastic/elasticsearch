@@ -26,7 +26,10 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
     public void testSemanticQuery() throws Exception {
         final String localIndexName = "local-index";
         final String remoteIndexName = "remote-index";
-        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final List<IndexWithBoost> queryIndices = List.of(
+            new IndexWithBoost(localIndexName),
+            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
+        );
 
         final String commonInferenceId = "common-inference-id";
         final String localInferenceId = "local-inference-id";
@@ -88,7 +91,10 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
     public void testSemanticQueryWithCcMinimizeRoundTripsFalse() throws Exception {
         final String localIndexName = "local-index";
         final String remoteIndexName = "remote-index";
-        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final List<IndexWithBoost> queryIndices = List.of(
+            new IndexWithBoost(localIndexName),
+            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
+        );
         final SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
         final Consumer<SearchRequest> assertCcsMinimizeRoundTripsFalseFailure = s -> {
             IllegalArgumentException e = assertThrows(
@@ -107,12 +113,12 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
 
         // Explicitly set ccs_minimize_roundtrips=false in the search request
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
-        SearchRequest searchRequestWithCcMinimizeRoundTripsFalse = new SearchRequest(queryIndices, searchSourceBuilder);
+        SearchRequest searchRequestWithCcMinimizeRoundTripsFalse = new SearchRequest(convertToArray(queryIndices), searchSourceBuilder);
         searchRequestWithCcMinimizeRoundTripsFalse.setCcsMinimizeRoundtrips(false);
         assertCcsMinimizeRoundTripsFalseFailure.accept(searchRequestWithCcMinimizeRoundTripsFalse);
 
         // Using a point in time implicitly sets ccs_minimize_roundtrips=false
-        BytesReference pitId = openPointInTime(queryIndices, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(convertToArray(queryIndices), TimeValue.timeValueMinutes(2));
         SearchSourceBuilder searchSourceBuilderWithPit = new SearchSourceBuilder().query(queryBuilder)
             .pointInTimeBuilder(new PointInTimeBuilder(pitId));
         SearchRequest searchRequestWithPit = new SearchRequest().source(searchSourceBuilderWithPit);

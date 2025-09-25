@@ -26,9 +26,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String LOCAL_INDEX_NAME = "local-index";
     private static final String REMOTE_INDEX_NAME = "remote-index";
-    private static final String[] QUERY_INDICES = new String[] {
-        LOCAL_INDEX_NAME,
-        fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME) };
+    private static final List<IndexWithBoost> QUERY_INDICES = List.of(
+        new IndexWithBoost(LOCAL_INDEX_NAME),
+        new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
+    );
 
     public void testMatchQuery() throws Exception {
         final String commonInferenceId = "common-inference-id";
@@ -137,7 +138,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     public void testMatchQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
         final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
-            SearchRequest searchRequest = new SearchRequest(QUERY_INDICES, searchSourceBuilder);
+            SearchRequest searchRequest = new SearchRequest(convertToArray(QUERY_INDICES), searchSourceBuilder);
             searchRequest.setCcsMinimizeRoundtrips(false);
 
             IllegalArgumentException e = assertThrows(

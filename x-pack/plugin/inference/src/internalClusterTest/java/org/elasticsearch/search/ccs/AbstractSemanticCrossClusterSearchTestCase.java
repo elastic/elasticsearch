@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -174,20 +175,23 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getModel().getInferenceEntityId(), equalTo(inferenceId));
     }
 
-    protected void assertSearchResponse(QueryBuilder queryBuilder, String[] indices, List<SearchResult> expectedSearchResults)
+    protected void assertSearchResponse(QueryBuilder queryBuilder, List<IndexWithBoost> indices, List<SearchResult> expectedSearchResults)
         throws Exception {
         assertSearchResponse(queryBuilder, indices, expectedSearchResults, null, null);
     }
 
     protected void assertSearchResponse(
         QueryBuilder queryBuilder,
-        String[] indices,
+        List<IndexWithBoost> indices,
         List<SearchResult> expectedSearchResults,
         ClusterFailure expectedRemoteFailure,
         Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
-        SearchRequest searchRequest = new SearchRequest(indices, searchSourceBuilder);
+        indices.forEach(i -> searchSourceBuilder.indexBoost(i.index(), i.boost()));
+
+        SearchRequest searchRequest = new SearchRequest(convertToArray(indices), searchSourceBuilder);
+        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         if (searchRequestModifier != null) {
             searchRequestModifier.accept(searchRequest);
         }
@@ -280,6 +284,10 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return Map.of("feature_0", weight);
     }
 
+    protected static String[] convertToArray(List<IndexWithBoost> indices) {
+        return indices.stream().map(IndexWithBoost::index).toArray(String[]::new);
+    }
+
     public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -320,4 +328,10 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     protected record FailureCause(Class<? extends Throwable> causeClass, String message) {}
 
     protected record ClusterFailure(SearchResponse.Cluster.Status status, Set<FailureCause> failures) {}
+
+    protected record IndexWithBoost(String index, float boost) {
+        public IndexWithBoost(String index) {
+            this(index, 1.0f);
+        }
+    }
 }

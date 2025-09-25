@@ -26,7 +26,10 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
     public void testSparseVectorQuery() throws Exception {
         final String localIndexName = "local-index";
         final String remoteIndexName = "remote-index";
-        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final List<IndexWithBoost> queryIndices = List.of(
+            new IndexWithBoost(localIndexName),
+            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
+        );
 
         final String commonInferenceId = "common-inference-id";
 
@@ -142,10 +145,13 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
     public void testSparseVectorQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
         final String localIndexName = "local-index";
         final String remoteIndexName = "remote-index";
-        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final List<IndexWithBoost> queryIndices = List.of(
+            new IndexWithBoost(localIndexName),
+            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
+        );
         final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
-            SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
+            SearchRequest searchRequest = new SearchRequest(convertToArray(queryIndices), searchSourceBuilder);
             searchRequest.setCcsMinimizeRoundtrips(false);
 
             IllegalArgumentException e = assertThrows(

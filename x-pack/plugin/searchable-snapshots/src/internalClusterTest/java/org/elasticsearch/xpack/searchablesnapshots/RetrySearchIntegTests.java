@@ -183,7 +183,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             assertNoFailuresAndResponse(
                 prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
-                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                    .setPointInTime(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(2))),
                 resp -> {
                     assertHitCount(resp, docCount);
                     updatedPit.set(resp.pointInTimeId());
@@ -204,7 +204,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreFilterShardSize(between(1, 10))
                     .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
-                    .setPointInTime(new PointInTimeBuilder(updatedPit.get())),
+                    .setPointInTime(new PointInTimeBuilder(updatedPit.get()).setKeepAlive(TimeValue.timeValueMinutes(2))),
                 resp -> {
                     assertThat(resp.pointInTimeId(), equalTo(updatedPit.get()));
                     assertHitCount(resp, docCount);

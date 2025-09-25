@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
@@ -89,7 +90,7 @@ public class S3HttpFixture extends ExternalResource {
                 30,
                 TimeUnit.SECONDS,
                 true,
-                EsExecutors.daemonThreadFactory("s3-http-fixture"),
+                TestEsExecutors.testOnlyDaemonThreadFactory("s3-http-fixture"),
                 new ThreadContext(Settings.EMPTY)
             );
 

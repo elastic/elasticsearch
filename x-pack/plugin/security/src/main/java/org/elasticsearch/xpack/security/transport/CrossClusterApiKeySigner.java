@@ -47,6 +47,7 @@ public class CrossClusterApiKeySigner {
     private final Environment environment;
     private final Map<String, SigningConfig> signingConfigByClusterAlias = new ConcurrentHashMap<>();
 
+    @SuppressWarnings("this-escape")
     public CrossClusterApiKeySigner(Environment environment) {
         this.environment = environment;
         loadSigningConfigs();

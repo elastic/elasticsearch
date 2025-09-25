@@ -200,7 +200,7 @@ public class InlineJoin extends Join {
     }
 
     @Override
-    List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
+    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
         JoinType joinType = config().type();
         List<Attribute> output;
         if (LEFT.equals(joinType)) {

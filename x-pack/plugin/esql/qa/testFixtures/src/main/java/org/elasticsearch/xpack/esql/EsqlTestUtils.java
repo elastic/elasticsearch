@@ -253,11 +253,7 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation() {
-        return relation(IndexMode.STANDARD);
-    }
-
-    public static EsRelation relation(IndexMode mode) {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD);
     }
 
     /**

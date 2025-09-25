@@ -39,7 +39,6 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.INITIAL_ELASTICSEARCH_9_0;
-import static org.elasticsearch.TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;

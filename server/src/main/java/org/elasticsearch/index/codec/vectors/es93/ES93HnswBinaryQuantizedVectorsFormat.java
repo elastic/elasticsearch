@@ -24,6 +24,7 @@ import org.apache.lucene.util.SetOnce;
 
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectorsFormat {
 
@@ -68,10 +69,12 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectors
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
     }
 
-    private final SetOnce<FlatVectorsFormat> writeFormat = new SetOnce<>();
+    private final AtomicReference<FlatVectorsFormat> writeFormat = new AtomicReference<>();
 
     public void useDirectIO() {
-        writeFormat.set(directIOFlatVectorsFormat);
+        if (writeFormat.compareAndSet(null, directIOFlatVectorsFormat) == false) {
+            throw new IllegalStateException("Flat format has already been set");
+        }
     }
 
     @Override

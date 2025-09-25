@@ -23,6 +23,7 @@ import org.elasticsearch.index.codec.vectors.es93.DirectIOLucene99FlatVectorsFor
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Codec format for Inverted File Vector indexes. This index expects to break the dimensional space
@@ -116,10 +117,12 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
     }
 
-    private final SetOnce<FlatVectorsFormat> flatVectorsFormat = new SetOnce<>();
+    private final AtomicReference<FlatVectorsFormat> flatVectorsFormat = new AtomicReference<>();
 
     public void useDirectIO() {
-        flatVectorsFormat.set(directIORawVectorFormat);
+        if (flatVectorsFormat.compareAndSet(null, directIORawVectorFormat) == false) {
+            throw new IllegalStateException("Flat vector format has already been set");
+        }
     }
 
     @Override

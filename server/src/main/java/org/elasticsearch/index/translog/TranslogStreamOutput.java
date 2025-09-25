@@ -28,23 +28,15 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
     public void writeFullOperation(Translog.WriteOp writeOperation) throws IOException {
         final int preWritePageOffset = this.currentPageOffset;
         if (writeOperation.length() <= (pageSize - preWritePageOffset)) {
-            BytesRef first = writeOperation.next();
-            int firstLength = first.length;
-            BytesRef second = writeOperation.next();
-            BytesRef currentPage = pages.get(this.pageIndex).v();
+            BytesRef currentPage = currentBytesRef;
             int offset = currentPage.offset + preWritePageOffset;
-            byte[] localBytesRef = currentPage.bytes;
-            System.arraycopy(first.bytes, first.offset, localBytesRef, offset, firstLength);
-            if (second != null) {
-                int secondLength = second.length;
-                System.arraycopy(second.bytes, second.offset, localBytesRef, offset + firstLength, secondLength);
-                this.currentPageOffset = preWritePageOffset + firstLength + secondLength;
-                BytesRef remaining;
-                while ((remaining = writeOperation.next()) != null) {
-                    writeBytes(remaining.bytes, remaining.offset, remaining.length);
-                }
+            byte[] pageBytes = currentPage.bytes;
+            BytesRef ref;
+            while ((ref = writeOperation.next()) != null) {
+                System.arraycopy(ref.bytes, ref.offset, pageBytes, offset, ref.length);
+                offset += ref.length;
             }
-            VH_BE_INT.set(localBytesRef, offset + writeOperation.length() - 4, writeOperation.checksum());
+            VH_BE_INT.set(pageBytes, offset, writeOperation.checksum());
             this.currentPageOffset = preWritePageOffset + writeOperation.length();
         } else {
             BytesRef next;

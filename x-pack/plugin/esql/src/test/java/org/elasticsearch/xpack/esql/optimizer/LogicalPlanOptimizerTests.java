@@ -144,7 +144,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -178,7 +177,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -9230,45 +9228,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expected plan:
      *
      * Limit[1000[INTEGER],false]
-     * \_Filter[MultiMatch(query[KEYWORD],_meta_field{f}#8,first_name{f}#3,gender{f}#4,job{f}#10,job.raw{f}#11,last_name{f}#6
-     * )]
-     *   \_EsRelation[test][_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]
-     */
-    public void testReplaceSingleStringFilterWithMultiMatchForMultipleTextFields() {
-        String query = """
-            from test
-            | where "query"
-            """;
-
-        LogicalPlan plan = optimizedPlan(query);
-
-        Limit limit = asLimit(plan, 1000);
-        Filter filter = as(limit.child(), Filter.class);
-        Expression matchFunction = filter.condition();
-
-        assertThat(matchFunction, instanceOf(MultiMatch.class));
-
-        MultiMatch multiMatch = (MultiMatch) matchFunction;
-        // -1, because AbstractLogicalPlanOptimizerTests removes nested fields (in this case job.raw) mimicking the IndexResolver behavior
-        assertThat(multiMatch.fields().size() - 1, equalTo(testIndexTextFieldNames().size()));
-    }
-
-    private List<String> testIndexTextFieldNames() {
-        return mapping.entrySet()
-            .stream()
-            .filter(entry -> isString(entry.getValue().getDataType()))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Expected plan:
-     *
-     * Limit[1000[INTEGER],false]
      * \_Filter[MATCH(message{f}#5,query[KEYWORD])]
      *   \_EsRelation[sample_data][@timestamp{f}#2, client_ip{f}#3, event_duration{f}#..]
      */
-    public void testReplaceSingleStringFilterWithMatchForSingleTextField() {
+    public void testReplaceSingleMultiMatchWithMatch() {
         String query = """
             from sample_data
             | where "query"

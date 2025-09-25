@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+<<<<<<< HEAD
 import org.elasticsearch.TransportVersions;
+=======
+import org.elasticsearch.TransportVersion;
+>>>>>>> a720e2f709d (Migrate transport versions 8841_052 through 8841_062 (#135328))
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,8 +39,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
-
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
         ChunkedToXContentObject,
@@ -44,6 +46,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
+
+    private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
+        "esql_documents_found_and_values_loaded"
+    );
+    private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -119,8 +126,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
-        long documentsFound = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19) ? in.readVLong() : 0;
-        long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19) ? in.readVLong() : 0;
+        long documentsFound = in.getTransportVersion().supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
+        long valuesLoaded = in.getTransportVersion().supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::readFrom);
         }
@@ -152,7 +159,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
-        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
         }
@@ -379,7 +386,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         public static Profile readFrom(StreamInput in) throws IOException {
             return new Profile(
                 in.readCollectionAsImmutableList(DriverProfile::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
+                in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
                     ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
                     : List.of()
             );
@@ -388,7 +395,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
+            if (out.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)) {
                 out.writeCollection(plans);
             }
         }

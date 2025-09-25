@@ -175,6 +175,8 @@ public class PublishPlugin implements Plugin<Project> {
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
         var shadow = project.getExtensions().getByType(ShadowExtension.class);
         shadow.component(publication);
+        publication.artifact(project.getTasks().named("javadocJar"));
+        publication.artifact(project.getTasks().named("sourcesJar"));
     }
 
     private static void addScmInfo(XmlProvider xml, GitInfo gitInfo) {

@@ -41,7 +41,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
 
   public static ValuesLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new ValuesLongGroupingAggregatorFunction(channels, ValuesLongAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new ValuesLongGroupingAggregatorFunction(channels, ValuesLongAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

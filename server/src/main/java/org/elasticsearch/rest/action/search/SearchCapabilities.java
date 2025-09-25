@@ -46,6 +46,7 @@ public final class SearchCapabilities {
     private static final String RRF_WINDOW_SIZE_SUPPORT_DEPRECATED = "rrf_window_size_support_deprecated";
 
     private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
+    private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -66,6 +67,7 @@ public final class SearchCapabilities {
         }
         capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
         capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
+        capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

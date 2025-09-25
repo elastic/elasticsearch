@@ -96,6 +96,9 @@
                     "snapshot": {
                       "type": "boolean"
                     },
+                    "complete": {
+                      "type": "boolean"
+                    },
                     "upgradeable": {
                       "type": "boolean"
                     },

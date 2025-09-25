@@ -41,7 +41,7 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
 
   public static ValuesFloatGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new ValuesFloatGroupingAggregatorFunction(channels, ValuesFloatAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new ValuesFloatGroupingAggregatorFunction(channels, ValuesFloatAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

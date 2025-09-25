@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -128,6 +129,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         for (Map.Entry<?, ?> n : nodes.entrySet()) {
             String id = (String) n.getKey();
             Map<?, ?> nodeInfo = (Map<?, ?>) n.getValue();
+            logger.error("DAFADFS {}", nodeInfo);
             String nodeName = (String) extractValue(nodeInfo, "name");
             TransportVersion transportVersion = TransportVersion.fromId((Integer) extractValue(nodeInfo, "transport_version"));
             nodeToInfo.put(nodeName, new NodeInfo(cluster, id, transportVersion));
@@ -273,7 +275,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected void createIndexForNode(RestClient client, String nodeName, String nodeId) throws IOException {
-        String indexName = indexMode + "_" + nodeName;
+        String indexName = indexMode + "_" + nodeName.toLowerCase(Locale.ROOT);
         if (false == indexExists(client, indexName)) {
             createAllTypesIndex(client, indexName, nodeId);
             createAllTypesDoc(client, indexName);
@@ -505,7 +507,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private String expectedIndex(String nodeName, NodeInfo nodeInfo) {
-        String expectedIndex = indexMode + "_" + nodeName;
+        String expectedIndex = indexMode + "_" + nodeName.toLowerCase(Locale.ROOT);
         if (nodeInfo.cluster == null) {
             return expectedIndex;
         }

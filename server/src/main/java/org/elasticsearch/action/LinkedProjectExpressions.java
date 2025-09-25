@@ -12,13 +12,10 @@ package org.elasticsearch.action;
 import java.util.Map;
 
 /**
- * // TODO MP update docs up to "An example structure is"
- * This class allows capturing context about index expression replacements performed on an {@link IndicesRequest.Replaceable} during
- * index resolution, in particular the results of local resolution, and the remote (unresolved) expressions if any.
+ * This class allows capturing context about index expression replacements performed on a linked project.
  * <p>
- * The replacements are separated into local and remote expressions.
- * For local expressions, the class allows recording local index resolution results along with failure info.
- * For remote expressions, only the expressions are recorded.
+ * The replacements are keyed by the original index expression and have as value {@link ResolvedIndexExpression.LocalExpressions} that
+ * contains the set of expression (if any) was found on the remote, the result of the resolution and possibly the exception thrown.
  *
  * <p>An example structure is:</p>
  *

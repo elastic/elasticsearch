@@ -94,11 +94,11 @@ public class CrossProjectErrorsUtil {
         boolean isFlatWorldResource
     ) {
         ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-        boolean existsLocally = false == localExpressions.expressions().isEmpty()
+        boolean resourceFound = false == localExpressions.expressions().isEmpty()
             && localExpressions.localIndexResolutionResult() == SUCCESS;
 
-        if (existsLocally && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
-            // a concrete index for the flat-world expression was found locally
+        if (resourceFound && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
+            // a concrete index locally and either was a flat expression or was the only thing we needed to search
             logger.info(
                 "Local cluster has canonical expression for original expression [{}], skipping remote existence check",
                 originalExpression
@@ -110,14 +110,16 @@ public class CrossProjectErrorsUtil {
         if (localException != null) {
             exceptions.add(localException);
         }
-        boolean foundFlat = false;
-        int foundQualified = 0;
+        int numberOfQualifiedFound = resourceFound ? 1 : 0;
         for (var linkedProjectExpressions : remoteResolvedExpressions.expressions().values()) {
             // for each linked project we check if the resolved expressions contains the original expression and check for resolution status
             ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
                 .get(originalExpression);
+            assert resolvedRemoteExpression != null : "we should always have resolved expressions from remote";
+
             Set<String> remoteExpressions = resolvedRemoteExpression.expressions();
-            assert remoteExpressions != null : "we should always have replaced expressions from remote";
+            assert remoteExpressions != null : "we should always have replaced expressions";
+
             logger.debug("Replaced indices from remote response resolved: [{}]", remoteExpressions);
             boolean existsRemotely = false == remoteExpressions.isEmpty()
                 && resolvedRemoteExpression.localIndexResolutionResult() == SUCCESS;
@@ -127,17 +129,18 @@ public class CrossProjectErrorsUtil {
                         "Remote project has resolved entries for [{}], skipping further remote existence check",
                         originalExpression
                     );
-                    foundFlat = true;
+                    resourceFound = true;
                     break;
                 } else {
-                    foundQualified++; // TODO MP check this. I am not sure.
+                    numberOfQualifiedFound++;
                 }
             } else if (resolvedRemoteExpression.exception() != null) {
                 exceptions.add(resolvedRemoteExpression.exception());
             }
         }
-        boolean missingFlatResource = isFlatWorldResource && false == foundFlat;
-        boolean missingQualifiedResource = false == isFlatWorldResource && foundQualified < localResolvedIndices.remoteExpressions().size();
+        boolean missingFlatResource = isFlatWorldResource && false == resourceFound;
+        boolean missingQualifiedResource = false == isFlatWorldResource
+            && numberOfQualifiedFound < localResolvedIndices.remoteExpressions().size();
 
         if (missingFlatResource || missingQualifiedResource) {
             if (false == exceptions.isEmpty()) {
@@ -151,7 +154,6 @@ public class CrossProjectErrorsUtil {
                 exceptions.forEach(e::addSuppressed);
                 throw e;
             } else {
-                // TODO composite exception based on missing resources
                 throw new IndexNotFoundException(originalExpression);
             }
         }

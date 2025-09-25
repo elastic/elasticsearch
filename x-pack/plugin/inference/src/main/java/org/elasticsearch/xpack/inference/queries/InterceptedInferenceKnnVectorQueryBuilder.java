@@ -83,13 +83,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     @Override
     protected FullyQualifiedInferenceId getInferenceIdOverride() {
-        FullyQualifiedInferenceId override = null;
         String modelId = getQueryVectorBuilderModelId();
-        if (modelId != null) {
-            override = new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, modelId);
-        }
-
-        return override;
+        return modelId != null ? new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, modelId) : null;
     }
 
     @Override

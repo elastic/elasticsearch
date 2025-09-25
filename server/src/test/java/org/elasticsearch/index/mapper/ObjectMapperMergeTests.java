@@ -344,6 +344,25 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("mapper [http.status_code] cannot be changed from type [keyword] to [long]"));
     }
 
+    public void testMergingWithPassThrough() {
+        boolean isSourceSynthetic = randomBoolean();
+        var objectMapper = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        var passThroughMapper = new RootObjectMapper.Builder("_doc").add(
+            new PassThroughObjectMapper.Builder("metrics").setPriority(10)
+                .add(new KeywordFieldMapper.Builder("memory_usage", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        RootObjectMapper merged = objectMapper.merge(
+            passThroughMapper,
+            MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+        );
+        assertThat(merged.getMapper("metrics"), instanceOf(ObjectMapper.class));
+        ObjectMapper metrics = (ObjectMapper) merged.getMapper("metrics");
+        assertThat(metrics.getMapper("cpu_usage"), instanceOf(KeywordFieldMapper.class));
+        assertThat(metrics.getMapper("memory_usage"), instanceOf(KeywordFieldMapper.class));
+    }
+
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
         FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));

@@ -7,14 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.crossproject;
+package org.elasticsearch.action;
 
-import java.util.List;
+public interface ResponseWithResolvedIndexExpressions {
 
-public record TargetProjects(ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
-    public static TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
-
-    public TargetProjects(ProjectRoutingInfo originProject) {
-        this(originProject, List.of());
-    }
+    ResolvedIndexExpressions getResolvedIndexExpressions();
 }

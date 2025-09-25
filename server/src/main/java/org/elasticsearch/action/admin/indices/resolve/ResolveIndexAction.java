@@ -18,6 +18,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.ResponseWithResolvedIndexExpressions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -78,6 +80,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     private static final TransportVersion RESOLVE_INDEX_MODE_ADDED = TransportVersion.fromName("resolve_index_mode_added");
     private static final TransportVersion RESOLVE_INDEX_MODE_FILTER = TransportVersion.fromName("resolve_index_mode_filter");
+    private static final TransportVersion RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG = TransportVersion.fromName(
+        "resolve_index_include_resolved_flag"
+    );
 
     private ResolveIndexAction() {
         super(NAME);
@@ -90,6 +95,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private String[] names;
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
+        private ResolvedIndexExpressions resolvedIndexExpressions = null;
+        private boolean includeResolvedExpressions = false;
 
         public Request(String[] names) {
             this.names = names;
@@ -108,6 +115,20 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
+        public Request(
+            String[] names,
+            IndicesOptions indicesOptions,
+            @Nullable EnumSet<IndexMode> indexModes,
+            boolean includeResolvedExpressions
+        ) {
+            this.names = names;
+            this.indicesOptions = indicesOptions;
+            if (indexModes != null) {
+                this.indexModes = indexModes;
+            }
+            this.includeResolvedExpressions = includeResolvedExpressions;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -122,6 +143,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             } else {
                 this.indexModes = EnumSet.noneOf(IndexMode.class);
             }
+            if (in.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
+                this.includeResolvedExpressions = in.readBoolean();
+            } else {
+                this.includeResolvedExpressions = false;
+            }
         }
 
         @Override
@@ -131,6 +157,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             indicesOptions.writeIndicesOptions(out);
             if (out.getTransportVersion().supports(RESOLVE_INDEX_MODE_FILTER)) {
                 out.writeEnumSet(indexModes);
+            }
+            if (out.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
+                out.writeBoolean(includeResolvedExpressions);
             }
         }
 
@@ -166,6 +195,21 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public boolean allowsRemoteIndices() {
             return true;
+        }
+
+        @Override
+        public boolean supportsCrossProjectSearch() {
+            return true;
+        }
+
+        @Override
+        public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+            this.resolvedIndexExpressions = expressions;
+        }
+
+        @Override
+        public ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return resolvedIndexExpressions;
         }
 
         @Override
@@ -452,7 +496,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject, ResponseWithResolvedIndexExpressions {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
@@ -461,17 +505,21 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final List<ResolvedIndex> indices;
         private final List<ResolvedAlias> aliases;
         private final List<ResolvedDataStream> dataStreams;
+        @Nullable
+        private final ResolvedIndexExpressions resolvedIndexExpressions;
 
         public Response(List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
             this.indices = indices;
             this.aliases = aliases;
             this.dataStreams = dataStreams;
+            this.resolvedIndexExpressions = null;
         }
 
         public Response(StreamInput in) throws IOException {
             this.indices = in.readCollectionAsList(ResolvedIndex::new);
             this.aliases = in.readCollectionAsList(ResolvedAlias::new);
             this.dataStreams = in.readCollectionAsList(ResolvedDataStream::new);
+            this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -491,6 +539,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             out.writeCollection(indices);
             out.writeCollection(aliases);
             out.writeCollection(dataStreams);
+            out.writeOptionalWriteable(resolvedIndexExpressions);
         }
 
         @Override
@@ -514,6 +563,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public int hashCode() {
             return Objects.hash(indices, aliases, dataStreams);
+        }
+
+        @Override
+        public ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return resolvedIndexExpressions;
         }
     }
 

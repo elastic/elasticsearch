@@ -10,7 +10,11 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -20,7 +24,11 @@ import java.util.Set;
 /**
  * A collection of {@link ResolvedIndexExpression}.
  */
-public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions) {
+public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions) implements Writeable {
+
+    public ResolvedIndexExpressions(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(ResolvedIndexExpression::new));
+    }
 
     public List<String> getLocalIndicesList() {
         return expressions.stream().flatMap(e -> e.localExpressions().expressions().stream()).toList();
@@ -28,6 +36,11 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeCollection(expressions);
     }
 
     public static final class Builder {

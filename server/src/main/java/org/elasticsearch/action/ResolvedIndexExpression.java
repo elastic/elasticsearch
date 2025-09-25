@@ -10,8 +10,12 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -40,7 +44,21 @@ import java.util.Set;
  *                         and failure info
  * @param remoteExpressions the remote expressions that replace the original
  */
-public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions) {
+public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions)
+    implements
+        Writeable {
+
+    public ResolvedIndexExpression(StreamInput in) throws IOException {
+        this(in.readString(), new LocalExpressions(in), in.readCollectionAsSet(StreamInput::readString));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(original);
+        localExpressions.writeTo(out);
+        out.writeStringCollection(remoteExpressions);
+    }
+
     /**
      * Indicates if a local index resolution attempt was successful or failed.
      * Failures can be due to concrete resources not being visible (either missing or not visible due to indices options)
@@ -60,10 +78,25 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
         Set<String> expressions,
         LocalIndexResolutionResult localIndexResolutionResult,
         @Nullable ElasticsearchException exception
-    ) {
+    ) implements Writeable {
         public LocalExpressions {
             assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
                 : "If the local resolution result is SUCCESS, exception must be null";
+        }
+
+        public LocalExpressions(StreamInput in) throws IOException {
+            this(
+                in.readCollectionAsSet(StreamInput::readString),
+                in.readEnum(LocalIndexResolutionResult.class),
+                ElasticsearchException.readException(in)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringCollection(expressions);
+            out.writeEnum(localIndexResolutionResult);
+            ElasticsearchException.writeException(exception, out);
         }
     }
 }

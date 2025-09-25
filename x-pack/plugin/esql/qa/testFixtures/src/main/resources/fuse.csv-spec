@@ -4,7 +4,7 @@
 
 simpleFuse
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: match_operator_colon
 
 FROM employees METADATA _id, _index, _score
@@ -23,7 +23,7 @@ _score:double | _fork:keyword | emp_no:integer
 
 fuseWithMatchAndScore
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -46,7 +46,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithDisjunctionAndPostFilter
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -69,7 +69,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithStats
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -89,7 +89,7 @@ count_fork:long | _fork:keyword
 
 fuseWithMultipleForkBranches
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -116,7 +116,7 @@ _score:double | author:keyword                    | title:keyword        | _fork
 
 fuseWithSemanticSearch
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -137,7 +137,7 @@ _fork:keyword  | _score:double | _id:keyword | semantic_text_field:keyword
 
 fuseWithSimpleRrf
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -161,7 +161,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfAndRankConstant
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -185,7 +185,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfAndWeights
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -209,7 +209,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfRankConstantAndWeights
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -231,9 +231,113 @@ _score:double | _fork:keyword  | _id:keyword
 0.00476       | fork1          | 26
 ;
 
+fuseWithRrfAndScoreColumn
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
+| FUSE rrf SCORE by my_score
+| SORT my_score DESC, _id, _index
+| EVAL _fork = mv_sort(_fork)
+| EVAL my_score = round(my_score, 5)
+| KEEP my_score, _fork, _id
+;
+
+my_score:double | _fork:keyword  | _id:keyword
+0.03279       | [fork1, fork2] | 4
+0.01613       | fork1          | 56
+0.01613       | fork2          | 60
+0.01587       | fork2          | 1
+0.01587       | fork1          | 26
+;
+
+fuseWithRrfAndDiscriminatorColumn
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+| EVAL new_fork = _fork
+| DROP _fork
+| FUSE rrf GROUP BY new_fork
+| SORT _score DESC, _id, _index
+| EVAL new_fork = mv_sort(new_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, new_fork, _id
+;
+
+_score:double | new_fork:keyword  | _id:keyword
+0.03279       | [fork1, fork2]    | 4
+0.01613       | fork1             | 56
+0.01613       | fork2             | 60
+0.01587       | fork2             | 1
+0.01587       | fork1             | 26
+;
+
+fuseWithRrfAndKeyColumns
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+| EVAL new_index = "lalala"
+| FUSE rrf KEY BY new_id, new_index
+| SORT _score DESC, new_id, new_index
+| EVAL _fork = mv_sort(_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, _fork, new_id
+;
+
+_score:double | _fork:keyword  | new_id:keyword
+0.03279       | [fork1, fork2] | 44
+0.01613       | fork1          | 5656
+0.01613       | fork2          | 6060
+0.01587       | fork2          | 11
+0.01587       | fork1          | 2626
+;
+
+
+fuseWithRrfAllOptionsScoreKeyAndGroupColumns
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3
+        | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+| EVAL new_fork = CASE (_fork == "fork1", "A", "B")
+| EVAL new_score = _score * 2
+| DROP _fork, _score
+| FUSE rrf SCORE BY new_score KEY BY new_id GROUP BY new_fork WITH {"rank_constant": 60, "weights": { "fork1": 0.3, "fork2": 0.7 } }
+| SORT new_score DESC, new_id
+| EVAL new_fork = mv_sort(new_fork)
+| EVAL new_score = round(new_score, 5)
+| KEEP new_score, new_fork, new_id
+;
+
+new_score:double | new_fork:keyword | new_id:keyword
+0.03279          | [A, B]           | 44
+0.01613          | A                | 5656
+0.01613          | B                | 6060
+0.01587          | B                | 11
+0.01587          | A                | 2626
+;
+
 fuseWithSimpleLinear
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -258,7 +362,7 @@ _score:double | _fork:keyword  | _id:keyword
 fuseWithLinearAndL2Norm
 
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -283,7 +387,7 @@ _score:double | _fork:keyword  | _id:keyword
 fuseWithLinearAndMinMax
 
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -307,7 +411,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearAndWeights
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -331,7 +435,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearAndPartialWeights
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -355,7 +459,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearWeightsAndMinMax
 required_capability: fork_v9
-required_capability: fuse_v3
+required_capability: fuse_v5
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -375,4 +479,201 @@ _score:double | _fork:keyword  | _id:keyword
 0.3           | fork1          | 26
 0.19191       | fork1          | 56
 0.0           | [fork1, fork2] | 4
+;
+
+
+fuseWithLinearAndScoreColumn
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
+| FUSE linear SCORE BY my_score
+| SORT my_score DESC, _id, _index
+| EVAL _fork = mv_sort(_fork)
+| EVAL my_score = round(my_score, 5)
+| KEEP my_score, _fork, _id
+;
+
+my_score:double | _fork:keyword  | _id:keyword
+2.44669         | [fork1, fork2] | 4
+2.2543          | fork1          | 26
+2.10316         | fork1          | 56
+0.97056         | fork2          | 1
+0.88365         | fork2          | 60
+;
+
+
+fuseWithLinearAndDiscriminatorColumn
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+| EVAL new_fork = _fork
+| DROP _fork
+| FUSE linear GROUP BY new_fork
+| SORT _score DESC, _id, _index
+| EVAL new_fork = mv_sort(new_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, new_fork, _id
+;
+
+_score:double | new_fork:keyword | _id:keyword
+2.44669       | [fork1, fork2]   | 4
+2.2543        | fork1            | 26
+2.10316       | fork1            | 56
+0.97056       | fork2            | 1
+0.88365       | fork2            | 60
+;
+
+fuseWithLinearAndKeyColumns
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+| EVAL new_index = "lalala"
+| FUSE LINEAR KEY BY new_id, new_index
+| SORT _score DESC, new_id, new_index
+| EVAL _fork = mv_sort(_fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, _fork, new_id
+;
+
+_score:double | _fork:keyword  | new_id:keyword
+2.44669       | [fork1, fork2] | 44
+2.2543        | fork1          | 2626
+2.10316       | fork1          | 5656
+0.97056       | fork2          | 11
+0.88365       | fork2          | 6060
+;
+
+fuseWithLinearAllOptionsScoreGroupAndKeyColumns
+required_capability: fork_v9
+required_capability: fuse_v5
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+
+FROM books METADATA _id, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3
+        | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
+| EVAL new_fork = CASE (_fork == "fork1", "A", "B")
+| EVAL new_score = _score * 2
+| DROP _fork, _score
+| FUSE LINEAR SCORE BY new_score KEY BY new_id GROUP BY new_fork WITH {"normalizer": "minmax", "weights": { "fork1": 0.3, "fork2": 0.7 }}
+| SORT new_score DESC, new_id
+| EVAL new_fork = mv_sort(new_fork)
+| EVAL new_score = round(new_score, 5)
+| KEEP new_score, new_fork, new_id
+;
+
+new_score:double | new_fork:keyword | new_id:keyword
+1.0              | B                | 11
+1.0              | A                | 2626
+0.7577           | B                | 6060
+0.63972          | A                | 5656
+0.0              | [A, B]           | 44
+;
+
+
+fuseWithRowAndRRF
+
+required_capability: fuse_v5
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string)
+| SORT my_score
+| LIMIT 10
+| FUSE RRF SCORE BY my_score
+| SORT my_score DESC
+| EVAL my_score = round(my_score, 5)
+| KEEP _id, my_score
+;
+
+_id:keyword | my_score:double
+id_0.0      | 0.01639
+id_1.0      | 0.01613
+id_2.0      | 0.01587
+id_3.0      | 0.01563
+id_4.0      | 0.01538
+;
+
+fuseWithRowLinearAndWeights
+
+required_capability: fuse_v5
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string)
+| SORT my_score
+| LIMIT 10
+| FUSE LINEAR SCORE BY my_score WITH { "weights": { "foo": 2 } }
+| SORT my_score DESC
+| KEEP _id, my_score
+;
+
+_id:keyword | my_score:double
+id_4.0      | 8.0
+id_3.0      | 6.0
+id_2.0      | 4.0
+id_1.0      | 2.0
+id_0.0      | 0.0
+;
+
+fuseWithRowLinearAndMinMax
+
+required_capability: fuse_v5
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string)
+| SORT my_score
+| LIMIT 10
+| FUSE LINEAR SCORE BY my_score WITH { "normalizer": "minmax" }
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score
+;
+
+_id:keyword | my_score:double
+id_4.0      | 1.0
+id_3.0      | 0.75
+id_2.0      | 0.5
+id_1.0      | 0.25
+id_0.0      | 0.0
+;
+
+fuseWithRowLinearAndL2Norm
+
+required_capability: fuse_v5
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string)
+| SORT my_score
+| LIMIT 10
+| FUSE LINEAR SCORE BY my_score WITH { "normalizer": "l2_norm" }
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score
+;
+
+_id:keyword | my_score:double
+id_4.0      | 0.7303
+id_3.0      | 0.54772
+id_2.0      | 0.36515
+id_1.0      | 0.18257
+id_0.0      | 0.0
 ;

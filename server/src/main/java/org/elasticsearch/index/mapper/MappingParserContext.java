@@ -43,9 +43,42 @@ public class MappingParserContext {
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
     private final Function<Query, BitSetProducer> bitSetProducer;
-    private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
+    private final List<VectorsFormatProvider> vectorsFormatProviders;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
+
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        IdFieldMapper idFieldMapper,
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        RootObjectMapperNamespaceValidator namespaceValidator
+
+    ) {
+        this.similarityLookupService = similarityLookupService;
+        this.typeParsers = typeParsers;
+        this.runtimeFieldParsers = runtimeFieldParsers;
+        this.indexVersionCreated = indexVersionCreated;
+        this.clusterTransportVersion = clusterTransportVersion;
+        this.searchExecutionContextSupplier = searchExecutionContextSupplier;
+        this.scriptCompiler = scriptCompiler;
+        this.indexAnalyzers = indexAnalyzers;
+        this.indexSettings = indexSettings;
+        this.idFieldMapper = idFieldMapper;
+        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
+        this.bitSetProducer = bitSetProducer;
+        this.vectorsFormatProviders = vectorsFormatProviders;
+        this.namespaceValidator = namespaceValidator;
+    }
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -61,19 +94,25 @@ public class MappingParserContext {
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
-        this.similarityLookupService = similarityLookupService;
-        this.typeParsers = typeParsers;
-        this.runtimeFieldParsers = runtimeFieldParsers;
-        this.indexVersionCreated = indexVersionCreated;
-        this.clusterTransportVersion = clusterTransportVersion;
-        this.searchExecutionContextSupplier = searchExecutionContextSupplier;
-        this.scriptCompiler = scriptCompiler;
-        this.indexAnalyzers = indexAnalyzers;
-        this.indexSettings = indexSettings;
-        this.idFieldMapper = idFieldMapper;
-        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
-        this.bitSetProducer = bitSetProducer;
-        this.vectorsFormatProviders = vectorsFormatProviders;
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            idFieldMapper,
+            bitSetProducer,
+            vectorsFormatProviders,
+            null
+        );
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -180,7 +219,8 @@ public class MappingParserContext {
                 in.indexSettings,
                 in.idFieldMapper,
                 in.bitSetProducer,
-                in.vectorsFormatProviders
+                in.vectorsFormatProviders,
+                in.namespaceValidator
             );
         }
 
@@ -211,7 +251,8 @@ public class MappingParserContext {
                 in.indexSettings,
                 in.idFieldMapper,
                 in.bitSetProducer,
-                in.vectorsFormatProviders
+                in.vectorsFormatProviders,
+                in.namespaceValidator
             );
             this.dateFormatter = dateFormatter;
         }

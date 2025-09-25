@@ -95,7 +95,9 @@ public final class GreaterThanOrEqualLongsEvaluator implements EvalOperator.Expr
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(GreaterThanOrEqual.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+        long lhs = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
+        long rhs = rhsBlock.getLong(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(GreaterThanOrEqual.processLongs(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class GreaterThanOrEqualLongsEvaluator implements EvalOperator.Expr
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, GreaterThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+        long lhs = lhsVector.getLong(p);
+        long rhs = rhsVector.getLong(p);
+        result.appendBoolean(p, GreaterThanOrEqual.processLongs(lhs, rhs));
       }
       return result.build();
     }

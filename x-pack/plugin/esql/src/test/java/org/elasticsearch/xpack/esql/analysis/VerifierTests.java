@@ -41,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -179,15 +180,15 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats count(1) by multi_typed", analyzer)
         );
-        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             assertEquals(
-                "1:38: Cannot use field [unsupported] with unsupported type [flattened]",
-                error("from test* | inlinestats count(1) by unsupported", analyzer)
+                "1:39: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inline stats count(1) by unsupported", analyzer)
             );
             assertEquals(
-                "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                "1:39: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
                     + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
-                error("from test* | inlinestats count(1) by multi_typed", analyzer)
+                error("from test* | inline stats count(1) by multi_typed", analyzer)
             );
         }
 
@@ -200,15 +201,15 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats values(multi_typed)", analyzer)
         );
-        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             assertEquals(
-                "1:33: Cannot use field [unsupported] with unsupported type [flattened]",
-                error("from test* | inlinestats values(unsupported)", analyzer)
+                "1:34: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inline stats values(unsupported)", analyzer)
             );
             assertEquals(
-                "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                "1:34: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
                     + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
-                error("from test* | inlinestats values(multi_typed)", analyzer)
+                error("from test* | inline stats values(multi_typed)", analyzer)
             );
         }
 
@@ -1173,7 +1174,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testNotAllowRateOutsideMetrics() {
-        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
             equalTo("1:24: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
@@ -1192,26 +1192,52 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testRateNotEnclosedInAggregate() {
-        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+    public void testTimeseriesAggregate() {
         assertThat(
             error("TS tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:18: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
+            equalTo(
+                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used with the TS command "
+                    + "and inside another aggregate function"
+            )
+        );
+        assertThat(
+            error("TS tests | STATS avg_over_time(network.connections)", tsdb),
+            equalTo(
+                "1:18: time-series aggregate function [avg_over_time(network.connections)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
         );
         assertThat(
             error("TS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo("1:47: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
+            equalTo(
+                "1:47: time-series aggregate function [rate(network.bytes_in)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
         );
+
         assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
-             [max(avg(rate(network.bytes_in)))]
-            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
-             and inside another aggregate"""));
+            1:22: nested aggregations [avg(rate(network.bytes_in))] \
+            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside over-time aggregation function [rate(network.bytes_in)]"""));
+
         assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
-             [max(avg(rate(network.bytes_in)))]
-            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
-             and inside another aggregate"""));
+            1:22: nested aggregations [avg(rate(network.bytes_in))] \
+            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside over-time aggregation function [rate(network.bytes_in)]"""));
+
+        assertThat(
+            error("TS tests | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
+            equalTo(
+                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
+        );
+        assertThat(
+            error("TS tests | STATS COUNT(*)", tsdb),
+            equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
+        );
     }
 
     public void testWeightedAvg() {
@@ -2070,23 +2096,23 @@ public class VerifierTests extends ESTestCase {
 
     public void testCategorizeWithInlineStats() {
         assumeTrue("CATEGORIZE must be enabled", EsqlCapabilities.Cap.CATEGORIZE_V6.isEnabled());
-        assumeTrue("INLINESTATS must be enabled", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertEquals(
-            "1:37: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
-                + "INLINESTATS [INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
-            error("FROM test | INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
+            "1:38: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
+                + "INLINE STATS [INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
+            error("FROM test | INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
         );
 
         assertEquals("""
-            3:35: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
-            INLINESTATS [INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)]
-            line 2:91: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
-            line 2:32: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
-            INLINESTATS [INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
+            3:36: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
+            INLINE STATS [INLINE STATS SUM(salary) BY c3 = CATEGORIZE(gender)]
+            line 2:92: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
+            line 2:33: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
+            INLINE STATS [INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
             c2 = CATEGORIZE(first_name)]""", error("""
             FROM test
-            | INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
-            | INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)
+            | INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
+            | INLINE STATS SUM(salary) BY c3 = CATEGORIZE(gender)
             """));
     }
 
@@ -2215,6 +2241,60 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:87: JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]",
             error("FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code")
+        );
+    }
+
+    public void testLookupJoinExpressionAmbiguousRight() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON salary == language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionAmbiguousLeft() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        String queryString = """
+             from test
+            | rename languages as language_name
+            | lookup join languages_lookup ON language_name == language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionAmbiguousBoth() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON language_code != language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
+            error(queryString)
         );
     }
 
@@ -2489,7 +2569,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
@@ -2502,6 +2582,18 @@ public class VerifierTests extends ESTestCase {
         query(queryPrefix + " | fuse with { \"rank_constant\": 123 } ");
         query(queryPrefix + " | fuse with { \"weights\": { \"fork1\":  123 } }");
         query(queryPrefix + " | fuse with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse linear");
+        query(queryPrefix + " | fuse linear with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear with { \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse linear score by _score with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_score = _score + 1 | fuse linear score by new_score with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear group by _fork with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_fork = to_upper(_fork) | fuse linear group by new_fork with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear key by _id,_index with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_id = concat(_id, _index) | fuse linear key by new_id with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear score by _score key by _id, _index group by _fork with { \"normalizer\": \"minmax\" } ");
 
         assertThat(error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
@@ -2525,26 +2617,148 @@ public class VerifierTests extends ESTestCase {
             containsString("expected rank_constant to be positive, got [0]")
         );
 
-        assertThat(error(queryPrefix + " | fuse rrf WITH { \"weights\": 123 }"), containsString("expected weights to be a MapExpression"));
+        for (var fuseMethod : List.of("rrf", "linear")) {
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": 123 }"),
+                containsString("expected weights to be a MapExpression")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": \"a\" } }"),
+                containsString("expected weight to be numeric")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
+                containsString("expected weight to be a literal")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": -123 } }"),
+                containsString("expected weight to be positive, got [-123]")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
+                containsString("expected weight to be positive, got [0]")
+            );
+        }
+
+        assertThat(error(queryPrefix + " | fuse linear WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
         assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": \"a\" } }"),
-            containsString("expected weight to be numeric")
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": 123 }"),
+            containsString("expected normalizer to be a string, got [123]")
         );
 
         assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
-            containsString("expected weight to be a literal")
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": { \"a\": 123 } }"),
+            containsString("expected normalizer to be a literal")
         );
 
         assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": -123 } }"),
-            containsString("expected weight to be positive, got [-123]")
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
+            containsString("[\"foo\"] is not a valid normalizer")
+        );
+
+        assertThat(error(queryPrefix + " | fuse linear SCORE BY foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(error(queryPrefix + " | fuse linear GROUP BY foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(error(queryPrefix + " | fuse linear KEY BY _id, foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(
+            error(queryPrefix + " | fuse linear SCORE BY first_name"),
+            containsString("expected SCORE BY column [first_name] to be DOUBLE, not KEYWORD")
         );
 
         assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
-            containsString("expected weight to be positive, got [0]")
+            error(queryPrefix + " | fuse linear GROUP BY _score"),
+            containsString("expected GROUP BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse linear KEY BY _score"),
+            containsString("expected KEY BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
+        );
+    }
+
+    public void testNoMetricInStatsByClause() {
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)", tsdb),
+            equalTo(
+                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in", tsdb),
+            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)", tsdb),
+            equalTo(
+                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+    }
+
+    public void testSortInTimeSeries() {
+        assertThat(
+            error("TS test | SORT host | STATS avg(last_over_time(network.connections))", tsdb),
+            equalTo(
+                "1:11: sorting [SORT host] between the time-series source "
+                    + "and the first aggregation [STATS avg(last_over_time(network.connections))] is not allowed"
+            )
+        );
+        assertThat(
+            error("TS test | LIMIT 10 | STATS avg(network.connections)", tsdb),
+            equalTo(
+                "1:11: limiting [LIMIT 10] the time-series source before the first aggregation "
+                    + "[STATS avg(network.connections)] is not allowed; filter data with a WHERE command instead"
+            )
+        );
+        assertThat(error("TS test | SORT host | LIMIT 10 | STATS avg(network.connections)", tsdb), equalTo("""
+            1:23: limiting [LIMIT 10] the time-series source \
+            before the first aggregation [STATS avg(network.connections)] is not allowed; filter data with a WHERE command instead
+            line 1:11: sorting [SORT host] between the time-series source \
+            and the first aggregation [STATS avg(network.connections)] is not allowed"""));
+    }
+
+    public void testTextEmbeddingFunctionInvalidQuery() {
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(null, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(42, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [TEXT_EMBEDDING(42, ?)] must be [string], found value [42] type [integer]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(last_name, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [TEXT_EMBEDDING(last_name, ?)] must be a constant, received [last_name]")
+        );
+    }
+
+    public void testTextEmbeddingFunctionInvalidInferenceId() {
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(?, 42)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, 42)] must be [string], found value [42] type [integer]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]")
         );
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,17 +65,65 @@ public class LookupJoinGenerator implements CommandGenerator {
             return EMPTY_DESCRIPTION;
         }
         StringBuilder stringBuilder = new StringBuilder();
-        for (int i = 0; i < keyNames.size(); i++) {
-            stringBuilder.append("| rename ");
-            stringBuilder.append(keyNames.get(i));
-            stringBuilder.append(" as ");
-            stringBuilder.append(joinOn.get(i));
-        }
-        stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
-        for (int i = 0; i < keyNames.size(); i++) {
-            stringBuilder.append(joinOn.get(i));
-            if (i < keyNames.size() - 1) {
-                stringBuilder.append(", ");
+
+        // Randomly choose between field-based join and expression-based join
+        boolean useExpressionJoin = ESTestCase.randomBoolean();
+
+        if (useExpressionJoin) {
+            // Get all right side column names (from lookup index)
+            Set<String> rightColumnNames = lookupIdx.keys()
+                .stream()
+                .map(LookupIdxColumn::name)
+                .collect(java.util.stream.Collectors.toSet());
+
+            // Generate rename commands for ALL left columns that exist in right side
+            Set<String> allLeftColumnNames = previousOutput.stream().map(Column::name).collect(java.util.stream.Collectors.toSet());
+            Map<String, String> leftColumnName2Renamed = new HashMap<>();
+            // Rename left columns that conflict with right side columns (either in lookup index or used in join)
+            for (String leftColumnName : allLeftColumnNames) {
+                if (rightColumnNames.contains(leftColumnName)) {
+                    String renamedColumn = leftColumnName + "_left";
+                    stringBuilder.append("| rename ");
+                    stringBuilder.append(leftColumnName);
+                    stringBuilder.append(" as ");
+                    stringBuilder.append(renamedColumn);
+                    leftColumnName2Renamed.put(leftColumnName, renamedColumn);
+                }
+            }
+
+            // Generate expression join syntax
+            stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
+
+            // Add join conditions for all columns
+            for (int i = 0; i < keyNames.size(); i++) {
+                String leftColumnName = keyNames.get(i);
+                String rightColumnName = joinOn.get(i);
+
+                // Only == and != are allowed, as the rest of the operators don's support all types
+                String[] booleanOperators = { "==", "!=" };
+                String operator = randomFrom(booleanOperators);
+
+                // Use renamed column if it was renamed, otherwise use original
+                String finalLeftColumnName = leftColumnName2Renamed.getOrDefault(leftColumnName, leftColumnName);
+                if (i > 0) {
+                    stringBuilder.append(" AND ");
+                }
+                stringBuilder.append(finalLeftColumnName).append(" ").append(operator).append(" ").append(rightColumnName);
+            }
+        } else {
+            // Generate field-based join (original behavior)
+            for (int i = 0; i < keyNames.size(); i++) {
+                stringBuilder.append("| rename ");
+                stringBuilder.append(keyNames.get(i));
+                stringBuilder.append(" as ");
+                stringBuilder.append(joinOn.get(i));
+            }
+            stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
+            for (int i = 0; i < keyNames.size(); i++) {
+                stringBuilder.append(joinOn.get(i));
+                if (i < keyNames.size() - 1) {
+                    stringBuilder.append(", ");
+                }
             }
         }
         String cmdString = stringBuilder.toString();

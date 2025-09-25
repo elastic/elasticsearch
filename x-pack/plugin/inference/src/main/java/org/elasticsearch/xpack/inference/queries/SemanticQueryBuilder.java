@@ -94,6 +94,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String query;
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     private final Boolean lenient;
+
+    // ccsRequest is only used on the local cluster coordinator node to detect when:
+    // - The request references a remote index
+    // - The remote cluster is too old to support semantic search CCS
+    // It doesn't technically need to be serialized since it is only used for this purpose, but we do so to keep its behavior in line with
+    // standard query member variables.
     private final boolean ccsRequest;
 
     public SemanticQueryBuilder(String fieldName, String query) {
@@ -437,7 +443,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
             throw new IllegalArgumentException(
                 NAME + " query does not support cross-cluster search when [ccs_minimize_roundtrips] is false"

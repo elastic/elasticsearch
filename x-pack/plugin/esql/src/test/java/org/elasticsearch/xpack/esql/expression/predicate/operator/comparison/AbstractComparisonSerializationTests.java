@@ -17,12 +17,12 @@ public abstract class AbstractComparisonSerializationTests<T extends EsqlBinaryC
     protected abstract T create(Source source, Expression left, Expression right);
 
     @Override
-    protected final T createTestInstance() {
+    protected final T innerCreateTestInstance() {
         return create(randomSource(), randomChild(), randomChild());
     }
 
     @Override
-    protected final T mutateInstance(T instance) throws IOException {
+    protected final T innerMutateInstance(T instance) throws IOException {
         Expression left = instance.left();
         Expression right = instance.right();
         if (randomBoolean()) {

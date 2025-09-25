@@ -17,7 +17,7 @@ public abstract class AbstractVarargsSerializationTests<T extends Expression> ex
     protected abstract T create(Source source, Expression first, List<Expression> rest);
 
     @Override
-    protected final T createTestInstance() {
+    protected final T innerCreateTestInstance() {
         Source source = randomSource();
         Expression first = randomChild();
         List<Expression> rest = randomList(0, 10, AbstractExpressionSerializationTests::randomChild);
@@ -25,7 +25,7 @@ public abstract class AbstractVarargsSerializationTests<T extends Expression> ex
     }
 
     @Override
-    protected final T mutateInstance(T instance) throws IOException {
+    protected final T innerMutateInstance(T instance) throws IOException {
         Source source = instance.source();
         Expression first = instance.children().get(0);
         List<Expression> rest = instance.children().subList(1, instance.children().size());

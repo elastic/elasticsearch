@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class NowSerializationTests extends AbstractExpressionSerializationTests<Now> {
     @Override
-    protected Now createTestInstance() {
+    protected Now innerCreateTestInstance() {
         return new Now(randomSource(), configuration());
     }
 
     @Override
-    protected Now mutateInstance(Now instance) throws IOException {
+    protected Now innerMutateInstance(Now instance) throws IOException {
         return null;
     }
 

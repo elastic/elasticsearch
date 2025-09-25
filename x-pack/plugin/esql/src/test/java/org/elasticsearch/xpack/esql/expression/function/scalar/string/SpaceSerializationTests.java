@@ -15,14 +15,14 @@ import java.io.IOException;
 
 public class SpaceSerializationTests extends AbstractExpressionSerializationTests<Space> {
     @Override
-    protected Space createTestInstance() {
+    protected Space innerCreateTestInstance() {
         Source source = randomSource();
         Expression number = randomChild();
         return new Space(source, number);
     }
 
     @Override
-    protected Space mutateInstance(Space instance) throws IOException {
+    protected Space innerMutateInstance(Space instance) throws IOException {
         Source source = instance.source();
         Expression number = instance.field();
         number = randomValueOtherThan(number, AbstractExpressionSerializationTests::randomChild);

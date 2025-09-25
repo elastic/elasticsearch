@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 
 public class RoundToSerializationTests extends AbstractExpressionSerializationTests<RoundTo> {
     @Override
-    protected RoundTo createTestInstance() {
+    protected RoundTo innerCreateTestInstance() {
         Source source = randomSource();
         DataType type = randomFrom(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.DATETIME, DataType.DATE_NANOS);
         Expression field = randomField(type);
@@ -44,7 +44,7 @@ public class RoundToSerializationTests extends AbstractExpressionSerializationTe
     }
 
     @Override
-    protected RoundTo mutateInstance(RoundTo instance) throws IOException {
+    protected RoundTo innerMutateInstance(RoundTo instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         List<Expression> points = instance.points();

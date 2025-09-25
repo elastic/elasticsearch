@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MvFirstSerializationTests extends AbstractExpressionSerializationTests<MvFirst> {
     @Override
-    protected MvFirst createTestInstance() {
+    protected MvFirst innerCreateTestInstance() {
         return new MvFirst(randomSource(), randomChild());
     }
 
     @Override
-    protected MvFirst mutateInstance(MvFirst instance) throws IOException {
+    protected MvFirst innerMutateInstance(MvFirst instance) throws IOException {
         return new MvFirst(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

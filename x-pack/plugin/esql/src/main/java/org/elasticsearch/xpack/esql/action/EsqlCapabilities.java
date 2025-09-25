@@ -1544,7 +1544,12 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
-        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
+
+        /**
+         * Fix attribute equality to respect the name id of the attribute.
+         */
+        ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,
 
         ;
 

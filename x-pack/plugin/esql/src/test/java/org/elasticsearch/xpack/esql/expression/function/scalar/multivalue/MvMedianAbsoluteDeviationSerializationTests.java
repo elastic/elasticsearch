@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MvMedianAbsoluteDeviationSerializationTests extends AbstractExpressionSerializationTests<MvMedianAbsoluteDeviation> {
     @Override
-    protected MvMedianAbsoluteDeviation createTestInstance() {
+    protected MvMedianAbsoluteDeviation innerCreateTestInstance() {
         return new MvMedianAbsoluteDeviation(randomSource(), randomChild());
     }
 
     @Override
-    protected MvMedianAbsoluteDeviation mutateInstance(MvMedianAbsoluteDeviation instance) throws IOException {
+    protected MvMedianAbsoluteDeviation innerMutateInstance(MvMedianAbsoluteDeviation instance) throws IOException {
         return new MvMedianAbsoluteDeviation(
             instance.source(),
             randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)

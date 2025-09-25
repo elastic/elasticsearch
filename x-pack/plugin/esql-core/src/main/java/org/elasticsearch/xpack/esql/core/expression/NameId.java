@@ -31,6 +31,14 @@ public class NameId implements Writeable {
         this.id = COUNTER.incrementAndGet();
     }
 
+    /**
+     * For testing only. Otherwise, we only use name ids for equality checks and de-/serialization and don't rely on their exact
+     * representation as long values.
+     */
+    public long id() {
+        return id;
+    }
+
     @Override
     public int hashCode() {
         return Long.hashCode(id);

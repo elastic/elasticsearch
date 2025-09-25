@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class MvAppendSerializationTests extends AbstractExpressionSerializationTests<MvAppend> {
     @Override
-    protected MvAppend createTestInstance() {
+    protected MvAppend innerCreateTestInstance() {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
@@ -23,7 +23,7 @@ public class MvAppendSerializationTests extends AbstractExpressionSerializationT
     }
 
     @Override
-    protected MvAppend mutateInstance(MvAppend instance) throws IOException {
+    protected MvAppend innerMutateInstance(MvAppend instance) throws IOException {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();

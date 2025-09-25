@@ -14,12 +14,12 @@ import java.io.IOException;
 
 public class FirstSerializationTests extends AbstractExpressionSerializationTests<First> {
     @Override
-    protected First createTestInstance() {
+    protected First innerCreateTestInstance() {
         return new First(randomSource(), randomChild(), randomChild());
     }
 
     @Override
-    protected First mutateInstance(First instance) throws IOException {
+    protected First innerMutateInstance(First instance) throws IOException {
         Expression field = instance.field();
         Expression sort = instance.sort();
         if (randomBoolean()) {

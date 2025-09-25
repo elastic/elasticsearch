@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class PiSerializationTests extends AbstractExpressionSerializationTests<Pi> {
     @Override
-    protected Pi createTestInstance() {
+    protected Pi innerCreateTestInstance() {
         return new Pi(randomSource());
     }
 
     @Override
-    protected Pi mutateInstance(Pi instance) throws IOException {
+    protected Pi innerMutateInstance(Pi instance) throws IOException {
         return null;
     }
 

@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class SubstringSerializationTests extends AbstractExpressionSerializationTests<Substring> {
     @Override
-    protected Substring createTestInstance() {
+    protected Substring innerCreateTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression start = randomChild();
@@ -24,7 +24,7 @@ public class SubstringSerializationTests extends AbstractExpressionSerialization
     }
 
     @Override
-    protected Substring mutateInstance(Substring instance) throws IOException {
+    protected Substring innerMutateInstance(Substring instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression start = instance.start();

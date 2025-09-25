@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class MvContainsSerializationTests extends AbstractExpressionSerializationTests<MvContains> {
     @Override
-    protected MvContains createTestInstance() {
+    protected MvContains innerCreateTestInstance() {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
@@ -23,7 +23,7 @@ public class MvContainsSerializationTests extends AbstractExpressionSerializatio
     }
 
     @Override
-    protected MvContains mutateInstance(MvContains instance) throws IOException {
+    protected MvContains innerMutateInstance(MvContains instance) throws IOException {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();

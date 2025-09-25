@@ -17,7 +17,7 @@ import java.io.IOException;
 
 public class WildcardLikeSerializationTests extends AbstractExpressionSerializationTests<WildcardLike> {
     @Override
-    protected WildcardLike createTestInstance() {
+    protected WildcardLike innerCreateTestInstance() {
         Source source = randomSource();
         Expression child = randomChild();
         WildcardPattern pattern = new WildcardPattern(randomAlphaOfLength(4));
@@ -25,7 +25,7 @@ public class WildcardLikeSerializationTests extends AbstractExpressionSerializat
     }
 
     @Override
-    protected WildcardLike mutateInstance(WildcardLike instance) throws IOException {
+    protected WildcardLike innerMutateInstance(WildcardLike instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.field();
         WildcardPattern pattern = instance.pattern();

@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class MvSortSerializationTests extends AbstractExpressionSerializationTests<MvSort> {
     @Override
-    protected MvSort createTestInstance() {
+    protected MvSort innerCreateTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression order = randomBoolean() ? null : randomChild();
@@ -23,7 +23,7 @@ public class MvSortSerializationTests extends AbstractExpressionSerializationTes
     }
 
     @Override
-    protected MvSort mutateInstance(MvSort instance) throws IOException {
+    protected MvSort innerMutateInstance(MvSort instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression order = instance.order();

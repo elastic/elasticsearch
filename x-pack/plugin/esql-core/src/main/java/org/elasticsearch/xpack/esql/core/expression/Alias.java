@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
@@ -69,6 +70,10 @@ public final class Alias extends NamedExpression {
             NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean()
         );
+    }
+
+    public Alias withId(NameId id) {
+        return new Alias(source(), name(), child(), id, synthetic());
     }
 
     @Override
@@ -146,5 +151,21 @@ public final class Alias extends NamedExpression {
      */
     public static Expression unwrap(Expression e) {
         return e instanceof Alias as ? as.child() : e;
+    }
+
+    @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), id());
+    }
+
+    /**
+     * Compared to e.g. {@link UnresolvedAttribute}, the id is part of equality for Alias because the {@link ReferenceAttribute} created
+     * by {@link #toAttribute()} uses it.
+     */
+    @Override
+    protected boolean innerEquals(Object o) {
+        var other = (Alias) o;
+        return Objects.equals(id(), other.id()) && super.innerEquals(other);
     }
 }

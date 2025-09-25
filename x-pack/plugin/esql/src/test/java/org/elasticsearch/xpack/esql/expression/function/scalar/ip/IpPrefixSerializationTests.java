@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class IpPrefixSerializationTests extends AbstractExpressionSerializationTests<IpPrefix> {
     @Override
-    protected IpPrefix createTestInstance() {
+    protected IpPrefix innerCreateTestInstance() {
         Source source = randomSource();
         Expression ipField = randomChild();
         Expression prefixLengthV4Field = randomChild();
@@ -24,7 +24,7 @@ public class IpPrefixSerializationTests extends AbstractExpressionSerializationT
     }
 
     @Override
-    protected IpPrefix mutateInstance(IpPrefix instance) throws IOException {
+    protected IpPrefix innerMutateInstance(IpPrefix instance) throws IOException {
         Source source = instance.source();
         Expression ipField = instance.ipField();
         Expression prefixLengthV4Field = instance.prefixLengthV4Field();

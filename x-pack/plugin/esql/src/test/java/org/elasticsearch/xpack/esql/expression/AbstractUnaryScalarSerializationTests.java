@@ -17,12 +17,12 @@ public abstract class AbstractUnaryScalarSerializationTests<T extends UnaryScala
     protected abstract T create(Source source, Expression child);
 
     @Override
-    protected final T createTestInstance() {
+    protected final T innerCreateTestInstance() {
         return create(randomSource(), randomChild());
     }
 
     @Override
-    protected final T mutateInstance(T instance) throws IOException {
+    protected final T innerMutateInstance(T instance) throws IOException {
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return create(instance.source(), child);
     }

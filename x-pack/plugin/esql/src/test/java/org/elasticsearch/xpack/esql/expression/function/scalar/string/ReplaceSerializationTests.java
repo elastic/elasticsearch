@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class ReplaceSerializationTests extends AbstractExpressionSerializationTests<Replace> {
     @Override
-    protected Replace createTestInstance() {
+    protected Replace innerCreateTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression regex = randomChild();
@@ -24,7 +24,7 @@ public class ReplaceSerializationTests extends AbstractExpressionSerializationTe
     }
 
     @Override
-    protected Replace mutateInstance(Replace instance) throws IOException {
+    protected Replace innerMutateInstance(Replace instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression regex = instance.regex();

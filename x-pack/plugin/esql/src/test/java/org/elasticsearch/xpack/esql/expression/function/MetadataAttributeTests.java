@@ -36,14 +36,16 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
         DataType type = instance.dataType();
         Nullability nullability = instance.nullable();
         boolean synthetic = instance.synthetic();
+        NameId id = instance.id();
         boolean searchable = instance.searchable();
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 3 -> synthetic = false == synthetic;
-            case 4 -> searchable = false == searchable;
+            case 4 -> id = new NameId();
+            case 5 -> searchable = false == searchable;
         }
-        return new MetadataAttribute(source, name, type, nullability, new NameId(), synthetic, searchable);
+        return new MetadataAttribute(source, name, type, nullability, id, synthetic, searchable);
     }
 }

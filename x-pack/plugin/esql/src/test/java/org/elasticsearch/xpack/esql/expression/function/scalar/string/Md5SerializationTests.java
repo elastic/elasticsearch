@@ -14,12 +14,12 @@ import java.io.IOException;
 public class Md5SerializationTests extends AbstractExpressionSerializationTests<Md5> {
 
     @Override
-    protected Md5 createTestInstance() {
+    protected Md5 innerCreateTestInstance() {
         return new Md5(randomSource(), randomChild());
     }
 
     @Override
-    protected Md5 mutateInstance(Md5 instance) throws IOException {
+    protected Md5 innerMutateInstance(Md5 instance) throws IOException {
         return new Md5(instance.source(), mutateExpression(instance.field()));
     }
 }

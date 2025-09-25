@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class LocateSerializationTests extends AbstractExpressionSerializationTests<Locate> {
     @Override
-    protected Locate createTestInstance() {
+    protected Locate innerCreateTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression substr = randomChild();
@@ -24,7 +24,7 @@ public class LocateSerializationTests extends AbstractExpressionSerializationTes
     }
 
     @Override
-    protected Locate mutateInstance(Locate instance) throws IOException {
+    protected Locate innerMutateInstance(Locate instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression substr = instance.substr();

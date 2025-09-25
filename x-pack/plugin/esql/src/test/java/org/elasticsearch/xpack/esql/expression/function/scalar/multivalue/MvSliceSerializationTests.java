@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class MvSliceSerializationTests extends AbstractExpressionSerializationTests<MvSlice> {
     @Override
-    protected MvSlice createTestInstance() {
+    protected MvSlice innerCreateTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression start = randomChild();
@@ -24,7 +24,7 @@ public class MvSliceSerializationTests extends AbstractExpressionSerializationTe
     }
 
     @Override
-    protected MvSlice mutateInstance(MvSlice instance) throws IOException {
+    protected MvSlice innerMutateInstance(MvSlice instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression start = instance.start();

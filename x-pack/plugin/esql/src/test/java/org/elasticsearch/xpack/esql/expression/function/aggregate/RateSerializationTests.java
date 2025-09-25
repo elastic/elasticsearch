@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class RateSerializationTests extends AbstractExpressionSerializationTests<Rate> {
     @Override
-    protected Rate createTestInstance() {
+    protected Rate innerCreateTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression timestamp = randomChild();
@@ -23,7 +23,7 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
     }
 
     @Override
-    protected Rate mutateInstance(Rate instance) throws IOException {
+    protected Rate innerMutateInstance(Rate instance) throws IOException {
         Source source = randomSource();
         Expression field = instance.field();
         Expression timestamp = instance.timestamp();

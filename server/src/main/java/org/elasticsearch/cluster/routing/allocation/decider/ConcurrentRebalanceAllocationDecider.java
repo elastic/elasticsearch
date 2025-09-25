@@ -85,7 +85,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         int relocatingFrozenShards = allocation.routingNodes().getRelocatingFrozenShardCount();
-        if (isFrozenShard(allocation, shardRouting)) {
+        if (allocation.routingNodes().isDedicatedFrozenNode(shardRouting.currentNodeId())) {
             if (clusterConcurrentFrozenRebalance == -1) {
                 return allocation.decision(Decision.YES, NAME, "unlimited concurrent frozen rebalances are allowed");
             }
@@ -176,20 +176,14 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         return allocation.decision(
             Decision.THROTTLE,
             NAME,
-            "above threshold [%d] for concurrent rebalances, current rebalance shard count [%d], "
-                + "and threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
-            clusterConcurrentRebalance,
+            "reached the limit of concurrently rebalancing shards [%d] for concurrent rebalances, cluster setting [%s=%d], "
+                + "and [%d] for concurrent frozen rebalances, frozen cluster setting [%s=%d]",
             relocatingShards,
-            clusterConcurrentFrozenRebalance,
-            relocatingFrozenShards
+            CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
+            clusterConcurrentRebalance,
+            relocatingFrozenShards,
+            CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING.getKey(),
+            clusterConcurrentFrozenRebalance
         );
-    }
-
-    private boolean isFrozenShard(RoutingAllocation allocation, ShardRouting shard) {
-        String nodeId = shard.currentNodeId();
-        if (nodeId != null && allocation.routingNodes().node(nodeId).node().isDedicatedFrozenNode()) {
-            return true;
-        }
-        return false;
     }
 }

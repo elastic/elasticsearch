@@ -154,7 +154,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             assignedShardsAdd(shard);
                             if (shard.relocating()) {
                                 relocatingShards++;
-                                if (isFrozenNode(shard.currentNodeId())) {
+                                if (isDedicatedFrozenNode(shard.currentNodeId())) {
                                     relocatingFrozenShards++;
                                 }
                                 ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
@@ -349,7 +349,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return relocatingShards;
     }
 
-    private boolean isFrozenNode(String nodeId) {
+    public boolean isDedicatedFrozenNode(String nodeId) {
         RoutingNode node = nodesToShards.get(nodeId);
         if (node != null && node.node() != null && node.node().isDedicatedFrozenNode()) {
             return true;
@@ -496,7 +496,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     ) {
         ensureMutable();
         relocatingShards++;
-        if (isFrozenNode(nodeId)) {
+        if (isDedicatedFrozenNode(nodeId)) {
             relocatingFrozenShards++;
         }
         ShardRouting source = startedShard.relocate(nodeId, expectedShardSize);
@@ -747,7 +747,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     private ShardRouting cancelRelocation(ShardRouting shard) {
         relocatingShards--;
-        if (isFrozenNode(shard.currentNodeId())) {
+        if (isDedicatedFrozenNode(shard.currentNodeId())) {
             relocatingFrozenShards--;
         }
         ShardRouting cancelledShard = shard.cancelRelocation();

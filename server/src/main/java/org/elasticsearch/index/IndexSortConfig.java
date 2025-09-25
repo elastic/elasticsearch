@@ -175,7 +175,7 @@ public final class IndexSortConfig {
 
         public static FieldSortSpec[] getLegacyDefaultSortSpecs(IndexSettings indexSettings) {
             var version = indexSettings.getIndexVersionCreated();
-            if (version.onOrAfter(IndexVersions.LOGSDB_EXPLICIT_INDEX_SORTING_DEFAULTS)) {
+            if (version.onOrAfter(IndexVersions.EXPLICIT_INDEX_SORTING_DEFAULTS)) {
                 return null;
             }
 

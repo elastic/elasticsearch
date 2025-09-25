@@ -97,7 +97,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         client.threadPool().shutdown();
     }
 
-    public void testGivenServices_NoSemanticTextFields() throws Exception {
+    public void testGivenServices_NoInferenceFields() throws Exception {
         givenInferenceEndpoints(
             new ModelConfigurations("model-001", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-001")),
             new ModelConfigurations("model-002", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-002")),
@@ -174,7 +174,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertStats(response, 4, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
     }
 
-    public void testGivenServices_SemanticTextFieldsDefaultModels() throws Exception {
+    public void testGivenServices_InferenceFieldsReferencingDefaultModels() throws Exception {
         givenInferenceEndpoints(
             new ModelConfigurations(".endpoint-001", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001")),
             new ModelConfigurations(".endpoint-002", TaskType.SPARSE_EMBEDDING, "eis", mockServiceSettings(".model-id-002")),

@@ -56,7 +56,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;

@@ -37,7 +37,6 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
 
     public static final String TYPE = "sampling_configuration";
     private static final String RATE_FIELD_NAME = "rate";
-    private static final String RATE_PERCENTAGE_FIELD_NAME = "rate_percentage";
     private static final String MAX_SAMPLES_FIELD_NAME = "max_samples";
     private static final String MAX_SIZE_IN_BYTES_FIELD_NAME = "max_size_in_bytes";
     private static final String MAX_SIZE_FIELD_NAME = "max_size";
@@ -69,16 +68,16 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         TYPE,
         false,
         args -> {
-            Double rawRate = (Double) args[1];
-            Integer maxSamples = (Integer) args[2];
-            ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[3];
-            ByteSizeValue rawMaxSize = (ByteSizeValue) args[4];
-            TimeValue humanReadableTimeToLive = (TimeValue) args[5];
-            TimeValue rawTimeToLive = (TimeValue) args[6];
-            String condition = (String) args[7];
+            Double rate = (Double) args[0];
+            Integer maxSamples = (Integer) args[1];
+            ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[2];
+            ByteSizeValue rawMaxSize = (ByteSizeValue) args[3];
+            TimeValue humanReadableTimeToLive = (TimeValue) args[4];
+            TimeValue rawTimeToLive = (TimeValue) args[5];
+            String condition = (String) args[6];
 
             return new SamplingConfiguration(
-                rawRate,
+                rate,
                 maxSamples,
                 determineValue(humanReadableMaxSize, rawMaxSize),
                 determineValue(humanReadableTimeToLive, rawTimeToLive),
@@ -88,12 +87,6 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     );
 
     static {
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> { return p.text(); },
-            new ParseField(RATE_PERCENTAGE_FIELD_NAME),
-            ObjectParser.ValueType.STRING
-        );
         PARSER.declareDouble(constructorArg(), new ParseField(RATE_FIELD_NAME));
         PARSER.declareInt(optionalConstructorArg(), new ParseField(MAX_SAMPLES_FIELD_NAME));
         // Handle both human-readable and machine-readable fields for maxSize.
@@ -171,7 +164,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.percentageField(RATE_FIELD_NAME, RATE_PERCENTAGE_FIELD_NAME, rate);
+        builder.field(RATE_FIELD_NAME, rate);
         builder.field(MAX_SAMPLES_FIELD_NAME, maxSamples);
         builder.humanReadableField(MAX_SIZE_IN_BYTES_FIELD_NAME, MAX_SIZE_FIELD_NAME, maxSize);
         builder.humanReadableField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME, TIME_TO_LIVE_FIELD_NAME, timeToLive);

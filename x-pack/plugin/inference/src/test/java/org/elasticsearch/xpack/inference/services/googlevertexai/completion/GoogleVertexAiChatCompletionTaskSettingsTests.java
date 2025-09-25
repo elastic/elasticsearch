@@ -102,8 +102,7 @@ public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSett
         var updatedSettings = GoogleVertexAiChatCompletionTaskSettings.of(originalSettings, emptySettings);
 
         assertThat(updatedSettings.thinkingConfig().getThinkingBudget(), is(originalThinkingBudget));
-        // maxTokens must always be set, so should be copied from original settings
-        assertThat(updatedSettings.maxTokens(), is(1024));
+        assertThat(updatedSettings.maxTokens(), is(123));
     }
 
     @Override

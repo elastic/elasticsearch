@@ -1,6 +1,0 @@
-pr: 135184
-summary: "Bug fix, last optimised value in `ESUTF8StreamJsonParser` kept old value"
-area: Infra/Core
-type: bug
-issues:
- - 135256

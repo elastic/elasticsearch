@@ -710,10 +710,14 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }
             """, XContentType.JSON);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
-        assertThat(
-            getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH),
-            containsInAnyOrder("metricset", "labels.*", "k8s.pod.name")
-        );
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(
+                getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH),
+                containsInAnyOrder("metricset", "labels.*", "k8s.pod.name")
+            );
+        } else {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), containsInAnyOrder("metricset"));
+        }
         assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
 
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");

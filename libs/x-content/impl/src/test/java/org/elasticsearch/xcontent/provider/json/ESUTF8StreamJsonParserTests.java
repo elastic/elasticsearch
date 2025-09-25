@@ -15,12 +15,17 @@ import com.fasterxml.jackson.core.JsonToken;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -318,4 +323,116 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         });
     }
 
+    /**
+     * This test compares the retrieval of an optimised text against the baseline.
+     */
+    public void testOptimisedParser() throws Exception {
+        for (int i = 0; i < 200; i++) {
+            String json = randomJsonInput(randomIntBetween(1, 6));
+            try (
+                XContentParser optimisedParser = TestXContentParser.create(json);
+                XContentParser baselineParser = TestXContentParser.create(json)
+            ) {
+                assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+                parseObjectAndAssert(optimisedParser, baselineParser);
+            }
+        }
+    }
+
+    private void parseObjectAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
+        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+        while (optimisedParser.currentToken() != XContentParser.Token.END_OBJECT) {
+            assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(optimisedParser.currentName(), equalTo(baselineParser.currentName()));
+            assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+            if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                assertThat(optimisedParser.optimizedText().string(), equalTo(baselineParser.text()));
+            } else if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
+                parseObjectAndAssert(optimisedParser, baselineParser);
+            } else if (optimisedParser.currentToken() == XContentParser.Token.START_ARRAY) {
+                parseArrayAndAssert(optimisedParser, baselineParser);
+            }
+            assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+        }
+        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.END_OBJECT));
+    }
+
+    private void parseArrayAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
+        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.START_ARRAY));
+        assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+        while (optimisedParser.currentToken() != XContentParser.Token.END_ARRAY) {
+            if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
+                parseObjectAndAssert(optimisedParser, baselineParser);
+            } else if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                assertThat(optimisedParser.optimizedText().string(), equalTo(baselineParser.text()));
+            }
+            assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+        }
+        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+    }
+
+    private String randomJsonInput(int depth) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        int numberOfFields = randomIntBetween(1, 10);
+        for (int i = 0; i < numberOfFields; i++) {
+            sb.append("\"k-").append(randomAlphanumericOfLength(10)).append("\":");
+            if (depth == 0 || randomBoolean()) {
+                if (randomIntBetween(0, 9) == 0) {
+                    sb.append(
+                        IntStream.range(0, randomIntBetween(1, 10))
+                            .mapToObj(ignored -> randomUTF8Value())
+                            .collect(Collectors.joining(",", "[", "]"))
+                    );
+                } else {
+                    sb.append(randomUTF8Value());
+                }
+            } else {
+                sb.append(randomJsonInput(depth - 1));
+            }
+            if (i < numberOfFields - 1) {
+                sb.append(',');
+            }
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String randomUTF8Value() {
+        return "\"" + buildRandomInput(randomIntBetween(10, 50)).input + "\"";
+    }
+
+    /**
+     * This XContentParser introduces a random mix of getText() and getOptimisedText()
+     * to simulate different access patterns for optimised fields.
+     */
+    private static class TestXContentParser extends FilterXContentParserWrapper {
+
+        TestXContentParser(XContentParser delegate) {
+            super(delegate);
+        }
+
+        static TestXContentParser create(String input) throws IOException {
+            JsonFactory factory = new ESJsonFactoryBuilder().build();
+            assertThat(factory, Matchers.instanceOf(ESJsonFactory.class));
+
+            JsonParser parser = factory.createParser(StandardCharsets.UTF_8.encode(input).array());
+            assertThat(parser, Matchers.instanceOf(ESUTF8StreamJsonParser.class));
+            return new TestXContentParser(new JsonXContentParser(XContentParserConfigurationImpl.EMPTY, parser));
+        }
+
+        @Override
+        public XContentString optimizedText() throws IOException {
+            int extraCalls = randomIntBetween(0, 5);
+            for (int i = 0; i < extraCalls; i++) {
+                if (randomBoolean()) {
+                    super.optimizedText();
+                } else {
+                    super.text();
+                }
+            }
+            return super.optimizedText();
+        }
+    }
 }

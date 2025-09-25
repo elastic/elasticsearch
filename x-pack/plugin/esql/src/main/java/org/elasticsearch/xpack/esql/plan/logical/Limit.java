@@ -37,15 +37,11 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     private final transient boolean local;
 
     /**
-     * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated} to
-     * {@code false}.
+     * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated}
+     * and {@link Limit#local} to {@code false}.
      */
     public Limit(Source source, Expression limit, LogicalPlan child) {
         this(source, limit, child, false, false);
-    }
-
-    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated) {
-        this(source, limit, child, duplicated, false);
     }
 
     public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
@@ -112,7 +108,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit withLimit(Expression limit) {
-        return new Limit(source(), limit, child(), duplicated);
+        return new Limit(source(), limit, child(), duplicated, local);
     }
 
     public boolean duplicated() {

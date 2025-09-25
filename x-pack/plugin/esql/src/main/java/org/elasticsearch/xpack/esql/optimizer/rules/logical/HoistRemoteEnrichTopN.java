@@ -81,7 +81,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
                     } else {
                         // No need for aliasing - then it's simple, just copy the TopN on top and mark the original as local
                         LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == top ? top.withLocal(true) : t);
-                        return new TopN(top.source(), transformedEnrich, top.order(), top.limit());
+                        return new TopN(top.source(), transformedEnrich, top.order(), top.limit(), false);
                     }
                 }
                 if ((plan instanceof CardinalityPreserving) == false // can change the number of rows, so we can't just pull a TopN from

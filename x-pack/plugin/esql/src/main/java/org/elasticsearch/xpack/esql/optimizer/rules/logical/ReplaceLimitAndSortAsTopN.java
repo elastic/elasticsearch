@@ -18,7 +18,7 @@ public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRul
     protected LogicalPlan rule(Limit plan) {
         LogicalPlan p = plan;
         if (plan.child() instanceof OrderBy o) {
-            p = new TopN(o.source(), o.child(), o.order(), plan.limit());
+            p = new TopN(o.source(), o.child(), o.order(), plan.limit(), false);
         }
         return p;
     }

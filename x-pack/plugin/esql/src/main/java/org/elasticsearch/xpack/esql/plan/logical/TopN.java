@@ -32,13 +32,6 @@ public class TopN extends UnaryPlan implements PipelineBreaker {
      */
     private final transient boolean local;
 
-    public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit) {
-        super(source, child);
-        this.order = order;
-        this.limit = limit;
-        this.local = false;
-    }
-
     public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit, boolean local) {
         super(source, child);
         this.order = order;
@@ -51,7 +44,8 @@ public class TopN extends UnaryPlan implements PipelineBreaker {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readCollectionAsList(Order::new),
-            in.readNamedWriteable(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            false
         );
     }
 

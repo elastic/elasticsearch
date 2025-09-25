@@ -1,0 +1,11 @@
+pr: 135475
+summary: "Add release note for #135051"
+area: ES|QL
+type: docs
+issues: []
+highlight:
+  title: "Add release note for #135051"
+  body: |-
+    See also:
+    [#135051](https://github.com/elastic/elasticsearch/pull/135051)
+  notable: true

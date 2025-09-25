@@ -49,6 +49,7 @@ import java.util.List;
 public class SerializationTestUtils {
     private static final NameId DUMMY_ID = new NameId();
 
+    // NOCOMMIT: do not use the ignoreIds methods; instead, fix ids during deserialization
     @SuppressWarnings("unchecked")
     public static <E extends Expression> E ignoreIds(E expression) {
         return (E) expression.transformDown(

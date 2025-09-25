@@ -452,7 +452,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         SemanticQueryBuilder rewritten = this;
         if (queryRewriteContext.hasAsyncActions() == false) {
-            Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = getInferenceIdsForForField(
+            Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = getInferenceIdsForField(
                 resolvedIndices.getConcreteLocalIndicesMetadata().values(),
                 queryRewriteContext.getLocalClusterAlias(),
                 fieldName
@@ -546,7 +546,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         throw new IllegalStateException(NAME + " should have been rewritten to another query type");
     }
 
-    private static Set<FullyQualifiedInferenceId> getInferenceIdsForForField(
+    private static Set<FullyQualifiedInferenceId> getInferenceIdsForField(
         Collection<IndexMetadata> indexMetadataCollection,
         String clusterAlias,
         String fieldName

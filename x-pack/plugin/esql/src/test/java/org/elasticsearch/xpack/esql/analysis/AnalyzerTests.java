@@ -4533,7 +4533,7 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(isMultiTypeEsField(e));
     }
 
-    public void testResolveFullTextSearch(){
+    public void testResolveFullTextSearch() {
         var plan = analyze("""
             from test
             | WHERE "query"

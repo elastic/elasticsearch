@@ -50,17 +50,13 @@ public final class ReplaceSingleMultiMatchWithMatch extends OptimizerRules.Optim
         MapExpression mapExpr = (MapExpression) multiMatchOptions;
 
         // Filter the map entries to only include allowed options
-        List<Map.Entry<Expression, Expression>> filteredEntries = mapExpr.map().entrySet()
-            .stream()
-            .filter(entry -> {
-                if (entry.getKey() instanceof Literal literal
-                    && literal.dataType() == KEYWORD) {
-                    String optionName = literal.value().toString();
-                    return Match.ALLOWED_OPTIONS.containsKey(optionName);
-                }
-                return false;
-            })
-            .toList();
+        List<Map.Entry<Expression, Expression>> filteredEntries = mapExpr.map().entrySet().stream().filter(entry -> {
+            if (entry.getKey() instanceof Literal literal && literal.dataType() == KEYWORD) {
+                String optionName = literal.value().toString();
+                return Match.ALLOWED_OPTIONS.containsKey(optionName);
+            }
+            return false;
+        }).toList();
 
         // Return null if no valid options remain
         if (filteredEntries.isEmpty()) {

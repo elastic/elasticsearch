@@ -2233,7 +2233,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveFullTextSearch extends ParameterizedAnalyzerRule<Filter, AnalyzerContext>{
+    private static class ResolveFullTextSearch extends ParameterizedAnalyzerRule<Filter, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(Filter filter, AnalyzerContext context) {
             Expression condition = filter.condition();
@@ -2251,7 +2251,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<Expression> findTextFields(LogicalPlan child) {
-            return child.output().stream()
+            return child.output()
+                .stream()
                 .filter(attr -> attr instanceof FieldAttribute)
                 .filter(attr -> isString(attr.dataType()))
                 .collect(toList());

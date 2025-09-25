@@ -54,7 +54,7 @@ the field mappings.
 serverless: ga
 ```
 
-If you use the default `.elser-2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
+If you use the default `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001

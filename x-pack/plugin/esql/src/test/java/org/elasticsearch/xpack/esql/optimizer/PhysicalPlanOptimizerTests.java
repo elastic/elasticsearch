@@ -2921,12 +2921,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan("""
+        var plan = physicalPlanNoSerializationCheck("""
               FROM test
             | RENAME languages AS language_code
             | SORT language_code
             | LOOKUP JOIN languages_lookup ON language_code
-            """, testData, false);
+            """);
 
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
@@ -7039,11 +7039,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialLimit.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
-                | LIMIT 10""", testData, false);
+                | LIMIT 10""");
             var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -7094,12 +7094,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
-        var plan = physicalPlan("""
+        var plan = physicalPlanNoSerializationCheck("""
             FROM test
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
             | ENRICH _remote:departments
-            """, testData, false);
+            """);
         var finalLimit = as(plan, LimitExec.class);
         var exchange = as(finalLimit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
@@ -7146,12 +7146,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | SORT department
-                | LIMIT 10""", testData, false);
+                | LIMIT 10""");
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -7163,12 +7163,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | SORT department
-                | LIMIT 10""", testData, false);
+                | LIMIT 10""");
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -7183,13 +7183,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testEnrichAfterTopN() {
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _any:departments
-                """, testData, false);
+                """);
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
@@ -7219,13 +7219,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialTopN.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
-                """, testData, false);
+                """);
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -8295,6 +8295,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource) {
         return physicalPlan(query, dataSource, true);
+    }
+
+    private PhysicalPlan physicalPlanNoSerializationCheck(String query) {
+        return physicalPlan(query, testData, false);
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {

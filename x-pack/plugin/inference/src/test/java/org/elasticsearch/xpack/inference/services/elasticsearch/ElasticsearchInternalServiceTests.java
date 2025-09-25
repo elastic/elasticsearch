@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
@@ -83,6 +85,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -116,6 +119,8 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.notElasticsearchModelException;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.ELASTIC_RERANKER_CHUNKING;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
@@ -142,6 +147,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     private InferenceStats inferenceStats;
 
     private static ThreadPool threadPool;
+
+    private final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
 
     @Before
     public void setUp() throws Exception {
@@ -978,6 +985,163 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         assertEquals(model, updatedModel);
         verifyNoMoreInteractions(model);
+    }
+
+    public void testInfer_UnsupportedModel() {
+        var service = createService(mock(Client.class));
+        var model = new Model(ModelConfigurationsTests.createRandomInstance());
+
+        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(
+            results -> fail("Expected infer to fail for unsupported model type"),
+            e -> assertEquals(e.getMessage(), notElasticsearchModelException(model).getMessage())
+        );
+
+        service.infer(model, null, null, null, List.of(), randomBoolean(), Map.of(), InputType.INGEST, null, listener);
+    }
+
+    public void testInfer_ElasticRerankerSucceedsWithoutChunkingConfiguration() {
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithoutChunkingConfiguration(),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    public void testInfer_ElasticRerankerFeatureFlagDisabledSucceedsWithTruncateConfiguration() {
+        assumeTrue(
+            "Only if 'elastic_reranker_chunking_long_documents' feature flag is disabled",
+            ELASTIC_RERANKER_CHUNKING.isEnabled() == false
+        );
+
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
+                ElasticRerankerServiceSettings.LongDocumentStrategy.TRUNCATE,
+                null
+            ),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    public void testInfer_ElasticRerankerFeatureFlagDisabledSucceedsIgnoringChunkConfiguration() {
+        assumeTrue(
+            "Only if 'elastic_reranker_chunking_long_documents' feature flag is disabled",
+            ELASTIC_RERANKER_CHUNKING.isEnabled() == false
+        );
+
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
+                ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK,
+                randomBoolean() ? randomIntBetween(1, 10) : null
+            ),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    public void testInfer_ElasticRerankerFeatureFlagEnabledAndSucceedsWithTruncateStrategy() {
+        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
+
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
+                ElasticRerankerServiceSettings.LongDocumentStrategy.TRUNCATE,
+                null
+            ),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    public void testInfer_ElasticRerankerFeatureFlagEnabledAndSucceedsWithChunkStrategy() {
+        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
+
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
+                ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK,
+                randomBoolean() ? randomIntBetween(1, 10) : null
+            ),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testInfer_ElasticReranker(ElasticRerankerModel model, List<String> inputs) {
+        var query = randomAlphaOfLength(10);
+        var mlTrainedModelResults = new ArrayList<InferenceResults>();
+        var numResults = inputs.size();
+        if (ELASTIC_RERANKER_CHUNKING.isEnabled()
+            && ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK.equals(model.getServiceSettings().getLongDocumentStrategy())) {
+            var rerankRequestChunker = new RerankRequestChunker(query, inputs, model.getServiceSettings().getMaxChunksPerDoc());
+            numResults = rerankRequestChunker.getChunkedInputs().size();
+        }
+        for (int i = 0; i < numResults; i++) {
+            mlTrainedModelResults.add(TextSimilarityInferenceResultsTests.createRandomResults());
+        }
+        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
+
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        var service = createService(client);
+        var topN = randomBoolean() ? null : randomIntBetween(1, inputs.size());
+
+        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(results -> {
+            assertThat(results, instanceOf(RankedDocsResults.class));
+            var rankedDocsResults = (RankedDocsResults) results;
+            assertEquals(topN == null ? inputs.size() : topN, rankedDocsResults.getRankedDocs().size());
+
+        }, ESTestCase::fail);
+
+        service.infer(
+            model,
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomBoolean(),
+            topN,
+            inputs,
+            false,
+            Map.of(),
+            InputType.INGEST,
+            null,
+            listener
+        );
+    }
+
+    private List<String> generateTestDocs(int numDocs, int numSentencesPerDoc) {
+        var docs = new ArrayList<String>();
+        for (int docIndex = 0; docIndex < numDocs; docIndex++) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < numSentencesPerDoc; i++) {
+                sb.append(TEST_SENTENCE);
+            }
+            docs.add(sb.toString());
+        }
+        return docs;
     }
 
     public void testChunkInfer_E5WithNullChunkingSettings() throws InterruptedException {

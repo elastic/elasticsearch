@@ -107,7 +107,9 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
             ChunkingSettings chunkingSettings = null;
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
             }
 
             CustomModel model = createModel(

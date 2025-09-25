@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.mockito.Mockito.mock;
 
-public abstract class AbstractInferenceServiceBaseTests extends InferenceServiceTestCase{
+public abstract class AbstractInferenceServiceBaseTests extends InferenceServiceTestCase {
     protected final TestConfiguration testConfiguration;
 
     protected final MockWebServer webServer = new MockWebServer();

@@ -70,4 +70,8 @@ public interface VectorSimilarityFunctions {
      * 4-byte float32 elements.
      */
     MethodHandle squareDistanceHandleFloat32();
+
+    MethodHandle int4BitDotProductHandle();
+
+    MethodHandle int4BitDotProductBulkHandle();
 }

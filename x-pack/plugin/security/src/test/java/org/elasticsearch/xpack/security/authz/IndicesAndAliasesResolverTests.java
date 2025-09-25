@@ -799,9 +799,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolved, is(notNullValue()));
         assertThat(
             resolved.expressions(),
-            contains(
-                resolvedIndexExpression("_all", Arrays.stream(replacedIndices).collect(Collectors.toSet()), SUCCESS)
-            )
+            contains(resolvedIndexExpression("_all", Arrays.stream(replacedIndices).collect(Collectors.toSet()), SUCCESS))
         );
     }
 

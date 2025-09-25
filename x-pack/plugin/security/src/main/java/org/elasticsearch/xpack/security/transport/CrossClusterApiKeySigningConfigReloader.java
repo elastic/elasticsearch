@@ -177,8 +177,8 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
             logger.error(Strings.format("Failed to load trust config"), e);
         } finally {
             var configFiles = clusterAlias == null
-                ? signatureManager.getDependentFiles()
-                : signatureManager.getDependentFiles(clusterAlias);
+                ? signatureManager.getDependentTrustFiles()
+                : signatureManager.getDependentSigningFiles(clusterAlias);
             watchDependentFiles(clusterAlias, new HashSet<>(configFiles));
         }
         return effectiveSettings;

@@ -40,7 +40,7 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         crossClusterApiKeySignatureManager = mock(CrossClusterApiKeySignatureManager.class);
-        when(crossClusterApiKeySignatureManager.getDependentFiles(any())).thenReturn(List.of());
+        when(crossClusterApiKeySignatureManager.getDependentSigningFiles(any())).thenReturn(List.of());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
         threadPool = new TestThreadPool(getTestName());
         resourceWatcherService = new ResourceWatcherService(settings, threadPool);
@@ -103,11 +103,11 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
                 .put("cluster.remote." + clusterNames[i] + ".signing.keystore.alias", "mykey")
                 .put("cluster.remote." + clusterNames[i] + ".signing.keystore.path", filesToMonitor[i])
                 .build();
-            when(crossClusterApiKeySigner.getDependentFiles(clusterNames[i])).thenReturn(List.of(filesToMonitor[i]));
-            when(crossClusterApiKeySigner.getDependentFiles(clusterNames[i])).thenReturn(List.of(filesToMonitor[i]));
+            when(crossClusterApiKeySigner.getDependentSigningFiles(clusterNames[i])).thenReturn(List.of(filesToMonitor[i]));
+            when(crossClusterApiKeySigner.getDependentSigningFiles(clusterNames[i])).thenReturn(List.of(filesToMonitor[i]));
         }
 
-        when(crossClusterApiKeySigner.getDependentFiles()).thenReturn(List.of(trustFile));
+        when(crossClusterApiKeySigner.getDependentTrustFiles()).thenReturn(List.of(trustFile));
 
         crossClusterApiKeySigningConfigReloader.setSigningConfigLoader(crossClusterApiKeySigner);
         clusterSettings.applySettings(dynamicSettingsUpdate);

@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.DIAGNOSE_TRUST_EXCEPTIONS;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERTIFICATE_AUTHORITIES;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERT_PATH;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_ALIAS;
@@ -112,6 +114,29 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
                     .setSecureSettings(new MockSecureSettings())
             );
         }
+    }
+
+    public void testVerifyDiagnosticTrustManagerDisabled() {
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
+            internalCluster().getRandomNodeName()
+        );
+
+        try {
+            updateClusterSettings(Settings.builder().put(DIAGNOSE_TRUST_EXCEPTIONS.getKey(), false));
+            assertFalse(manager.getTrustManager() instanceof DiagnosticTrustManager);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(DIAGNOSE_TRUST_EXCEPTIONS.getKey()));
+        }
+    }
+
+    public void testVerifyDiagnosticTrustManagerEnabledDefault() {
+        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
+            CrossClusterApiKeySignatureManager.class,
+            internalCluster().getRandomNodeName()
+        );
+
+        assertTrue(manager.getTrustManager() instanceof DiagnosticTrustManager);
     }
 
     @Override

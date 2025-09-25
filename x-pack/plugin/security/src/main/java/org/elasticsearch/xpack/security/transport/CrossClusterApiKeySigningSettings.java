@@ -122,8 +122,22 @@ public class CrossClusterApiKeySigningSettings {
         Setting.Property.Dynamic
     );
 
+    static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS = Setting.boolSetting(
+        "cluster.remote." + SETTINGS_PART_SIGNING + ".diagnose.trust",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> getDynamicTrustSettings() {
-        return List.of(SIGNING_TRUSTSTORE_TYPE, SIGNING_TRUSTSTORE_ALGORITHM, SIGNING_TRUSTSTORE_PATH, SIGNING_CERTIFICATE_AUTHORITIES);
+        return List.of(
+            SIGNING_TRUSTSTORE_TYPE,
+            SIGNING_TRUSTSTORE_ALGORITHM,
+            SIGNING_TRUSTSTORE_PATH,
+            SIGNING_CERTIFICATE_AUTHORITIES,
+            DIAGNOSE_TRUST_EXCEPTIONS
+        );
     }
 
     public static List<Setting.AffixSetting<?>> getDynamicSigningSettings() {

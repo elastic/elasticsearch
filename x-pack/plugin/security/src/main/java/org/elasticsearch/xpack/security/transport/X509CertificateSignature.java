@@ -29,6 +29,7 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class X509CertificateSignature implements Writeable {
 
@@ -46,7 +47,6 @@ public final class X509CertificateSignature implements Writeable {
 
     public X509CertificateSignature(StreamInput in) throws IOException {
         this.certificateChain = in.readArray((arrayIn) -> {
-            X509Certificate certificate;
             final byte[] certBytes = arrayIn.readByteArray();
             if (certBytes == null || certBytes.length == 0) {
                 throw new IOException("Certificate bytes cannot be empty");
@@ -55,14 +55,13 @@ public final class X509CertificateSignature implements Writeable {
                 CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
                 final Certificate cert = certFactory.generateCertificate(bais);
                 if (cert instanceof X509Certificate x509) {
-                    certificate = x509;
+                    return x509;
                 } else {
                     throw new IOException("Input bytes are not an X509 certificate [" + cert.getClass() + "] [" + cert + "]");
                 }
             } catch (CertificateException e) {
                 throw new IOException("Cannot read certificate", e);
             }
-            return certificate;
         }, X509Certificate[]::new);
 
         this.algorithm = in.readString();
@@ -100,7 +99,7 @@ public final class X509CertificateSignature implements Writeable {
     public String toString() {
         return "X509CertificateSignature["
             + "certificates="
-            + Arrays.toString(Arrays.stream(certificateChain).map(this::certificateToString).toArray(String[]::new))
+            + Arrays.stream(certificateChain).map(this::certificateToString).collect(Collectors.joining(","))
             + ", "
             + "algorithm="
             + algorithm

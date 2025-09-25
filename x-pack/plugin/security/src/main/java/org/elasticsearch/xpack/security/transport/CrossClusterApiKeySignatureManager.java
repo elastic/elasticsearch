@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslUtil;
@@ -19,6 +20,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.X509KeyManager;
+import javax.net.ssl.X509TrustManager;
+import javax.security.auth.x500.X500Principal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,9 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.net.ssl.X509KeyManager;
-
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.DIAGNOSE_TRUST_EXCEPTIONS;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.KEYSTORE_ALIAS_SUFFIX;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SETTINGS_PART_SIGNING;
 
@@ -67,9 +70,13 @@ public class CrossClusterApiKeySignatureManager {
             var trustConfig = sslConfig.trustConfig();
             // Only load a trust manager if trust is explicitly configured or system default, to avoid using key store as trust store
             if (trustConfig.hasExplicitConfig() || trustConfig.isSystemDefault()) {
-                final X509ExtendedTrustManager newTrustManager = trustConfig.createTrustManager();
+                X509ExtendedTrustManager newTrustManager = DIAGNOSE_TRUST_EXCEPTIONS.get(settings)
+                    ? wrapInDiagnosticTrustManager(trustConfig.createTrustManager())
+                    : trustConfig.createTrustManager();
+
+                trustConfig.createTrustManager();
                 if (newTrustManager.getAcceptedIssuers().length == 0) {
-                    logger.warn("Cross cluster API Key trust configuration [{}] has no accepted certificate issuers", this, trustConfig);
+                    logger.warn("Cross cluster API Key trust configuration [{}] has no accepted certificate issuers", trustConfig);
                     trustManager.set(null);
                 } else {
                     sslTrustConfig.set(sslConfig);
@@ -117,12 +124,12 @@ public class CrossClusterApiKeySignatureManager {
         }
     }
 
-    public Collection<Path> getDependentFiles() {
+    public Collection<Path> getDependentTrustFiles() {
         var sslConfig = sslTrustConfig.get();
         return sslConfig == null ? Collections.emptyList() : sslConfig.getDependentFiles();
     }
 
-    public Collection<Path> getDependentFiles(String clusterAlias) {
+    public Collection<Path> getDependentSigningFiles(String clusterAlias) {
         var sslConfig = sslSigningConfigByClusterAlias.get(clusterAlias);
         return sslConfig == null ? Collections.emptyList() : sslConfig.getDependentFiles();
     }
@@ -138,6 +145,11 @@ public class CrossClusterApiKeySignatureManager {
                 });
             }
         }
+    }
+
+    // Visible for testing
+    X509TrustManager getTrustManager() {
+        return trustManager.get();
     }
 
     public Verifier verifier() {
@@ -156,13 +168,28 @@ public class CrossClusterApiKeySignatureManager {
 
             var authTrustManager = trustManager.get();
             if (authTrustManager == null) {
-                logger.warn("No trust manager found");
-                throw new IllegalStateException("No trust manager found");
+                logger.warn("Cannot verify signed cross-cluster headers because [cluster.remote.signing] has not trust configuration");
+                throw new IllegalStateException(
+                    "Cannot verify signed cross-cluster headers because [cluster.remote.signing] has not trust configuration"
+                );
             }
 
             try {
                 // Make sure the provided certificate chain is trusted
+                var leaf = signature.certificates()[0];
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "checking signing chain (len={}) [{}] with leaf subject [{}] using algorithm [{}]",
+                        signature.certificates().length,
+                        Arrays.stream(signature.certificates())
+                            .map(CrossClusterApiKeySignatureManager::calculateFingerprint)
+                            .collect(Collectors.joining(",")),
+                        leaf.getSubjectX500Principal().getName(X500Principal.RFC2253),
+                        leaf.getPublicKey().getAlgorithm()
+                    );
+                }
                 authTrustManager.checkClientTrusted(signature.certificates(), signature.certificates()[0].getPublicKey().getAlgorithm());
+
                 // TODO Make sure the signing certificate belongs to the correct DN (the configured api key cert identity)
                 // TODO Make sure the signing certificate is valid
                 // Make sure signature is correct
@@ -224,6 +251,14 @@ public class CrossClusterApiKeySignatureManager {
                 calculateFingerprint(certificates[0])
             );
         }
+    }
+
+    private X509ExtendedTrustManager wrapInDiagnosticTrustManager(X509ExtendedTrustManager trustManager) {
+        if (trustManager instanceof DiagnosticTrustManager == false) {
+            org.apache.logging.log4j.Logger diagnosticLogger = org.apache.logging.log4j.LogManager.getLogger(DiagnosticTrustManager.class);
+            return new DiagnosticTrustManager(trustManager, () -> "cluster.remote.signing", diagnosticLogger::warn);
+        }
+        return trustManager;
     }
 
     private static String calculateFingerprint(X509Certificate certificate) {

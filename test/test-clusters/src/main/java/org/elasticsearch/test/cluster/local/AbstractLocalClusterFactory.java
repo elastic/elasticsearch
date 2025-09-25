@@ -926,8 +926,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 "-XX:ErrorFile=logs/hs_err_pid%p.log",
                 "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log")
             );
-        }        
-        
+        }
+
         private boolean jdkIsIncompatible(Version version) {
             return version.after("0.0.0") && version.before(FIRST_DISTRO_WITH_JDK_21);
         }

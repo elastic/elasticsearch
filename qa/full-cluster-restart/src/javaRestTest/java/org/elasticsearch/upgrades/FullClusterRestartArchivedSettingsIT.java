@@ -45,8 +45,7 @@ public class FullClusterRestartArchivedSettingsIT extends ParameterizedFullClust
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(Version.fromString(OLD_CLUSTER_VERSION))
-        .detachedVersion(isOldClusterDetachedVersion())
+        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         .nodes(2)
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         .setting("xpack.security.enabled", "false")

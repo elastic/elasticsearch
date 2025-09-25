@@ -397,8 +397,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private DistributionDescriptor resolveDistribution() {
             return TEST_DISTRIBUTIONS.computeIfAbsent(
-                new DistributionKey(spec.getVersion(), spec.isDetachedVersion(), spec.getDistributionType()),
-                key -> distributionResolver.resolve(key.version, key.detachedVersion, key.distributionType)
+                new DistributionKey(spec.getVersion(), spec.getDistributionType()),
+                key -> distributionResolver.resolve(key.version, key.distributionType)
             );
         }
 
@@ -995,5 +995,5 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
     }
 
-    public record DistributionKey(Version version, boolean detachedVersion, DistributionType distributionType) {}
+    public record DistributionKey(Version version, DistributionType distributionType) {}
 }

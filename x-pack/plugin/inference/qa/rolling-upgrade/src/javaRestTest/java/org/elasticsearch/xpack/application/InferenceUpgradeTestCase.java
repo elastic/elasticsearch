@@ -38,8 +38,7 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterVersion())
-        .detachedVersion(isOldClusterDetachedVersion())
+        .version(getOldClusterVersion(), isOldClusterDetachedVersion())
         .nodes(NODE_NUM)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

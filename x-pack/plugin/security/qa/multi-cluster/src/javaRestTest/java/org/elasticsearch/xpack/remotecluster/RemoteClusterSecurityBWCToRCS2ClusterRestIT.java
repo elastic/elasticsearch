@@ -27,15 +27,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteClusterSecurityBWCRestIT {
 
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     static {
 
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
-            .version(OLD_CLUSTER_VERSION)
-            .detachedVersion(isOldClusterDetachedVersion())
+            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .distribution(DistributionType.DEFAULT)
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")

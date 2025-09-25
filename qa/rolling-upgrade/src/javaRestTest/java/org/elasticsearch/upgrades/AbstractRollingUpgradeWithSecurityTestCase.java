@@ -37,8 +37,7 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
     private static ElasticsearchCluster buildCluster() {
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion())
-            .detachedVersion(isOldClusterDetachedVersion())
+            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
             .nodes(NODE_NUM)
             .user(USER, PASS)
             .setting("xpack.security.autoconfiguration.enabled", "false")

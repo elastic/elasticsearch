@@ -25,8 +25,8 @@ public class LocalDistributionResolver implements DistributionResolver {
     }
 
     @Override
-    public DistributionDescriptor resolve(Version version, boolean detachedVersion, DistributionType type) {
-        if (version.equals(Version.CURRENT) && detachedVersion == false) {
+    public DistributionDescriptor resolve(Version version, DistributionType type) {
+        if (version.equals(Version.CURRENT) && version.isDetached() == false) {
             String testDistributionPath = System.getProperty(type.getSystemProperty());
 
             if (testDistributionPath == null) {
@@ -67,6 +67,6 @@ public class LocalDistributionResolver implements DistributionResolver {
             );
         }
 
-        return delegate.resolve(version, detachedVersion, type);
+        return delegate.resolve(version, type);
     }
 }

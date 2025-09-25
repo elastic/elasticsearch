@@ -167,7 +167,6 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         Node node = nodes.get(index);
         node.stop(false);
         LOGGER.info("Upgrading node '{}' to version {}", node.getName(), version);
-        node.getSpec().setDetachedVersion(false);
         node.start(version);
         waitUntilReady();
     }
@@ -175,7 +174,6 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     @Override
     public void upgradeToVersion(Version version) {
         stop(false);
-        nodes.forEach(node -> node.getSpec().setDetachedVersion(false));
         if (started.getAndSet(true) == false) {
             LOGGER.info("Upgrading Elasticsearch test cluster '{}' to version {}", name, version);
             execute(() -> nodes.parallelStream().forEach(n -> n.start(version)));

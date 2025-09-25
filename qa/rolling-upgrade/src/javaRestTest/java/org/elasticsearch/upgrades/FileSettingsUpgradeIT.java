@@ -59,8 +59,7 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterVersion())
-        .detachedVersion(isOldClusterDetachedVersion())
+        .version(getOldClusterVersion(), isOldClusterDetachedVersion())
         .nodes(NODE_NUM)
         .setting("path.repo", new Supplier<>() {
             @Override

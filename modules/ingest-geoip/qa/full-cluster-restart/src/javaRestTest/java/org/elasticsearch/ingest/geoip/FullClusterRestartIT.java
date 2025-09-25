@@ -41,8 +41,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(Version.fromString(OLD_CLUSTER_VERSION))
-        .detachedVersion(isOldClusterDetachedVersion())
+        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         .nodes(2)
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
         .setting("xpack.security.enabled", "false")

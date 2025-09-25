@@ -47,7 +47,6 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final List<String> jvmArgs = new ArrayList<>();
     private DistributionType distributionType;
     private Version version;
-    private Boolean detachedVersion;
     private String keystorePassword;
     private Supplier<Path> configDirSupplier;
 
@@ -307,17 +306,9 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     }
 
     @Override
-    public T detachedVersion(boolean detachedVersion) {
-        this.detachedVersion = detachedVersion;
+    public T version(String version, boolean detachedVersion) {
+        this.version = Version.fromString(version, detachedVersion);
         return cast(this);
-    }
-
-    public boolean isDetachedVersion() {
-        Boolean isDetached = inherit(() -> parent.isDetachedVersion(), detachedVersion);
-        if (isDetached != null) {
-            return isDetached;
-        }
-        return false;
     }
 
     private <T> List<T> inherit(Supplier<List<T>> parent, List<T> child) {

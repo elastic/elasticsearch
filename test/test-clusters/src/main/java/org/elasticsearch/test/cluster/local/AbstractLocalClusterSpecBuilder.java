@@ -197,7 +197,6 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
                 cluster,
                 resolveName(cluster, nodeIndex),
                 Optional.ofNullable(getVersion()).orElse(Version.CURRENT),
-                isDetachedVersion(),
                 getSettingsProviders(),
                 getSettings(),
                 getEnvironmentProviders(),

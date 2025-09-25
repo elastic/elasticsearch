@@ -420,6 +420,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return blobCacheMetrics;
     }
 
+    public ThreadPool getThreadPool() {
+        return threadPool;
+    }
+
     public int getRangeSize() {
         return rangeSize;
     }

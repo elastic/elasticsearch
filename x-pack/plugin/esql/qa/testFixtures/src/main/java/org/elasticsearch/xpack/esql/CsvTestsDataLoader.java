@@ -322,7 +322,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -344,14 +344,16 @@ public class CsvTestsDataLoader {
     public static Set<TestDataset> availableDatasetsForEs(
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
-        boolean inferenceEnabled
+        boolean inferenceEnabled,
+        boolean requiresTimeSeries
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
-                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)) {
+                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
+                && (requiresTimeSeries == false || isTimeSeries(dataset))) {
                 testDataSets.add(dataset);
             }
         }
@@ -375,17 +377,34 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
+    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+        Settings settings = dataset.readSettingsFile();
+        String mode = settings.get("index.mode");
+        return (mode != null && mode.equalsIgnoreCase("time_series"));
+    }
+
     public static void loadDataSetIntoEs(
         RestClient client,
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false);
+    }
+
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly
+    ) throws IOException {
         loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
+            timeSeriesOnly,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -397,12 +416,13 @@ public class CsvTestsDataLoader {
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
+        boolean timeSeriesOnly,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled)) {
+        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, timeSeriesOnly)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

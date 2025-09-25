@@ -15,6 +15,7 @@ import com.google.protobuf.MessageLite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -126,11 +129,13 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         DataPointGroupingContext.DataPointGroup dataPointGroup
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
-            var dynamicTemplates = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dataPointGroup);
+            Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dynamicTemplates, dataPointGroup);
             bulkRequestBuilder.add(
                 new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
+                    .tsid(tsid)
                     .setDynamicTemplates(dynamicTemplates)
             );
         }

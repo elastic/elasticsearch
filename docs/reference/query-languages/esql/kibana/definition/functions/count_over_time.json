@@ -105,6 +105,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : ""
@@ -190,5 +226,5 @@
     "TS k8s\n| STATS count=count(count_over_time(network.cost))\n  BY cluster, time_bucket = bucket(@timestamp,1minute)"
   ],
   "preview" : false,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

@@ -60,10 +60,16 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
     }
 
     public Block executeQuery(Page page) {
-        // Lucene based operators retrieve DocVectors as first block
-        Block block = page.getBlock(0);
-        assert block instanceof DocBlock : "LuceneQueryExpressionEvaluator expects DocBlock as input";
-        DocVector docs = (DocVector) block.asVector();
+        // Search for DocVector block
+        Block docBlock = null;
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            if (page.getBlock(i) instanceof DocBlock) {
+                docBlock = page.getBlock(i);
+                break;
+            }
+        }
+        assert docBlock != null : "LuceneQueryExpressionEvaluator expects a DocBlock";
+        DocVector docs = (DocVector) docBlock.asVector();
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs);

@@ -68,25 +68,6 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         assertNull(request.validate());
     }
 
-    public void testWriteTo_WhenVersionIsBeforeAdaptiveRateLimiting_ShouldSetHasBeenReroutedToTrue() throws IOException {
-        var instance = new UnifiedCompletionAction.Request(
-            "model",
-            TaskType.ANY,
-            UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
-            TimeValue.timeValueSeconds(10)
-        );
-
-        UnifiedCompletionAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
-        );
-
-        // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version
-        assertTrue(deserializedInstance.hasBeenRerouted());
-    }
-
     public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {
         var instance = new UnifiedCompletionAction.Request(
             "model",

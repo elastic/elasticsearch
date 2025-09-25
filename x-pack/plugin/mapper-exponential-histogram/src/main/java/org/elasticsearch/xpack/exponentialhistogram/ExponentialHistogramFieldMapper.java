@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
@@ -72,6 +74,9 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
  * <pre><code>{
  *   "my_histo": {
  *     "scale": 12,
+ *     "sum": 1234,
+ *     "min": -123.456,
+ *     "max": 456.456,
  *     "zero": {
  *       "threshold": 0.123456,
  *       "count": 42
@@ -95,6 +100,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     public static final ParseField SCALE_FIELD = new ParseField(ExponentialHistogramXContent.SCALE_FIELD);
     public static final ParseField SUM_FIELD = new ParseField(ExponentialHistogramXContent.SUM_FIELD);
+    public static final ParseField MIN_FIELD = new ParseField(ExponentialHistogramXContent.MIN_FIELD);
+    public static final ParseField MAX_FIELD = new ParseField(ExponentialHistogramXContent.MAX_FIELD);
     public static final ParseField ZERO_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_FIELD);
     public static final ParseField ZERO_COUNT_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_COUNT_FIELD);
     public static final ParseField ZERO_THRESHOLD_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD);
@@ -138,6 +145,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     private static String valuesSumSubFieldName(String fullPath) {
         return fullPath + "._values_sum";
+    }
+
+    private static String valuesMinSubFieldName(String fullPath) {
+        return fullPath + "._values_min";
+    }
+
+    private static String valuesMaxSubFieldName(String fullPath) {
+        return fullPath + "._values_max";
     }
 
     static class Builder extends FieldMapper.Builder {
@@ -266,6 +281,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             Double sum = null;
+            Double min = null;
+            Double max = null;
             Integer scale = null;
             ParsedZeroBucket zeroBucket = ParsedZeroBucket.DEFAULT;
             List<IndexWithCount> negativeBuckets = Collections.emptyList();
@@ -305,6 +322,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                     }
                 } else if (fieldName.equals(SUM_FIELD.getPreferredName())) {
                     sum = parseDoubleAllowingInfinity(subParser);
+                } else if (fieldName.equals(MIN_FIELD.getPreferredName())) {
+                    min = parseDoubleAllowingInfinity(subParser);
+                } else if (fieldName.equals(MAX_FIELD.getPreferredName())) {
+                    max = parseDoubleAllowingInfinity(subParser);
                 } else if (fieldName.equals(ZERO_FIELD.getPreferredName())) {
                     zeroBucket = parseZeroBucket(subParser);
                 } else if (fieldName.equals(POSITIVE_FIELD.getPreferredName())) {
@@ -345,19 +366,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 );
             }
 
-            if (sum == null) {
-                sum = ExponentialHistogramUtils.estimateSum(
-                    IndexWithCount.asBucketIterator(scale, negativeBuckets),
-                    IndexWithCount.asBucketIterator(scale, positiveBuckets)
-                );
-            } else {
-                if (totalValueCount == 0 && sum != 0.0) {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field [" + fullPath() + "], sum field must be zero if the histogram is empty, but got " + sum
-                    );
-                }
-            }
+            sum = validateOrEstimateSum(sum, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
+            min = validateOrEstimateMin(min, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
+            max = validateOrEstimateMax(max, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
 
             BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
             CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
@@ -376,6 +387,20 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             context.doc().add(zeroThresholdField);
             context.doc().add(valuesCountField);
             context.doc().add(sumField);
+            if (min != null) {
+                NumericDocValuesField minField = new NumericDocValuesField(
+                    valuesMinSubFieldName(fullPath()),
+                    NumericUtils.doubleToSortableLong(min)
+                );
+                context.doc().add(minField);
+            }
+            if (max != null) {
+                NumericDocValuesField maxField = new NumericDocValuesField(
+                    valuesMaxSubFieldName(fullPath()),
+                    NumericUtils.doubleToSortableLong(max)
+                );
+                context.doc().add(maxField);
+            }
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {
@@ -403,6 +428,81 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private Double validateOrEstimateSum(
+        Double sum,
+        Integer scale,
+        List<IndexWithCount> negativeBuckets,
+        List<IndexWithCount> positiveBuckets,
+        long totalValueCount,
+        XContentSubParser subParser
+    ) {
+        if (sum == null) {
+            return ExponentialHistogramUtils.estimateSum(
+                IndexWithCount.asBuckets(scale, negativeBuckets).iterator(),
+                IndexWithCount.asBuckets(scale, positiveBuckets).iterator()
+            );
+        }
+        if (totalValueCount == 0 && sum != 0.0) {
+            throw new DocumentParsingException(
+                subParser.getTokenLocation(),
+                "error parsing field [" + fullPath() + "], sum field must be zero if the histogram is empty, but got " + sum
+            );
+        }
+        return sum;
+    }
+
+    private Double validateOrEstimateMin(
+        Double parsedMin,
+        ParsedZeroBucket zeroBucket,
+        Integer scale,
+        List<IndexWithCount> negativeBuckets,
+        List<IndexWithCount> positiveBuckets,
+        long totalValueCount,
+        XContentSubParser subParser
+    ) {
+        if (parsedMin == null) {
+            OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
+                ZeroBucket.create(zeroBucket.threshold(), zeroBucket.count),
+                IndexWithCount.asBuckets(scale, negativeBuckets),
+                IndexWithCount.asBuckets(scale, positiveBuckets)
+            );
+            return estimatedMin.isPresent() ? estimatedMin.getAsDouble() : null;
+        }
+        if (totalValueCount == 0) {
+            throw new DocumentParsingException(
+                subParser.getTokenLocation(),
+                "error parsing field [" + fullPath() + "], min field must be null if the histogram is empty, but got " + parsedMin
+            );
+        }
+        return parsedMin;
+    }
+
+    private Double validateOrEstimateMax(
+        Double parsedMax,
+        ParsedZeroBucket zeroBucket,
+        Integer scale,
+        List<IndexWithCount> negativeBuckets,
+        List<IndexWithCount> positiveBuckets,
+        long totalValueCount,
+        XContentSubParser subParser
+    ) {
+        if (parsedMax == null) {
+            OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
+                ZeroBucket.create(zeroBucket.threshold(), zeroBucket.count),
+                IndexWithCount.asBuckets(scale, negativeBuckets),
+                IndexWithCount.asBuckets(scale, positiveBuckets)
+            );
+            return estimatedMax.isPresent() ? estimatedMax.getAsDouble() : null;
+        }
+        if (totalValueCount == 0) {
+            throw new DocumentParsingException(
+                subParser.getTokenLocation(),
+                "error parsing field [" + fullPath() + "], max field must be null if the histogram is empty, but got " + parsedMax
+            );
+        }
+        return parsedMax;
     }
 
     private double parseDoubleAllowingInfinity(XContentParser parser) throws IOException {
@@ -629,6 +729,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         private double zeroThreshold;
         private long valueCount;
         private double valueSum;
+        private double valueMin;
+        private double valueMax;
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
@@ -642,6 +744,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             NumericDocValues zeroThresholds = leafReader.getNumericDocValues(zeroThresholdSubFieldName(fullPath()));
             NumericDocValues valueCounts = leafReader.getNumericDocValues(valuesCountSubFieldName(fullPath()));
             NumericDocValues valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
+            NumericDocValues valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
+            NumericDocValues valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
             assert zeroThresholds != null;
             assert valueCounts != null;
             assert valueSums != null;
@@ -657,6 +761,17 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                     zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
                     valueCount = valueCounts.longValue();
                     valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+
+                    if (valueMinima != null && valueMinima.advanceExact(docId)) {
+                        valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
+                    } else {
+                        valueMin = Double.NaN;
+                    }
+                    if (valueMaxima != null && valueMaxima.advanceExact(docId)) {
+                        valueMax = NumericUtils.sortableLongToDouble(valueMaxima.longValue());
+                    } else {
+                        valueMax = Double.NaN;
+                    }
                     return true;
                 }
                 binaryValue = null;
@@ -675,7 +790,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return;
             }
 
-            histogram.reset(zeroThreshold, valueCount, valueSum, binaryValue);
+            histogram.reset(zeroThreshold, valueCount, valueSum, valueMin, valueMax, binaryValue);
             ExponentialHistogramXContent.serialize(b, histogram);
         }
 

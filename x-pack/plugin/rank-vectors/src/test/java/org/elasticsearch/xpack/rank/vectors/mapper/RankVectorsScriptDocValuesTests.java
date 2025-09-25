@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.vectors.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import org.elasticsearch.script.field.vectors.BFloat16RankVectorsDocValuesField;
@@ -411,8 +412,9 @@ public class RankVectorsScriptDocValuesTests extends ESTestCase {
         if (elementType == ElementType.BIT) {
             dims *= Byte.SIZE;
         }
-        int numBytes = elementType.getNumBytes(dims);
-        ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes * values.length);
+        Element element = Element.getElement(elementType);
+        int numBytes = element.getNumBytes(dims);
+        ByteBuffer byteBuffer = element.createByteBuffer(indexVersion, numBytes * values.length);
         for (float[] vector : values) {
             for (float value : vector) {
                 switch (elementType) {

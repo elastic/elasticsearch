@@ -69,12 +69,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                     try (var builder = new SingletonDoubleBuilder(ctx.reader().numDocs(), factory)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
-                            double value = Double.longBitsToDouble(docValues.longValue());
-                            if (randomBoolean()) {
-                                builder.appendDoubles(new double[] { value }, 0, 1);
-                            } else {
-                                builder.appendDouble(value);
-                            }
+                            builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);
                         }
                         try (var build = (DoubleVector) builder.build().asVector()) {
                             for (int i = 0; i < build.getPositionCount(); i++) {
@@ -113,12 +108,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                 try (var builder = new SingletonDoubleBuilder(count - offset, blockFactory())) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
-                        double value = Double.longBitsToDouble(docValues.longValue());
-                        if (randomBoolean()) {
-                            builder.appendDoubles(new double[] { value }, 0, 1);
-                        } else {
-                            builder.appendDouble(value);
-                        }
+                        builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);
                     }
                     try (var build = (DoubleVector) builder.build().asVector()) {
                         assertThat(build.getPositionCount(), equalTo(count - offset));

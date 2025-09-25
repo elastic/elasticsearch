@@ -35,9 +35,6 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 
-/**
- * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
- */
 public class ES92HnswBinaryQuantizedBFloat16VectorsFormat extends AbstractHnswVectorsFormat {
 
     public static final String NAME = "ES92HnswBinaryQuantizedBFloat16VectorsFormat";

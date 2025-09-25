@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -754,8 +755,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         var updatedState = processJSON(action, prevState, settingsJSON);
 
-        ProjectMetadata withReservedState = ProjectMetadata.builder(updatedState.state().getMetadata().getProject(projectId))
-            .put(
+        ProjectStateRegistry withReservedState = ProjectStateRegistry.builder(updatedState.state())
+            .putReservedStateMetadata(
+                projectId,
                 ReservedStateMetadata.builder("test")
                     .putHandler(new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys()))
                     .build()
@@ -810,7 +812,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                     IllegalArgumentException.class,
                     () -> TransportPutComposableIndexTemplateAction.verifyIfUsingReservedComponentTemplates(
                         request,
-                        withReservedState.reservedStateMetadata().values()
+                        withReservedState.reservedStateMetadata(projectId).values()
                     )
                 ).getMessage().contains("errors: [[component_template:template_1] is reserved by [test]]")
             );
@@ -824,7 +826,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             // this should just work, no failure
             TransportPutComposableIndexTemplateAction.verifyIfUsingReservedComponentTemplates(
                 request,
-                withReservedState.reservedStateMetadata().values()
+                withReservedState.reservedStateMetadata(projectId).values()
             );
         }
     }
@@ -922,8 +924,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             allOf(aMapWithSize(2), hasKey(reservedComposableIndexName(conflictingTemplateName)), hasKey(conflictingTemplateName))
         );
 
-        ProjectMetadata withReservedMetadata = ProjectMetadata.builder(updatedState.state().getMetadata().getProject(projectId))
-            .put(
+        ProjectStateRegistry withReservedState = ProjectStateRegistry.builder(updatedState.state())
+            .putReservedStateMetadata(
+                projectId,
                 new ReservedStateMetadata.Builder("file_settings").putHandler(
                     new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys())
                 ).build()
@@ -957,7 +960,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             expectThrows(
                 IllegalArgumentException.class,
                 () -> fakeAction.validateForReservedState(
-                    withReservedMetadata.reservedStateMetadata().values(),
+                    withReservedState.reservedStateMetadata(projectId).values(),
                     ReservedComposableIndexTemplateAction.NAME,
                     modifiedKeys,
                     pr.name()
@@ -973,7 +976,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         assertThat(modifiedKeysOK, hasSize(1));
 
         fakeAction.validateForReservedState(
-            withReservedMetadata.reservedStateMetadata().values(),
+            withReservedState.reservedStateMetadata(projectId).values(),
             ReservedComposableIndexTemplateAction.NAME,
             modifiedKeysOK,
             prOK.name()

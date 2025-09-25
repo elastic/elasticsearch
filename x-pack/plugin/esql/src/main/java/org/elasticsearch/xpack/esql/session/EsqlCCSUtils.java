@@ -40,7 +40,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toSet;
 
 public class EsqlCCSUtils {
 
@@ -121,6 +123,7 @@ public class EsqlCCSUtils {
     }
 
     static void updateExecutionInfoToReturnEmptyResult(EsqlExecutionInfo executionInfo, Exception e) {
+        // This applies even for subplans - if we had an error and have to skip a cluster, then it will remain skipped.
         executionInfo.markEndQuery();
         Exception exceptionForResponse;
         if (e instanceof ConnectTransportException) {
@@ -177,6 +180,15 @@ public class EsqlCCSUtils {
         }
     }
 
+    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
+        if (executionInfo.getClusters().isEmpty()) {
+            return localPattern;
+        }
+        return executionInfo.getRunningClusterAliases()
+            .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
+            .collect(joining(","));
+    }
+
     static void updateExecutionInfoWithUnavailableClusters(
         EsqlExecutionInfo execInfo,
         Map<String, List<FieldCapabilitiesFailure>> failures
@@ -204,9 +216,7 @@ public class EsqlCCSUtils {
     ) {
         // Get the clusters which are still running, and we will check whether they have any matching indices.
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
-        final Set<String> clustersWithNoMatchingIndices = executionInfo.getClusterStates(Cluster.Status.RUNNING)
-            .map(Cluster::getClusterAlias)
-            .collect(Collectors.toSet());
+        final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
         for (String indexName : indexResolution.resolvedIndices()) {
             clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
@@ -293,7 +303,7 @@ public class EsqlCCSUtils {
 
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
-        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.markEndPlanning();
         if (execInfo.isCrossClusterSearch()) {
             for (String clusterAlias : execInfo.clusterAliases()) {
@@ -322,20 +332,19 @@ public class EsqlCCSUtils {
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        List<IndexPattern> patterns,
+        IndexPattern indexPattern,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (patterns.isEmpty()) {
+        if (indexPattern == null) {
             return;
         }
-        assert patterns.size() == 1 : "Only single index pattern is supported";
         try {
             var groupedIndices = indicesGrouper.groupIndices(
                 // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
                 // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
                 Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
-                patterns.getFirst().indexPattern()
+                indexPattern.indexPattern()
             );
 
             executionInfo.clusterInfoInitializing(true);

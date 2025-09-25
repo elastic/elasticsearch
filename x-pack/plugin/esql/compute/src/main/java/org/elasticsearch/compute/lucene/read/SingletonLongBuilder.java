@@ -60,11 +60,14 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public long estimatedBytes() {
-        return (long) values.length * Long.BYTES;
+        return valuesSize(values.length);
     }
 
     @Override
     public Block build() {
+        if (values.length != count) {
+            throw new IllegalStateException("expected [" + values.length + "] values but got [" + count + "]");
+        }
         return blockFactory.newLongArrayVector(values, count).asBlock();
     }
 

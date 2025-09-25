@@ -22,6 +22,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FullPrecisionFloatVectorSimilarityValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVecto
 import org.elasticsearch.index.codec.vectors.es92.ES92BinaryQuantizedBFloat16VectorsFormat;
 import org.elasticsearch.index.codec.vectors.es92.ES92HnswBinaryQuantizedBFloat16VectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
-import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -91,9 +91,9 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
 
                     // Get real scores
-                    DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(
-                        FIELD_NAME,
+                    DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(
                         queryVector,
+                        FIELD_NAME,
                         VectorSimilarityFunction.COSINE
                     );
                     FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), valueSource);

@@ -23,6 +23,11 @@ options {
 import Expression,
        Join;
 
+statements
+    : {this.isDevVersion()}? setCommand+ singleStatement EOF
+    | singleStatement EOF
+    ;
+
 singleStatement
     : query EOF
     ;
@@ -36,8 +41,8 @@ sourceCommand
     : fromCommand
     | rowCommand
     | showCommand
+    | timeSeriesCommand
     // in development
-    | {this.isDevVersion()}? timeSeriesCommand
     | {this.isDevVersion()}? explainCommand
     ;
 
@@ -61,7 +66,7 @@ processingCommand
     | forkCommand
     | rerankCommand
     // in development
-    | {this.isDevVersion()}? inlinestatsCommand
+    | {this.isDevVersion()}? inlineStatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? fuseCommand
@@ -100,7 +105,7 @@ fromCommand
     ;
 
 timeSeriesCommand
-    : DEV_TIME_SERIES indexPatternAndMetadataFields
+    : TS indexPatternAndMetadataFields
     ;
 
 indexPatternAndMetadataFields:
@@ -151,11 +156,21 @@ aggField
     ;
 
 qualifiedName
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=UNQUOTED_IDENTIFIER? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldName CLOSING_BRACKET
+    | name=fieldName
+    ;
+
+fieldName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=ID_PATTERN? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldNamePattern CLOSING_BRACKET
+    | name=fieldNamePattern
+    ;
+
+fieldNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns
@@ -312,8 +327,10 @@ lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+inlineStatsCommand
+    : DEV_INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
+    // TODO: drop after next minor release
+    | DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
     ;
 
 insistCommand
@@ -321,5 +338,21 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE
+    : DEV_FUSE (fuseType=identifier)? (fuseConfiguration)*
     ;
+
+fuseConfiguration
+    : SCORE BY score=qualifiedName
+    | KEY BY key=fields
+    | GROUP BY group=qualifiedName
+    | WITH options=mapExpression
+    ;
+
+setCommand
+    : SET setField SEMICOLON
+    ;
+
+setField
+    : identifier ASSIGN constant
+    ;
+

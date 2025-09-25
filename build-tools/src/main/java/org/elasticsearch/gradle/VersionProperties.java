@@ -16,7 +16,12 @@ import java.util.Properties;
 
 /**
  * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and lucene versions.
+ *
+ * @deprecated use ext values set by org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin or
+ * org.elasticsearch.gradle.internal.conventions.VersionPropertiesBuildService
+ *
  */
+@Deprecated
 public class VersionProperties {
 
     public static String getElasticsearch() {

@@ -670,5 +670,5 @@
     "TS k8s\n| STATS distincts=count_distinct(count_distinct_over_time(network.cost)),\n        distincts_imprecise=count_distinct(count_distinct_over_time(network.cost, 100))\n  BY cluster, time_bucket = bucket(@timestamp,1minute)"
   ],
   "preview" : false,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

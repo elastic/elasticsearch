@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 
-import java.util.Optional;
-
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.PreAuthorizationUtils.maybeSkipChildrenActionAuthorization;
 import static org.elasticsearch.xpack.security.authz.PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext;
@@ -71,9 +69,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // We should not remove the parent authorization when child action is white-listed
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.empty(),
                 randomWhitelistedChildAction(parentAction),
-                securityContextWithParentAuthorization
+                securityContextWithParentAuthorization,
+                false
             ),
             equalTo(false)
         );
@@ -81,9 +79,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // We should not remove when there is nothing to be removed
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null),
                 randomWhitelistedChildAction(parentAction),
-                new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY))
+                new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY)),
+                randomBoolean()
             ),
             equalTo(false)
         );
@@ -92,9 +90,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // we expect to remove parent authorization when targeting remote cluster
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.of("my_remote_cluster"),
                 randomWhitelistedChildAction(parentAction),
-                securityContextWithParentAuthorization
+                securityContextWithParentAuthorization,
+                true
             ),
             equalTo(true)
         );
@@ -104,9 +102,9 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         // - or the child action is not white-listed for the parent
         assertThat(
             shouldRemoveParentAuthorizationFromThreadContext(
-                Optional.ofNullable(randomBoolean() ? "my_remote_cluster" : null),
                 randomAlphaOfLengthBetween(3, 8),
-                securityContextWithParentAuthorization
+                securityContextWithParentAuthorization,
+                randomBoolean()
             ),
             equalTo(true)
         );

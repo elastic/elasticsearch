@@ -39,12 +39,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
-        .filter(DenseVectorFieldMapper.VectorIndexType::isEnabled)
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
     public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
-        .filter(t -> t.isEnabled() && t.isQuantized() == false)
+        .filter(t -> t.isQuantized() == false)
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
@@ -59,9 +58,12 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT)) {
+        for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT)) {
             // Test all similarities
             for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
+                if (elementType == ElementType.BIT && similarity != DenseVectorFieldMapper.VectorSimilarity.L2_NORM) {
+                    continue;
+                }
                 params.add(new Object[] { elementType, similarity, true, false });
             }
 
@@ -207,7 +209,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 for (int j = 0; j < numDims; j++) {
                     switch (elementType) {
                         case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
-                        case BYTE -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                        case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
                         default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }
@@ -238,9 +240,12 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .field("index", index);
         if (index) {
             mapping.field("similarity", similarity.name().toLowerCase(Locale.ROOT));
-            String indexType = elementType == ElementType.FLOAT
-                ? randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES)
-                : randomFrom(NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES);
+            String indexType;
+            if (elementType == ElementType.FLOAT) {
+                indexType = randomFrom(ALL_DENSE_VECTOR_INDEX_TYPES);
+            } else {
+                indexType = randomFrom(NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES);
+            }
             mapping.startObject("index_options").field("type", indexType).endObject();
         }
         mapping.endObject().endObject().endObject();

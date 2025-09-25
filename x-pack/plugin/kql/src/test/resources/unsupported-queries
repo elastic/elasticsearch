@@ -41,9 +41,6 @@ mapped_nested: { mapped_string:foo OR (mapped_string_2:foo bar OR foo bar) }
 
 // Missing escape sequences:
 mapped_string: foo:bar
-mapped_string: (foo and bar)
-mapped_string: (foo or bar)
-mapped_string: foo not bar
 mapped_string: foo { bar }
 mapped_string: foo (bar)
 mapped_string: foo "bar"

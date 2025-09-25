@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -115,8 +115,12 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         NOT_PREFERRED,
         YES;
 
+        private static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName(
+            "allocation_decision_not_preferred"
+        );
+
         public static Type readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_DECISION_NOT_PREFERRED)) {
+            if (in.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
                 return in.readEnum(Type.class);
             } else {
                 int i = in.readVInt();
@@ -138,7 +142,7 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOCATION_DECISION_NOT_PREFERRED)) {
+            if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
                 out.writeEnum(this);
             } else {
                 out.writeVInt(switch (this) {

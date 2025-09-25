@@ -126,7 +126,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private static class Protected {
-        private final Object lock = new Object();
         private volatile boolean completed = false;
         private volatile boolean started = false;
         private volatile Throwable failure = null;
@@ -136,7 +135,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 return;
             }
             // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
-            synchronized (lock) {
+            synchronized (this) {
                 if (completed) {
                     return;
                 }
@@ -156,6 +155,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     fail(failure, "Current test setup failed: " + failure.getMessage());
                 }
             }
+        }
+
+        private synchronized void reset() {
+            completed = false;
+            started = false;
+            failure = null;
         }
     }
 
@@ -184,7 +189,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
-            INGEST.completed = false;
             adminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
@@ -192,7 +196,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+        INGEST.reset();
         deleteViews(adminClient());
+        VIEWS.reset();
         deleteInferenceEndpoints(adminClient());
     }
 

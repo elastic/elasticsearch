@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextSearch;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -429,9 +430,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
+    public PlanFactory visitWhereBooleanExpression(EsqlBaseParser.WhereBooleanExpressionContext ctx) {
         Expression expression = expression(ctx.booleanExpression());
         return input -> new Filter(source(ctx), input, expression);
+    }
+
+    @Override
+    public PlanFactory visitWhereMatchStringExpression(EsqlBaseParser.WhereMatchStringExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression query = visitString(ctx.string());
+
+        return input -> new Filter(source, input, new FullTextSearch(source, query));
     }
 
     @Override

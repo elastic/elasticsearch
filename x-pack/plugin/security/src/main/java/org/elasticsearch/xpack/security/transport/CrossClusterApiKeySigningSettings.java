@@ -20,7 +20,7 @@ import javax.net.ssl.KeyManagerFactory;
 
 public class CrossClusterApiKeySigningSettings {
     static final String SETTINGS_PART_SIGNING = "signing";
-
+    static final String SETTINGS_PART_DIAGNOSE_TRUST = "diagnose.trust";
     static final String KEYSTORE_ALIAS_SUFFIX = "keystore.alias";
 
     static final Setting.AffixSetting<String> SIGNING_KEYSTORE_ALIAS = Setting.affixKeySetting(
@@ -123,7 +123,7 @@ public class CrossClusterApiKeySigningSettings {
     );
 
     static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS = Setting.boolSetting(
-        "cluster.remote." + SETTINGS_PART_SIGNING + ".diagnose.trust",
+        "cluster.remote." + SETTINGS_PART_SIGNING + "." + SETTINGS_PART_DIAGNOSE_TRUST,
         true,
         Setting.Property.NodeScope,
         Setting.Property.Filtered,

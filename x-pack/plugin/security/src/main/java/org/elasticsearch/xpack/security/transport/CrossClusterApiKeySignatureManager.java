@@ -44,8 +44,8 @@ import javax.net.ssl.X509KeyManager;
 import javax.net.ssl.X509TrustManager;
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.DIAGNOSE_TRUST_EXCEPTIONS;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.KEYSTORE_ALIAS_SUFFIX;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SETTINGS_PART_DIAGNOSE_TRUST;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SETTINGS_PART_SIGNING;
 
 public class CrossClusterApiKeySignatureManager {
@@ -71,9 +71,10 @@ public class CrossClusterApiKeySignatureManager {
             var trustConfig = sslConfig.trustConfig();
             // Only load a trust manager if trust is explicitly configured or system default, to avoid using key store as trust store
             if (trustConfig.hasExplicitConfig() || trustConfig.isSystemDefault()) {
-                X509ExtendedTrustManager newTrustManager = DIAGNOSE_TRUST_EXCEPTIONS.get(settings)
-                    ? wrapInDiagnosticTrustManager(trustConfig.createTrustManager())
-                    : trustConfig.createTrustManager();
+                X509ExtendedTrustManager newTrustManager = settings.getAsBoolean(
+                    SETTINGS_PART_SIGNING + "." + SETTINGS_PART_DIAGNOSE_TRUST,
+                    true
+                ) ? wrapInDiagnosticTrustManager(trustConfig.createTrustManager()) : trustConfig.createTrustManager();
 
                 trustConfig.createTrustManager();
                 if (newTrustManager.getAcceptedIssuers().length == 0) {

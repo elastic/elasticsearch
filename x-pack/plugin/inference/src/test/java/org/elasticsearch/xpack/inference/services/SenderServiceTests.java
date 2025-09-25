@@ -139,7 +139,7 @@ public class SenderServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            testService.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, listener);
+            testService.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, listener, null);
 
             listener.actionGet(TIMEOUT);
             assertEquals(configuredTimeout, capturedTimeout.get());
@@ -178,7 +178,19 @@ public class SenderServiceTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            testService.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, providedTimeout, listener);
+            testService.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("test input"),
+                false,
+                Map.of(),
+                InputType.SEARCH,
+                providedTimeout,
+                listener,
+                null
+            );
 
             listener.actionGet(TIMEOUT);
             assertEquals(providedTimeout, capturedTimeout.get());

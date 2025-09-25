@@ -15,9 +15,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
@@ -126,15 +126,15 @@ public class JinaAIEmbeddingsResponseEntity {
     }
 
     private static InferenceServiceResults parseFloatDataObject(XContentParser jsonParser) throws IOException {
-        List<TextEmbeddingFloatResults.Embedding> embeddingList = parseList(
+        List<DenseEmbeddingFloatResults.Embedding> embeddingList = parseList(
             jsonParser,
             JinaAIEmbeddingsResponseEntity::parseFloatEmbeddingObject
         );
 
-        return new TextEmbeddingFloatResults(embeddingList);
+        return new DenseEmbeddingFloatResults(embeddingList);
     }
 
-    private static TextEmbeddingFloatResults.Embedding parseFloatEmbeddingObject(XContentParser parser) throws IOException {
+    private static DenseEmbeddingFloatResults.Embedding parseFloatEmbeddingObject(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -143,19 +143,19 @@ public class JinaAIEmbeddingsResponseEntity {
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
-        return TextEmbeddingFloatResults.Embedding.of(embeddingValuesList);
+        return DenseEmbeddingFloatResults.Embedding.of(embeddingValuesList);
     }
 
     private static InferenceServiceResults parseBitDataObject(XContentParser jsonParser) throws IOException {
-        List<TextEmbeddingByteResults.Embedding> embeddingList = parseList(
+        List<DenseEmbeddingByteResults.Embedding> embeddingList = parseList(
             jsonParser,
             JinaAIEmbeddingsResponseEntity::parseBitEmbeddingObject
         );
 
-        return new TextEmbeddingBitResults(embeddingList);
+        return new DenseEmbeddingBitResults(embeddingList);
     }
 
-    private static TextEmbeddingByteResults.Embedding parseBitEmbeddingObject(XContentParser parser) throws IOException {
+    private static DenseEmbeddingByteResults.Embedding parseBitEmbeddingObject(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -164,7 +164,7 @@ public class JinaAIEmbeddingsResponseEntity {
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
-        return TextEmbeddingByteResults.Embedding.of(embeddingList);
+        return DenseEmbeddingByteResults.Embedding.of(embeddingList);
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {

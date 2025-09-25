@@ -20,7 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
@@ -38,7 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -979,7 +979,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -1023,7 +1024,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             );
             var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()
         ) {
-            var results = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
+            var results = new DenseEmbeddingFloatResults(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
             requestSender.enqueue(results);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1036,7 +1037,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var result = listener.actionGet(TIMEOUT);
@@ -1064,8 +1066,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             )
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new TextEmbeddingFloatResults(
-                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
+                var results = new DenseEmbeddingFloatResults(
+                    List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
@@ -1088,7 +1090,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(),
                     InputType.CLASSIFICATION,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 );
 
                 var result = listener.actionGet(TIMEOUT);
@@ -1139,7 +1142,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(),
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 );
 
                 var result = listener.actionGet(TIMEOUT);
@@ -1277,7 +1281,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var exceptionThrown = assertThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -1340,14 +1345,14 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
                 {
-                    var mockResults1 = new TextEmbeddingFloatResults(
-                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
+                    var mockResults1 = new DenseEmbeddingFloatResults(
+                        List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                     );
                     requestSender.enqueue(mockResults1);
                 }
                 {
-                    var mockResults2 = new TextEmbeddingFloatResults(
-                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.223F, 0.278F }))
+                    var mockResults2 = new DenseEmbeddingFloatResults(
+                        List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.223F, 0.278F }))
                     );
                     requestSender.enqueue(mockResults2);
                 }
@@ -1356,7 +1361,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 service.chunkedInfer(
                     model,
                     null,
-                    List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
+                    List.of(new ChunkInferenceTextInput("a"), new ChunkInferenceTextInput("bb")),
                     new HashMap<>(),
                     InputType.INTERNAL_INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1370,10 +1375,10 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                     assertArrayEquals(
                         new float[] { 0.123F, 0.678F },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                         0.0f
                     );
                 }
@@ -1382,10 +1387,10 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                     assertArrayEquals(
                         new float[] { 0.223F, 0.278F },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                         0.0f
                     );
                 }

@@ -299,7 +299,11 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
         for (var request : batchedRequests) {
             var action = jinaaiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().textInputs(), inputType, request.batch().imageUrlInputs()),
+                timeout,
+                request.listener()
+            );
         }
     }
 

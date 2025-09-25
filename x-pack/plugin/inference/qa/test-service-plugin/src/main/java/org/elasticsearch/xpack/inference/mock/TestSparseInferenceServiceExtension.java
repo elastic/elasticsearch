@@ -111,7 +111,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<InferenceServiceResults> listener
+            ActionListener<InferenceServiceResults> listener,
+            List<String> imageUrls
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));

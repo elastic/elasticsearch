@@ -20,8 +20,8 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -59,7 +59,7 @@ public class MockInferenceClient extends NoOpClient {
                 if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
                     inferenceServiceResults = SparseEmbeddingResults.of(List.of(textExpansionResults));
                 } else if (inferenceResults instanceof MlTextEmbeddingResults mlTextEmbeddingResults) {
-                    inferenceServiceResults = TextEmbeddingFloatResults.of(List.of(mlTextEmbeddingResults));
+                    inferenceServiceResults = DenseEmbeddingFloatResults.of(List.of(mlTextEmbeddingResults));
                 } else {
                     throw new IllegalStateException("Unexpected inference results type [" + inferenceResults.getWriteableName() + "]");
                 }

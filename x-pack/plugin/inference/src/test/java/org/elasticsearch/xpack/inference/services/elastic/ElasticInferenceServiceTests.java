@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -40,8 +40,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -425,7 +425,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -465,7 +466,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                     new HashMap<>(),
                     InputType.SEARCH,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 )
             );
 
@@ -496,7 +498,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -549,7 +552,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 new HashMap<>(),
                 InputType.SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
             var result = listener.actionGet(TIMEOUT);
 
@@ -605,7 +609,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 new HashMap<>(),
                 InputType.SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
             var result = listener.actionGet(TIMEOUT);
 
@@ -678,7 +683,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                     new HashMap<>(),
                     InputType.SEARCH,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 );
                 var result = listener.actionGet(TIMEOUT);
 
@@ -811,7 +817,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of(new ChunkInferenceInput("hello world"), new ChunkInferenceInput("dense embedding")),
+                List.of(new ChunkInferenceTextInput("hello world"), new ChunkInferenceTextInput("dense embedding")),
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -876,7 +882,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of(new ChunkInferenceInput("hello world"), new ChunkInferenceInput("dense embedding")),
+                List.of(new ChunkInferenceTextInput("hello world"), new ChunkInferenceTextInput("dense embedding")),
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -892,9 +898,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 var denseResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(denseResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, "hello world".length()), denseResult.chunks().getFirst().offset());
-                assertThat(denseResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(denseResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
 
-                var embedding = (TextEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
+                var embedding = (DenseEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
                 assertArrayEquals(new float[] { 0.123f, -0.456f, 0.789f }, embedding.values(), 0.0f);
             }
 
@@ -904,9 +910,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 var denseResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(denseResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, "dense embedding".length()), denseResult.chunks().getFirst().offset());
-                assertThat(denseResult.chunks().getFirst().embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(denseResult.chunks().getFirst().embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
 
-                var embedding = (TextEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
+                var embedding = (DenseEmbeddingFloatResults.Embedding) denseResult.chunks().get(0).embedding();
                 assertArrayEquals(new float[] { 0.987f, -0.654f, 0.321f }, embedding.values(), 0.0f);
             }
 

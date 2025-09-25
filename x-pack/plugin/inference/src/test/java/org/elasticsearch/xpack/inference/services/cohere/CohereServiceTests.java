@@ -820,9 +820,16 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
+                    "inputs": [
+                    {
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "hello"
+                        }
+                      ]
+                    }
+                  ],
                     "embeddings": {
                         "float": [
                             [
@@ -996,9 +1003,16 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
+                    "inputs": [
+                    {
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "hello"
+                        }
+                      ]
+                    }
+                  ],
                     "embeddings": {
                         "float": [
                             [
@@ -1084,9 +1098,16 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
+                    "inputs": [
+                    {
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "hello"
+                        }
+                      ]
+                    }
+                  ],
                     "embeddings": {
                         "float": [
                             [
@@ -1246,9 +1267,16 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
+                    "inputs": [
+                    {
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "hello"
+                        }
+                      ]
+                    }
+                  ],
                     "embeddings": {
                         "float": [
                             [
@@ -1356,9 +1384,16 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
+                    "inputs": [
+                    {
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "hello"
+                        }
+                      ]
+                    }
+                  ],
                     "embeddings": {
                         "float": [
                             [
@@ -1460,9 +1495,16 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
+                    "inputs": [
+                    {
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "hello"
+                        }
+                      ]
+                    }
+                  ],
                     "embeddings": {
                         "int8": [
                             [

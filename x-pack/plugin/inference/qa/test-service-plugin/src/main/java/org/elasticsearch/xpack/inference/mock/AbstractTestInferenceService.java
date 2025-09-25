@@ -120,15 +120,15 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     public void close() throws IOException {}
 
     protected List<ChunkedInput> chunkInputs(ChunkInferenceInput input) {
-        ChunkingSettings chunkingSettings = input.chunkingSettings();
-        String inputText = input.input();
+        ChunkingSettings chunkingSettings = input.getChunkingSettings();
+        String inputText = input.getInput();
         if (chunkingSettings == null) {
             return List.of(new ChunkedInput(inputText, 0, inputText.length()));
         }
 
         List<ChunkedInput> chunkedInputs = new ArrayList<>();
         if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
-            var offsets = NoopChunker.INSTANCE.chunk(input.input(), chunkingSettings);
+            var offsets = NoopChunker.INSTANCE.chunk(input.getInput(), chunkingSettings);
             List<ChunkedInput> ret = new ArrayList<>();
             for (var offset : offsets) {
                 ret.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));

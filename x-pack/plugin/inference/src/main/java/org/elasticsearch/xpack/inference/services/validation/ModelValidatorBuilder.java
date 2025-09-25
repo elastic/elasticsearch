@@ -35,7 +35,7 @@ public class ModelValidatorBuilder {
         }
 
         switch (taskType) {
-            case TEXT_EMBEDDING -> {
+            case TEXT_EMBEDDING, IMAGE_EMBEDDING, MULTIMODAL_EMBEDDING -> {
                 return new TextEmbeddingModelValidator(
                     Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator())
                 );

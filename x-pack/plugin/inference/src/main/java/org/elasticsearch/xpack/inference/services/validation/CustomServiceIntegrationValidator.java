@@ -62,7 +62,8 @@ public class CustomServiceIntegrationValidator implements ServiceIntegrationVali
                         e
                     )
                 )
-            )
+            ),
+            null
         );
     }
 }

@@ -223,7 +223,7 @@ public record MinimalServiceSettings(
 
     private static void validate(TaskType taskType, Integer dimensions, SimilarityMeasure similarity, ElementType elementType) {
         switch (taskType) {
-            case TEXT_EMBEDDING:
+            case TEXT_EMBEDDING, IMAGE_EMBEDDING, MULTIMODAL_EMBEDDING:
                 validateFieldPresent(DIMENSIONS_FIELD, dimensions, taskType);
                 validateFieldPresent(SIMILARITY_FIELD, similarity, taskType);
                 validateFieldPresent(ELEMENT_TYPE_FIELD, elementType, taskType);

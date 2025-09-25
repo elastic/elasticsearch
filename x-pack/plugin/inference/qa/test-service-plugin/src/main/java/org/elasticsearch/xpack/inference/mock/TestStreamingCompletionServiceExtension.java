@@ -35,9 +35,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,7 +125,8 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<InferenceServiceResults> listener
+            ActionListener<InferenceServiceResults> listener,
+            List<String> imageUrls
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
@@ -189,16 +190,16 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private TextEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
-            var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
+        private DenseEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
+            var embeddings = new ArrayList<DenseEmbeddingFloatResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
                 var values = new float[5];
                 for (int j = 0; j < 5; j++) {
                     values[j] = random.nextFloat();
                 }
-                embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
+                embeddings.add(new DenseEmbeddingFloatResults.Embedding(values));
             }
-            return new TextEmbeddingFloatResults(embeddings);
+            return new DenseEmbeddingFloatResults(embeddings);
         }
 
         private InferenceServiceResults.Result completionChunk(String delta) {

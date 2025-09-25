@@ -229,6 +229,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return count;
     }
 
+    public Set<ProjectRepo> repos() {
+        return entries.keySet();
+    }
+
     public Iterable<List<Entry>> entriesByRepo() {
         return () -> Iterators.map(entries.values().iterator(), byRepo -> byRepo.entries);
     }
@@ -536,7 +540,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         int shardId,
         ShardSnapshotStatus shardSnapshotStatus
     ) {
-        if (shardSnapshotStatus.isActive()) {
+        if (shardSnapshotStatus.isActiveOrAssignedQueued()) {
             Tuple<String, Integer> plainShardId = Tuple.tuple(indexName, shardId);
             assert assignedShards.add(plainShardId) : plainShardId + " is assigned twice in " + entries;
             assert queuedShards.contains(plainShardId) == false : plainShardId + " is queued then assigned in " + entries;
@@ -784,6 +788,20 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new ShardSnapshotStatus(nodeId, ShardState.SUCCESS, shardSnapshotResult.getGeneration(), null, shardSnapshotResult);
         }
 
+        @SuppressForbidden(reason = "using a private constructor within the same file")
+        public static ShardSnapshotStatus assignedQueued(String nodeId, ShardGeneration generation) {
+            return new ShardSnapshotStatus(nodeId, ShardState.QUEUED, generation, null, null);
+        }
+
+        public boolean isAssignedQueued() {
+            // generation can still be null if previous shard snapshots all failed
+            return state == ShardState.QUEUED && nodeId != null;
+        }
+
+        public boolean isUnassignedQueued() {
+            return this == UNASSIGNED_QUEUED || (state == ShardState.QUEUED && generation == null && nodeId == null);
+        }
+
         public ShardSnapshotStatus(
             @Nullable String nodeId,
             ShardState state,
@@ -804,8 +822,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert state.failed() == false || reason != null;
             assert (state != ShardState.INIT && state != ShardState.WAITING && state != ShardState.PAUSED_FOR_NODE_REMOVAL)
                 || nodeId != null : "Null node id for state [" + state + "]";
-            assert state != ShardState.QUEUED || (nodeId == null && generation == null && reason == null)
-                : "Found unexpected non-null values for queued state shard nodeId[" + nodeId + "][" + generation + "][" + reason + "]";
+            assert state != ShardState.QUEUED || (isUnassignedQueued() || isAssignedQueued())
+                : "Found unexpected shard state=["
+                    + state
+                    + "], nodeId=["
+                    + nodeId
+                    + "], generation=["
+                    + generation
+                    + "], reason=["
+                    + reason
+                    + "]";
             assert state == ShardState.SUCCESS || shardSnapshotResult == null;
             assert shardSnapshotResult == null || shardSnapshotResult.getGeneration().equals(generation)
                 : "generation [" + generation + "] does not match result generation [" + shardSnapshotResult.getGeneration() + "]";
@@ -819,7 +845,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final ShardGeneration generation = in.readOptionalWriteable(ShardGeneration::new);
             final String reason = in.readOptionalString();
             final ShardSnapshotResult shardSnapshotResult = in.readOptionalWriteable(ShardSnapshotResult::new);
-            if (state == ShardState.QUEUED) {
+            if (state == ShardState.QUEUED && nodeId == null && generation == null) {
                 return UNASSIGNED_QUEUED;
             }
             return new ShardSnapshotStatus(nodeId, state, generation, reason, shardSnapshotResult);
@@ -856,6 +882,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 case INIT, ABORTED, WAITING, PAUSED_FOR_NODE_REMOVAL -> true;
                 case SUCCESS, FAILED, MISSING, QUEUED -> false;
             };
+        }
+
+        public boolean isActiveOrAssignedQueued() {
+            return isActive() || isAssignedQueued();
         }
 
         @Override
@@ -913,6 +943,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         private final boolean hasShardsInInitState;
 
+        /**
+         * Flag set to true in case any of the shard snapshots in {@link #shards} are {@link ShardSnapshotStatus#isAssignedQueued}.
+         * This is used to avoid having to iterate the full {@link #shards} map.
+         */
+        private final boolean hasAssignedQueuedShards;
+
         // visible for testing, use #startedEntry and copy constructors in production code
         public static Entry snapshot(
             Snapshot snapshot,
@@ -932,6 +968,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
             final Map<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = Maps.newHashMapWithExpectedSize(shards.size());
             boolean hasInitStateShards = false;
+            boolean hasAssignedQueuedShards = false;
             for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final IndexId indexId = indices.get(shardId.getIndexName());
@@ -940,6 +977,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
                 final var shardSnapshotStatus = entry.getValue();
                 hasInitStateShards |= shardSnapshotStatus.state() == ShardState.INIT;
+                hasAssignedQueuedShards |= shardSnapshotStatus.isAssignedQueued();
                 byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), shardSnapshotStatus);
             }
             return new Entry(
@@ -959,7 +997,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 null,
                 byRepoShardIdBuilder,
                 res,
-                hasInitStateShards
+                hasInitStateShards,
+                hasAssignedQueuedShards
             );
         }
 
@@ -991,6 +1030,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 Map.of(),
+                false,
                 false
             );
         }
@@ -1012,7 +1052,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             @Nullable SnapshotId source,
             Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
             Map<String, Index> snapshotIndices,
-            boolean hasShardsInInitState
+            boolean hasShardsInInitState,
+            boolean hasAssignedQueuedShards
         ) {
             this.state = state;
             this.snapshot = snapshot;
@@ -1031,13 +1072,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.shardStatusByRepoShardId = Map.copyOf(shardStatusByRepoShardId);
             this.snapshotIndices = snapshotIndices;
             this.hasShardsInInitState = hasShardsInInitState;
+            this.hasAssignedQueuedShards = hasAssignedQueuedShards;
             assert assertShardsConsistent(
                 this.source,
                 this.state,
                 this.indices,
                 this.shards,
                 this.shardStatusByRepoShardId,
-                this.hasShardsInInitState
+                this.hasShardsInInitState,
+                this.hasAssignedQueuedShards
             );
         }
 
@@ -1087,13 +1130,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<String, IndexId> indices,
             Map<ShardId, ShardSnapshotStatus> shards,
             Map<RepositoryShardId, ShardSnapshotStatus> statusByRepoShardId,
-            boolean hasInitStateShards
+            boolean hasInitStateShards,
+            boolean hasAssignedQueuedShards
         ) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;
             }
             if (hasInitStateShards) {
                 assert state == State.STARTED : "shouldn't have INIT-state shards in state " + state;
+            }
+            if (hasAssignedQueuedShards) {
+                assert source == null : "clone entry must not have any shards in assigned-queued state";
             }
             final Set<String> indexNames = indices.keySet();
             final Set<String> indexNamesInShards = new HashSet<>();
@@ -1150,7 +1197,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 snapshotIndices,
-                hasShardsInInitState
+                hasShardsInInitState,
+                hasAssignedQueuedShards
             );
         }
 
@@ -1228,27 +1276,38 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * In the special case where this instance has not yet made any progress on any shard this method just returns
          * {@code null} since no abort is needed and the snapshot can simply be removed from the cluster state outright.
          *
+         * @param completedAssignedQueuedShards Map to accumulate assigned-queued shards that get aborted in this entry
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort() {
+        public Entry abort(Map<ShardId, Tuple<Snapshot, ShardSnapshotStatus>> completedAssignedQueuedShards) {
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
             for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : shards.entrySet()) {
                 ShardSnapshotStatus status = shardEntry.getValue();
+                final var isAssignedQueued = status.isAssignedQueued();
                 allQueued &= status.state() == ShardState.QUEUED;
+                final ShardId shardId = shardEntry.getKey();
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    status = new ShardSnapshotStatus(
-                        nodeId,
-                        nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
-                        status.generation(),
-                        "aborted by snapshot deletion"
-                    );
+                    if (isAssignedQueued == false) {
+                        status = new ShardSnapshotStatus(
+                            nodeId,
+                            nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
+                            status.generation(),
+                            "aborted by snapshot deletion"
+                        );
+                    } else {
+                        final String reason = "assigned-queued aborted by snapshot deletion";
+                        status = new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), reason);
+                        // Record the failure so that we may start the first QUEUED one in later snapshots.
+                        final var old = completedAssignedQueuedShards.put(shardId, new Tuple<>(snapshot(), status));
+                        assert old == null : shardId + " has unexpected old entry " + old + " conflicting with " + this;
+                    }
                 }
                 completed &= status.state().completed();
-                shardsBuilder.put(shardEntry.getKey(), status);
+                shardsBuilder.put(shardId, status);
             }
             if (allQueued) {
                 return null;
@@ -1382,6 +1441,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         public boolean hasShardsInInitState() {
             return hasShardsInInitState;
+        }
+
+        /**
+         * See {@link #hasAssignedQueuedShards}.
+         */
+        public boolean hasAssignedQueuedShards() {
+            assert hasAssignedQueuedShards == false || isClone() == false
+                : "a clone entry must not have assigned-queued shards, but saw " + this;
+            return hasAssignedQueuedShards;
         }
 
         public boolean partial() {
@@ -1765,7 +1833,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     null,
                     part.shardStatusByRepoShardId,
                     part.snapshotIndices,
-                    part.hasShardsInInitState
+                    part.hasShardsInInitState,
+                    part.hasAssignedQueuedShards
                 );
             }
             if (part.isClone()) {

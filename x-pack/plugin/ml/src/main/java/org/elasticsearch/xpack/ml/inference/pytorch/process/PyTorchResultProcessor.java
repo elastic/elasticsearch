@@ -313,7 +313,7 @@ public class PyTorchResultProcessor {
         }
     }
 
-    public void stop() {
+    public void signalIntentToStop() {
         isStopping = true;
     }
 

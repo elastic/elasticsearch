@@ -77,7 +77,7 @@ public class ES818HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFo
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        throw new UnsupportedOperationException();
     }
 
     @Override

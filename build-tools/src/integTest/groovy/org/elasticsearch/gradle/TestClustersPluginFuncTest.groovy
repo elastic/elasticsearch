@@ -250,7 +250,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         buildFile << """
             testClusters {
-              myCluster {
+              myCluster1 {
                 testDistribution = 'default'
                 version = '8.10.4'
               }

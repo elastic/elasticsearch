@@ -27,10 +27,6 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
     private void testParseJson(String input, CheckedConsumer<ESUTF8StreamJsonParser, IOException> test) throws IOException {
@@ -43,35 +39,35 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
     }
 
     private void assertTextRef(XContentString.UTF8Bytes textRef, String expectedValue) {
-        assertThat(textRef, equalTo(new XContentString.UTF8Bytes(expectedValue.getBytes(StandardCharsets.UTF_8))));
+        assertThat(textRef, Matchers.equalTo(new XContentString.UTF8Bytes(expectedValue.getBytes(StandardCharsets.UTF_8))));
     }
 
     public void testGetValueAsText() throws IOException {
         testParseJson("{\"foo\": \"bar\"}", parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), equalTo("foo"));
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
             var text = parser.getValueAsText();
             assertThat(text, Matchers.notNullValue());
 
             var bytes = text.bytes();
-            assertThat(bytes.offset(), equalTo(9));
-            assertThat(bytes.offset() + bytes.length(), equalTo(12));
+            assertThat(bytes.offset(), Matchers.equalTo(9));
+            assertThat(bytes.offset() + bytes.length(), Matchers.equalTo(12));
             assertTextRef(bytes, "bar");
 
-            assertThat(parser.getValueAsString(), equalTo("bar"));
+            assertThat(parser.getValueAsString(), Matchers.equalTo("bar"));
             assertThat(parser.getValueAsText(), Matchers.nullValue());
 
-            assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
         });
 
         testParseJson("{\"foo\": [\"bar\\\"baz\\\"\", \"foobar\"]}", parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), equalTo("foo"));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
 
-            assertThat(parser.nextValue(), equalTo(JsonToken.START_ARRAY));
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.START_ARRAY));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
             var firstText = parser.getValueAsText();
             assertThat(firstText, Matchers.notNullValue());
@@ -82,110 +78,110 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertTextRef(firstText.bytes(), "bar\"baz\"");
 
             // Ensure values lastOptimisedValue is reset
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             var secondTest = parser.getValueAsText();
             assertThat(secondTest, Matchers.notNullValue());
             assertTextRef(secondTest.bytes(), "foobar");
             secondTest = parser.getValueAsText();
             assertThat(secondTest, Matchers.notNullValue());
             assertTextRef(secondTest.bytes(), "foobar");
-            assertThat(parser.nextValue(), equalTo(JsonToken.END_ARRAY));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.END_ARRAY));
         });
 
         testParseJson("{\"foo\": \"b\\u00e5r\"}", parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), equalTo("foo"));
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
             assertThat(parser.getValueAsText(), Matchers.nullValue());
-            assertThat(parser.getValueAsString(), equalTo("bår"));
+            assertThat(parser.getValueAsString(), Matchers.equalTo("bår"));
         });
 
         testParseJson("{\"foo\": \"\uD83D\uDE0A\"}", parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), equalTo("foo"));
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
             var text = parser.getValueAsText();
             assertThat(text, Matchers.notNullValue());
             var bytes = text.bytes();
             assertTextRef(bytes, "\uD83D\uDE0A");
-            assertThat(text.stringLength(), equalTo(2));
+            assertThat(text.stringLength(), Matchers.equalTo(2));
         });
 
         testParseJson("{\"foo\": \"bår\"}", parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), equalTo("foo"));
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
             var text = parser.getValueAsText();
             assertThat(text, Matchers.notNullValue());
 
             var bytes = text.bytes();
-            assertThat(bytes.offset(), equalTo(9));
-            assertThat(bytes.offset() + bytes.length(), equalTo(13));
+            assertThat(bytes.offset(), Matchers.equalTo(9));
+            assertThat(bytes.offset() + bytes.length(), Matchers.equalTo(13));
             assertTextRef(bytes, "bår");
 
-            assertThat(parser.getValueAsString(), equalTo("bår"));
+            assertThat(parser.getValueAsString(), Matchers.equalTo("bår"));
 
-            assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
         });
 
         testParseJson("{\"foo\": [\"lorem\", \"ipsum\", \"dolor\"]}", parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), equalTo("foo"));
-            assertThat(parser.nextValue(), equalTo(JsonToken.START_ARRAY));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.START_ARRAY));
 
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
                 var textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.offset(), equalTo(10));
-                assertThat(textRef.offset() + textRef.length(), equalTo(15));
+                assertThat(textRef.offset(), Matchers.equalTo(10));
+                assertThat(textRef.offset() + textRef.length(), Matchers.equalTo(15));
                 assertTextRef(textRef, "lorem");
             }
 
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
                 var textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.offset(), equalTo(19));
-                assertThat(textRef.offset() + textRef.length(), equalTo(24));
+                assertThat(textRef.offset(), Matchers.equalTo(19));
+                assertThat(textRef.offset() + textRef.length(), Matchers.equalTo(24));
                 assertTextRef(textRef, "ipsum");
             }
 
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
             {
                 var textRef = parser.getValueAsText().bytes();
                 assertThat(textRef, Matchers.notNullValue());
-                assertThat(textRef.offset(), equalTo(28));
-                assertThat(textRef.offset() + textRef.length(), equalTo(33));
+                assertThat(textRef.offset(), Matchers.equalTo(28));
+                assertThat(textRef.offset() + textRef.length(), Matchers.equalTo(33));
                 assertTextRef(textRef, "dolor");
             }
 
-            assertThat(parser.nextToken(), equalTo(JsonToken.END_ARRAY));
-            assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_ARRAY));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
         });
     }
 
     public void testOptimisedValueAndText() throws IOException {
         testParseJson("{\"my-funky-field\": \"14`\\\\%+\"}", parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), equalTo("my-funky-field"));
-            assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("my-funky-field"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
             var text = parser.getValueAsText();
             assertThat(text, Matchers.notNullValue());
 
             assertTextRef(text.bytes(), "14`\\%+");
             // Retrieve the value for a second time to ensure the last value is available
-            assertThat(parser.getText(), equalTo("14`\\%+"));
+            assertThat(parser.getText(), Matchers.equalTo("14`\\%+"));
             // After retrieving with getText() we do not use the optimised value even if it's there.
             assertThat(parser.getValueAsText(), Matchers.nullValue());
-            assertThat(parser.lastOptimisedValue, notNullValue());
+            assertThat(parser.lastOptimisedValue, Matchers.notNullValue());
 
-            assertThat(parser.nextToken(), equalTo(JsonToken.END_OBJECT));
-            assertThat(parser.lastOptimisedValue, nullValue());
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
+            assertThat(parser.lastOptimisedValue, Matchers.nullValue());
         });
     }
 
@@ -292,32 +288,32 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
         inputBuilder.append('}');
         testParseJson(inputBuilder.toString(), parser -> {
-            assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
             for (int i = 0; i < numKeys; i++) {
-                assertThat(parser.nextFieldName(), equalTo(keys[i]));
-                assertThat(parser.nextValue(), equalTo(JsonToken.VALUE_STRING));
+                assertThat(parser.nextFieldName(), Matchers.equalTo(keys[i]));
+                assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
                 String currVal = inputs[i].result();
                 if (inputs[i].supportsOptimized()) {
                     var text = parser.getValueAsText();
                     assertTextRef(text.bytes(), currVal);
-                    assertThat(text.stringLength(), equalTo(currVal.length()));
+                    assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
                     // Retrieve it a second time
                     text = parser.getValueAsText();
                     assertThat(text, Matchers.notNullValue());
                     assertTextRef(text.bytes(), currVal);
-                    assertThat(text.stringLength(), equalTo(currVal.length()));
+                    assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
                     // Use getText()
-                    assertThat(parser.getText(), equalTo(text.string()));
+                    assertThat(parser.getText(), Matchers.equalTo(text.string()));
                     // After retrieving it with getText() we do not use the optimised value anymore.
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
                 } else {
                     assertThat(parser.getText(), Matchers.notNullValue());
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
-                    assertThat(parser.getValueAsString(), equalTo(currVal));
+                    assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
                     // Retrieve it twice to ensure it works as expected
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
-                    assertThat(parser.getValueAsString(), equalTo(currVal));
+                    assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
                 }
             }
         });
@@ -333,43 +329,43 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
                 XContentParser optimisedParser = TestXContentParser.create(json);
                 XContentParser baselineParser = TestXContentParser.create(json)
             ) {
-                assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+                assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
                 parseObjectAndAssert(optimisedParser, baselineParser);
             }
         }
     }
 
     private void parseObjectAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
-        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.START_OBJECT));
-        assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
         while (optimisedParser.currentToken() != XContentParser.Token.END_OBJECT) {
-            assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(optimisedParser.currentName(), equalTo(baselineParser.currentName()));
-            assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+            assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(optimisedParser.currentName(), Matchers.equalTo(baselineParser.currentName()));
+            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
             if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                assertThat(optimisedParser.optimizedText().string(), equalTo(baselineParser.text()));
+                assertThat(optimisedParser.optimizedText().string(), Matchers.equalTo(baselineParser.text()));
             } else if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
                 parseObjectAndAssert(optimisedParser, baselineParser);
             } else if (optimisedParser.currentToken() == XContentParser.Token.START_ARRAY) {
                 parseArrayAndAssert(optimisedParser, baselineParser);
             }
-            assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
         }
-        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.END_OBJECT));
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.END_OBJECT));
     }
 
     private void parseArrayAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
-        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.START_ARRAY));
-        assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.START_ARRAY));
+        assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
         while (optimisedParser.currentToken() != XContentParser.Token.END_ARRAY) {
             if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
                 parseObjectAndAssert(optimisedParser, baselineParser);
             } else if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                assertThat(optimisedParser.optimizedText().string(), equalTo(baselineParser.text()));
+                assertThat(optimisedParser.optimizedText().string(), Matchers.equalTo(baselineParser.text()));
             }
-            assertThat(optimisedParser.nextToken(), equalTo(baselineParser.nextToken()));
+            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
         }
-        assertThat(optimisedParser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.END_ARRAY));
     }
 
     private String randomJsonInput(int depth) {

@@ -1,5 +1,5 @@
 pr: 135402
-summary: Remove `index.dimensions` feature flag
+summary: Improve TSDB ingestion by hashing dimensions only once, using a new auto-populeted `index.dimensions` private index setting
 area: TSDB
 type: enhancement
 issues: []

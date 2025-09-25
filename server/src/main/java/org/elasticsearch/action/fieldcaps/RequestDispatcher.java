@@ -54,7 +54,7 @@ import java.util.function.Consumer;
 /**
  * Dispatches child field-caps requests to old/new data nodes in the local cluster that have shards of the requesting indices.
  */
-final class RequestDispatcher {
+public final class RequestDispatcher {
     static final Logger LOGGER = LogManager.getLogger(RequestDispatcher.class);
 
     private final TransportService transportService;
@@ -74,7 +74,7 @@ final class RequestDispatcher {
     private final AtomicInteger executionRound = new AtomicInteger();
     private final Map<String, IndexSelector> indexSelectors;
 
-    RequestDispatcher(
+    public RequestDispatcher(
         ClusterService clusterService,
         TransportService transportService,
         ProjectResolver projectResolver,
@@ -127,7 +127,7 @@ final class RequestDispatcher {
         }
     }
 
-    void execute() {
+    public void execute() {
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {

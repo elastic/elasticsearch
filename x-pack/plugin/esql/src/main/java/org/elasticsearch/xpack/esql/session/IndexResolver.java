@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -87,7 +88,10 @@ public class IndexResolver {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
+            listener.delegateFailureAndWrap((l, response) -> {
+                LogManager.getLogger(IndexResolver.class).error("SADFADF {}", response.minTransportVersion());
+                l.onResponse(mergedMappings(indexWildcard, response.caps()));
+            })
         );
     }
 

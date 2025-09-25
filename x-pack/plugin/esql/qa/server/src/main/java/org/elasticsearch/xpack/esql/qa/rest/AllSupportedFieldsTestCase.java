@@ -101,6 +101,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return nodeToInfo;
     }
 
+    private static Boolean denseVectorAggMetricDoubleIfFns;
+
+    private boolean denseVectorAggMetricDoubleIfFns() throws IOException {
+        if (denseVectorAggMetricDoubleIfFns == null) {
+            denseVectorAggMetricDoubleIfFns = fetchDenseVectorAggMetricDoubleIfFns();
+        }
+        return denseVectorAggMetricDoubleIfFns;
+    }
+
+    protected boolean fetchDenseVectorAggMetricDoubleIfFns() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS")).orElse(false);
+    }
+
     /**
      * Map from node name to information about the node.
      */
@@ -143,12 +156,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         List<?> values = (List<?>) response.get("values");
 
         MapMatcher expectedColumns = matchesMap();
-        TransportVersion minVersion = minVersion();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type) == false) {
                 continue;
             }
-            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(minVersion, type));
+            expectedColumns = expectedColumns.entry(fieldName(type), expectedType(type));
         }
         expectedColumns = expectedColumns.entry("_id", "keyword")
             .entry("_ignored", "keyword")
@@ -168,7 +180,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type) == false) {
                     continue;
                 }
-                expectedValues = expectedValues.entry(fieldName(type), expectedValue(minVersion, nodeInfo.version, type));
+                expectedValues = expectedValues.entry(fieldName(type), expectedValue(nodeInfo.version, type));
             }
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
@@ -192,22 +204,23 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 | LIMIT 1000
                 """);
             if ((Boolean) response.get("is_partial")) {
-                TransportVersion minVersion = minVersion();
                 Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
                 Map<?, ?> details = (Map<?, ?>) clusters.get("details");
+
+                boolean foundError = false;
                 for (Map.Entry<?, ?> cluster : details.entrySet()) {
                     String failures = cluster.getValue().toString();
-                    if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
-                        throw new AssertionError("versions on or after 9.2.0 should support correctly fetch the dense_vector: " + failures);
+                    if (denseVectorAggMetricDoubleIfFns()) {
+                        throw new AssertionError("should correctly fetch the dense_vector: " + failures);
                     }
-                    assertThat(failures, containsString("doesn't understand data type [DENSE_VECTOR]"));
+                    foundError |= failures.contains("doesn't understand data type [DENSE_VECTOR]");
                 }
+                assertTrue("didn't find errors: " + details, foundError);
                 return;
             }
         } catch (ResponseException e) {
-            TransportVersion minVersion = minVersion();
-            if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
-                throw new AssertionError("versions on or after 9.2.0 should support correctly fetch the dense_vector", e);
+            if (denseVectorAggMetricDoubleIfFns()) {
+                throw new AssertionError("should correctly fetch the dense_vector", e);
             }
             assertThat(
                 "old version should fail with this error",
@@ -357,7 +370,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    private Matcher<?> expectedValue(TransportVersion minVersion, TransportVersion version, DataType type) {
+    private Matcher<?> expectedValue(TransportVersion version, DataType type) throws IOException {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
             case COUNTER_LONG, LONG, COUNTER_INTEGER, INTEGER, UNSIGNED_LONG, SHORT, BYTE -> equalTo(1);
@@ -376,16 +389,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
-                if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
-                    // If all versions a new we get null. If any are old, some *might* support aggregate_metric_double
+                if (denseVectorAggMetricDoubleIfFns()) {
+                    // If all versions are new we get null. If any are old, some *might* support aggregate_metric_double
                     yield nullValue();
                 }
                 Matcher<String> expected = equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
                 yield anyOf(nullValue(), expected);
             }
             case DENSE_VECTOR -> {
-                if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
-                    // If all versions a new we get null. If any are old, some *might* support dense_vector
+                if (denseVectorAggMetricDoubleIfFns()) {
+                    // If all versions are new we get null. If any are old, some *might* support dense_vector
                     yield nullValue();
                 }
                 yield anyOf(nullValue(), expectedDenseVector(version));
@@ -457,7 +470,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    private Matcher<String> expectedType(TransportVersion minVersion, DataType type) {
+    private Matcher<String> expectedType(DataType type) throws IOException {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
@@ -470,8 +483,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> equalTo("keyword");
             // Currently unsupported without TS command or KNN function
             case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
-                if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
-                    // If all versions a new we get null. If any are old, some *might* support dense_vector
+                if (denseVectorAggMetricDoubleIfFns()) {
+                    // If all versions are new we get null. If any are old, some *might* support dense_vector
                     yield equalTo("unsupported");
                 }
                 yield either(equalTo("unsupported")).or(equalTo(type.esType()));
@@ -498,9 +511,5 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             return expectedIndex;
         }
         return nodeInfo.cluster + ":" + expectedIndex;
-    }
-
-    private TransportVersion minVersion() throws IOException {
-        return allNodeToInfo().values().stream().map(n -> n.version).min(Comparator.naturalOrder()).get();
     }
 }

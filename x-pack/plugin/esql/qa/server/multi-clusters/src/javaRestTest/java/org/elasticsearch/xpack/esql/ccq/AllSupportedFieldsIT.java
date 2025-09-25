@@ -24,6 +24,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -87,5 +88,13 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
         } finally {
             remoteClient = null;
         }
+    }
+
+    @Override
+    protected boolean fetchDenseVectorAggMetricDoubleIfFns() throws IOException {
+        return super.fetchDenseVectorAggMetricDoubleIfFns()
+            && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS")).orElse(
+                false
+            );
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.crossproject;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -16,8 +17,8 @@ import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,8 +31,7 @@ import java.util.stream.Collectors;
 public class CrossProjectIndexExpressionsRewriter {
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
-    private static final String WILDCARD = "*";
-    private static final String[] MATCH_ALL = new String[] { WILDCARD };
+    private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
     private static final String DATE_MATH = "<";
 
@@ -46,14 +46,13 @@ public class CrossProjectIndexExpressionsRewriter {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
-    public static Map<String, List<String>> rewriteIndexExpressions(
+    public static Map<String, Set<String>> rewriteIndexExpressions(
         ProjectRoutingInfo originProject,
         List<ProjectRoutingInfo> linkedProjects,
         final String[] originalIndices
     ) {
         final String[] indices;
         if (originalIndices == null || originalIndices.length == 0) { // handling of match all cases besides _all and `*`
-            // TODO this should be Metadata.ALL
             indices = MATCH_ALL;
         } else {
             indices = originalIndices;
@@ -64,7 +63,7 @@ public class CrossProjectIndexExpressionsRewriter {
             : "either origin project or linked projects must be in project target set";
 
         Set<String> linkedProjectNames = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
-        Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
+        Map<String, Set<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
         for (String resource : indices) {
             if (canonicalExpressionsMap.containsKey(resource)) {
                 continue;
@@ -85,12 +84,12 @@ public class CrossProjectIndexExpressionsRewriter {
                 String indexExpression = splitResource[1];
                 maybeThrowOnUnsupportedResource(indexExpression);
 
-                List<String> canonicalExpressions = rewriteQualified(projectAlias, indexExpression, originProject, linkedProjectNames);
+                Set<String> canonicalExpressions = rewriteQualified(projectAlias, indexExpression, originProject, linkedProjectNames);
 
                 canonicalExpressionsMap.put(resource, canonicalExpressions);
                 logger.debug("Rewrote qualified expression [{}] to [{}]", resource, canonicalExpressions);
             } else {
-                List<String> canonicalExpressions = rewriteUnqualified(resource, originProject, linkedProjects);
+                Set<String> canonicalExpressions = rewriteUnqualified(resource, originProject, linkedProjects);
                 canonicalExpressionsMap.put(resource, canonicalExpressions);
                 logger.debug("Rewrote unqualified expression [{}] to [{}]", resource, canonicalExpressions);
             }
@@ -98,12 +97,12 @@ public class CrossProjectIndexExpressionsRewriter {
         return canonicalExpressionsMap;
     }
 
-    private static List<String> rewriteUnqualified(
+    private static Set<String> rewriteUnqualified(
         String indexExpression,
         @Nullable ProjectRoutingInfo origin,
         List<ProjectRoutingInfo> projects
     ) {
-        List<String> canonicalExpressions = new ArrayList<>();
+        Set<String> canonicalExpressions = new LinkedHashSet<>();
         if (origin != null) {
             canonicalExpressions.add(indexExpression); // adding the original indexExpression for the _origin cluster.
         }
@@ -113,7 +112,7 @@ public class CrossProjectIndexExpressionsRewriter {
         return canonicalExpressions;
     }
 
-    private static List<String> rewriteQualified(
+    private static Set<String> rewriteQualified(
         String requestedProjectAlias,
         String indexExpression,
         @Nullable ProjectRoutingInfo originProject,
@@ -121,7 +120,7 @@ public class CrossProjectIndexExpressionsRewriter {
     ) {
         if (originProject != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
-            return List.of(indexExpression);
+            return Set.of(indexExpression);
         }
 
         if (originProject == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
@@ -133,7 +132,7 @@ public class CrossProjectIndexExpressionsRewriter {
             if (originProject != null) {
                 allProjectAliases.add(originProject.projectAlias());
             }
-            List<String> resourcesMatchingAliases = new ArrayList<>();
+            Set<String> resourcesMatchingAliases = new LinkedHashSet<>();
             List<String> allProjectsMatchingAlias = ClusterNameExpressionResolver.resolveClusterNames(
                 allProjectAliases,
                 requestedProjectAlias

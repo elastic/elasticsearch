@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.security.authz.crossproject.CrossProjectIndexExpressionsRewriter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -366,6 +367,15 @@ class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
+                if (replaceable.resolveCrossProject() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT) {
+                    assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
+                    Map<String, Set<String>> rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+                        authorizedProjects.originProject(),
+                        authorizedProjects.linkedProjects(),
+                        replaceable.indices()
+                    );
+                }
+
                 final ResolvedIndices split;
                 if (replaceable.allowsRemoteIndices()) {
                     split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());

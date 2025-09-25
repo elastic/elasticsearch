@@ -1544,7 +1544,9 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
-        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS
 
         ;
 

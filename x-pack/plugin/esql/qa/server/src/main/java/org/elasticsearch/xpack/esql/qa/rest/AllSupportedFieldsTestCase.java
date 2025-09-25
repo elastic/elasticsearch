@@ -377,6 +377,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
                 if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+                    // If all versions a new we get null. If any are old, some *might* support aggregate_metric_double
                     yield nullValue();
                 }
                 Matcher<String> expected = equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
@@ -384,6 +385,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DENSE_VECTOR -> {
                 if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+                    // If all versions a new we get null. If any are old, some *might* support dense_vector
                     yield nullValue();
                 }
                 yield anyOf(nullValue(), expectedDenseVector(version));
@@ -468,10 +470,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> equalTo("keyword");
             // Currently unsupported without TS command or KNN function
             case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
-                if (false == minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
-                    yield either(equalTo("unsupported")).or(equalTo(type.esType()));
+                if (minVersion.onOrAfter(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+                    // If all versions a new we get null. If any are old, some *might* support dense_vector
+                    yield equalTo("unsupported");
                 }
-                yield equalTo("unsupported");
+                yield either(equalTo("unsupported")).or(equalTo(type.esType()));
             }
             default -> equalTo(type.esType());
         };

@@ -83,7 +83,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double]
+          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_fns]
       reason: "Support for aggregate_metric_double"
   - do:
       indices.downsample:

@@ -79,7 +79,7 @@ deployment:
   self: unavailable
 ```
 
-If you use the preconfigured `.elser-2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
+If you use the preconfigured `.elser-v2-elastic` endpoint that runs on EIS, you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001

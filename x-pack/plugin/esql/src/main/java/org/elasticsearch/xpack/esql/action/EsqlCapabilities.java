@@ -1206,9 +1206,10 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support for INCREASE timeseries aggregation.
+         * Support for INCREASE, DELTA timeseries aggregations.
          */
         INCREASE,
+        DELTA_TS_AGG,
 
         /**
          * Extra field types in the k8s.csv dataset
@@ -1320,6 +1321,11 @@ public class EsqlCapabilities {
         KNN_FUNCTION_V5(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
+         */
+        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the LIKE operator with a list of wildcards.
          */
         LIKE_WITH_LIST_OF_PATTERNS,
@@ -1362,7 +1368,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V4(Build.current().isSnapshot()),
+        FUSE_V5(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.

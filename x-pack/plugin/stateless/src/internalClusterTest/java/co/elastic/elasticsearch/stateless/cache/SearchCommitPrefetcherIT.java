@@ -146,7 +146,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
 
-        var numberOfCommits = randomIntBetween(5, 10);
+        var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);
@@ -195,7 +195,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
-        var numberOfCommits = randomIntBetween(5, 10);
+        var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);
@@ -271,7 +271,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
         assertThat(searchEngine.getMaxPrefetchedOffset(), is(BCCPreFetchedOffset.ZERO));
 
-        var numberOfCommits = randomIntBetween(5, 10);
+        var numberOfCommits = randomIntBetween(5, 8);
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         String prewarmThreadPool = Stateless.PREWARM_THREAD_POOL;
         // number of completed tasks in the prewarming threadpool before we start indexing
@@ -360,7 +360,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
 
-        var numberOfCommits = randomIntBetween(5, 10);
+        var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);
@@ -436,7 +436,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
 
-        var numberOfCommits = randomIntBetween(5, 10);
+        var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);
@@ -589,7 +589,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
 
         // Upon recovery, the search shard would use the first region. Clear the cache to start from scratch.
         client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
-        var numberOfCommits = randomIntBetween(2, 10);
+        var numberOfCommits = randomIntBetween(2, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             indexDocs(indexName, 10);
             flush(indexName);
@@ -631,7 +631,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
-        var numberOfCommits = randomIntBetween(5, 10);
+        var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);

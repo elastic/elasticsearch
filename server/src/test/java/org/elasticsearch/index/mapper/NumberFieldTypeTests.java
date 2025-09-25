@@ -141,6 +141,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             null,
+            null,
             false
         );
     }

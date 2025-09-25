@@ -24,11 +24,13 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
-    public void testMatchQuery() throws Exception {
-        final String localIndexName = "local-index";
-        final String remoteIndexName = "remote-index";
-        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+    private static final String LOCAL_INDEX_NAME = "local-index";
+    private static final String REMOTE_INDEX_NAME = "remote-index";
+    private static final String[] QUERY_INDICES = new String[] {
+        LOCAL_INDEX_NAME,
+        fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME) };
 
+    public void testMatchQuery() throws Exception {
         final String commonInferenceId = "common-inference-id";
         final String localInferenceId = "local-inference-id";
         final String remoteInferenceId = "remote-inference-id";
@@ -39,7 +41,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         final String mixedTypeField2 = "mixed-type-field-2";
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            localIndexName,
+            LOCAL_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings(), localInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -63,7 +65,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             )
         );
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            remoteIndexName,
+            REMOTE_INDEX_NAME,
             Map.of(
                 commonInferenceId,
                 textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
@@ -96,49 +98,46 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new MatchQueryBuilder(commonInferenceIdField, "a"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_1")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_1"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_1")
             )
         );
 
         // Query a field that has different inference ID values across clusters
         assertSearchResponse(
             new MatchQueryBuilder(variableInferenceIdField, "b"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_2"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_2")
             )
         );
 
         // Query a field that has mixed types across clusters
         assertSearchResponse(
             new MatchQueryBuilder(mixedTypeField1, "y"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_3"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_3")
             )
         );
         assertSearchResponse(
             new MatchQueryBuilder(mixedTypeField2, "d"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_4"),
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_4")
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_4"),
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_4")
             )
         );
     }
 
     public void testMatchQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
-        final String localIndexName = "local-index";
-        final String remoteIndexName = "remote-index";
-        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
         final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
-            SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
+            SearchRequest searchRequest = new SearchRequest(QUERY_INDICES, searchSourceBuilder);
             searchRequest.setCcsMinimizeRoundtrips(false);
 
             IllegalArgumentException e = assertThrows(
@@ -162,7 +161,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         final String textField = "text-field";
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            localIndexName,
+            LOCAL_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -177,7 +176,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             Map.of(mixedTypeField2 + "_doc", Map.of(mixedTypeField2, "a"), textField + "_doc", Map.of(textField, "b b b"))
         );
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            remoteIndexName,
+            REMOTE_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -200,8 +199,8 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
         assertSearchResponse(
             new MatchQueryBuilder(mixedTypeField2, "a"),
-            queryIndices,
-            List.of(new SearchResult(null, localIndexName, mixedTypeField2 + "_doc")),
+            QUERY_INDICES,
+            List.of(new SearchResult(null, LOCAL_INDEX_NAME, mixedTypeField2 + "_doc")),
             new ClusterFailure(
                 SearchResponse.Cluster.Status.SKIPPED,
                 Set.of(
@@ -217,10 +216,10 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         // Validate that a CCS match query functions when only text fields are queried
         assertSearchResponse(
             new MatchQueryBuilder(textField, "b"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(null, localIndexName, textField + "_doc"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, textField + "_doc")
+                new SearchResult(null, LOCAL_INDEX_NAME, textField + "_doc"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, textField + "_doc")
             ),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)

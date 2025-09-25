@@ -95,6 +95,9 @@ public final class DenseEmbeddingByteResults implements DenseEmbeddingResults<De
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(embeddings);
+        if (out.getTransportVersion().supports(ML_MULTIMODAL_EMBEDDINGS)) {
+            out.writeString(arrayName);
+        }
     }
 
     @Override

@@ -1668,7 +1668,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                     {
                             "service": "cohere",
                             "name": "Cohere",
-                            "task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"],
+                            "task_types": ["text_embedding", "rerank", "completion", "image_embedding", "multimodal_embedding"],
                             "configurations": {
                                 "api_key": {
                                     "description": "API Key for the provider you're connecting to.",
@@ -1677,7 +1677,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                                     "sensitive": true,
                                     "updatable": true,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"]
+                                    "supported_task_types": ["text_embedding", "rerank", "completion", "image_embedding", "multimodal_embedding"]
                                 },
                                 "model_id": {
                                     "description": "The name of the model to use for the inference task.",
@@ -1686,7 +1686,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"]
+                                    "supported_task_types": ["text_embedding", "rerank", "completion", "image_embedding", "multimodal_embedding"]
                                 },
                                 "rate_limit.requests_per_minute": {
                                     "description": "Minimize the number of rate limit errors.",
@@ -1695,7 +1695,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "int",
-                                    "supported_task_types": ["text_embedding", "image_embedding", "multimodal_embedding", "rerank", "completion"]
+                                    "supported_task_types": ["text_embedding", "rerank", "completion", "image_embedding", "multimodal_embedding"]
                                 }
                             }
                         }

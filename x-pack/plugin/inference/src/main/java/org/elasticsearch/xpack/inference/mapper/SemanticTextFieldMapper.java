@@ -432,7 +432,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private void validateServiceSettings(MinimalServiceSettings settings, MinimalServiceSettings resolved) {
             switch (settings.taskType()) {
-                case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
+                case SPARSE_EMBEDDING, TEXT_EMBEDDING, IMAGE_EMBEDDING, MULTIMODAL_EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
                     "Wrong ["

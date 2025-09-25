@@ -23,8 +23,6 @@ import java.util.Objects;
 public enum TaskType implements Writeable {
     TEXT_EMBEDDING,
     SPARSE_EMBEDDING,
-    IMAGE_EMBEDDING,
-    MULTIMODAL_EMBEDDING,
     RERANK,
     COMPLETION,
     ANY {
@@ -33,7 +31,9 @@ public enum TaskType implements Writeable {
             return true;
         }
     },
-    CHAT_COMPLETION;
+    CHAT_COMPLETION,
+    IMAGE_EMBEDDING,
+    MULTIMODAL_EMBEDDING;
 
     public static final String NAME = "task_type";
 

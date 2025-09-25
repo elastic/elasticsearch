@@ -89,8 +89,15 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
+                    "inputs": [
+                      {
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "abc"
+                          }
+                        ]
+                      }
                     ],
                     "embeddings": {
                         "float": [
@@ -148,8 +155,8 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "texts",
-                        List.of("abc"),
+                        "inputs",
+                        List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text")))),
                         "model",
                         "model",
                         "input_type",
@@ -173,8 +180,15 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
+                    "inputs": [
+                      {
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "abc"
+                          }
+                        ]
+                      }
                     ],
                     "embeddings": {
                         "int8": [
@@ -229,8 +243,8 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "texts",
-                        List.of("abc"),
+                        "inputs",
+                        List.of(Map.of("content", List.of(Map.of("text", "abc", "type", "text")))),
                         "model",
                         "model",
                         "input_type",

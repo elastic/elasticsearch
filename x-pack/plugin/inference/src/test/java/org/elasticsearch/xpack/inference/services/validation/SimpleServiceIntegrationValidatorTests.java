@@ -72,7 +72,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(InputType.INTERNAL_INGEST),
                 eq(TIMEOUT),
                 any(),
-                null
+                any()
             );
 
         assertThrows(
@@ -116,7 +116,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(InputType.INTERNAL_INGEST),
                 eq(TIMEOUT),
                 any(),
-                null
+                any()
             );
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
@@ -135,7 +135,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             eq(InputType.INTERNAL_INGEST),
             eq(TIMEOUT),
             any(),
-            null
+            any()
         );
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
     }

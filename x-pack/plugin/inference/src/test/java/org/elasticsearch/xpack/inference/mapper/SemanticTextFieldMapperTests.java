@@ -395,7 +395,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testInvalidTaskTypes() {
         for (var taskType : TaskType.values()) {
-            if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING) {
+            if (taskType == TaskType.TEXT_EMBEDDING
+                || taskType == TaskType.SPARSE_EMBEDDING
+                || taskType == TaskType.IMAGE_EMBEDDING
+                || taskType == TaskType.MULTIMODAL_EMBEDDING) {
                 continue;
             }
             Exception e = expectThrows(

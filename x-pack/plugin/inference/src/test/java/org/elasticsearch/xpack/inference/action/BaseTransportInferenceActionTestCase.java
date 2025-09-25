@@ -404,7 +404,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(9));
             return null;
-        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), anyBoolean(), any(), any(), any(), any(), null);
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), anyBoolean(), any(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;

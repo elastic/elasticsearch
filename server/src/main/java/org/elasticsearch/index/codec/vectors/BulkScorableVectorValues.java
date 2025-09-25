@@ -9,30 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.search.DocAndFloatFeatureBuffer;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.VectorScorer;
-import org.apache.lucene.util.Bits;
-
-import java.io.IOException;
-
 /**
  * Extension to {@link org.apache.lucene.search.VectorScorer} that can score in bulk
  */
-public interface BulkScorableVectorValues {
-    interface BulkVectorScorer extends VectorScorer {
-
-        /**
-         * Returns a {@link Bulk} scorer that can score in bulk the provided {@code matchingDocs}.
-         */
-        Bulk bulk(DocIdSetIterator matchingDocs) throws IOException;
-
-        interface Bulk {
-            /**
-             * Scores up to {@code nextCount} docs in the provided {@code buffer}.
-             * Returns the maxScore of docs scored.
-             */
-            float nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException;
-        }
-    }
-}
+public interface BulkScorableVectorValues {}

@@ -27,8 +27,8 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.VectorScorer;
 import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -317,9 +317,9 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
-            BulkScorableVectorValues.BulkVectorScorer vectorReScorer = rescorableVectorValues.rescorer(floatTarget);
+            VectorScorer vectorReScorer = rescorableVectorValues.rescorer(floatTarget);
             var iterator = vectorReScorer.iterator();
-            BulkScorableVectorValues.BulkVectorScorer.Bulk bulkScorer = vectorReScorer.bulk(filterIterator);
+            VectorScorer.Bulk bulkScorer = vectorReScorer.bulk(filterIterator);
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             while (iterator.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                 // iterator already takes live docs into account

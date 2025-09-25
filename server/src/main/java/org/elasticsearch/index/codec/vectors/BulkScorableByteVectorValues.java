@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import org.apache.lucene.search.VectorScorer;
+
 import java.io.IOException;
 
 /**
@@ -16,14 +18,14 @@ import java.io.IOException;
  */
 public interface BulkScorableByteVectorValues extends BulkScorableVectorValues {
     /**
-     * Returns a {@link BulkVectorScorer} that can score against the provided {@code target} vector.
+     * Returns a {@link VectorScorer} that can score against the provided {@code target} vector.
      * It will score to the fastest speed possible, potentially sacrificing some fidelity.
      */
-    BulkVectorScorer scorer(byte[] target) throws IOException;
+    VectorScorer scorer(byte[] target) throws IOException;
 
     /**
-     * Returns a {@link BulkVectorScorer} that can rescore against the provided {@code target} vector.
+     * Returns a {@link VectorScorer} that can rescore against the provided {@code target} vector.
      * It will score to the highest fidelity possible, potentially sacrificing some speed.
      */
-    BulkVectorScorer rescorer(byte[] target) throws IOException;
+    VectorScorer rescorer(byte[] target) throws IOException;
 }

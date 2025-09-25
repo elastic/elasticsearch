@@ -97,10 +97,6 @@ public class AmazonBedrockRequestSender implements Sender {
         this.startCompleted = Objects.requireNonNull(startCompleted);
     }
 
-    /**
-     * TODO implement this functionality to ensure that we don't block node bootups
-     * See: https://github.com/elastic/ml-team/issues/1701
-     */
     @Override
     public void startAsynchronously(ActionListener<Void> listener) {
         throw new UnsupportedOperationException("not implemented");

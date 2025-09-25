@@ -173,26 +173,29 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     public void testCcsSerialization() throws Exception {
         final String inferenceField = "semantic_field";
-        final var localIndexInferenceFields = Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID));
-        final var remoteIndices = Map.of("remote-alias", "remote-index");
         final T inferenceFieldQuery = createQueryBuilder(inferenceField);
         final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
 
         // Test with the current transport version. This simulates sending the query to a remote cluster that supports semantic search CCS.
         final QueryRewriteContext contextCurrent = createQueryRewriteContext(
-            localIndexInferenceFields,
-            remoteIndices,
+            Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID)),
+            Map.of("remote-alias", "remote-index"),
             TransportVersion.current(),
             true
         );
 
         assertRewriteAndSerializeOnInferenceField(inferenceFieldQuery, contextCurrent, null, null);
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, contextCurrent);
+    }
 
-        // Test when ccs_minimize_roundtrips=false
+    public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
+        final String inferenceField = "semantic_field";
+        final T inferenceFieldQuery = createQueryBuilder(inferenceField);
+        final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
+
         final QueryRewriteContext minimizeRoundTripsFalseContext = createQueryRewriteContext(
-            localIndexInferenceFields,
-            remoteIndices,
+            Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID)),
+            Map.of("remote-alias", "remote-index"),
             TransportVersion.current(),
             false
         );
@@ -209,58 +212,62 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             null
         );
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, minimizeRoundTripsFalseContext);
+    }
 
-        // Test with a transport version prior to semantic search CCS support, but still new enough to use the new interceptors.
-        // This simulates if one of the local or remote cluster data nodes is slightly out of date.
-        final TransportVersion preCcsVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            NEW_SEMANTIC_QUERY_INTERCEPTORS,
-            TransportVersionUtils.getPreviousVersion(SEMANTIC_SEARCH_CCS_SUPPORT)
-        );
-        final QueryRewriteContext preCcsContext = createQueryRewriteContext(localIndexInferenceFields, remoteIndices, preCcsVersion, true);
+    public void testCcsBwCSerialization() throws Exception {
+        final String inferenceField = "semantic_field";
+        final T inferenceFieldQuery = createQueryBuilder(inferenceField);
+        final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
 
-        assertRewriteAndSerializeOnInferenceField(
-            inferenceFieldQuery,
-            preCcsContext,
-            null,
-            new IllegalArgumentException(
-                "One or more nodes does not support "
-                    + inferenceFieldQuery.getName()
-                    + " query cross-cluster search when querying a ["
-                    + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field. Please update all nodes to at least Elasticsearch "
-                    + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
-                    + "."
-            )
-        );
-        assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, preCcsContext);
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                V_8_15_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+            );
 
-        // Test with a transport version prior to the new query interceptors. This simulates if one of the local cluster data nodes is more
-        // out of date.
-        final TransportVersion legacyInterceptorsVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            V_8_15_0,
-            TransportVersionUtils.getPreviousVersion(NEW_SEMANTIC_QUERY_INTERCEPTORS)
-        );
-        final QueryRewriteContext legacyInterceptorsContext = createQueryRewriteContext(
-            localIndexInferenceFields,
-            remoteIndices,
-            legacyInterceptorsVersion,
-            true
-        );
+            QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+                Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID)),
+                Map.of("remote-alias", "remote-index"),
+                transportVersion,
+                true
+            );
 
-        assertRewriteAndSerializeOnInferenceField(
-            inferenceFieldQuery,
-            legacyInterceptorsContext,
-            new IllegalArgumentException(
-                inferenceFieldQuery.getName()
-                    + " query does not support cross-cluster search when querying a ["
-                    + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field in a mixed-version cluster"
-            ),
-            null
-        );
-        assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, legacyInterceptorsContext);
+            Exception expectedRewriteException = null;
+            Exception expectedSerializationException = null;
+            if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT) == false) {
+                if (transportVersion.supports(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+                    // Transport version is new enough to support the new interceptors, but not new enough to support CCS. This simulates if
+                    // one of the local or remote cluster data nodes is out of date.
+                    expectedSerializationException = new IllegalArgumentException(
+                        "One or more nodes does not support "
+                            + inferenceFieldQuery.getName()
+                            + " query cross-cluster search when querying a ["
+                            + SemanticTextFieldMapper.CONTENT_TYPE
+                            + "] field. Please update all nodes to at least Elasticsearch "
+                            + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
+                            + "."
+                    );
+                } else {
+                    // Transport version indicates usage of the legacy interceptors. This simulates if one of the local cluster data nodes
+                    // is out of date to the point that it can't use the new interceptors.
+                    expectedRewriteException = new IllegalArgumentException(
+                        inferenceFieldQuery.getName()
+                            + " query does not support cross-cluster search when querying a ["
+                            + SemanticTextFieldMapper.CONTENT_TYPE
+                            + "] field in a mixed-version cluster"
+                    );
+                }
+            }
+
+            assertRewriteAndSerializeOnInferenceField(
+                inferenceFieldQuery,
+                queryRewriteContext,
+                expectedRewriteException,
+                expectedSerializationException
+            );
+            assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, queryRewriteContext);
+        }
     }
 
     public void testSerializationRemoteClusterInferenceResults() throws Exception {

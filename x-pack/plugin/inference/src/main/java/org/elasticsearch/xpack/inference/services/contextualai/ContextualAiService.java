@@ -56,7 +56,8 @@ import java.util.Map;
 public class ContextualAiService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "contextualai";
     private static final String SERVICE_NAME = "Contextual AI";
-    private static final Logger logger = LogManager.getLogger(ContextualAiService.class);
+
+    private static final TransportVersion CONTEXTUAL_AI_SERVICE = TransportVersion.fromName("contextual_ai_service");
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
 
@@ -231,7 +232,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return CONTEXTUAL_AI_SERVICE;
     }
 
     public static class Configuration {

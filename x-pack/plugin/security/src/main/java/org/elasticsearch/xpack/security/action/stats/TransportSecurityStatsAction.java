@@ -77,9 +77,6 @@ public class TransportSecurityStatsAction extends TransportNodesAction<
 
     @Override
     protected GetSecurityStatsNodeResponse nodeOperation(final GetSecurityStatsNodeRequest request, final Task task) {
-        return new GetSecurityStatsNodeResponse(
-            clusterService.localNode(),
-            rolesStore == null ? null : rolesStore.usageStatsWithJustDls()
-        );
+        return new GetSecurityStatsNodeResponse(clusterService.localNode(), rolesStore == null ? null : rolesStore.usageStatsWithJustDls());
     }
 }

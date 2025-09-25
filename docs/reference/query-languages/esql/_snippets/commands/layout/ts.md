@@ -9,7 +9,7 @@ The `TS` source command is similar to the [`FROM`](/reference/query-languages/es
 source command, with the following key differences:
 
  - Targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
- - Enables the use of [time-series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions) inside the
+ - Enables the use of [time-series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) inside the
    [STATS](/reference/query-languages/esql/commands/stats-by.md) command
 
 **Syntax**

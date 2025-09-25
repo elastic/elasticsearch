@@ -39,7 +39,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
         int size = between(1, 5);
         List<NamedExpression> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            Expression agg = switch (between(0, 5)) {
+            Expression agg = switch (between(0, 6)) {
                 case 0 -> new Max(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
                 case 1 -> new Min(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
                 case 2 -> new Count(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
@@ -47,10 +47,18 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
                     randomSource(),
                     FieldAttributeTests.createFieldAttribute(1, true),
                     new Literal(randomSource(), between(1, 5), DataType.INTEGER),
-                    Literal.keyword(randomSource(), randomFrom("ASC", "DESC"))
+                    Literal.keyword(randomSource(), randomFrom("ASC", "DESC")),
+                    null
                 );
-                case 4 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
+                case 4 -> new Top(
+                    randomSource(),
+                    FieldAttributeTests.createFieldAttribute(1, true),
+                    new Literal(randomSource(), between(1, 5), DataType.INTEGER),
+                    Literal.keyword(randomSource(), randomFrom("ASC", "DESC")),
+                    FieldAttributeTests.createFieldAttribute(1, true)
+                );
+                case 5 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
+                case 6 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
                 default -> throw new IllegalArgumentException();
             };
             result.add(new Alias(randomSource(), randomAlphaOfLength(5), agg));

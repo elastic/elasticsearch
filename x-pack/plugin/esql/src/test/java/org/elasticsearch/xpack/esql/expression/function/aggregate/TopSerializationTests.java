@@ -20,7 +20,8 @@ public class TopSerializationTests extends AbstractExpressionSerializationTests<
         Expression field = randomChild();
         Expression limit = randomChild();
         Expression order = randomChild();
-        return new Top(source, field, limit, order);
+        Expression mapToField = randomChild();
+        return new Top(source, field, limit, order, mapToField);
     }
 
     @Override
@@ -29,11 +30,13 @@ public class TopSerializationTests extends AbstractExpressionSerializationTests<
         Expression field = instance.field();
         Expression limit = instance.limitField();
         Expression order = instance.orderField();
-        switch (between(0, 2)) {
+        Expression mapToField = instance.mapToField();
+        switch (between(0, 3)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
             case 2 -> order = randomValueOtherThan(order, AbstractExpressionSerializationTests::randomChild);
+            case 3 -> mapToField = randomValueOtherThan(mapToField, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Top(source, field, limit, order);
+        return new Top(source, field, limit, order, mapToField);
     }
 }

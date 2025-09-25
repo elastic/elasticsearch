@@ -36,6 +36,9 @@ In order to ensure consistency and robustness, all new `TransportVersion`s
 must first be created in the `main` branch and then backported to the relevant
 release branches.
 
+_Elastic developers_ - instructions in this section for managing transport
+versions are the same in Serverless.
+
 ### Internal state files
 
 The Elasticsearch server jar contains resource files representing each
@@ -50,9 +53,6 @@ regenerated to resolve the conflict before merging to `main`.
 
 All of these internal state files are managed by gradle tasks; they should
 not be edited directly.
-
-_Elastic developers_ - please see corresponding documentation for Serverless
-on creating transport versions for Serverless changes.
 
 ### Creating transport versions locally
 
@@ -175,19 +175,19 @@ a no-op.
 ## Index version
 
 Index version is a single incrementing version number for the index data format,
-metadata, and associated mappings. It is declared the same way as the
-transport version - with the pattern `M_NNN_S_PP`, for the major version, version id,
-subsidiary version id, and patch number respectively.
+metadata, and associated mappings. It is declared with the pattern `M_NNN_S_PP`,
+for the major version, version id, subsidiary version id, and patch number
+respectively.
 
 Index version is stored in index metadata when an index is created,
 and it is used to determine the storage format and what functionality that index supports.
 The index version does not change once an index is created.
 
-In the same way as transport versions, when a change is needed to the index
-data format or metadata, or new mapping types are added, create a new version constant
-below the last one, incrementing the `NNN` version component.
+When a change is needed to the index data format or metadata, or new mapping
+types are added, create a new version constant below the last one, incrementing
+the `NNN` version component.
 
-Unlike transport version, version constants cannot be collapsed together,
+Index version constants cannot be collapsed together,
 as an index keeps its creation version id once it is created.
 Fortunately, new index versions are only created once a month or so,
 so we don’t have a large list of index versions that need managing.

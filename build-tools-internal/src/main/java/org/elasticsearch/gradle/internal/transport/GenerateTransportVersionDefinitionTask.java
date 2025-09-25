@@ -103,11 +103,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
         getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
         if (targetDefinitionName.isEmpty()) {
-            resetAllUpperBounds(resources);
+            // TODO: resetting upper bounds needs to be done locally, otherwise it pulls in some (incomplete) changes from upstream main
+            // resetAllUpperBounds(resources);
         } else {
             List<TransportVersionId> ids = updateUpperBounds(resources, upstreamUpperBounds, targetUpperBoundNames, targetDefinitionName);
             // (Re)write the definition file.
-            resources.writeReferableDefinition(new TransportVersionDefinition(targetDefinitionName, ids));
+            resources.writeDefinition(new TransportVersionDefinition(targetDefinitionName, ids, true));
         }
 
         removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
@@ -123,6 +124,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         int increment = getIncrement().get();
         if (increment <= 0) {
             throw new IllegalArgumentException("Invalid increment " + increment + ", must be a positive integer");
+        }
+        if (increment > 1000) {
+            throw new IllegalArgumentException("Invalid increment " + increment + ", must be no larger than 1000");
         }
         List<TransportVersionId> ids = new ArrayList<>();
         boolean stageInGit = getResolveConflict().getOrElse(false);

@@ -3,7 +3,7 @@
   "type" : "time_series_agg",
   "name" : "rate",
   "description" : "The rate of a counter field.",
-  "note" : "Available with the TS command in snapshot builds",
+  "note" : "Available with the TS command",
   "signatures" : [
     {
       "params" : [
@@ -46,5 +46,5 @@
     "TS k8s\n| STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute)"
   ],
   "preview" : false,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

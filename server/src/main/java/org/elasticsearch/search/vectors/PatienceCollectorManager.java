@@ -17,7 +17,16 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 
 import java.io.IOException;
 
-public class PatienceCollectorManager implements KnnCollectorManager {
+/**
+ * This is a decorator for the {@link KnnCollectorManager} that early terminates the wrapped {@link KnnCollector}
+ * based on a saturation threshold and a patience factor. It is designed
+ * to improve the efficiency of approximate nearest neighbor (KNN) searches by monitoring queue saturation
+ * during the search process.
+ * This applies a patience-based logic to both optimistic and regular KNN collectors.
+ * The saturation threshold defines the percentage of saturation at which the collector's patience is
+ * tested for termination.
+ */
+class PatienceCollectorManager implements KnnCollectorManager {
     private static final double DEFAULT_SATURATION_THRESHOLD = 0.995;
 
     private final KnnCollectorManager knnCollectorManager;
@@ -30,7 +39,7 @@ public class PatienceCollectorManager implements KnnCollectorManager {
         this.saturationThreshold = saturationThreshold;
     }
 
-    public static KnnCollectorManager wrap(KnnCollectorManager knnCollectorManager, int k) {
+    static KnnCollectorManager wrap(KnnCollectorManager knnCollectorManager, int k) {
         return new PatienceCollectorManager(knnCollectorManager, Math.max(7, (int) (k * 0.3)), DEFAULT_SATURATION_THRESHOLD);
     }
 

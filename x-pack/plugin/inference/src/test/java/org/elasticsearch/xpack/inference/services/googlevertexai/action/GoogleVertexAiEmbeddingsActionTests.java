@@ -75,7 +75,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -99,7 +99,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -117,7 +117,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );

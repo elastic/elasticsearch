@@ -46,7 +46,7 @@ public class IrateFloatAggregator {
     }
 
     public static String describe() {
-      return "instant change of floats";
+        return "instant change of floats";
     }
 
     public static void combineIntermediate(

@@ -46,7 +46,7 @@ public class IrateLongAggregator {
     }
 
     public static String describe() {
-      return "instant change of longs";
+        return "instant change of longs";
     }
 
     public static void combineIntermediate(

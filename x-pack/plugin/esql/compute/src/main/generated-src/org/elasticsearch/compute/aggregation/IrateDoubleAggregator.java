@@ -46,7 +46,7 @@ public class IrateDoubleAggregator {
     }
 
     public static String describe() {
-      return "instant change of doubles";
+        return "instant change of doubles";
     }
 
     public static void combineIntermediate(

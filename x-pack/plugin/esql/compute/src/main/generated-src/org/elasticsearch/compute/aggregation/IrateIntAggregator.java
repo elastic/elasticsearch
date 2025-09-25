@@ -46,7 +46,7 @@ public class IrateIntAggregator {
     }
 
     public static String describe() {
-      return "instant change of ints";
+        return "instant change of ints";
     }
 
     public static void combineIntermediate(

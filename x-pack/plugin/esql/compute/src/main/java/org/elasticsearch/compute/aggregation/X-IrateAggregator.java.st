@@ -46,7 +46,7 @@ public class Irate$Type$Aggregator {
     }
 
     public static String describe() {
-      return "instant change of $type$s";
+        return "instant change of $type$s";
     }
 
     public static void combineIntermediate(

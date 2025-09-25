@@ -46,9 +46,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     private static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = TransportVersion.fromName(
         "ml_inference_elastic_dense_text_embeddings_added"
     );
-    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
-        "inference_api_disable_eis_rate_limiting"
-    );
 
     private final String modelId;
     private final SimilarityMeasure similarity;

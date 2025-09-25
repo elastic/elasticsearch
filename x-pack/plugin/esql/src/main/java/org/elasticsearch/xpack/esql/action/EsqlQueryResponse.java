@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-<<<<<<< HEAD
-import org.elasticsearch.TransportVersions;
-=======
 import org.elasticsearch.TransportVersion;
->>>>>>> a720e2f709d (Migrate transport versions 8841_052 through 8841_062 (#135328))
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;

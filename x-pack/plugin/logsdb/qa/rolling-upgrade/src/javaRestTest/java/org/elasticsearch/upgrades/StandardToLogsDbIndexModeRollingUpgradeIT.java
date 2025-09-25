@@ -25,7 +25,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -116,8 +115,8 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractRollingUp
           }
         }""";
 
-    @Before
-    public void checkFeatures() {
+    @Override
+    protected void beforeUpgrade() {
         if (Build.current().isSnapshot()) {
             assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
         }

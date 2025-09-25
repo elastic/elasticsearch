@@ -15,7 +15,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -72,8 +71,8 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractRollingUpgradeWithS
         super(upgradedNodes);
     }
 
-    @Before
-    public void checkFeatures() {
+    @Override
+    protected void beforeUpgrade() {
         if (Build.current().isSnapshot()) {
             assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
         }

@@ -26,10 +26,50 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
+/**
+ * Utility class for handling errors in cross-project index operations.
+ * <p>
+ * This class provides consistent error handling for scenarios where index resolution
+ * spans multiple projects, taking into account the provided {@link IndicesOptions}.
+ * It handles:
+ * <ul>
+ *   <li>Validation of index existence in the merged project view based on IndicesOptions (ignoreUnavailable,
+ *   allowNoIndices)</li>
+ *   <li>Authorization issues during cross-project index resolution</li>
+ *   <li>Both flat (unqualified) and qualified index expressions</li>
+ *   <li>Wildcard index patterns that may resolve differently across projects</li>
+ * </ul>
+ * <p>
+ * The utility examines both local and remote resolution results to determine the appropriate
+ * error response, throwing {@link IndexNotFoundException} for missing indices or
+ * {@link ElasticsearchSecurityException} for authorization failures.
+ */
 public class CrossProjectErrorsUtil {
     private static final Logger logger = LogManager.getLogger(CrossProjectErrorsUtil.class);
     private static final String WILDCARD = "*";
 
+    /**
+     * Validates the results of cross-project index resolution and throws appropriate exceptions based on the provided
+     * {@link IndicesOptions}.
+     * <p>
+     * This method handles error scenarios when resolving indices across multiple projects:
+     * <ul>
+     *   <li>If both {@code ignoreUnavailable} and {@code allowNoIndices} are true, the method returns without validation
+     *       (lenient mode)</li>
+     *   <li>For wildcard patterns that resolve to no indices, validates against {@code allowNoIndices}</li>
+     *   <li>For concrete indices that don't exist, validates against {@code ignoreUnavailable}</li>
+     *   <li>For indices with authorization issues, throws security exceptions</li>
+     * </ul>
+     * <p>
+     * The method considers both flat (unqualified) and qualified index expressions, as well as
+     * local and linked project resolution results when determining whether to throw exceptions.
+     *
+     * @param indicesOptions Controls error behavior for missing indices
+     * @param localResolvedExpressions Resolution results from the origin project
+     * @param remoteResolvedExpressions Resolution results from linked projects
+     * @throws IndexNotFoundException If indices are missing and the {@code IndicesOptions} do not allow it
+     * @throws ElasticsearchSecurityException If authorization errors occurred during index resolution
+     */
     public void crossProjectFanoutErrorHandling(
         IndicesOptions indicesOptions,
         ResolvedIndexExpressions localResolvedExpressions,

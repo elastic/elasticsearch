@@ -469,7 +469,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         for (int i = 0; i < shard1Queries; ++i) {
             shard1Segment1Searcher.count(new DummyQuery("ingest1-" + i, largeQuerySize));
         }
-        long shard1Segment1CacheMemory = shard1Queries * ((largeQuerySize + 128) + 8 * (((shard1Segment1Docs - 1) / 64) + 1));
+        long shard1Segment1CacheMemory = calculateActualCacheMemoryForShard(shard1Queries, largeQuerySize, shard1Segment1Docs);
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(shard1Segment1CacheMemory));
         assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(0L));
         for (int i = 0; i < shard2Queries; ++i) {
@@ -483,12 +483,12 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), lessThan(shard1Segment1CacheMemory));
         long shard1CacheBytes = cache.getStats(shard1).getMemorySizeInBytes();
         long shard2CacheBytes = cache.getStats(shard2).getMemorySizeInBytes();
-        long shard2Segment1CacheMemory = shard2Queries * ((smallQuerySize + 128) + 8 * (((shard2Segment1Docs - 1) / 64) + 1));
+        long shard2Segment1CacheMemory = calculateActualCacheMemoryForShard(shard2Queries, smallQuerySize, shard2Segment1Docs);
 
         long totalMemory = shard1Segment1CacheMemory + shard2Segment1CacheMemory;
         // Each shard has some fixed overhead that we need to account for:
-        long shard1Overhead = shard1Queries * (112 + 8 * ((shard1Segment1Docs - 1) / 64));
-        long shard2Overhead = shard2Queries * (112 + 8 * ((shard2Segment1Docs - 1) / 64));
+        long shard1Overhead = calculateOverheadForShard(shard1Queries, shard1Segment1Docs);
+        long shard2Overhead = calculateOverheadForShard(shard2Queries, shard2Segment1Docs);
         long totalMemoryMinusOverhead = totalMemory - (shard1Overhead + shard2Overhead);
         /*
          * Note that the expected amount of memory we're calculating is based on the proportion of the number of queries to each shard
@@ -505,11 +505,10 @@ public class IndicesQueryCacheTests extends ESTestCase {
         for (int i = 0; i < shard1Queries; ++i) {
             shard1Segment2Searcher.count(new DummyQuery("ingest3-" + i, largeQuerySize));
         }
-        long shard1Segment2CacheMemory = shard1Queries * ((largeQuerySize + 128) + 8 * (((shard1Segment2Docs - 1) / 64) + 1));
+        long shard1Segment2CacheMemory = calculateActualCacheMemoryForShard(shard1Queries, largeQuerySize, shard1Segment2Docs);
         totalMemory = shard1Segment1CacheMemory + shard2Segment1CacheMemory + shard1Segment2CacheMemory;
-        System.err.println(shard1Queries + "\t" + shard1Segment1Docs + "\t" + shard2Queries + "\t" + shard2Segment1Docs);
         // Each shard has some fixed overhead that we need to account for:
-        shard1Overhead = shard1Overhead + shard1Queries * (112 + 8 * ((shard1Segment2Docs - 1) / 64));
+        shard1Overhead = shard1Overhead + calculateOverheadForShard(shard1Queries, shard1Segment2Docs);
         totalMemoryMinusOverhead = totalMemory - (shard1Overhead + shard2Overhead);
         /*
          * Note that the expected amount of memory we're calculating is based on the proportion of the number of queries to each segment.
@@ -525,12 +524,23 @@ public class IndicesQueryCacheTests extends ESTestCase {
             shard2Searcher.count(new DummyQuery("ingest4-" + i, smallQuerySize));
         }
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(0L));
-        assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(maxCacheSize * (smallQuerySize + 136)));
+        assertThat(
+            cache.getStats(shard2).getMemorySizeInBytes(),
+            equalTo(calculateActualCacheMemoryForShard(maxCacheSize, smallQuerySize, shard2Segment1Docs))
+        );
 
         IOUtils.close(closeableList);
         cache.onClose(shard1);
         cache.onClose(shard2);
         cache.close();
+    }
+
+    private long calculateActualCacheMemoryForShard(long queryCount, long querySize, long numDocs) {
+        return queryCount * (querySize + 24) + calculateOverheadForShard(queryCount, numDocs);
+    }
+
+    private long calculateOverheadForShard(long queryCount, long numDocs) {
+        return queryCount * (112 + 8 * ((numDocs - 1) / 64));
     }
 
     /*

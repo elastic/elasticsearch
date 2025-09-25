@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -1087,6 +1088,17 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertEquals(
                 Set.of("restore_in_progress"),
                 nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+            assertEquals(
+                Set.of("restore_in_progress"),
+                nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+            assertThat(
+                nodeDecision.getCanAllocateDecision().getDecisions().get(0).getExplanation(),
+                startsWith(
+                    "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                        + "Please check constraints applied in index and cluster settings, then retry the restore."
+                )
             );
         }
     }

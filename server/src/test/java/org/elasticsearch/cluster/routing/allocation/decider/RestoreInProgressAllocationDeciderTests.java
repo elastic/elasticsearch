@@ -80,7 +80,10 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
         assertEquals(Decision.Type.NO, decision.type());
         assertThat(
             decision.getExplanation(),
-            equalTo("shard was prevented from being allocated on all nodes because of other allocation deciders in previous rounds")
+            startsWith(
+                "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                    + "Please check constraints applied in index and cluster settings, then retry the restore."
+            )
         );
     }
 
@@ -185,7 +188,10 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             } else {
                 assertThat(
                     decision.getExplanation(),
-                    startsWith("shard was prevented from being allocated on all nodes because of other allocation deciders")
+                    startsWith(
+                        "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                            + "Please check constraints applied in index and cluster settings, then retry the restore."
+                    )
                 );
             }
         } else {

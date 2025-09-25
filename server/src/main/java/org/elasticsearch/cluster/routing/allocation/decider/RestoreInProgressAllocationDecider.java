@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.ReferenceDocs;
 
 /**
  * This {@link AllocationDecider} prevents shards that have failed to be
@@ -72,7 +73,10 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "shard was prevented from being allocated on all nodes because of other allocation deciders in previous rounds"
+                "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                    + "Please check constraints applied in index and cluster settings, then retry the restore. "
+                    + "See [%s] for more details on using the allocation explain API.",
+                ReferenceDocs.ALLOCATION_EXPLAIN_API
             );
         }
     }

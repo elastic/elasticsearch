@@ -918,10 +918,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 listener
             );
 
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> listener.actionGet(TIMEOUT)
-            );
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(
                 thrownException.getMessage(),

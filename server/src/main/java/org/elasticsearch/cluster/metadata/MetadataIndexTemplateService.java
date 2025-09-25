@@ -953,8 +953,8 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
-        final ComposableIndexTemplate existing = project.templatesV2().get(templateName);
-        final Settings existingSettings = Optional.ofNullable(existing)
+        final ComposableIndexTemplate existingTemplate = project.templatesV2().get(templateName);
+        final Settings existingSettings = Optional.ofNullable(existingTemplate)
             .map(ComposableIndexTemplate::template)
             .map(Template::settings)
             .orElse(Settings.EMPTY);
@@ -965,11 +965,11 @@ public class MetadataIndexTemplateService {
         // We check whether anything relevant has changed that could affect data stream coverage and return early if not.
         // These checks are based on the implementation of findV2Template and the data stream template check in this method.
         // If we're adding a new template, we do the full check in case this template's priority changes coverage.
-        if (existing != null
-            && existing.indexPatterns().equals(newTemplate.indexPatterns())
+        if (existingTemplate != null
+            && Objects.equals(existingTemplate.indexPatterns(), newTemplate.indexPatterns())
             && Objects.equals(existingSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), newSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN))
-            && Objects.equals(existing.getDataStreamTemplate() != null, newTemplate.getDataStreamTemplate() != null)
-            && existing.priorityOrZero() == newTemplate.priorityOrZero()) {
+            && Objects.equals(existingTemplate.getDataStreamTemplate() != null, newTemplate.getDataStreamTemplate() != null)
+            && Objects.equals(existingTemplate.priorityOrZero(), newTemplate.priorityOrZero())) {
             if (Assertions.ENABLED) {
                 try {
                     validateDataStreamsStillReferenced(project, templateName, newTemplate);

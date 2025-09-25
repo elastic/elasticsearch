@@ -33,11 +33,7 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         MatchQueryBuilder originalQuery,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
-        return new InterceptedInferenceMatchQueryBuilder(
-            new InterceptedInferenceMatchQueryBuilder(originalQuery),
-            inferenceResultsMap,
-            false
-        );
+        return new InterceptedInferenceMatchQueryBuilder(originalQuery, inferenceResultsMap);
     }
 
     @Override

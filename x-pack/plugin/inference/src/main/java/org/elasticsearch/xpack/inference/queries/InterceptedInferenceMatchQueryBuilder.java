@@ -31,11 +31,18 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
         super(originalQuery);
     }
 
+    public InterceptedInferenceMatchQueryBuilder(
+        MatchQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        super(originalQuery, inferenceResultsMap);
+    }
+
     public InterceptedInferenceMatchQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
-    InterceptedInferenceMatchQueryBuilder(
+    private InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         boolean ccsRequest

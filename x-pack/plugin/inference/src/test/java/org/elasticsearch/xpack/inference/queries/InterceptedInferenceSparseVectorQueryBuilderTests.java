@@ -61,11 +61,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         SparseVectorQueryBuilder originalQuery,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
-        return new InterceptedInferenceSparseVectorQueryBuilder(
-            new InterceptedInferenceSparseVectorQueryBuilder(originalQuery),
-            inferenceResultsMap,
-            false
-        );
+        return new InterceptedInferenceSparseVectorQueryBuilder(originalQuery, inferenceResultsMap);
     }
 
     @Override

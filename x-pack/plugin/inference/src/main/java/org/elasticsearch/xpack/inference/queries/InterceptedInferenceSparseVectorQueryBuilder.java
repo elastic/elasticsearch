@@ -45,11 +45,18 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         super(originalQuery);
     }
 
+    public InterceptedInferenceSparseVectorQueryBuilder(
+        SparseVectorQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        super(originalQuery, inferenceResultsMap);
+    }
+
     public InterceptedInferenceSparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
-    InterceptedInferenceSparseVectorQueryBuilder(
+    private InterceptedInferenceSparseVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         boolean ccsRequest

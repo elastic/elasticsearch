@@ -70,9 +70,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected final boolean ccsRequest;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
+        this(originalQuery, null);
+    }
+
+    protected InterceptedInferenceQueryBuilder(T originalQuery, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         Objects.requireNonNull(originalQuery, "original query must not be null");
         this.originalQuery = originalQuery;
-        this.inferenceResultsMap = null;
+        this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
         this.ccsRequest = false;
     }
 

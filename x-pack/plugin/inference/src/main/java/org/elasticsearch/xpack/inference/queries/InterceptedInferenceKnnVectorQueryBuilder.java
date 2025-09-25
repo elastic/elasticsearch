@@ -46,11 +46,18 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         super(originalQuery);
     }
 
+    public InterceptedInferenceKnnVectorQueryBuilder(
+        KnnVectorQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        super(originalQuery, inferenceResultsMap);
+    }
+
     public InterceptedInferenceKnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
-    InterceptedInferenceKnnVectorQueryBuilder(
+    private InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         boolean ccsRequest

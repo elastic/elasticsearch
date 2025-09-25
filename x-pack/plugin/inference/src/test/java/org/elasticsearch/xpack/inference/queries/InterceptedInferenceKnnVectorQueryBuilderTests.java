@@ -61,11 +61,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         KnnVectorQueryBuilder originalQuery,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
-        return new InterceptedInferenceKnnVectorQueryBuilder(
-            new InterceptedInferenceKnnVectorQueryBuilder(originalQuery),
-            inferenceResultsMap,
-            false
-        );
+        return new InterceptedInferenceKnnVectorQueryBuilder(originalQuery, inferenceResultsMap);
     }
 
     @Override

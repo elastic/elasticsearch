@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
-public final class PruneEmptyInlineStatsRightSide extends OptimizerRules.OptimizerRule<InlineJoin> {
+public final class PruneInlineJoinOnEmptyRightSide extends OptimizerRules.OptimizerRule<InlineJoin> {
 
     @Override
     protected LogicalPlan rule(InlineJoin plan) {

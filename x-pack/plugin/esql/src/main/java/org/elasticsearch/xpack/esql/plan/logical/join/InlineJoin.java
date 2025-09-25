@@ -162,7 +162,7 @@ public class InlineJoin extends Join {
                         var p = ij.right();
                         p.setOptimized();
                         subPlan.set(new LogicalPlanTuple(p, ij.right()));
-                        // TODO: INLINE STATS this is essentially an optimization similar to the one in PruneEmptyInlineStatsRightSide
+                        // TODO: INLINE STATS this is essentially an optimization similar to the one in PruneInlineJoinOnEmptyRightSide
                         // this further supports the idea of running the optimization step again after the substitutions (see EsqlSession
                         // executeSubPlan() method where we could run the optimizer after the results are replaced in place).
                     }

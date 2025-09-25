@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
@@ -91,14 +90,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                commonInferenceIdField,
-                new TextEmbeddingQueryVectorBuilder(null, "a"),
-                10,
-                100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
-                null
-            ),
+            new KnnVectorQueryBuilder(commonInferenceIdField, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null),
             queryIndices,
             List.of(
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1"),
@@ -108,14 +100,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Query a field that has mixed types across clusters
         assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                mixedTypeField1,
-                new TextEmbeddingQueryVectorBuilder(localInferenceId, "y"),
-                10,
-                100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
-                null
-            ),
+            new KnnVectorQueryBuilder(mixedTypeField1, new TextEmbeddingQueryVectorBuilder(localInferenceId, "y"), 10, 100, 10f, null),
             queryIndices,
             List.of(
                 new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2"),
@@ -123,14 +108,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             )
         );
         assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                mixedTypeField2,
-                new TextEmbeddingQueryVectorBuilder(localInferenceId, "c"),
-                10,
-                100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
-                null
-            ),
+            new KnnVectorQueryBuilder(mixedTypeField2, new TextEmbeddingQueryVectorBuilder(localInferenceId, "c"), 10, 100, 10f, null),
             queryIndices,
             List.of(
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
@@ -143,7 +121,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)
         );
         assertSearchResponse(
-            new KnnVectorQueryBuilder(mixedTypeField1, queryVector, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null),
+            new KnnVectorQueryBuilder(mixedTypeField1, queryVector, 10, 100, 10f, null, null),
             queryIndices,
             List.of(
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2"),
@@ -151,7 +129,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             )
         );
         assertSearchResponse(
-            new KnnVectorQueryBuilder(mixedTypeField2, queryVector, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null),
+            new KnnVectorQueryBuilder(mixedTypeField2, queryVector, 10, 100, 10f, null, null),
             queryIndices,
             List.of(
                 new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3"),
@@ -161,14 +139,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
         assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                mixedTypeField2,
-                new TextEmbeddingQueryVectorBuilder(null, "c"),
-                10,
-                100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
-                null
-            ),
+            new KnnVectorQueryBuilder(mixedTypeField2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
             queryIndices,
             List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
             new ClusterFailure(
@@ -184,7 +155,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         final String remoteIndexName = "remote-index";
         final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
         final BiConsumer<String, TextEmbeddingQueryVectorBuilder> assertCcsMinimizeRoundTripsFalseFailure = (f, qvb) -> {
-            KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(f, qvb, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null);
+            KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(f, qvb, 10, 100, 10f, null);
 
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
             SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
@@ -270,14 +241,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
 
         // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
         assertSearchResponse(
-            new KnnVectorQueryBuilder(
-                mixedTypeField2,
-                new TextEmbeddingQueryVectorBuilder(commonInferenceId, "foo"),
-                10,
-                100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
-                null
-            ),
+            new KnnVectorQueryBuilder(mixedTypeField2, new TextEmbeddingQueryVectorBuilder(commonInferenceId, "foo"), 10, 100, 10f, null),
             queryIndices,
             List.of(new SearchResult(null, localIndexName, mixedTypeField2 + "_doc")),
             new ClusterFailure(
@@ -299,7 +263,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 generateDenseVectorFieldValue(dimensions, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f),
                 10,
                 100,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 null,
                 null
             ),

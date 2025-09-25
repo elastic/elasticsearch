@@ -44,6 +44,6 @@ public final class IrateFloatAggregatorFunctionSupplier implements AggregatorFun
 
   @Override
   public String describe() {
-    return "irate of floats";
+    return IrateFloatAggregator.describe();
   }
 }

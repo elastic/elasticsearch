@@ -17,7 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -82,7 +82,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
-    private ReleasableBytesStreamOutput buffer;
+    private RecyclerBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -245,7 +245,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new ReleasableBytesStreamOutput(bigArrays);
+                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
@@ -544,10 +544,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private synchronized ReleasableBytesReference pollOpsToWrite() {
         ensureOpen();
         if (this.buffer != null) {
-            ReleasableBytesStreamOutput toWrite = this.buffer;
-            this.buffer = null;
-            this.bufferedBytes = 0;
-            return new ReleasableBytesReference(toWrite.bytes(), toWrite);
+            try (RecyclerBytesStreamOutput toWrite = this.buffer) {
+                this.buffer = null;
+                this.bufferedBytes = 0;
+                return toWrite.moveToBytesReference();
+            }
         } else {
             return ReleasableBytesReference.empty();
         }

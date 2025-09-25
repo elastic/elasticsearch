@@ -25,59 +25,77 @@ public class MergedDocValuesRangeQueryTests extends ESTestCase {
 
     @Test
     public void testNotRangeQueries() {
-        assertThat(MergedDocValuesRangeQuery.merge(
-            LongPoint.newRangeQuery("field", 1, 4),
-            new TermQuery(new Term("field", "foo"))
-        ), nullValue());
+        assertThat(
+            MergedDocValuesRangeQuery.merge(LongPoint.newRangeQuery("field", 1, 4), new TermQuery(new Term("field", "foo"))),
+            nullValue()
+        );
 
-        assertThat(MergedDocValuesRangeQuery.merge(
-            NumericDocValuesField.newSlowRangeQuery("field", 1, 4),
-            LongPoint.newRangeQuery("field", 2, 4)
-        ), nullValue());
+        assertThat(
+            MergedDocValuesRangeQuery.merge(NumericDocValuesField.newSlowRangeQuery("field", 1, 4), LongPoint.newRangeQuery("field", 2, 4)),
+            nullValue()
+        );
 
-        assertThat(MergedDocValuesRangeQuery.merge(
-            LongPoint.newRangeQuery("field", 2, 4),
-            NumericDocValuesField.newSlowRangeQuery("field", 1, 4)
-        ), nullValue());
+        assertThat(
+            MergedDocValuesRangeQuery.merge(LongPoint.newRangeQuery("field", 2, 4), NumericDocValuesField.newSlowRangeQuery("field", 1, 4)),
+            nullValue()
+        );
     }
 
     @Test
     public void testDifferentFields() {
-        assertThat(MergedDocValuesRangeQuery.merge(
-            NumericDocValuesField.newSlowRangeQuery("field1", 1, 4),
-            NumericDocValuesField.newSlowRangeQuery("field2", 2, 4)
-        ), nullValue());
+        assertThat(
+            MergedDocValuesRangeQuery.merge(
+                NumericDocValuesField.newSlowRangeQuery("field1", 1, 4),
+                NumericDocValuesField.newSlowRangeQuery("field2", 2, 4)
+            ),
+            nullValue()
+        );
     }
 
     @Test
     public void testNoOverlap() {
-        assertThat(MergedDocValuesRangeQuery.merge(
-            NumericDocValuesField.newSlowRangeQuery("field", 1, 4),
-            NumericDocValuesField.newSlowRangeQuery("field", 6, 8)
-        ), instanceOf(MatchNoDocsQuery.class));
+        assertThat(
+            MergedDocValuesRangeQuery.merge(
+                NumericDocValuesField.newSlowRangeQuery("field", 1, 4),
+                NumericDocValuesField.newSlowRangeQuery("field", 6, 8)
+            ),
+            instanceOf(MatchNoDocsQuery.class)
+        );
     }
 
     @Test
     public void testOverlap() {
-        assertThat(MergedDocValuesRangeQuery.merge(
-            NumericDocValuesField.newSlowRangeQuery("field", 1, 6),
-            NumericDocValuesField.newSlowRangeQuery("field", 4, 8)
-        ), equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6)));
+        assertThat(
+            MergedDocValuesRangeQuery.merge(
+                NumericDocValuesField.newSlowRangeQuery("field", 1, 6),
+                NumericDocValuesField.newSlowRangeQuery("field", 4, 8)
+            ),
+            equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6))
+        );
 
-        assertThat(MergedDocValuesRangeQuery.merge(
-            NumericDocValuesField.newSlowRangeQuery("field", 4, 8),
-            NumericDocValuesField.newSlowRangeQuery("field", 1, 6)
-        ), equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6)));
+        assertThat(
+            MergedDocValuesRangeQuery.merge(
+                NumericDocValuesField.newSlowRangeQuery("field", 4, 8),
+                NumericDocValuesField.newSlowRangeQuery("field", 1, 6)
+            ),
+            equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6))
+        );
 
-        assertThat(MergedDocValuesRangeQuery.merge(
-            NumericDocValuesField.newSlowRangeQuery("field", 1, 8),
-            NumericDocValuesField.newSlowRangeQuery("field", 4, 6)
-        ), equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6)));
+        assertThat(
+            MergedDocValuesRangeQuery.merge(
+                NumericDocValuesField.newSlowRangeQuery("field", 1, 8),
+                NumericDocValuesField.newSlowRangeQuery("field", 4, 6)
+            ),
+            equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6))
+        );
 
-        assertThat(MergedDocValuesRangeQuery.merge(
-            NumericDocValuesField.newSlowRangeQuery("field", 4, 6),
-            NumericDocValuesField.newSlowRangeQuery("field", 1, 8)
-        ), equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6)));
+        assertThat(
+            MergedDocValuesRangeQuery.merge(
+                NumericDocValuesField.newSlowRangeQuery("field", 4, 6),
+                NumericDocValuesField.newSlowRangeQuery("field", 1, 8)
+            ),
+            equalTo(NumericDocValuesField.newSlowRangeQuery("field", 4, 6))
+        );
     }
 
 }

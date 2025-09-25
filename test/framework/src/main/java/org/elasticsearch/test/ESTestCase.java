@@ -152,9 +152,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -844,13 +846,25 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
-                List<String> collect = statusData.stream()
-                    .map(status -> status.getMessage().getFormattedMessage())
-                    .collect(Collectors.toList());
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage;
+                assertThat(statusData, everyItem(new TypeSafeMatcher<StatusData>() {
+                    @Override
+                    protected boolean matchesSafely(StatusData item) {
+                        return LOG_4J_MSG_PREFIXES.matches(item.getFormattedStatus());
+                    }
 
-                assertThat(collect, everyItem(LOG_4J_MSG_PREFIXES));
+                    @Override
+                    public void describeTo(Description description) {
+                        LOG_4J_MSG_PREFIXES.describeTo(description);
+                    }
+
+                    @Override
+                    protected void describeMismatchSafely(StatusData item, Description mismatchDescription) {
+                        // make sure we see log4j exceptions in case of issues
+                        mismatchDescription.appendText("was ").appendValue(item.getFormattedStatus());
+                    }
+                }));
+
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();

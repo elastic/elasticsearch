@@ -17,9 +17,11 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
+$if(hasExtra)$
+import org.elasticsearch.compute.data.$ExtraType$Block;
+$endif$
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.$Type$Block;
-import org.elasticsearch.compute.data.sort.$Name$BucketedSort;
+import org.elasticsearch.compute.data.sort.$Name$$ExtraName$BucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
@@ -31,28 +33,32 @@ import org.elasticsearch.search.sort.SortOrder;
  *     This class is generated. Edit `X-TopAggregator.java.st` to edit this file.
  * </p>
  */
+$if(hasExtra)$
+@Aggregator({ @IntermediateState(name = "top", type = "$TYPE$_BLOCK"), @IntermediateState(name = "extra", type = "$ExtraTYPE$_BLOCK") })
+$else$
 @Aggregator({ @IntermediateState(name = "top", type = "$TYPE$_BLOCK") })
+$endif$
 @GroupingAggregator
-class Top$Name$Aggregator {
+class Top$Name$$ExtraName$Aggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }
 
-    public static void combine(SingleState state, $type$ v) {
-        state.add(v);
+    public static void combine(SingleState state, $type$ v$if(hasExtra)$, $Extratype$ extra$endif$) {
+        state.add(v$if(hasExtra)$, extra$endif$);
     }
 
-    public static void combineIntermediate(SingleState state, $Type$Block values) {
+    public static void combineIntermediate(SingleState state, $Type$Block values$if(hasExtra)$, $ExtraType$Block extras$endif$) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
 $if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i, scratch));
+            combine(state, values.get$Type$(i, scratch)$if(hasExtra)$, extras.get$ExtraType$(i)$endif$);
         }
 $else$
         for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i));
+            combine(state, values.get$Type$(i)$if(hasExtra)$, extras.get$ExtraType$(i)$endif$);
         }
 $endif$
     }
@@ -65,21 +71,21 @@ $endif$
         return new GroupingState(bigArrays, limit, ascending);
     }
 
-    public static void combine(GroupingState state, int groupId, $type$ v) {
-        state.add(groupId, v);
+    public static void combine(GroupingState state, int groupId, $type$ v$if(hasExtra)$, $Extratype$ extra$endif$) {
+        state.add(groupId, v$if(hasExtra)$, extra$endif$);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, $if(hasExtra)$$ExtraType$Block extras, $endif$int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
 $if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i, scratch));
+            combine(state, groupId, values.get$Type$(i, scratch)$if(hasExtra)$, extras.get$ExtraType$(i)$endif$);
         }
 $else$
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i));
+            combine(state, groupId, values.get$Type$(i)$if(hasExtra)$, extras.get$ExtraType$(i)$endif$);
         }
 $endif$
     }
@@ -89,7 +95,7 @@ $endif$
     }
 
     public static class GroupingState implements GroupingAggregatorState {
-        private final $Name$BucketedSort sort;
+        private final $Name$$ExtraName$BucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
 $if(BytesRef)$
@@ -97,22 +103,36 @@ $if(BytesRef)$
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "top", bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
 $else$
-            this.sort = new $Name$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+            this.sort = new $Name$$ExtraName$BucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
 $endif$
         }
 
-        public void add(int groupId, $type$ value) {
-            sort.collect(value, groupId);
+        public void add(int groupId, $type$ value$if(hasExtra)$, $Extratype$ extra$endif$) {
+            sort.collect(value, $if(hasExtra)$extra, $endif$groupId);
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+$if(hasExtra)$
+            sort.toBlocks(driverContext.blockFactory(), blocks, offset, selected);
+$else$
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
+$endif$
         }
 
+$if(hasExtra)$
+        Block toBlock(BlockFactory blockFactory, IntVector selected) {
+            Block[] blocks = new Block[2];
+            sort.toBlocks(blockFactory, blocks, 0, selected);
+            Releasables.close(blocks[0]);
+            return blocks[1];
+        }
+
+$else$
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
             return sort.toBlock(blockFactory, selected);
         }
+$endif$
 
         @Override
         public void enableGroupIdTracking(SeenGroupIds seen) {
@@ -132,13 +152,15 @@ $endif$
             this.internalState = new GroupingState(bigArrays, limit, ascending);
         }
 
-        public void add($type$ value) {
-            internalState.add(0, value);
+        public void add($type$ value$if(hasExtra)$, $Extratype$ extra$endif$) {
+            internalState.add(0, value$if(hasExtra)$, extra$endif$);
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory());
+            try (var intValues = driverContext.blockFactory().newConstantIntVector(0, 1)) {
+                internalState.toIntermediate(blocks, offset, intValues, driverContext);
+            }
         }
 
         Block toBlock(BlockFactory blockFactory) {

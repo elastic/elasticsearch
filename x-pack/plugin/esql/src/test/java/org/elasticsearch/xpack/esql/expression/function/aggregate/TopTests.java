@@ -285,7 +285,7 @@ public class TopTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Top(source, args.get(0), args.get(1), args.size() == 3 ? args.get(2) : null);
+        return new Top(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, args.size() > 3 ? args.get(3) : null);
     }
 
     @SuppressWarnings("unchecked")

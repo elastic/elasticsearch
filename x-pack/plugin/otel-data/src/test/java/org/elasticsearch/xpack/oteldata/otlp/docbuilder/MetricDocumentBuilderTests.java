@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
@@ -111,7 +110,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
             Map<String, Map<String, String>> dynamicTemplatesParams = new HashMap<>();
-            BytesRef tsid = documentBuilder.buildMetricDocument(builder, dynamicTemplates, dynamicTemplatesParams, dataPointGroup);
+            BytesRef tsid = documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, dynamicTemplatesParams);
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
             assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
@@ -168,7 +167,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            documentBuilder.buildMetricDocument(builder, dataPointGroup);
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, new HashMap<>(), new HashMap<>());
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 

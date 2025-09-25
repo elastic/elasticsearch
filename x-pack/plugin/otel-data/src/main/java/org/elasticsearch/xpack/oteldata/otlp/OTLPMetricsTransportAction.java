@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -130,9 +129,14 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         DataPointGroupingContext.DataPointGroup dataPointGroup
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
-            Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
-            Map<String, String> dynamicTemplatesParams = Maps.newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
-            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dataPointGroup, dynamicTemplates, dynamicTemplatesParams);
+            var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            var dynamicTemplatesParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(
+                xContentBuilder,
+                dataPointGroup,
+                dynamicTemplates,
+                dynamicTemplatesParams
+            );
             bulkRequestBuilder.add(
                 new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)

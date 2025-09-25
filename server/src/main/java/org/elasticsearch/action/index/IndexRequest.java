@@ -77,6 +77,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
     private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
     private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
+    static final TransportVersion INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS = TransportVersion.fromName(
+        "ingest_request_dynamic_templates_params"
+    );
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
 
@@ -234,7 +237,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             tsid = in.readBytesRefOrNullIfEmpty();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)) {
+        if (in.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)) {
             dynamicTemplatesParams = in.readMap(StreamInput::readString, i -> i.readMap(StreamInput::readString));
         }
     }
@@ -826,7 +829,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)) {
+        if (out.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)) {
             out.writeMap(dynamicTemplatesParams, StreamOutput::writeString, (o, v) -> o.writeMap(v, StreamOutput::writeString));
         }
     }

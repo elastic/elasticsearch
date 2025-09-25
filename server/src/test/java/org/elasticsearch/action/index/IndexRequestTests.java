@@ -10,7 +10,6 @@ package org.elasticsearch.action.index;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
@@ -286,7 +285,7 @@ public class IndexRequestTests extends ESTestCase {
             TransportVersion ver = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersion.minimumCompatible(),
-                TransportVersionUtils.getPreviousVersion(TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)
+                TransportVersionUtils.getPreviousVersion(IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)
             );
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
@@ -302,7 +301,7 @@ public class IndexRequestTests extends ESTestCase {
             indexRequest.setDynamicTemplatesParams(dynamicTemplatesParams);
             TransportVersion ver = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS,
+                IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS,
                 TransportVersion.current()
             );
             BytesStreamOutput out = new BytesStreamOutput();

@@ -741,6 +741,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.getContentType(),
                     indexRequest.routing(),
                     Map.of(),
+                    Map.of(),
                     true,
                     XContentMeteringParserDecorator.NOOP,
                     indexRequest.tsid()

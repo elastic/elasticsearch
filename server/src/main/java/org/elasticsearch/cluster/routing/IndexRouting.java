@@ -234,9 +234,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int rerouteIndexingRequestIfResharding(
-            IndexRequest indexRequest
-        ) {
+        public int rerouteIndexingRequestIfResharding(IndexRequest indexRequest) {
             // System.out.println("Route based on Id");
             String id = indexRequest.id();
             String routing = indexRequest.routing();
@@ -383,6 +381,9 @@ public abstract class IndexRouting {
 
         protected abstract int hashSource(IndexRequest indexRequest);
 
+        // This is actually same as indexShard above minus the checkNoRouting check because routing
+        // can be added to the request during postProcess. But we probably need to think of ways to
+        // make this call cheaper.
         @Override
         public int rerouteIndexingRequestIfResharding(IndexRequest indexRequest) {
             // System.out.println("Extract from source");

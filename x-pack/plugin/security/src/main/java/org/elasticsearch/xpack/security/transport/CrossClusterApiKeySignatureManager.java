@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.env.Environment;
@@ -64,18 +63,19 @@ public class CrossClusterApiKeySignatureManager {
     public void reload(Settings settings) {
         logger.trace("Loading trust config with settings [{}]", settings);
         try {
-            // Only load a trust manager if trust is configured to avoid using key store as trust store
-            if (settingsHaveTrustConfig(settings)) {
-                var sslConfig = loadSslConfig(environment, settings);
-                sslTrustConfig.set(sslConfig);
-                var trustConfig = sslConfig.trustConfig();
+            var sslConfig = loadSslConfig(environment, settings);
+            var trustConfig = sslConfig.trustConfig();
+            // Only load a trust manager if trust is explicitly configured or system default, to avoid using key store as trust store
+            if (trustConfig.hasExplicitConfig() || trustConfig.isSystemDefault()) {
                 final X509ExtendedTrustManager newTrustManager = trustConfig.createTrustManager();
                 if (newTrustManager.getAcceptedIssuers().length == 0) {
                     logger.warn("Cross cluster API Key trust configuration [{}] has no accepted certificate issuers", this, trustConfig);
                     trustManager.set(null);
                 } else {
+                    sslTrustConfig.set(sslConfig);
                     trustManager.set(newTrustManager);
                 }
+
             } else {
                 trustManager.set(null);
             }
@@ -224,11 +224,6 @@ public class CrossClusterApiKeySignatureManager {
                 calculateFingerprint(certificates[0])
             );
         }
-    }
-
-    private static boolean settingsHaveTrustConfig(Settings settings) {
-        return settings.getByPrefix(SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.TRUSTSTORE_PATH).isEmpty() == false
-            || settings.getByPrefix(SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.CERTIFICATE_AUTHORITIES).isEmpty() == false;
     }
 
     private static String calculateFingerprint(X509Certificate certificate) {

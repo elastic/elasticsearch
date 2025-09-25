@@ -68,10 +68,10 @@ In order to set up, configure, and run a connector you’ll be moving between yo
 2. Create a connector.
    - Use the UI. Search for "connectors" in the [global search field](docs-content://explore-analyze/find-and-organize/find-apps-and-objects.md).
    - Use the API. Refer to [create connector API]({{es-apis}}/operation/operation-connector-post).
-4. Deploy the connector service:
+3. Deploy the connector service:
     - [Option 1: Run with Docker](es-connectors-run-from-docker.md) (recommended)
     - [Option 2: Run from source](es-connectors-run-from-source.md)
-5. Enter data source configuration details in the UI.
+4. Enter data source configuration details in the UI.
 
 ## Deploy the connector service [es-connectors-deploy-connector-service]
 

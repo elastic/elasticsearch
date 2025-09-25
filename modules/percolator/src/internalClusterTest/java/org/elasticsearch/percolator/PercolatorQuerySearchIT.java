@@ -40,7 +40,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.combinedFieldsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -1360,15 +1359,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             """);
         indicesAdmin().prepareCreate("index1").setMapping(mappings).get();
         ensureGreen();
-        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder(
-            "my_vector",
-            new float[] { 1, 1, 1, 1, 1 },
-            10,
-            10,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null,
-            null
-        );
+        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, 10, 10f, null, null);
 
         IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("knn_query1")
             .setSource(jsonBuilder().startObject().field("my_query", knnVectorQueryBuilder).endObject());

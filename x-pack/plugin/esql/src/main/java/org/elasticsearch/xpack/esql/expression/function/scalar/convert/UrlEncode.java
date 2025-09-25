@@ -46,8 +46,8 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "URL-encodes the input. All characters are percent-encoded except for alphanumerics, "
-            + "`.`, `-`, `_`, and `~`. Spaces are encoded as `+`.",
+        description = "URL-encodes the input. All characters are {wikipedia}/Percent-encoding[percent-encoded] except "
+            + "for alphanumerics, `.`, `-`, `_`, and `~`. Spaces are encoded as `+`.",
         examples = { @Example(file = "string", tag = "url_encode") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )

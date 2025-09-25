@@ -443,10 +443,10 @@ public class IndicesQueryCacheTests extends ESTestCase {
         // We're going to create 2 segments for shard1, and 1 segment for shard2:
         int shard1Segment1Docs = randomIntBetween(11, 1000);
         int shard1Segment2Docs = randomIntBetween(1, 10);
-        int shardSegment1Docs = randomIntBetween(1, 10);
+        int shard2Segment1Docs = randomIntBetween(1, 10);
         IndexSearcher shard1Segment1Searcher = initializeSegment(shard1, shard1Segment1Docs, closeableList);
         IndexSearcher shard1Segment2Searcher = initializeSegment(shard1, shard1Segment2Docs, closeableList);
-        IndexSearcher shard2Searcher = initializeSegment(shard2, shardSegment1Docs, closeableList);
+        IndexSearcher shard2Searcher = initializeSegment(shard2, shard2Segment1Docs, closeableList);
 
         final int maxCacheSize = 200;
         Settings settings = Settings.builder()
@@ -460,20 +460,16 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         assertEquals(0L, cache.getStats(shard1).getMemorySizeInBytes());
 
-        final long extraCacheSizePerQuery = 24;
-
         final long largeQuerySize = randomIntBetween(100, 1000);
         final long smallQuerySize = randomIntBetween(10, 50);
-        final int shard1Queries = 40;// randomIntBetween(20, 50); // 40 works, impacts 465
+
+        final int shard1Queries = randomIntBetween(20, 50);
         final int shard2Queries = randomIntBetween(5, 10);
 
         for (int i = 0; i < shard1Queries; ++i) {
             shard1Segment1Searcher.count(new DummyQuery("ingest1-" + i, largeQuerySize));
         }
-        // After caching a number of big things on shard1, the cache memory is exactly 20 * the object size:
-        long shard1Segment1CacheMemory = (shard1Queries * (128 + largeQuerySize + extraCacheSizePerQuery)) + (((shard1Segment1Docs - 1)
-            / 64) * 320L) - 640;
-
+        long shard1Segment1CacheMemory = shard1Queries * ((largeQuerySize + 128) + 8 * (((shard1Segment1Docs - 1) / 64) + 1));
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(shard1Segment1CacheMemory));
         assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(0L));
         for (int i = 0; i < shard2Queries; ++i) {
@@ -487,34 +483,49 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), lessThan(shard1Segment1CacheMemory));
         long shard1CacheBytes = cache.getStats(shard1).getMemorySizeInBytes();
         long shard2CacheBytes = cache.getStats(shard2).getMemorySizeInBytes();
-        // Asserting that the memory reported is proportional to the number of segments, ignoring their sizes:
-        assertThat(
-            (double) shard1CacheBytes,
-            closeTo(
-                (double) (shard2CacheBytes * ((double) shard1Queries / shard2Queries) + ((int) (((shard1Segment1Docs) - 1) / 64) * 320L))
-                    + (shard1Queries * 24) - 960,
-                shard1CacheBytes * 0.01
-            )
-        );
+        long shard2Segment1CacheMemory = shard2Queries * ((smallQuerySize + 128) + 8 * (((shard2Segment1Docs - 1) / 64) + 1));
+
+        long totalMemory = shard1Segment1CacheMemory + shard2Segment1CacheMemory;
+        // Each shard has some fixed overhead that we need to account for:
+        long shard1Overhead = shard1Queries * (112 + 8 * ((shard1Segment1Docs - 1) / 64));
+        long shard2Overhead = shard2Queries * (112 + 8 * ((shard2Segment1Docs - 1) / 64));
+        long totalMemoryMinusOverhead = totalMemory - (shard1Overhead + shard2Overhead);
+        /*
+         * Note that the expected amount of memory we're calculating is based on the proportion of the number of queries to each shard
+         * (since each shard currently only has queries to one segment)
+         */
+        double shard1Segment1CacheMemoryShare = ((double) shard1Queries / (shard1Queries + shard2Queries)) * (totalMemoryMinusOverhead)
+            + shard1Overhead;
+        double shard2Segment1CacheMemoryShare = ((double) shard2Queries / (shard1Queries + shard2Queries)) * (totalMemoryMinusOverhead)
+            + shard2Overhead;
+        assertThat((double) shard1CacheBytes, closeTo(shard1Segment1CacheMemoryShare, 1)); // accounting for rounding
+        assertThat((double) shard2CacheBytes, closeTo(shard2Segment1CacheMemoryShare, 1)); // accounting for rounding
 
         // Now we cache just more "big" searches on shard1, but on a different segment:
         for (int i = 0; i < shard1Queries; ++i) {
             shard1Segment2Searcher.count(new DummyQuery("ingest3-" + i, largeQuerySize));
         }
-        assertThat(
-            (double) cache.getStats(shard1).getMemorySizeInBytes(),
-            closeTo(
-                cache.getStats(shard2).getMemorySizeInBytes() * 2 * ((double) shard1Queries / shard2Queries) + ((int) (((shard1Segment1Docs)
-                    - 1) / 64) * 320L) + (shard1Queries * 24) - 960,
-                (double) cache.getStats(shard1).getMemorySizeInBytes() * 0.01
-            )
-        );
+        long shard1Segment2CacheMemory = shard1Queries * ((largeQuerySize + 128) + 8 * (((shard1Segment2Docs - 1) / 64) + 1));
+        totalMemory = shard1Segment1CacheMemory + shard2Segment1CacheMemory + shard1Segment2CacheMemory;
+        System.err.println(shard1Queries + "\t" + shard1Segment1Docs + "\t" + shard2Queries + "\t" + shard2Segment1Docs);
+        // Each shard has some fixed overhead that we need to account for:
+        shard1Overhead = shard1Overhead + shard1Queries * (112 + 8 * ((shard1Segment2Docs - 1) / 64));
+        totalMemoryMinusOverhead = totalMemory - (shard1Overhead + shard2Overhead);
+        /*
+         * Note that the expected amount of memory we're calculating is based on the proportion of the number of queries to each segment.
+         * The number of documents and the size of documents is irrelevant (aside from computing the fixed overhead).
+         */
+        shard1Segment1CacheMemoryShare = ((double) (2 * shard1Queries) / ((2 * shard1Queries) + shard2Queries)) * (totalMemoryMinusOverhead)
+            + shard1Overhead;
+        shard1CacheBytes = cache.getStats(shard1).getMemorySizeInBytes();
+        assertThat((double) shard1CacheBytes, closeTo(shard1Segment1CacheMemoryShare, 1)); // accounting for rounding
+
         // Now make sure the cache only has items for shard2:
         for (int i = 0; i < (maxCacheSize * 2); ++i) {
             shard2Searcher.count(new DummyQuery("ingest4-" + i, smallQuerySize));
         }
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(0L));
-        assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(maxCacheSize * (smallQuerySize + extraCacheSizePerQuery + 112)));
+        assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(maxCacheSize * (smallQuerySize + 136)));
 
         IOUtils.close(closeableList);
         cache.onClose(shard1);

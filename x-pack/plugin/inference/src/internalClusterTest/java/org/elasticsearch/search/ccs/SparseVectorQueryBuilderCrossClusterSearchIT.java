@@ -23,14 +23,14 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
-    public void testSparseVectorQuery() throws Exception {
-        final String localIndexName = "local-index";
-        final String remoteIndexName = "remote-index";
-        final List<IndexWithBoost> queryIndices = List.of(
-            new IndexWithBoost(localIndexName),
-            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
-        );
+    private static final String LOCAL_INDEX_NAME = "local-index";
+    private static final String REMOTE_INDEX_NAME = "remote-index";
+    private static final List<IndexWithBoost> QUERY_INDICES = List.of(
+        new IndexWithBoost(LOCAL_INDEX_NAME),
+        new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
+    );
 
+    public void testSparseVectorQuery() throws Exception {
         final String commonInferenceId = "common-inference-id";
 
         final String commonInferenceIdField = "common-inference-id-field";
@@ -38,7 +38,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         final String mixedTypeField2 = "mixed-type-field-2";
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            localIndexName,
+            LOCAL_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -58,7 +58,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             )
         );
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            remoteIndexName,
+            REMOTE_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -82,28 +82,28 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new SparseVectorQueryBuilder(commonInferenceIdField, null, "a"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_1"),
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1")
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_1"),
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_1")
             )
         );
 
         // Query a field that has mixed types across clusters
         assertSearchResponse(
             new SparseVectorQueryBuilder(mixedTypeField1, commonInferenceId, "b"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2"),
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2")
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_2"),
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_2")
             )
         );
         assertSearchResponse(
             new SparseVectorQueryBuilder(mixedTypeField2, commonInferenceId, "c"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_3"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_3")
             )
         );
 
@@ -114,26 +114,26 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             .toList();
         assertSearchResponse(
             new SparseVectorQueryBuilder(mixedTypeField1, queryVector, null, null, null, null),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2"),
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2")
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_2"),
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_2")
             )
         );
         assertSearchResponse(
             new SparseVectorQueryBuilder(mixedTypeField2, queryVector, null, null, null, null),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_3"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_3")
             )
         );
 
         // Check that omitting the inference ID when querying a remote sparse vector field leads to the expected partial failure
         assertSearchResponse(
             new SparseVectorQueryBuilder(mixedTypeField2, null, "c"),
-            queryIndices,
-            List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
+            QUERY_INDICES,
+            List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_3")),
             new ClusterFailure(
                 SearchResponse.Cluster.Status.SKIPPED,
                 Set.of(new FailureCause(IllegalArgumentException.class, "inference_id required to perform vector search on query string"))
@@ -143,15 +143,9 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
     }
 
     public void testSparseVectorQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
-        final String localIndexName = "local-index";
-        final String remoteIndexName = "remote-index";
-        final List<IndexWithBoost> queryIndices = List.of(
-            new IndexWithBoost(localIndexName),
-            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
-        );
         final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
-            SearchRequest searchRequest = new SearchRequest(convertToArray(queryIndices), searchSourceBuilder);
+            SearchRequest searchRequest = new SearchRequest(convertToArray(QUERY_INDICES), searchSourceBuilder);
             searchRequest.setCcsMinimizeRoundtrips(false);
 
             IllegalArgumentException e = assertThrows(
@@ -175,7 +169,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         final String sparseVectorField = "sparse-vector-field";
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            localIndexName,
+            LOCAL_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -195,7 +189,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             )
         );
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            remoteIndexName,
+            REMOTE_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -225,8 +219,8 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
         assertSearchResponse(
             new SparseVectorQueryBuilder(mixedTypeField2, commonInferenceId, "foo"),
-            queryIndices,
-            List.of(new SearchResult(null, localIndexName, mixedTypeField2 + "_doc")),
+            QUERY_INDICES,
+            List.of(new SearchResult(null, LOCAL_INDEX_NAME, mixedTypeField2 + "_doc")),
             new ClusterFailure(
                 SearchResponse.Cluster.Status.SKIPPED,
                 Set.of(
@@ -242,10 +236,10 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         // Validate that a CCS sparse vector query functions when only sparse vector fields are queried
         assertSearchResponse(
             new SparseVectorQueryBuilder(sparseVectorField, commonInferenceId, "foo"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(null, localIndexName, sparseVectorField + "_doc"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, sparseVectorField + "_doc")
+                new SearchResult(null, LOCAL_INDEX_NAME, sparseVectorField + "_doc"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, sparseVectorField + "_doc")
             ),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)

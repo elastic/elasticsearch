@@ -624,6 +624,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithoutNulls {TestCase=<date_nanos>, <date_nanos>, <time_duration>, <_source> #12}"
   issue: https://github.com/elastic/elasticsearch/issues/135394
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/135327
 
 # Examples:
 #

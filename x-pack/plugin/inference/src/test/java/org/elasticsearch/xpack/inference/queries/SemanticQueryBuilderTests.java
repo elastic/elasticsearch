@@ -504,24 +504,36 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     public void testSerializationCcs() throws Exception {
         SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
-
-        // Deserialize using the current transport version. This simulates sending the query to a remote cluster that supports semantic
-        // search CCS.
         QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
         assertThat(deserializedQuery, equalTo(originalQuery));
+    }
 
-        // Deserialize using a transport version prior to semantic search CCS support. This simulates sending the query to a remote cluster
-        // that does *not* support semantic search CCS.
-        TransportVersion ccsUnsupportedVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            originalQuery.getMinimalSupportedVersion(),
-            TransportVersionUtils.getPreviousVersion(SEMANTIC_SEARCH_CCS_SUPPORT)
-        );
-        IllegalArgumentException e = assertThrows(
-            IllegalArgumentException.class,
-            () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, ccsUnsupportedVersion)
-        );
-        assertThat(e.getMessage(), containsString("One or more nodes does not support semantic query cross-cluster search"));
+    public void testSerializationCcsBwc() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                originalQuery.getMinimalSupportedVersion(),
+                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+            );
+
+            if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+                QueryBuilder deserializedQuery = copyNamedWriteable(
+                    originalQuery,
+                    namedWriteableRegistry(),
+                    QueryBuilder.class,
+                    transportVersion
+                );
+                assertThat(deserializedQuery, equalTo(originalQuery));
+            } else {
+                IllegalArgumentException e = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, transportVersion)
+                );
+                assertThat(e.getMessage(), containsString("One or more nodes does not support semantic query cross-cluster search"));
+            }
+        }
     }
 
     public void testToXContent() throws IOException {

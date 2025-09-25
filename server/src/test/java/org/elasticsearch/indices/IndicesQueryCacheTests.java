@@ -464,8 +464,8 @@ public class IndicesQueryCacheTests extends ESTestCase {
             shard1Searcher1.count(new DummyQuery("ingest1-" + i, shard1QuerySize));
         }
         // After caching a number of big things on shard1, the cache memory is exactly 20 * the object size:
-        long shard1Segment1MinimumCacheMemory = (shard1Queries * (shard1QuerySize + extraCacheSizePerQuery)) + ((shard1Queries * 112)
-            + ((((shard1Segment1Docs) - 1) / 64) * 320L)) + (shard1Queries * 16) - 640;
+        long shard1Segment1MinimumCacheMemory = (shard1Queries * (128 + shard1QuerySize + extraCacheSizePerQuery))
+            + (((shard1Segment1Docs - 1) / 64) * 320L) - 640;
 
         System.out.println(shard1Queries + "\t" + shard1Segment1Docs + "\t" + cache.getStats(shard1).getMemorySizeInBytes());
         assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(shard1Segment1MinimumCacheMemory));

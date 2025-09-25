@@ -1209,7 +1209,8 @@ public record IndicesOptions(
             || GatekeeperOptions.IGNORE_THROTTLED.equals(name)
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
-            || "allowNoIndices".equals(name);
+            || "allowNoIndices".equals(name)
+            || ResolutionModeOptions.CROSS_PROJECT_NAME.equals(name);
     }
 
     public static IndicesOptions fromParameters(

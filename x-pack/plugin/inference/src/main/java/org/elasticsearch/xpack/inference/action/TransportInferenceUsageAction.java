@@ -97,7 +97,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         Map<String, ModelStats> endpointStats = new TreeMap<>();
         addStatsByServiceAndTask(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
         addStatsForDefaultModels(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
-        return new InferenceFeatureSetUsage(endpointStats.values().stream().filter(stats -> stats.count() > 0).toList());
+        return new InferenceFeatureSetUsage(endpointStats.values());
     }
 
     private static Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> mapInferenceFieldsByIndexServiceAndTask(

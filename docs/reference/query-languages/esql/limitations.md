@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Limitations"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-limitations.html
@@ -35,7 +38,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * `long`
 * `null`
 * `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
-* [preview] `unsigned_long`
+* {applies_to}`stack: preview` {applies_to}`serverless: preview` `unsigned_long`
 * `version`
 * Spatial types
 

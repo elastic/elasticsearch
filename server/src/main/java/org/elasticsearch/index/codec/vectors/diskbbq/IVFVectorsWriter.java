@@ -183,7 +183,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues, globalCentroid);
             // wrap centroids with a supplier
-            final CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.centroids());
+            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(centroidAssignments.centroids());
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
             final CentroidOffsetAndLength centroidOffsetAndLength = buildAndWritePostingsLists(
@@ -549,40 +549,4 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
 
-    interface CentroidSupplier {
-        CentroidSupplier EMPTY = new CentroidSupplier() {
-            @Override
-            public int size() {
-                return 0;
-            }
-
-            @Override
-            public float[] centroid(int centroidOrdinal) {
-                throw new IllegalStateException("No centroids");
-            }
-        };
-
-        int size();
-
-        float[] centroid(int centroidOrdinal) throws IOException;
-    }
-
-    // TODO throw away rawCentroids
-    static class OnHeapCentroidSupplier implements CentroidSupplier {
-        private final float[][] centroids;
-
-        OnHeapCentroidSupplier(float[][] centroids) {
-            this.centroids = centroids;
-        }
-
-        @Override
-        public int size() {
-            return centroids.length;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) throws IOException {
-            return centroids[centroidOrdinal];
-        }
-    }
 }

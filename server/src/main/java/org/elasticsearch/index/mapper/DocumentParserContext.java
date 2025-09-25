@@ -271,7 +271,7 @@ public abstract class DocumentParserContext {
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
-            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings(), source),
+            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
             new HashSet<>(),

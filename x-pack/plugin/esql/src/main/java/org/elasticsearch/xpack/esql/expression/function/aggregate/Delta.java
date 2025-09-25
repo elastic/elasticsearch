@@ -46,7 +46,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         returnType = { "double" },
         description = "The absolute change of a gauge field in a time window.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds"
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command"
     )
     public Delta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));

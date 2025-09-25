@@ -3,7 +3,7 @@
 ### RATE
 The rate of a counter field.
 
-Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command in snapshot builds
+Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command
 
 ```esql
 TS k8s

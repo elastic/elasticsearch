@@ -951,10 +951,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            IndexRouting.ExtractFromSource indexRouting = null;
+            IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = null;
             List<String> routingPaths = null;
             if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
-                indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+                indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) indexService.getIndexSettings().getIndexRouting();
                 routingPaths = indexService.getMetadata().getRoutingPaths();
                 for (String routingField : routingPaths) {
                     if (routingField.contains("*")) {

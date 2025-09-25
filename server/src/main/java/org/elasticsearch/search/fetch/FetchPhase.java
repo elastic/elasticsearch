@@ -137,12 +137,13 @@ public final class FetchPhase {
         if (lookup.inferenceFields().isEmpty() == false
             && shouldExcludeInferenceFieldsFromSource(context.indexShard().indexSettings(), context.fetchSourceContext()) == false) {
             // Rehydrate the inference fields into the {@code _source} because they were explicitly requested.
-            var fetchFieldsContext = context.fetchFieldsContext();
-            if (fetchFieldsContext == null) {
-                fetchFieldsContext = new FetchFieldsContext(new ArrayList<>());
+            var oldFetchFieldsContext = context.fetchFieldsContext();
+            var newFetchFieldsContext = new FetchFieldsContext(new ArrayList<>());
+            if (oldFetchFieldsContext != null) {
+                newFetchFieldsContext.fields().addAll(oldFetchFieldsContext.fields());
             }
-            fetchFieldsContext.fields().add(new FieldAndFormat(InferenceMetadataFieldsMapper.NAME, null));
-            context.fetchFieldsContext(fetchFieldsContext);
+            newFetchFieldsContext.fields().add(new FieldAndFormat(InferenceMetadataFieldsMapper.NAME, null));
+            context.fetchFieldsContext(newFetchFieldsContext);
         }
 
         SourceLoader sourceLoader = context.newSourceLoader(res.v2());

@@ -51,7 +51,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         returnType = { "double" },
         description = "The absolute increase of a counter field in a time window.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds"
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command"
     )
     public Increase(
         Source source,

@@ -391,7 +391,8 @@ public class InferencePlugin extends Plugin
                 settings,
                 modelRegistry.get(),
                 serviceRegistry,
-                services.projectResolver()
+                services.projectResolver(),
+                services.featureService()
             )
         );
 

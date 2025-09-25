@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.HashMap;
 
@@ -73,18 +74,30 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
             scores.appendDouble(1.0 / (config.rankConstant() + rank) * weight);
         }
 
-        Block scoreBlock = scores.build().asBlock();
-        page = page.appendBlock(scoreBlock);
+        Page newPage = null;
+        Block scoreBlock = null;
 
-        int[] projections = new int[page.getBlockCount() - 1];
-
-        for (int i = 0; i < page.getBlockCount() - 1; i++) {
-            projections[i] = i == scorePosition ? page.getBlockCount() - 1 : i;
-        }
         try {
-            return page.projectBlocks(projections);
+            scoreBlock = scores.build().asBlock();
+            newPage = page.appendBlock(scoreBlock);
+
+            int[] projections = new int[newPage.getBlockCount() - 1];
+
+            for (int i = 0; i < newPage.getBlockCount() - 1; i++) {
+                projections[i] = i == scorePosition ? newPage.getBlockCount() - 1 : i;
+            }
+            return newPage.projectBlocks(projections);
         } finally {
-            page.releaseBlocks();
+            if (newPage != null) {
+                newPage.releaseBlocks();
+            } else {
+                // we never got to a point where the new page was constructed, so we need to release the initial one
+                page.releaseBlocks();
+            }
+            if (scoreBlock == null) {
+                // we never built scoreBlock, so we need to release the scores builder
+                Releasables.close(scores);
+            }
         }
     }
 

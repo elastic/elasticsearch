@@ -47,6 +47,10 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
         super(shardId);
     }
 
+    public ReplicatedWriteRequest(@Nullable ShardId shardId, int reshardSplitShardCountSummary) {
+        super(shardId, reshardSplitShardCountSummary);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public R setRefreshPolicy(RefreshPolicy refreshPolicy) {

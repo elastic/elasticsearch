@@ -111,11 +111,11 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             );
             model.setURI(getUrl(webServer));
 
-            var creator = new AzureAiStudioActionCreator(sender, serviceComponents);
-            var action = creator.create(model, Map.of());
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            final var creator = new AzureAiStudioActionCreator(sender, serviceComponents);
+            final var action = creator.create(model, Map.of());
+            final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            final var inputType = InputTypeTests.randomSearchAndIngestWithNull();
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

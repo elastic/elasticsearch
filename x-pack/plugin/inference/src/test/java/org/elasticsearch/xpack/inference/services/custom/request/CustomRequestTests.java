@@ -82,10 +82,7 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var request = new CustomRequest(
-            EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, null),
-                model.getServiceSettings().getInputTypeTranslator()
-            ),
+            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc", "123"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
         );
         var httpRequest = request.createHttpRequest();
@@ -146,7 +143,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, InputType.INGEST),
+                new EmbeddingsInput(List.of("abc", "123"), InputType.INGEST),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model
@@ -207,7 +204,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, InputType.SEARCH),
+                new EmbeddingsInput(List.of("abc", "123"), InputType.SEARCH),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model

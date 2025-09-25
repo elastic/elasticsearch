@@ -15,7 +15,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,111 +28,72 @@ import static org.hamcrest.Matchers.equalTo;
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String LOCAL_INDEX_NAME = "local-index";
     private static final String REMOTE_INDEX_NAME = "remote-index";
+
+    // Boost the local index so that we can use the same doc values for local and remote indices and have consistent relevance
     private static final List<IndexWithBoost> QUERY_INDICES = List.of(
-        new IndexWithBoost(LOCAL_INDEX_NAME),
+        new IndexWithBoost(LOCAL_INDEX_NAME, 10.0f),
         new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
     );
 
+    private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
+    private static final String VARIABLE_INFERENCE_ID_FIELD = "variable-inference-id-field";
+    private static final String MIXED_TYPE_FIELD_1 = "mixed-type-field-1";
+    private static final String MIXED_TYPE_FIELD_2 = "mixed-type-field-2";
+    private static final String TEXT_FIELD = "text-field";
+
+    boolean clustersConfigured = false;
+
+    @Override
+    protected boolean reuseClusters() {
+        return true;
+    }
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        if (clustersConfigured == false) {
+            configureClusters();
+            clustersConfigured = true;
+        }
+    }
+
     public void testMatchQuery() throws Exception {
-        final String commonInferenceId = "common-inference-id";
-        final String localInferenceId = "local-inference-id";
-        final String remoteInferenceId = "remote-inference-id";
-
-        final String commonInferenceIdField = "common-inference-id-field";
-        final String variableInferenceIdField = "variable-inference-id-field";
-        final String mixedTypeField1 = "mixed-type-field-1";
-        final String mixedTypeField2 = "mixed-type-field-2";
-
-        final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            LOCAL_INDEX_NAME,
-            Map.of(commonInferenceId, sparseEmbeddingServiceSettings(), localInferenceId, sparseEmbeddingServiceSettings()),
-            Map.of(
-                commonInferenceIdField,
-                semanticTextMapping(commonInferenceId),
-                variableInferenceIdField,
-                semanticTextMapping(localInferenceId),
-                mixedTypeField1,
-                semanticTextMapping(localInferenceId),
-                mixedTypeField2,
-                textMapping()
-            ),
-            Map.of(
-                "local_doc_1",
-                Map.of(commonInferenceIdField, "a"),
-                "local_doc_2",
-                Map.of(variableInferenceIdField, "b"),
-                "local_doc_3",
-                Map.of(mixedTypeField1, "c"),
-                "local_doc_4",
-                Map.of(mixedTypeField2, "d")
-            )
-        );
-        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            REMOTE_INDEX_NAME,
-            Map.of(
-                commonInferenceId,
-                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
-                remoteInferenceId,
-                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
-            ),
-            Map.of(
-                commonInferenceIdField,
-                semanticTextMapping(commonInferenceId),
-                variableInferenceIdField,
-                semanticTextMapping(remoteInferenceId),
-                mixedTypeField1,
-                textMapping(),
-                mixedTypeField2,
-                semanticTextMapping(remoteInferenceId)
-            ),
-            Map.of(
-                "remote_doc_1",
-                Map.of(commonInferenceIdField, "w"),
-                "remote_doc_2",
-                Map.of(variableInferenceIdField, "x"),
-                "remote_doc_3",
-                Map.of(mixedTypeField1, "y"),
-                "remote_doc_4",
-                Map.of(mixedTypeField2, "z")
-            )
-        );
-        setupTwoClusters(localIndexInfo, remoteIndexInfo);
-
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
-            new MatchQueryBuilder(commonInferenceIdField, "a"),
+            new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_1"),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_1")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
             )
         );
 
         // Query a field that has different inference ID values across clusters
         assertSearchResponse(
-            new MatchQueryBuilder(variableInferenceIdField, "b"),
+            new MatchQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_2"),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_2")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
             )
         );
 
         // Query a field that has mixed types across clusters
         assertSearchResponse(
-            new MatchQueryBuilder(mixedTypeField1, "y"),
+            new MatchQueryBuilder(MIXED_TYPE_FIELD_1, "c"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_3"),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_3")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
             )
         );
         assertSearchResponse(
-            new MatchQueryBuilder(mixedTypeField2, "d"),
+            new MatchQueryBuilder(MIXED_TYPE_FIELD_2, "d"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_4"),
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_4")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
             )
         );
     }
@@ -154,54 +117,15 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             );
         };
 
-        final String commonInferenceId = "common-inference-id";
-
-        final String commonInferenceIdField = "common-inference-id-field";
-        final String mixedTypeField1 = "mixed-type-field-1";
-        final String mixedTypeField2 = "mixed-type-field-2";
-        final String textField = "text-field";
-
-        final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            LOCAL_INDEX_NAME,
-            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
-            Map.of(
-                commonInferenceIdField,
-                semanticTextMapping(commonInferenceId),
-                mixedTypeField1,
-                semanticTextMapping(commonInferenceId),
-                mixedTypeField2,
-                textMapping(),
-                textField,
-                textMapping()
-            ),
-            Map.of(mixedTypeField2 + "_doc", Map.of(mixedTypeField2, "a"), textField + "_doc", Map.of(textField, "b b b"))
-        );
-        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            REMOTE_INDEX_NAME,
-            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
-            Map.of(
-                commonInferenceIdField,
-                semanticTextMapping(commonInferenceId),
-                mixedTypeField1,
-                textMapping(),
-                mixedTypeField2,
-                semanticTextMapping(commonInferenceId),
-                textField,
-                textMapping()
-            ),
-            Map.of(textField + "_doc", Map.of(textField, "b"))
-        );
-        setupTwoClusters(localIndexInfo, remoteIndexInfo);
-
         // Validate that expected cases fail
-        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(commonInferenceIdField, randomAlphaOfLength(5)));
-        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(mixedTypeField1, randomAlphaOfLength(5)));
+        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, randomAlphaOfLength(5)));
+        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(MIXED_TYPE_FIELD_1, randomAlphaOfLength(5)));
 
         // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
         assertSearchResponse(
-            new MatchQueryBuilder(mixedTypeField2, "a"),
+            new MatchQueryBuilder(MIXED_TYPE_FIELD_2, "d"),
             QUERY_INDICES,
-            List.of(new SearchResult(null, LOCAL_INDEX_NAME, mixedTypeField2 + "_doc")),
+            List.of(new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
             new ClusterFailure(
                 SearchResponse.Cluster.Status.SKIPPED,
                 Set.of(
@@ -216,14 +140,78 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
 
         // Validate that a CCS match query functions when only text fields are queried
         assertSearchResponse(
-            new MatchQueryBuilder(textField, "b"),
+            new MatchQueryBuilder(TEXT_FIELD, "e"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, textField + "_doc"),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, textField + "_doc")
+                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(TEXT_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(TEXT_FIELD))
             ),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)
         );
+    }
+
+    private void configureClusters() throws IOException {
+        final String commonInferenceId = "common-inference-id";
+        final String localInferenceId = "local-inference-id";
+        final String remoteInferenceId = "remote-inference-id";
+
+        final Map<String, Map<String, Object>> docs = Map.of(
+            getDocId(COMMON_INFERENCE_ID_FIELD),
+            Map.of(COMMON_INFERENCE_ID_FIELD, "a"),
+            getDocId(VARIABLE_INFERENCE_ID_FIELD),
+            Map.of(VARIABLE_INFERENCE_ID_FIELD, "b"),
+            getDocId(MIXED_TYPE_FIELD_1),
+            Map.of(MIXED_TYPE_FIELD_1, "c"),
+            getDocId(MIXED_TYPE_FIELD_2),
+            Map.of(MIXED_TYPE_FIELD_2, "d"),
+            getDocId(TEXT_FIELD),
+            Map.of(TEXT_FIELD, "e")
+        );
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            LOCAL_INDEX_NAME,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings(), localInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                COMMON_INFERENCE_ID_FIELD,
+                semanticTextMapping(commonInferenceId),
+                VARIABLE_INFERENCE_ID_FIELD,
+                semanticTextMapping(localInferenceId),
+                MIXED_TYPE_FIELD_1,
+                semanticTextMapping(localInferenceId),
+                MIXED_TYPE_FIELD_2,
+                textMapping(),
+                TEXT_FIELD,
+                textMapping()
+            ),
+            docs
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            REMOTE_INDEX_NAME,
+            Map.of(
+                commonInferenceId,
+                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                remoteInferenceId,
+                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            ),
+            Map.of(
+                COMMON_INFERENCE_ID_FIELD,
+                semanticTextMapping(commonInferenceId),
+                VARIABLE_INFERENCE_ID_FIELD,
+                semanticTextMapping(remoteInferenceId),
+                MIXED_TYPE_FIELD_1,
+                textMapping(),
+                MIXED_TYPE_FIELD_2,
+                semanticTextMapping(remoteInferenceId),
+                TEXT_FIELD,
+                textMapping()
+            ),
+            docs
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+    }
+
+    private static String getDocId(String field) {
+        return field + "_doc";
     }
 }

@@ -12,7 +12,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestPipelineFieldAccessPattern;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;

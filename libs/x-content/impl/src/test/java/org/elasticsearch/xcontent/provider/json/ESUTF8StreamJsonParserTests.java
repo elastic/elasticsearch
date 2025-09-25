@@ -164,27 +164,6 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         });
     }
 
-    public void testOptimisedValueAndText() throws IOException {
-        testParseJson("{\"my-funky-field\": \"14`\\\\%+\"}", parser -> {
-            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
-            assertThat(parser.nextFieldName(), Matchers.equalTo("my-funky-field"));
-            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
-
-            var text = parser.getValueAsText();
-            assertThat(text, Matchers.notNullValue());
-
-            assertTextRef(text.bytes(), "14`\\%+");
-            // Retrieve the value for a second time to ensure the last value is available
-            assertThat(parser.getText(), Matchers.equalTo("14`\\%+"));
-            // After retrieving with getText() we do not use the optimised value even if it's there.
-            assertThat(parser.getValueAsText(), Matchers.nullValue());
-            assertThat(parser.lastOptimisedValue, Matchers.notNullValue());
-
-            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
-            assertThat(parser.lastOptimisedValue, Matchers.nullValue());
-        });
-    }
-
     private record TestInput(String input, String result, boolean supportsOptimized) {}
 
     private static final TestInput[] ESCAPE_SEQUENCES = {
@@ -264,7 +243,7 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         return new TestInput(input.toString(), result.toString(), doesSupportOptimized);
     }
 
-    public void testGetValueAndTextRandomized() throws IOException {
+    public void testGetValueRandomized() throws IOException {
         StringBuilder inputBuilder = new StringBuilder();
         inputBuilder.append('{');
 

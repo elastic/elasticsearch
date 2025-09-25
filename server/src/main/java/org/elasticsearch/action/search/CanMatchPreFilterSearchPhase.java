@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -62,6 +63,7 @@ final class CanMatchPreFilterSearchPhase {
     private final SearchRequest request;
     private final List<SearchShardIterator> shardsIts;
     private final ActionListener<List<SearchShardIterator>> listener;
+    private final SearchOperationListener opsListener;
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTransportService searchTransportService;
@@ -90,7 +92,8 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        ActionListener<List<SearchShardIterator>> listener
+        ActionListener<List<SearchShardIterator>> listener,
+        SearchOperationListener opsListener
     ) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -122,6 +125,7 @@ final class CanMatchPreFilterSearchPhase {
             shardItIndexMap.put(naturalOrder[j], j);
         }
         this.shardItIndexMap = shardItIndexMap;
+        this.opsListener = opsListener;
     }
 
     public static SubscribableListener<List<SearchShardIterator>> execute(
@@ -136,7 +140,8 @@ final class CanMatchPreFilterSearchPhase {
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
         boolean requireAtLeastOneMatch,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        SearchOperationListener opsListener
     ) {
         if (shardsIts.isEmpty()) {
             return SubscribableListener.newSucceeded(List.of());
@@ -168,7 +173,8 @@ final class CanMatchPreFilterSearchPhase {
                     task,
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
-                    listener
+                    listener,
+                    opsListener
                 ).runCoordinatorRewritePhase();
             }
         });
@@ -186,6 +192,7 @@ final class CanMatchPreFilterSearchPhase {
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
+            long startTime = System.nanoTime();
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(
                 request,
                 searchShardIterator.getOriginalIndices().indicesOptions(),
@@ -215,6 +222,7 @@ final class CanMatchPreFilterSearchPhase {
             } else {
                 consumeResult(false, request);
             }
+            opsListener.onCanMatchPhase(request, System.nanoTime() - startTime);
         }
         if (matchedShardLevelRequests.isEmpty()) {
             listener.onResponse(getIterator(shardsIts));

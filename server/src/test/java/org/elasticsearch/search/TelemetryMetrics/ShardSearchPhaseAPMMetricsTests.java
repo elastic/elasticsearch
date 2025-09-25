@@ -40,6 +40,7 @@ import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FE
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -111,7 +112,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             "1"
         );
         final List<Measurement> dfsMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(DFS_SEARCH_PHASE_METRIC);
-        assertEquals(0, dfsMeasurements.size()); // DFS phase not done for system indices
+        assertEquals(0, dfsMeasurements.size()); // DFS phase not done for index with single shard
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
@@ -285,6 +286,20 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         assertEquals(1, fetchMeasurements.size());
         assertTimeRangeAttributes(fetchMeasurements, ".others", true);
+    }
+
+    public void testCanMatchFiltersAllShardsOut() {
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("@timestamp").from("2025-12-01");
+        assertNoSearchHits(client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(rangeQueryBuilder));
+        final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_PHASE_METRIC);
+        assertEquals(num_primaries, canMatchMeasurements.size());
+        assertTimeRangeAttributes(canMatchMeasurements, "user", false);
+        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        assertEquals(0, queryMeasurements.size());
+        assertTimeRangeAttributes(queryMeasurements, "user", false);
+        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+        assertEquals(0, fetchMeasurements.size());
+        assertTimeRangeAttributes(fetchMeasurements, "user", false);
     }
 
     private static void assertTimeRangeAttributes(List<Measurement> measurements, String target, boolean isSystem) {

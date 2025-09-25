@@ -849,9 +849,8 @@ class NodeConstruction {
 
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
 
-        final List<SearchOperationListener> searchOperationListeners = List.of(
-            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
-        );
+        ShardSearchPhaseAPMMetrics shardSearchPhaseAPMMetrics = new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry());
+        final List<SearchOperationListener> searchOperationListeners = List.of(shardSearchPhaseAPMMetrics);
 
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
@@ -1350,6 +1349,7 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(ShardSearchPhaseAPMMetrics.class).toInstance(shardSearchPhaseAPMMetrics);
         });
 
         if (ReadinessService.enabled(environment)) {

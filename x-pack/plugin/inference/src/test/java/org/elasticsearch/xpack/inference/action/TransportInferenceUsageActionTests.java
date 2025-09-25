@@ -253,6 +253,39 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertStats(response, 2, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
     }
 
+    public void testGivenSameDefaultModelWithAndWithoutLinuxSuffix() throws Exception {
+        givenInferenceEndpoints(
+            new ModelConfigurations(".endpoint-001", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001_linux-x86_64")),
+            new ModelConfigurations("endpoint-002", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001"))
+        );
+
+        givenDefaultEndpoints(".endpoint-001");
+
+        givenInferenceFields(
+            Map.of(
+                "index_1",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", ".endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", ".endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", "endpoint-002", new String[0], null)
+                ),
+                "index_2",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", ".endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", ".endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", "endpoint-002", new String[0], null)
+                )
+            )
+        );
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(3));
+        assertStats(response, 0, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 1, new ModelStats("_eis__model-id-001", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 2, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+    }
+
     public void testGivenExternalServiceModelIsNull() throws Exception {
         givenInferenceEndpoints(new ModelConfigurations("endpoint-001", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings(null)));
         givenInferenceFields(Map.of("index_1", List.of(new InferenceFieldMetadata("semantic", "endpoint-001", new String[0], null))));

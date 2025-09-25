@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
@@ -51,6 +52,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
 
     private final Logger logger = LogManager.getLogger(TransportInferenceUsageAction.class);
+
+    // Some of the default models have optimized variants for linux that will have the following suffix.
+    private static final String MODEL_ID_LINUX_SUFFIX = "_linux-x86_64";
 
     private final ModelRegistry modelRegistry;
     private final Client client;
@@ -190,7 +194,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     ) {
         Map<String, String> endpointIdToModelId = endpoints.stream()
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
-            .collect(Collectors.toMap(ModelConfigurations::getInferenceEntityId, e -> e.getServiceSettings().modelId()));
+            .collect(Collectors.toMap(ModelConfigurations::getInferenceEntityId, e -> stripLinuxSuffix(e.getServiceSettings().modelId())));
         Map<DefaultModelStatsKey, Long> defaultModelsToEndpointCount = createDefaultStatsKeysWithEndpointCounts(endpoints);
         for (Map.Entry<DefaultModelStatsKey, Long> defaultModelStatsKeyToEndpointCount : defaultModelsToEndpointCount.entrySet()) {
             DefaultModelStatsKey statKey = defaultModelStatsKeyToEndpointCount.getKey();
@@ -208,12 +212,18 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     private Map<DefaultModelStatsKey, Long> createDefaultStatsKeysWithEndpointCounts(List<ModelConfigurations> endpoints) {
         Set<String> modelIds = endpoints.stream()
             .filter(endpoint -> modelRegistry.containsDefaultConfigId(endpoint.getInferenceEntityId()))
-            .map(endpoint -> endpoint.getServiceSettings().modelId())
+            .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
+            .map(endpoint -> stripLinuxSuffix(endpoint.getServiceSettings().modelId()))
             .collect(Collectors.toSet());
         return endpoints.stream()
-            .filter(endpoint -> modelIds.contains(endpoint.getServiceSettings().modelId()))
+            .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
+            .filter(endpoint -> modelIds.contains(stripLinuxSuffix(endpoint.getServiceSettings().modelId())))
             .map(
-                endpoint -> new DefaultModelStatsKey(endpoint.getService(), endpoint.getTaskType(), endpoint.getServiceSettings().modelId())
+                endpoint -> new DefaultModelStatsKey(
+                    endpoint.getService(),
+                    endpoint.getTaskType(),
+                    stripLinuxSuffix(endpoint.getServiceSettings().modelId())
+                )
             )
             .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     }
@@ -232,22 +242,20 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         return filtered;
     }
 
-    private record DefaultModelStatsKey(String service, TaskType taskType, String modelId) {
+    @Nullable
+    private static String stripLinuxSuffix(@Nullable String modelId) {
+        if (modelId.endsWith(MODEL_ID_LINUX_SUFFIX)) {
+            return modelId.substring(0, modelId.length() - MODEL_ID_LINUX_SUFFIX.length());
+        }
+        return modelId;
+    }
 
-        // Some of the default models have optimized variants for linux that will have the following suffix.
-        private static final String MODEL_ID_LINUX_SUFFIX = "_linux-x86_64";
+    private record DefaultModelStatsKey(String service, TaskType taskType, String modelId) {
 
         @Override
         public String toString() {
             // Inference ids cannot start with '_'. Thus, default stats do to avoid conflicts with user-defined inference ids.
-            return "_" + service + "_" + stripLinuxSuffix(modelId).replace('.', '_');
-        }
-
-        private static String stripLinuxSuffix(String modelId) {
-            if (modelId.endsWith(MODEL_ID_LINUX_SUFFIX)) {
-                return modelId.substring(0, modelId.length() - MODEL_ID_LINUX_SUFFIX.length());
-            }
-            return modelId;
+            return "_" + service + "_" + modelId.replace('.', '_');
         }
     }
 

@@ -114,6 +114,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         String fieldName,
         String query,
         Boolean lenient,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        this(fieldName, query, lenient, inferenceResultsMap, false);
+    }
+
+    protected SemanticQueryBuilder(
+        String fieldName,
+        String query,
+        Boolean lenient,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         boolean ccsRequest
     ) {

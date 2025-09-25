@@ -395,8 +395,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             null,
-            inferenceResultsMap,
-            false
+            inferenceResultsMap
         );
 
         QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
@@ -424,15 +423,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 fieldName,
                 query,
                 null,
-                Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults),
-                false
+                Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults)
             );
             SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(
                 fieldName,
                 query,
                 null,
-                SemanticQueryBuilder.buildSingleResultInferenceResultsMap(inferenceResults),
-                false
+                SemanticQueryBuilder.buildSingleResultInferenceResultsMap(inferenceResults)
             );
 
             QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);
@@ -465,8 +462,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
                 null,
-                inferenceResultsMap,
-                false
+                inferenceResultsMap
             );
 
             String expectedErrorMessage;

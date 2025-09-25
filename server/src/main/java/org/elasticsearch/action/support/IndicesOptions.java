@@ -9,9 +9,11 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -49,7 +51,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 public record IndicesOptions(
     ConcreteTargetOptions concreteTargetOptions,
     WildcardOptions wildcardOptions,
-    GatekeeperOptions gatekeeperOptions
+    GatekeeperOptions gatekeeperOptions,
+    ResolutionModeOptions resolutionModeOptions
 ) implements ToXContentFragment {
 
     public static IndicesOptions.Builder builder() {
@@ -413,6 +416,37 @@ public record IndicesOptions(
         }
     }
 
+    public record ResolutionModeOptions(boolean crossProject) implements ToXContentFragment, Writeable {
+
+        public static final ResolutionModeOptions DEFAULT = new ResolutionModeOptions(false);
+
+        private static final TransportVersion INDICES_OPTIONS_RESOLUTION_MODE = TransportVersion.fromName(
+            "indices_options_resolution_mode"
+        );
+
+        private static final String CROSS_PROJECT_NAME = "resolve_cross_project";
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(CROSS_PROJECT_NAME, crossProject);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(INDICES_OPTIONS_RESOLUTION_MODE)) {
+                out.writeBoolean(crossProject);
+            }
+        }
+
+        public static ResolutionModeOptions readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().supports(INDICES_OPTIONS_RESOLUTION_MODE)) {
+                return new ResolutionModeOptions(in.readBoolean());
+            } else {
+                return ResolutionModeOptions.DEFAULT;
+            }
+        }
+    }
+
     /**
      * This class is maintained for backwards compatibility and performance purposes. We use it for serialisation along with {@link Option}.
      */
@@ -463,7 +497,8 @@ public record IndicesOptions(
     public static final IndicesOptions DEFAULT = new IndicesOptions(
         ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT,
-        GatekeeperOptions.DEFAULT
+        GatekeeperOptions.DEFAULT,
+        ResolutionModeOptions.DEFAULT
     );
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = IndicesOptions.builder()
@@ -857,6 +892,13 @@ public record IndicesOptions(
         return gatekeeperOptions().ignoreThrottled();
     }
 
+    /**
+     * @return whether indices will resolve to the cross-project "flat world" expression
+     */
+    public boolean resolveCrossProject() {
+        return resolutionModeOptions().crossProject();
+    }
+
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         EnumSet<Option> backwardsCompatibleOptions = EnumSet.noneOf(Option.class);
         if (allowNoIndices()) {
@@ -917,6 +959,7 @@ public record IndicesOptions(
                 out.writeByte((byte) 0); // ordinal 0 (::data selector)
             }
         }
+        out.writeWriteable(resolutionModeOptions);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -968,7 +1011,8 @@ public record IndicesOptions(
                 ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS
                 : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcardOptions,
-            gatekeeperOptions
+            gatekeeperOptions,
+            ResolutionModeOptions.readFrom(in)
         );
     }
 
@@ -976,6 +1020,7 @@ public record IndicesOptions(
         private ConcreteTargetOptions concreteTargetOptions;
         private WildcardOptions wildcardOptions;
         private GatekeeperOptions gatekeeperOptions;
+        private ResolutionModeOptions resolutionModeOptions;
 
         Builder() {
             this(DEFAULT);
@@ -985,6 +1030,7 @@ public record IndicesOptions(
             concreteTargetOptions = indicesOptions.concreteTargetOptions;
             wildcardOptions = indicesOptions.wildcardOptions;
             gatekeeperOptions = indicesOptions.gatekeeperOptions;
+            resolutionModeOptions = indicesOptions.resolutionModeOptions;
         }
 
         public Builder concreteTargetOptions(ConcreteTargetOptions concreteTargetOptions) {
@@ -1012,8 +1058,13 @@ public record IndicesOptions(
             return this;
         }
 
+        public Builder resolutionModeOptions(ResolutionModeOptions resolutionModeOptions) {
+            this.resolutionModeOptions = resolutionModeOptions;
+            return this;
+        }
+
         public IndicesOptions build() {
-            return new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions);
+            return new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, resolutionModeOptions);
         }
     }
 
@@ -1115,7 +1166,8 @@ public record IndicesOptions(
         return new IndicesOptions(
             ignoreUnavailable ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcards,
-            gatekeeperOptions
+            gatekeeperOptions,
+            ResolutionModeOptions.DEFAULT
         );
     }
 
@@ -1202,6 +1254,7 @@ public record IndicesOptions(
         concreteTargetOptions.toXContent(builder, params);
         wildcardOptions.toXContent(builder, params);
         gatekeeperOptions.toXContent(builder, params);
+        resolutionModeOptions.toXContent(builder, params);
         return builder;
     }
 
@@ -1209,6 +1262,7 @@ public record IndicesOptions(
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
+    private static final ParseField RESOLVE_CROSS_PROJECT = new ParseField(ResolutionModeOptions.CROSS_PROJECT_NAME);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -1221,6 +1275,7 @@ public record IndicesOptions(
             .ignoreThrottled(defaults != null && defaults.gatekeeperOptions().ignoreThrottled());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
+        boolean resolveCrossProject = defaults == null ? ResolutionModeOptions.DEFAULT.crossProject() : defaults.resolveCrossProject();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -1268,6 +1323,8 @@ public record IndicesOptions(
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
+                } else if (RESOLVE_CROSS_PROJECT.match(currentFieldName, parser.getDeprecationHandler())) {
+                    resolveCrossProject = parser.booleanValue();
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read indices options. Unexpected index option [" + currentFieldName + "]"
@@ -1298,6 +1355,7 @@ public record IndicesOptions(
             .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(generalOptions)
+            .resolutionModeOptions(new ResolutionModeOptions(resolveCrossProject))
             .build();
     }
 
@@ -1459,6 +1517,8 @@ public record IndicesOptions(
             + allowSelectors()
             + ", include_failure_indices="
             + includeFailureIndices()
+            + ", resolve_cross_project="
+            + resolveCrossProject()
             + ']';
     }
 }

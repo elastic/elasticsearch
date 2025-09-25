@@ -46,7 +46,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         returnType = { "double" },
         description = "The rate of a counter field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command",
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
     public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
@@ -118,9 +118,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier();
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier();
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier();
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

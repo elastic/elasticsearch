@@ -34,6 +34,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -818,7 +819,7 @@ public class MetadataIndexTemplateService {
         var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
         validate(name, templateToValidate, additionalSettings);
-        validateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
+        maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
         validateLifecycle(componentTemplates, name, templateToValidate, globalRetentionSettings.get(false));
         validateDataStreamOptions(componentTemplates, name, templateToValidate, globalRetentionSettings.get(true));
 
@@ -945,12 +946,9 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Validate that by changing or adding {@code newTemplate}, there are
-     * no unreferenced data streams. Note that this scenario is still possible
-     * due to snapshot restores, but this validation is best-effort at template
-     * addition/update time
+     * Maybe runs {@link #validateDataStreamsStillReferenced} if it looks like the new composite template could change data stream coverage.
      */
-    private static void validateDataStreamsStillReferenced(
+    private static void maybeValidateDataStreamsStillReferenced(
         ProjectMetadata project,
         String templateName,
         ComposableIndexTemplate newTemplate
@@ -972,9 +970,29 @@ public class MetadataIndexTemplateService {
             && Objects.equals(existingSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), newSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN))
             && Objects.equals(existing.getDataStreamTemplate() != null, newTemplate.getDataStreamTemplate() != null)
             && existing.priorityOrZero() == newTemplate.priorityOrZero()) {
+            if (Assertions.ENABLED) {
+                try {
+                    validateDataStreamsStillReferenced(project, templateName, newTemplate);
+                } catch (IllegalArgumentException e) {
+                    assert false : "Data stream reference validation took a shortcut but the full check failed: " + e.getMessage();
+                }
+            }
             return;
         }
+        validateDataStreamsStillReferenced(project, templateName, newTemplate);
+    }
 
+    /**
+     * Validate that by changing or adding {@code newTemplate}, there are
+     * no unreferenced data streams. Note that this scenario is still possible
+     * due to snapshot restores, but this validation is best-effort at template
+     * addition/update time
+     */
+    private static void validateDataStreamsStillReferenced(
+        ProjectMetadata project,
+        String templateName,
+        ComposableIndexTemplate newTemplate
+    ) {
         Function<Map<String, ComposableIndexTemplate>, Set<String>> findUnreferencedDataStreams = composableTemplates -> {
             final Set<String> unreferenced = new HashSet<>();
             // For each data stream that we have, see whether it's covered by a different

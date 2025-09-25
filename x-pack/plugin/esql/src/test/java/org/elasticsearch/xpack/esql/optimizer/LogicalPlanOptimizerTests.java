@@ -9249,7 +9249,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(((FieldAttribute) match.field()).name(), equalTo("message"));
     }
 
-    // TODO: test that options are passed correctly
     public void testReplaceSingleMultiMatchWithMatchOptionsPassedCorrectly() {
         String query = """
             from test

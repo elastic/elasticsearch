@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -104,6 +105,10 @@ public final class RemoteClusterService extends RemoteClusterAware
          *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
          */
         this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
+    }
+
+    public ProjectResolver getProjectResolver() {
+        return projectResolver;
     }
 
     /**
@@ -302,11 +307,20 @@ public final class RemoteClusterService extends RemoteClusterAware
         }
     }
 
-    @FixForMultiProject(description = "Refactor as needed to support project specific changes to linked remotes.")
-    public synchronized void updateRemoteClusterCredentials(Supplier<Settings> settingsSupplier, ActionListener<Void> listener) {
+    /**
+     * Rebuilds linked project connections as needed for updated remote cluster credentials.
+     * @param settingsSupplier A {@link Supplier} for the updated credentials {@link Settings}.
+     * @param configFunction A function that builds a {@link LinkedProjectConfig} for an alias, static settings, and new settings.
+     * @param listener An {@link ActionListener} invoked once all connection modifications have been completed.
+     */
+    public synchronized void updateRemoteClusterCredentials(
+        Supplier<Settings> settingsSupplier,
+        TriFunction<String, Settings, Settings, LinkedProjectConfig> configFunction,
+        ActionListener<Void> listener
+    ) {
         final var projectId = projectResolver.getProjectId();
-        final Settings settings = settingsSupplier.get();
-        final UpdateRemoteClusterCredentialsResult result = remoteClusterCredentialsManager.updateClusterCredentials(settings);
+        final Settings newSettings = settingsSupplier.get();
+        final UpdateRemoteClusterCredentialsResult result = remoteClusterCredentialsManager.updateClusterCredentials(newSettings);
         // We only need to rebuild connections when a credential was newly added or removed for a cluster alias, not if the credential
         // value was updated. Therefore, only consider added or removed aliases
         final int totalConnectionsToRebuild = result.addedClusterAliases().size() + result.removedClusterAliases().size();
@@ -318,20 +332,17 @@ public final class RemoteClusterService extends RemoteClusterAware
         logger.info("project [{}] rebuilding [{}] connections after credentials update", projectId, totalConnectionsToRebuild);
         try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
             for (var clusterAlias : result.addedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(projectId, clusterAlias, settings, connectionRefs);
+                maybeRebuildConnectionOnCredentialsChange(configFunction.apply(clusterAlias, settings, newSettings), connectionRefs);
             }
             for (var clusterAlias : result.removedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(projectId, clusterAlias, settings, connectionRefs);
+                maybeRebuildConnectionOnCredentialsChange(configFunction.apply(clusterAlias, settings, newSettings), connectionRefs);
             }
         }
     }
 
-    private void maybeRebuildConnectionOnCredentialsChange(
-        ProjectId projectId,
-        String clusterAlias,
-        Settings newSettings,
-        RefCountingRunnable connectionRefs
-    ) {
+    private void maybeRebuildConnectionOnCredentialsChange(LinkedProjectConfig config, RefCountingRunnable connectionRefs) {
+        final var projectId = config.originProjectId();
+        final var clusterAlias = config.linkedProjectAlias();
         final var connectionsMap = getConnectionsMapForProject(projectId);
         if (false == connectionsMap.containsKey(clusterAlias)) {
             // A credential was added or removed before a remote connection was configured.
@@ -344,8 +355,6 @@ public final class RemoteClusterService extends RemoteClusterAware
             return;
         }
 
-        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        final var config = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
         updateRemoteCluster(config, true, ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(RemoteClusterConnectionStatus status) {

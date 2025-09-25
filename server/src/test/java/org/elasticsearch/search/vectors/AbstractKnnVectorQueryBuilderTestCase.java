@@ -247,7 +247,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 approxFilterQuery,
                 expectedStrategy
             );
-            case FLOAT -> new ESKnnFloatVectorQuery(
+            case FLOAT, BFLOAT16 -> new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
                 queryBuilder.queryVector().asFloatVector(),
                 k,
@@ -268,7 +268,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                     yield new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD);
                 }
             }
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 if (filterQuery != null) {
                     yield new BooleanQuery.Builder().add(
                         new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD),

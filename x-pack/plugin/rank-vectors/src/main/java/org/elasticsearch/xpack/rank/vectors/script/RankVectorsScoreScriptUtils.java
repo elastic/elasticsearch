@@ -351,7 +351,7 @@ public class RankVectorsScoreScriptUtils {
                         yield new MaxSimByteDotProduct(scoreScript, field, bytesOrList.list);
                     }
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new MaxSimFloatDotProduct(scoreScript, field, (List<List<Number>>) queryVector);
                     }

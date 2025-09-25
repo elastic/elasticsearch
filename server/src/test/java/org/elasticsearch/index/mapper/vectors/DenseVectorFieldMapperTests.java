@@ -2444,7 +2444,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) ft;
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
-            case FLOAT -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
+            case FLOAT, BFLOAT16 -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
             case BIT -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions() / 8);
         };
     }
@@ -3039,7 +3039,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             Object value = switch (elementType) {
                 case BYTE, BIT:
                     yield randomList(dims, dims, ESTestCase::randomByte);
-                case FLOAT:
+                case FLOAT, BFLOAT16:
                     yield randomList(dims, dims, ESTestCase::randomFloat);
             };
             return new SyntheticSourceExample(value, value, this::mapping);

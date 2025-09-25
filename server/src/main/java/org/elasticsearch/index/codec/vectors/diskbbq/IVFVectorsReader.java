@@ -400,8 +400,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     interface PostingVisitor {
-        // TODO maybe we can not specifically pass the centroid...
-
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(long offset) throws IOException;
 

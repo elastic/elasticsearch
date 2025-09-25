@@ -982,12 +982,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testResolveMultipleWildcardsExclusions() {
         SearchRequest request = new SearchRequest("*", "-foo*", "foo*", "-foo*", "foo*", "bar");
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
-
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
         String[] replacedIndices = new String[] { "bar", "foobarfoo", "foofoobar", "foofoo" };
         assertSameValues(indices, replacedIndices);
         assertThat(request.indices(), arrayContainingInAnyOrder("bar", "foobarfoo", "foofoobar", "foofoo", "bar"));
-
         ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
         assertThat(actual, is(notNullValue()));
         assertThat(

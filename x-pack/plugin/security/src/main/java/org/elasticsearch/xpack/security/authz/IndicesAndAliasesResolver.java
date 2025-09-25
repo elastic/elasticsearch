@@ -350,7 +350,7 @@ class IndicesAndAliasesResolver {
 
                 var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
                 resolvedExpressionsBuilder.addLocalExpressions(
-                    "_all",
+                    Metadata.ALL,
                     localExpressions,
                     ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                 );

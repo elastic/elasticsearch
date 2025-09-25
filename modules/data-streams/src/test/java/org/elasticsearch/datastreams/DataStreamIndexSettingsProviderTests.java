@@ -39,7 +39,6 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirs
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,8 +60,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         indexVersion = randomBoolean()
             ? IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.TSID_CREATED_DURING_ROUTING)
             : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
-        indexDimensionsTsidOptimizationEnabled = INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG
-            && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
+        indexDimensionsTsidOptimizationEnabled = indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {

@@ -90,9 +90,7 @@ public class ModelStats implements ToXContentObject, Writeable {
         builder.field("service", service);
         builder.field("task_type", taskType.name());
         builder.field("count", count);
-        if (semanticTextStats.isEmpty() == false) {
-            builder.field("semantic_text", semanticTextStats);
-        }
+        builder.field("semantic_text", semanticTextStats);
     }
 
     @Override

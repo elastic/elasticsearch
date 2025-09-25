@@ -49,7 +49,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.search.crossproject.AuthorizedProjects;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -553,15 +553,22 @@ public class AuthorizationService {
                             if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.supportsCrossProjectSearch()) {
                                 crossProjectSearchAuthzService.loadAuthorizedProjects(new ActionListener<>() {
                                     @Override
-                                    public void onResponse(AuthorizedProjects authorizedProjects) {
-                                        logger.debug("Loaded authorized projects: [{}]", authorizedProjects);
+                                    public void onResponse(TargetProjects authorizedProjects) {
+                                        logger.info("Loaded authorized projects: [{}]", authorizedProjects);
                                         resolvedIndicesListener.onResponse(
-                                            indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
+                                            indicesAndAliasesResolver.resolve(
+                                                action,
+                                                request,
+                                                projectMetadata,
+                                                authorizedIndices,
+                                                authorizedProjects
+                                            )
                                         );
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
+                                        logger.info("Failed to load authorized projects", e);
                                         resolvedIndicesListener.onFailure(e);
                                     }
                                 });
@@ -574,7 +581,7 @@ public class AuthorizationService {
                             if (e instanceof InvalidIndexNameException
                                 || e instanceof InvalidSelectorException
                                 || e instanceof UnsupportedSelectorException) {
-                                logger.debug(
+                                logger.info(
                                     () -> Strings.format(
                                         "failed [%s] action authorization for [%s] due to [%s] exception",
                                         action,

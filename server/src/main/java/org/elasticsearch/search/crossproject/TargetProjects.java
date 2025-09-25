@@ -11,6 +11,6 @@ package org.elasticsearch.search.crossproject;
 
 import java.util.List;
 
-public record AuthorizedProjects(ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
-    public static AuthorizedProjects NOT_CROSS_PROJECT = new AuthorizedProjects(null, List.of());
+public record TargetProjects(ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
+    public static TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
 }

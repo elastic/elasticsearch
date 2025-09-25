@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.search.crossproject.AuthorizedProjects;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 public interface CrossProjectSearchAuthorizationService {
-    void loadAuthorizedProjects(ActionListener<AuthorizedProjects> listener);
+    void loadAuthorizedProjects(ActionListener<TargetProjects> listener);
 
     class Default implements CrossProjectSearchAuthorizationService {
         @Override
-        public void loadAuthorizedProjects(ActionListener<AuthorizedProjects> listener) {
-            listener.onResponse(AuthorizedProjects.NOT_CROSS_PROJECT);
+        public void loadAuthorizedProjects(ActionListener<TargetProjects> listener) {
+            listener.onResponse(TargetProjects.NOT_CROSS_PROJECT);
         }
     }
 }

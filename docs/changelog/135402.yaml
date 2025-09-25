@@ -1,0 +1,5 @@
+pr: 135402
+summary: Remove `index.dimensions` feature flag
+area: TSDB
+type: enhancement
+issues: []

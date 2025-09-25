@@ -73,8 +73,8 @@ processingCommand
     ;
 
 whereCommand
-    : WHERE booleanExpression
-    | WHERE string                  #fullTextSearch
+    : WHERE string                                 #whereMatchStringExpression
+    | WHERE booleanExpression                      #whereBooleanExpression
     ;
 
 dataType

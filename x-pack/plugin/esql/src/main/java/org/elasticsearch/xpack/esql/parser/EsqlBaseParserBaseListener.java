@@ -97,13 +97,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterWhereCommand(EsqlBaseParser.WhereCommandContext ctx) { }
+  @Override public void enterWhereMatchStringExpression(EsqlBaseParser.WhereMatchStringExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) { }
+  @Override public void exitWhereMatchStringExpression(EsqlBaseParser.WhereMatchStringExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterWhereBooleanExpression(EsqlBaseParser.WhereBooleanExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitWhereBooleanExpression(EsqlBaseParser.WhereBooleanExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

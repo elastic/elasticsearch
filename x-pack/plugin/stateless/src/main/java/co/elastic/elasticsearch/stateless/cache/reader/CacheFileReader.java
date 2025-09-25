@@ -24,10 +24,13 @@ import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
@@ -35,9 +38,14 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
+import static co.elastic.elasticsearch.stateless.Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
 
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
@@ -46,26 +54,40 @@ import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE
 public class CacheFileReader {
 
     private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
+    private static final Map<String, Object> BLOB_POPULATION_SOURCE_ATTRIBUTES = Map.of(
+        CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
+        CachePopulationSource.BlobStore.name()
+    );
+    private static final Map<String, Object> PEER_POPULATION_SOURCE_ATTRIBUTES = Map.of(
+        CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
+        CachePopulationSource.BlobStore.name()
+    );
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
     private final BlobFileRanges blobFileRanges;
+    private final BlobCacheMetrics blobCacheMetrics;
+    private final LongSupplier relativeTimeInMillisSupplier;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         CacheBlobReader cacheBlobReader,
-        BlobFileRanges blobFileRanges
+        BlobFileRanges blobFileRanges,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInMillisSupplier
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
         this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
+        this.blobCacheMetrics = blobCacheMetrics;
+        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
     }
 
     /**
      * @return a new instance that is a copy of the current instance
      */
     public CacheFileReader copy() {
-        return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges);
+        return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier);
     }
 
     /**
@@ -92,7 +114,21 @@ public class CacheFileReader {
      */
     public void read(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
         throws Exception {
-        doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+        // the executor can be null if the calling thread is not an {@link org.elasticsearch.common.util.concurrent.EsExecutors.EsThread}
+        String executorName = EsExecutors.executorName(Thread.currentThread());
+
+        if (executorName != null
+            && (executorName.equals(SEARCH) || executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
+            long start = relativeTimeInMillisSupplier.getAsLong();
+            doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+            blobCacheMetrics.getSearchOriginDownloadTime()
+                .record(
+                    relativeTimeInMillisSupplier.getAsLong() - start,
+                    executorName.equals(SEARCH) ? BLOB_POPULATION_SOURCE_ATTRIBUTES : PEER_POPULATION_SOURCE_ATTRIBUTES
+                );
+        } else {
+            doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+        }
     }
 
     private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)

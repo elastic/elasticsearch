@@ -177,7 +177,9 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
                             sharedBlobCacheService.getRangeSize(),
                             EsExecutors.DIRECT_EXECUTOR_SERVICE
                         ),
-                        createBlobFileRanges(primaryTerm, primaryTerm, offset, checksumAndLength.length)
+                        createBlobFileRanges(primaryTerm, primaryTerm, offset, checksumAndLength.length),
+                        null,
+                        System::currentTimeMillis
                     ),
                     null,
                     checksumAndLength.length,

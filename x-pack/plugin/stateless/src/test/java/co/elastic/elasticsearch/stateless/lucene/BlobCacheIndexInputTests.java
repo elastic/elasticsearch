@@ -128,7 +128,9 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     new CacheFileReader(
                         sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                         createBlobReader(fileName, input, sharedBlobCacheService),
-                        createBlobFileRanges(primaryTerm, 0L, 0, input.length)
+                        createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                        null,
+                        System::currentTimeMillis
                     ),
                     null,
                     input.length,
@@ -222,7 +224,9 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 new CacheFileReader(
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, termAndGen.primaryTerm(), fileName), input.length),
                     switchingReader,
-                    createBlobFileRanges(termAndGen.primaryTerm(), termAndGen.generation(), 0, input.length)
+                    createBlobFileRanges(termAndGen.primaryTerm(), termAndGen.generation(), 0, input.length),
+                    null,
+                    System::currentTimeMillis
                 ),
                 null,
                 input.length,
@@ -255,7 +259,9 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 new CacheFileReader(
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     createBlobReader(fileName, input, sharedBlobCacheService),
-                    createBlobFileRanges(primaryTerm, 0L, 0, input.length)
+                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    null,
+                    System::currentTimeMillis
                 ),
                 null,
                 input.length,
@@ -356,7 +362,9 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     new CacheFileReader(
                         sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), pos + fileLength),
                         cacheBlobReader,
-                        createBlobFileRanges(primaryTerm, generation, pos, fileLength)
+                        createBlobFileRanges(primaryTerm, generation, pos, fileLength),
+                        null,
+                        System::currentTimeMillis
                     ),
                     null,
                     fileLength,
@@ -376,7 +384,9 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 new CacheFileReader(
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), data.length),
                     cacheBlobReader,
-                    createBlobFileRanges(primaryTerm, generation, 0, data.length)
+                    createBlobFileRanges(primaryTerm, generation, 0, data.length),
+                    null,
+                    System::currentTimeMillis
                 ),
                 null,
                 data.length,

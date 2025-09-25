@@ -65,7 +65,7 @@ public final class RuleUtils {
                 }
                 // otherwise point to it since this avoids creating field copies
                 else {
-                    projection = new Alias(attr.source(), attr.name(), nullAlias.toAttribute(), nullAlias.id());
+                    projection = new Alias(attr.source(), attr.name(), nullAlias.toAttribute(), attr.id());
                 }
             } else {
                 projection = attr;

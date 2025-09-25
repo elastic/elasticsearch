@@ -31,7 +31,7 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
         if (empty) {
             return new ExtendedSearchUsageStats();
         }
-        Map<String, Map<String, Map<String, Long>>> categoriesToExtendedData = new HashMap<>();
+        Map<String, Map<String, ExtendedSearchUsageMetric>> categoriesToExtendedData = new HashMap<>();
 
         // TODO: Gate this behind a randomBoolean() in the future when we have other categories to add.
         categoriesToExtendedData.put("retrievers", randomExtendedRetrieversData());
@@ -39,11 +39,11 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
         return new ExtendedSearchUsageStats(categoriesToExtendedData);
     }
 
-    private static Map<String, Map<String, Long>> randomExtendedRetrieversData() {
-        Map<String, Map<String, Long>> retrieversData = new HashMap<>();
+    private static Map<String, ExtendedSearchUsageMetric> randomExtendedRetrieversData() {
+        Map<String, ExtendedSearchUsageMetric> retrieversData = new HashMap<>();
 
         // TODO: Gate this behind a randomBoolean() in the future when we have other values to add.
-        Map<String, Long> values = Map.of("chunk_rescorer", randomLongBetween(1, 10));
+        ExtendedSearchUsageMetric values = new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", randomLongBetween(1, 10)));
         retrieversData.put("text_similarity_reranker", values);
 
         return retrieversData;
@@ -56,14 +56,18 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected ExtendedSearchUsageStats mutateInstance(ExtendedSearchUsageStats instance) throws IOException {
-        Map<String, Map<String, Map<String, Long>>> current = instance.getCategoriesToExtendedData();
-        Map<String, Map<String, Map<String, Long>>> modified = new HashMap<>();
+        Map<String, Map<String, ExtendedSearchUsageMetric>> current = instance.getCategoriesToExtendedData();
+        Map<String, Map<String, ExtendedSearchUsageMetric>> modified = new HashMap<>();
         if (current.isEmpty()) {
-            modified.put("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", randomLongBetween(1, 10))));
-        } else {
-            if (randomBoolean()) {
-                modified.put("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", randomLongBetween(11, 20))));
-            }
+            modified.put(
+                "retrievers",
+                Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", randomLongBetween(1, 10))))
+            );
+        } else if (randomBoolean()) {
+            modified.put(
+                "retrivers",
+                Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", randomLongBetween(11, 20))))
+            );
         }
         return new ExtendedSearchUsageStats(modified);
     }

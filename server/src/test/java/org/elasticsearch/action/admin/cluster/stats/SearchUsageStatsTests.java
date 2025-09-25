@@ -162,13 +162,13 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         assertEquals(new ExtendedSearchUsageStats(), searchUsageStats.getExtendedSearchUsage());
 
         ExtendedSearchUsageStats extendedSearchUsageStats = new ExtendedSearchUsageStats(
-            Map.of("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", 10L)))
+            Map.of("retrievers", Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", 10L))))
         );
         ExtendedSearchUsageStats anotherExtendedSearchUsageStats = new ExtendedSearchUsageStats(
-            Map.of("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", 5L)))
+            Map.of("retrievers", Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", 5L))))
         );
         ExtendedSearchUsageStats combinedExtendedSearchUsageStats = new ExtendedSearchUsageStats(
-            Map.of("retrievers", Map.of("text_similarity_reranker", Map.of("chunk_rescorer", 15L)))
+            Map.of("retrievers", Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", 15L))))
         );
 
         searchUsageStats.add(

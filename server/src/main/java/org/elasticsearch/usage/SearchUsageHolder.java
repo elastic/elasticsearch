@@ -9,6 +9,8 @@
 
 package org.elasticsearch.usage;
 
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageMetric;
 import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.util.Maps;
@@ -80,10 +82,13 @@ public final class SearchUsageHolder {
         );
     }
 
-    private Map<String, Map<String, Map<String, Long>>> getExtendedSearchUsage() {
+    private Map<String, Map<String, ExtendedSearchUsageMetric>> getExtendedSearchUsage() {
         return unmodifiableMap(
             extendedSearchUsage,
-            nameMap -> unmodifiableMap(nameMap, valueMap -> unmodifiableMap(valueMap, LongAdder::longValue))
+            nameMap -> unmodifiableMap(
+                nameMap,
+                valueMap -> new ExtendedSearchUsageLongCounter(unmodifiableMap(valueMap, LongAdder::longValue))
+            )
         );
     }
 

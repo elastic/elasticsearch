@@ -32,28 +32,26 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
      * A map of categories to extended data. Categories correspond to a high-level search usage statistic,
      * e.g. `queries`, `rescorers`, `sections`, `retrievers`.
      *
-     * Extended data is further segmented by name, for example collecting specific statistics for certain retrievers only.
-     *
-     * Finally, we have string:count pairs that track each individual metric we wish to track.
+     * Extended data is further segmented by name, e.g., collecting specific statistics for certain retrievers only.
      */
-    private final Map<String, Map<String, Map<String, Long>>> categoriesToExtendedData;
+    private final Map<String, Map<String, ExtendedSearchUsageMetric>> categoriesToExtendedData;
 
     public ExtendedSearchUsageStats() {
         this.categoriesToExtendedData = new HashMap<>();
     }
 
-    public ExtendedSearchUsageStats(Map<String, Map<String, Map<String, Long>>> categoriesToExtendedData) {
+    public ExtendedSearchUsageStats(Map<String, Map<String, ExtendedSearchUsageMetric>> categoriesToExtendedData) {
         this.categoriesToExtendedData = categoriesToExtendedData;
     }
 
     public ExtendedSearchUsageStats(StreamInput in) throws IOException {
         this.categoriesToExtendedData = in.readMap(
             StreamInput::readString,
-            i -> i.readMap(StreamInput::readString, j -> j.readMap(StreamInput::readString, StreamInput::readLong))
+            i -> i.readMap(StreamInput::readString, ExtendedSearchUsageLongCounter::new)
         );
     }
 
-    public Map<String, Map<String, Map<String, Long>>> getCategoriesToExtendedData() {
+    public Map<String, Map<String, ExtendedSearchUsageMetric>> getCategoriesToExtendedData() {
         return Collections.unmodifiableMap(categoriesToExtendedData);
     }
 
@@ -62,23 +60,15 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
         out.writeMap(
             categoriesToExtendedData,
             StreamOutput::writeString,
-            (o, v) -> o.writeMap(v, StreamOutput::writeString, (p, q) -> p.writeMap(q, StreamOutput::writeString, StreamOutput::writeLong))
+            (o, v) -> o.writeMap(v, StreamOutput::writeString, (p, q) -> q.writeTo(p))
         );
     }
 
     public void merge(ExtendedSearchUsageStats other) {
         other.categoriesToExtendedData.forEach((key, otherMap) -> {
             categoriesToExtendedData.merge(key, otherMap, (existingMap, newMap) -> {
-                Map<String, Map<String, Long>> mergedMap = new HashMap<>(existingMap);
-                newMap.forEach((innerKey, innerValue) -> {
-                    mergedMap.merge(innerKey, innerValue, (existingInnerMap, newInnerMap) -> {
-                        Map<String, Long> mergedInnerMap = new HashMap<>(existingInnerMap);
-                        newInnerMap.forEach(
-                            (propertyKey, propertyValue) -> { mergedInnerMap.merge(propertyKey, propertyValue, Long::sum); }
-                        );
-                        return mergedInnerMap;
-                    });
-                });
+                Map<String, ExtendedSearchUsageMetric> mergedMap = new HashMap<>(existingMap);
+                newMap.forEach((innerKey, innerValue) -> { mergedMap.merge(innerKey, innerValue, ExtendedSearchUsageMetric::merge); });
                 return mergedMap;
             });
         });
@@ -90,12 +80,10 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
         builder.startObject();
         for (String category : categoriesToExtendedData.keySet()) {
             builder.startObject(category);
-            Map<String, Map<String, Long>> names = categoriesToExtendedData.get(category);
+            Map<String, ExtendedSearchUsageMetric> names = categoriesToExtendedData.get(category);
             for (String name : names.keySet()) {
                 builder.startObject(name);
-                for (String property : names.get(name).keySet()) {
-                    builder.field(property, names.get(name).get(property));
-                }
+                names.get(name).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();

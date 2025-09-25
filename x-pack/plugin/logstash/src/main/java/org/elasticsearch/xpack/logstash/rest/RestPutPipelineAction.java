@@ -60,7 +60,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
                 "Invalid pipeline ["
                     + id
                     + "] ID received. Pipeline ID must begin with a letter or underscore and can contain only letters, "
-                    + "underscores, dashes, hyphens and numbers"
+                    + "underscores, dashes, hyphens, and numbers"
             );
         }
     }

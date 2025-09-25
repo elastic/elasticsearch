@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
+
 /**
  * Intercepts and adapts a query to be rewritten to work seamlessly on a semantic_text field.
  */
@@ -63,7 +65,9 @@ public abstract class LegacySemanticQueryRewriteInterceptor implements QueryRewr
                 getQueryName()
                     + " query does not support cross-cluster search when querying a ["
                     + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field in a mixed-version cluster"
+                    + "] field in a mixed-version cluster. Please update all nodes to at least Elasticsearch "
+                    + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
+                    + "."
             );
         }
     }

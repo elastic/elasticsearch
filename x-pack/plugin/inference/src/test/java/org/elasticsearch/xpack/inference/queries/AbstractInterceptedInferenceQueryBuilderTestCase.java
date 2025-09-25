@@ -255,7 +255,9 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                         inferenceFieldQuery.getName()
                             + " query does not support cross-cluster search when querying a ["
                             + SemanticTextFieldMapper.CONTENT_TYPE
-                            + "] field in a mixed-version cluster"
+                            + "] field in a mixed-version cluster. Please update all nodes to at least Elasticsearch "
+                            + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
+                            + "."
                     );
                 }
             }

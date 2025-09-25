@@ -22,6 +22,8 @@ import java.util.Objects;
  */
 public class ExtendedSearchUsageLongCounter implements ExtendedSearchUsageMetric {
 
+    public static final String NAME = "extended_search_usage_long_counter";
+
     private final Map<String, Long> values;
 
     public ExtendedSearchUsageLongCounter(Map<String, Long> values) {
@@ -68,5 +70,10 @@ public class ExtendedSearchUsageLongCounter implements ExtendedSearchUsageMetric
     @Override
     public int hashCode() {
         return values.hashCode();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

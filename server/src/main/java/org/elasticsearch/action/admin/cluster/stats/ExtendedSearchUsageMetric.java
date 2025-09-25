@@ -9,13 +9,13 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xcontent.ToXContent;
 
 /**
  * Represents a metric colleged as part of {@link ExtendedSearchUsageStats}.
  */
-public interface ExtendedSearchUsageMetric extends Writeable, ToXContent {
+public interface ExtendedSearchUsageMetric extends NamedWriteable, ToXContent {
 
     /**
      * Merges two equivalent metrics together for statistical reporting.

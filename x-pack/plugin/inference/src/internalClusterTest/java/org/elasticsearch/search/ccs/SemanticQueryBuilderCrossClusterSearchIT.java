@@ -23,14 +23,14 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
-    public void testSemanticQuery() throws Exception {
-        final String localIndexName = "local-index";
-        final String remoteIndexName = "remote-index";
-        final List<IndexWithBoost> queryIndices = List.of(
-            new IndexWithBoost(localIndexName),
-            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
-        );
+    private static final String LOCAL_INDEX_NAME = "local-index";
+    private static final String REMOTE_INDEX_NAME = "remote-index";
+    private static final List<IndexWithBoost> QUERY_INDICES = List.of(
+        new IndexWithBoost(LOCAL_INDEX_NAME),
+        new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
+    );
 
+    public void testSemanticQuery() throws Exception {
         final String commonInferenceId = "common-inference-id";
         final String localInferenceId = "local-inference-id";
         final String remoteInferenceId = "remote-inference-id";
@@ -39,7 +39,7 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         final String variableInferenceIdField = "variable-inference-id-field";
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            localIndexName,
+            LOCAL_INDEX_NAME,
             Map.of(commonInferenceId, sparseEmbeddingServiceSettings(), localInferenceId, sparseEmbeddingServiceSettings()),
             Map.of(
                 commonInferenceIdField,
@@ -50,7 +50,7 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
             Map.of("local_doc_1", Map.of(commonInferenceIdField, "a"), "local_doc_2", Map.of(variableInferenceIdField, "b"))
         );
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            remoteIndexName,
+            REMOTE_INDEX_NAME,
             Map.of(
                 commonInferenceId,
                 textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
@@ -70,31 +70,25 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new SemanticQueryBuilder(commonInferenceIdField, "a"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_1")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_1"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_1")
             )
         );
 
         // Query a field that has different inference ID values across clusters
         assertSearchResponse(
             new SemanticQueryBuilder(variableInferenceIdField, "b"),
-            queryIndices,
+            QUERY_INDICES,
             List.of(
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2"),
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2")
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, "local_doc_2"),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, "remote_doc_2")
             )
         );
     }
 
     public void testSemanticQueryWithCcMinimizeRoundTripsFalse() throws Exception {
-        final String localIndexName = "local-index";
-        final String remoteIndexName = "remote-index";
-        final List<IndexWithBoost> queryIndices = List.of(
-            new IndexWithBoost(localIndexName),
-            new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName))
-        );
         final SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
         final Consumer<SearchRequest> assertCcsMinimizeRoundTripsFalseFailure = s -> {
             IllegalArgumentException e = assertThrows(
@@ -107,18 +101,18 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
             );
         };
 
-        final TestIndexInfo localIndexInfo = new TestIndexInfo(localIndexName, Map.of(), Map.of(), Map.of());
-        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(remoteIndexName, Map.of(), Map.of(), Map.of());
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(LOCAL_INDEX_NAME, Map.of(), Map.of(), Map.of());
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(REMOTE_INDEX_NAME, Map.of(), Map.of(), Map.of());
         setupTwoClusters(localIndexInfo, remoteIndexInfo);
 
         // Explicitly set ccs_minimize_roundtrips=false in the search request
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
-        SearchRequest searchRequestWithCcMinimizeRoundTripsFalse = new SearchRequest(convertToArray(queryIndices), searchSourceBuilder);
+        SearchRequest searchRequestWithCcMinimizeRoundTripsFalse = new SearchRequest(convertToArray(QUERY_INDICES), searchSourceBuilder);
         searchRequestWithCcMinimizeRoundTripsFalse.setCcsMinimizeRoundtrips(false);
         assertCcsMinimizeRoundTripsFalseFailure.accept(searchRequestWithCcMinimizeRoundTripsFalse);
 
         // Using a point in time implicitly sets ccs_minimize_roundtrips=false
-        BytesReference pitId = openPointInTime(convertToArray(queryIndices), TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(convertToArray(QUERY_INDICES), TimeValue.timeValueMinutes(2));
         SearchSourceBuilder searchSourceBuilderWithPit = new SearchSourceBuilder().query(queryBuilder)
             .pointInTimeBuilder(new PointInTimeBuilder(pitId));
         SearchRequest searchRequestWithPit = new SearchRequest().source(searchSourceBuilderWithPit);

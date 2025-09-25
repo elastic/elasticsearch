@@ -336,9 +336,29 @@ public class LocalExecutionPlanner {
         int discriminatorPosition = layout.get(fuse.discriminator().id()).channel();
 
         if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
-            return source.with(new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig, fuse.sourceText(), fuse.sourceLocation().getLineNumber(), fuse.sourceLocation().getColumnNumber()), source.layout);
+            return source.with(
+                new RrfScoreEvalOperator.Factory(
+                    discriminatorPosition,
+                    scorePosition,
+                    rrfConfig,
+                    fuse.sourceText(),
+                    fuse.sourceLocation().getLineNumber(),
+                    fuse.sourceLocation().getColumnNumber()
+                ),
+                source.layout
+            );
         } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
-            return source.with(new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig, fuse.sourceText(), fuse.sourceLocation().getLineNumber(), fuse.sourceLocation().getColumnNumber()), source.layout);
+            return source.with(
+                new LinearScoreEvalOperator.Factory(
+                    discriminatorPosition,
+                    scorePosition,
+                    linearConfig,
+                    fuse.sourceText(),
+                    fuse.sourceLocation().getLineNumber(),
+                    fuse.sourceLocation().getColumnNumber()
+                ),
+                source.layout
+            );
         }
 
         throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");

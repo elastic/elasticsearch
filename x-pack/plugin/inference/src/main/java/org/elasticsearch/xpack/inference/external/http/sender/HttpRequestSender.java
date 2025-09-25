@@ -101,7 +101,7 @@ public class HttpRequestSender implements Sender {
     }
 
     /**
-     * Star various internal services asynchronously. This is required before sending requests.
+     * Start various internal services asynchronously. This is required before sending requests.
      */
     @Override
     public void startAsynchronously(ActionListener<Void> listener) {

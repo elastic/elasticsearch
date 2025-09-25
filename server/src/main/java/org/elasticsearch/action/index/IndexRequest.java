@@ -923,7 +923,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, tsid, indexSource.contentType(), indexSource.bytes());
+        return indexRouting.indexShard(this);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

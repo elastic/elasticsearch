@@ -380,11 +380,18 @@ sum_over_time
 required_capability: ts_command_v0
 required_capability: sum_over_time
 
-TS k8s | STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT sum_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::sum_over_time[]
+TS k8s 
+| STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+// end::sum_over_time[]
+| SORT sum_cost DESC, time_bucket DESC, cluster 
+| LIMIT 10;
 
+// tag::sum_over_time-result[]
 sum_cost:double | cluster:keyword | time_bucket:datetime
     67.625      | qa              | 2024-05-10T00:17:00.000Z
     65.75       | staging         | 2024-05-10T00:09:00.000Z
+// end::sum_over_time-result[]
     48.125      | qa              | 2024-05-10T00:09:00.000Z
     48.125      | qa              | 2024-05-10T00:06:00.000Z
     41.25       | qa              | 2024-05-10T00:11:00.000Z

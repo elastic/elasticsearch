@@ -291,6 +291,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
         assertThat(Expressions.names(agg.aggregates()), contains("c"));
+        assertThat(agg.aggregates().get(0).id(), equalTo(Expressions.attribute(agg.groupings().get(0)).id()));
 
         var exprs = eval.fields();
         assertThat(exprs.size(), equalTo(1));

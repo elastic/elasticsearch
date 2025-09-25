@@ -46,7 +46,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         returnType = { "double" },
         description = "The rate of a counter field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command",
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
     public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {

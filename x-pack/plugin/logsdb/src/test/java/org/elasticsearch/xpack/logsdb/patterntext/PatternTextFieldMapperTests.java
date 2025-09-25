@@ -274,7 +274,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                 e.getMessage(),
                 containsString(
                     "value [false] for mapping parameter [disable_templating] contradicts value [true] for index "
-                        + "setting [index.mapping.patterned_text.disable_templating]"
+                        + "setting [index.mapping.pattern_text.disable_templating]"
                 )
             );
         }

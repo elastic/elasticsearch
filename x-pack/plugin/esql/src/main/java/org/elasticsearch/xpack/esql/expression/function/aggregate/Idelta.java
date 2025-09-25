@@ -48,7 +48,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to delta, but is more responsive to recent changes.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds"
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command"
     )
     public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));

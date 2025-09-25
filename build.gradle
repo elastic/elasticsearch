@@ -338,18 +338,13 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
+
     if (project.path == ':') {
       resolveJavaToolChain = true
-
-      // ensure we have best possible caching of bwc builds
-      dependsOn ":distribution:bwc:major1:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:major2:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:major3:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:major4:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor1:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor2:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor3:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor4:buildBwcLinuxTar"
+    }
+    // ensure we have best possible caching of bwc builds
+    if(project.path.startsWith(":distribution:bwc:")) {
+      dependsOn project.tasks.matching { it.name == 'buildBwcLinuxTar' }
     }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)

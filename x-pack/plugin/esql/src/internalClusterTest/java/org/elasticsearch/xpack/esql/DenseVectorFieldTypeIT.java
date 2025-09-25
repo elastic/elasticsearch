@@ -39,12 +39,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
-        .filter(DenseVectorFieldMapper.VectorIndexType::isEnabled)
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
     public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Arrays.stream(DenseVectorFieldMapper.VectorIndexType.values())
-        .filter(t -> t.isEnabled() && t.isQuantized() == false)
+        .filter(t -> t.isQuantized() == false)
         .map(v -> v.getName().toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 

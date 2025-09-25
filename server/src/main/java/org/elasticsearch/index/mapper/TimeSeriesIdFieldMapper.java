@@ -14,7 +14,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -161,12 +161,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
             }
             timeSeriesId = buildLegacyTsid(routingPathFields).toBytesRef();
-        } else if (context.getTsid() != null) {
-            routingPathFields = null;
-            timeSeriesId = context.getTsid();
-        } else {
-            routingPathFields = (RoutingPathFields) context.getRoutingFields();
+        } else if (context.getRoutingFields() instanceof RoutingPathFields routingPathFieldsFromContext) {
+            routingPathFields = routingPathFieldsFromContext;
             timeSeriesId = routingPathFields.buildHash().toBytesRef();
+        } else {
+            routingPathFields = null;
+            assert context.getTsid() != null;
+            timeSeriesId = context.getTsid();
         }
 
         if (this.useDocValuesSkipper) {
@@ -175,7 +176,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
         }
 
-        IndexRouting.ExtractFromSource.RoutingHashBuilder routingBuilder;
+        RoutingHashBuilder routingBuilder;
         if (getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID) && routingPathFields != null) {
             // For legacy indices, we need to create the routing hash from the routing path fields.
             routingBuilder = routingPathFields.routingBuilder();

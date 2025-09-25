@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -1058,5 +1059,384 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         byte b = randomByte();
         out.writeByte(b);
         assertEquals(b, out.bytes().get(PageCacheRecycler.BYTE_PAGE_SIZE));
+    }
+
+    public void testWriteIntFallbackToSuperClass() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.seek(PageCacheRecycler.BYTE_PAGE_SIZE - 2);
+        int value = randomInt();
+        out.writeInt(value);
+
+        StreamInput in = out.bytes().streamInput();
+        in.skip(PageCacheRecycler.BYTE_PAGE_SIZE - 2);
+        assertEquals(value, in.readInt());
+        out.close();
+    }
+
+    public void testWriteIntLEFallbackToSuperClass() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.seek(PageCacheRecycler.BYTE_PAGE_SIZE - 2);
+        int value = randomInt();
+        out.writeIntLE(value);
+
+        StreamInput in = out.bytes().streamInput();
+        in.skip(PageCacheRecycler.BYTE_PAGE_SIZE - 2);
+        byte[] bytes = new byte[4];
+        in.readBytes(bytes, 0, 4);
+        assertEquals(value, new BytesArray(bytes).getIntLE(0));
+        out.close();
+    }
+
+    public void testWriteLongFallbackToSuperClass() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.seek(PageCacheRecycler.BYTE_PAGE_SIZE - 4);
+        long value = randomLong();
+        out.writeLong(value);
+
+        StreamInput in = out.bytes().streamInput();
+        in.skip(PageCacheRecycler.BYTE_PAGE_SIZE - 4);
+        assertEquals(value, in.readLong());
+        out.close();
+    }
+
+    public void testWriteLongLEFallbackToSuperClass() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.seek(PageCacheRecycler.BYTE_PAGE_SIZE - 4);
+        long value = randomLong();
+        out.writeLongLE(value);
+
+        StreamInput in = out.bytes().streamInput();
+        in.skip(PageCacheRecycler.BYTE_PAGE_SIZE - 4);
+        byte[] bytes = new byte[8];
+        in.readBytes(bytes, 0, 8);
+        assertEquals(value, new BytesArray(bytes).getLongLE(0));
+        out.close();
+    }
+
+    public void testWriteVIntFallbackToSuperClass() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.seek(PageCacheRecycler.BYTE_PAGE_SIZE - 2);
+        int value = randomIntBetween(128, Integer.MAX_VALUE);
+        out.writeVInt(value);
+
+        StreamInput in = out.bytes().streamInput();
+        in.skip(PageCacheRecycler.BYTE_PAGE_SIZE - 2);
+        assertEquals(value, in.readVInt());
+        out.close();
+    }
+
+    public void testWriteStringFallbackToSuperClass() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.seek(PageCacheRecycler.BYTE_PAGE_SIZE - 10);
+        String value = randomAlphaOfLength(100);
+        out.writeString(value);
+
+        StreamInput in = out.bytes().streamInput();
+        in.skip(PageCacheRecycler.BYTE_PAGE_SIZE - 10);
+        assertEquals(value, in.readString());
+        out.close();
+    }
+
+    public void testMoveToBytesReference() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        byte[] testData = randomizedByteArrayWithSize(100);
+        out.writeBytes(testData);
+
+        ReleasableBytesReference ref = out.moveToBytesReference();
+        assertArrayEquals(testData, BytesReference.toBytes(ref));
+
+        // Verify that pages are nulled after move
+        assertEquals(0, out.size());
+
+        // ISE after close
+        expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
+        expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
+
+        // Verify that close becomes noop after move
+        out.close(); // Should not throw
+
+        ref.close();
+    }
+
+    public void testMultipleCloseOperations() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.writeBytes(randomizedByteArrayWithSize(10));
+
+        // First close should work normally
+        out.close();
+
+        // ISE after close
+        expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
+        expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
+
+        // Subsequent closes should be no-op and not throw
+        out.close();
+        out.close();
+    }
+
+    public void testWriteMultiplePagesWithLargeArray() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Write data that spans multiple pages
+        int dataSize = PageCacheRecycler.BYTE_PAGE_SIZE * 3 + 100;
+        byte[] largeData = randomizedByteArrayWithSize(dataSize);
+        out.writeBytes(largeData);
+
+        assertEquals(dataSize, out.size());
+        assertArrayEquals(largeData, BytesReference.toBytes(out.bytes()));
+        out.close();
+    }
+
+    public void testEnsureCapacityWithMultiplePages() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Force allocation of multiple pages by seeking to a large position
+        long targetPosition = (long) PageCacheRecycler.BYTE_PAGE_SIZE * 5;
+        out.seek(targetPosition);
+        byte testByte = randomByte();
+        out.writeByte(testByte);
+
+        BytesReference bytes = out.bytes();
+        assertEquals(targetPosition + 1, bytes.length());
+        assertEquals(testByte, bytes.get((int) targetPosition));
+        out.close();
+    }
+
+    public void testVIntLengthCalculation() {
+        // Test edge cases for vint length calculation
+        assertEquals(1, RecyclerBytesStreamOutput.vIntLength(0));
+        assertEquals(1, RecyclerBytesStreamOutput.vIntLength(127));
+        assertEquals(2, RecyclerBytesStreamOutput.vIntLength(128));
+        assertEquals(2, RecyclerBytesStreamOutput.vIntLength(16383));
+        assertEquals(3, RecyclerBytesStreamOutput.vIntLength(16384));
+        assertEquals(3, RecyclerBytesStreamOutput.vIntLength(2097151));
+        assertEquals(4, RecyclerBytesStreamOutput.vIntLength(2097152));
+        assertEquals(4, RecyclerBytesStreamOutput.vIntLength(268435455));
+        assertEquals(5, RecyclerBytesStreamOutput.vIntLength(268435456));
+        assertEquals(5, RecyclerBytesStreamOutput.vIntLength(Integer.MAX_VALUE));
+    }
+
+    public void testLegacyWriteWithSizePrefix() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        TestWriteable writeable = new TestWriteable(true);
+        out.legacyWriteWithSizePrefix(writeable);
+
+        StreamInput in = out.bytes().streamInput();
+        int size = in.readVInt();
+        assertTrue(size > 0);
+        TestWriteable read = new TestWriteable(in);
+        assertEquals(writeable.value, read.value);
+        out.close();
+    }
+
+    public void testSeekToZero() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Write some data first
+        out.writeBytes(randomizedByteArrayWithSize(100));
+        assertTrue(out.position() > 0);
+
+        // Seek back to zero
+        out.seek(0);
+        assertEquals(0, out.position());
+
+        // Write new data from beginning
+        byte[] newData = randomizedByteArrayWithSize(50);
+        out.writeBytes(newData);
+
+        BytesReference bytes = out.bytes();
+        byte[] result = new byte[50];
+        try (StreamInput in = bytes.slice(0, 50).streamInput()) {
+            assertThat(in.read(result), equalTo(50));
+            assertArrayEquals(newData, result);
+        }
+        out.close();
+    }
+
+    public void testPageBoundarySeekingEdgeCases() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Test seeking to exact page boundaries
+        for (int page = 1; page <= 3; page++) {
+            long position = (long) page * PageCacheRecycler.BYTE_PAGE_SIZE;
+            out.seek(position);
+            assertEquals(position, out.position());
+
+            byte testByte = (byte) page;
+            out.writeByte(testByte);
+            assertEquals(testByte, out.bytes().get((int) position));
+        }
+        out.close();
+    }
+
+    public void testWriteEmptyByteArray() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        int initialSize = out.size();
+        out.writeBytes(new byte[0]);
+        assertEquals(initialSize, out.size());
+
+        out.writeBytes(new byte[0], 0, 0);
+        assertEquals(initialSize, out.size());
+        out.close();
+    }
+
+    public void testNearMaxCapacityHandling() {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Test seeking to near maximum capacity
+        long nearMaxPosition = Integer.MAX_VALUE - 1000L;
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.seek(nearMaxPosition));
+        assertTrue(ex.getMessage().contains("cannot hold more than 2GB"));
+        out.close();
+    }
+
+    public void testMultiplePageAllocation() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Force allocation of multiple pages through large skip
+        int skipAmount = PageCacheRecycler.BYTE_PAGE_SIZE * 2 + 100;
+        out.skip(skipAmount);
+        assertEquals(skipAmount, out.position());
+
+        // Write at the end position
+        byte testByte = randomByte();
+        out.writeByte(testByte);
+        assertEquals(testByte, out.bytes().get(skipAmount));
+        out.close();
+    }
+
+    public void testBytesReferenceWithExactPageBoundary() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Write exactly one page worth of data
+        byte[] pageData = randomizedByteArrayWithSize(PageCacheRecycler.BYTE_PAGE_SIZE);
+        out.writeBytes(pageData);
+
+        BytesReference bytes = out.bytes();
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE, bytes.length());
+        assertArrayEquals(pageData, BytesReference.toBytes(bytes));
+        out.close();
+    }
+
+    public void testWriteAcrossMultiplePageBoundaries() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Start near end of first page
+        int startPos = PageCacheRecycler.BYTE_PAGE_SIZE - 10;
+        out.seek(startPos);
+
+        // Write data that spans 3 pages
+        int dataSize = PageCacheRecycler.BYTE_PAGE_SIZE * 2 + 20;
+        byte[] spanningData = randomizedByteArrayWithSize(dataSize);
+        out.writeBytes(spanningData);
+
+        BytesReference bytes = out.bytes();
+        byte[] result = new byte[dataSize];
+        try (StreamInput in = bytes.slice(startPos, dataSize).streamInput()) {
+            assertThat(in.read(result), equalTo(dataSize));
+            assertArrayEquals(spanningData, result);
+        }
+        out.close();
+    }
+
+    public void testOperationsAfterMoveThrowIllegalStateException() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.writeBytes(randomizedByteArrayWithSize(10));
+
+        ReleasableBytesReference ref = out.moveToBytesReference();
+
+        // Test that all write operations throw IllegalStateException after move
+        expectThrows(IllegalStateException.class, () -> out.seek(100));
+        expectThrows(IllegalStateException.class, () -> out.skip(10));
+        expectThrows(IllegalStateException.class, () -> out.writeByte(randomByte()));
+        expectThrows(IllegalStateException.class, () -> out.writeInt(randomInt()));
+        expectThrows(IllegalStateException.class, () -> out.writeLong(randomLong()));
+        expectThrows(IllegalStateException.class, () -> out.writeVInt(randomInt()));
+        expectThrows(IllegalStateException.class, () -> out.writeString("test"));
+
+        ref.close();
+    }
+
+    public void testVIntEdgeCases() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Test boundary values for each vint length category
+        int[] boundaryValues = {
+            0,
+            127,
+            128,           // 1-2 byte boundary
+            16383,
+            16384,          // 2-3 byte boundary
+            2097151,
+            2097152,      // 3-4 byte boundary
+            268435455,
+            268435456,  // 4-5 byte boundary
+            Integer.MAX_VALUE      // Maximum value
+        };
+
+        for (int value : boundaryValues) {
+            out.writeVInt(value);
+        }
+
+        StreamInput in = out.bytes().streamInput();
+        for (int expectedValue : boundaryValues) {
+            assertEquals(expectedValue, in.readVInt());
+        }
+
+        out.close();
+    }
+
+    public void testWriteStringWithMaxUnicodeCharacters() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Test string with 3-byte UTF-8 characters
+        String unicodeString = "\u20AC\u20AC\u20AC"; // Euro symbols (3 bytes each)
+        out.writeString(unicodeString);
+
+        StreamInput in = out.bytes().streamInput();
+        assertEquals(unicodeString, in.readString());
+
+        out.close();
+    }
+
+    public void testSeekBeyondIntegerMaxValue() {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Test seeking beyond the 2GB limit
+        long beyondLimit = (long) Integer.MAX_VALUE + 1;
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> { out.seek(beyondLimit); });
+        assertTrue(ex.getMessage().contains("cannot hold more than 2GB"));
+
+        out.close();
+    }
+
+    public void testBytesReferenceForEmptyStream() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        BytesReference bytes = out.bytes();
+        assertEquals(0, bytes.length());
+        assertSame(org.elasticsearch.common.bytes.BytesArray.EMPTY, bytes);
+
+        out.close();
+    }
+
+    public void testLegacyWriteWithSizePrefixResourceManagement() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+
+        // Create a writeable that exercises the tmp stream cleanup logic
+        TestWriteable writeable = new TestWriteable(randomBoolean());
+        out.legacyWriteWithSizePrefix(writeable);
+
+        // Verify we can read it back correctly
+        StreamInput in = out.bytes().streamInput();
+        int size = in.readVInt();
+        assertTrue(size > 0);
+        TestWriteable read = new TestWriteable(in);
+        assertEquals(writeable.value, read.value);
+
+        out.close();
     }
 }

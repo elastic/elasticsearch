@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +50,17 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Collection<Object[]> params() {
-        List<String> types = new ArrayList<>(
-            List.of("flat", "int8_flat", "int4_flat", "bbq_flat", "hnsw", "int8_hnsw", "int4_hnsw", "bbq_hnsw")
+        List<String> types = List.of(
+            "flat",
+            "int8_flat",
+            "int4_flat",
+            "bbq_flat",
+            "hnsw",
+            "int8_hnsw",
+            "int4_hnsw",
+            "bbq_hnsw",
+            "bbq_disk"
         );
-        if (DenseVectorFieldMapper.IVF_FORMAT.isEnabled()) {
-            types.add("bbq_disk");
-        }
 
         // A type can be upgraded to types that follow in the list...
         List<Object[]> params = new java.util.ArrayList<>();

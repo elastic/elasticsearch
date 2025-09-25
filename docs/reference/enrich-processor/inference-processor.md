@@ -127,8 +127,8 @@ Classification configuration for inference.
     * `deberta_v2`: Use for DeBERTa v2 and v3-style models
     * `mpnet`: Use for MPNet-style models
     * `roberta`: Use for RoBERTa-style and BART-style models
-    * [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
-    * [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `xlm_roberta`: Use for XLMRoBERTa-style models
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `bert_ja`: Use for BERT-style models trained for the Japanese language.
 
 ::::{dropdown} Properties of tokenization
 `bert`
@@ -191,8 +191,8 @@ Classification configuration for inference.
     * `deberta_v2`: Use for DeBERTa v2 and v3-style models
     * `mpnet`: Use for MPNet-style models
     * `roberta`: Use for RoBERTa-style and BART-style models
-    * [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
-    * [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `xlm_roberta`: Use for XLMRoBERTa-style models
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `bert_ja`: Use for BERT-style models trained for the Japanese language.
 
 ::::{dropdown} Properties of tokenization
 `bert`
@@ -271,8 +271,8 @@ Regression configuration for inference.
     * `deberta_v2`: Use for DeBERTa v2 and v3-style models
     * `mpnet`: Use for MPNet-style models
     * `roberta`: Use for RoBERTa-style and BART-style models
-    * [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
-    * [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `xlm_roberta`: Use for XLMRoBERTa-style models
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `bert_ja`: Use for BERT-style models trained for the Japanese language.
 
 ::::{dropdown} Properties of tokenization
 `bert`
@@ -353,8 +353,8 @@ Regression configuration for inference.
     * `deberta_v2`: Use for DeBERTa v2 and v3-style models
     * `mpnet`: Use for MPNet-style models
     * `roberta`: Use for RoBERTa-style and BART-style models
-    * [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
-    * [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `xlm_roberta`: Use for XLMRoBERTa-style models
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `bert_ja`: Use for BERT-style models trained for the Japanese language.
 
 ::::{dropdown} Properties of tokenization
 `bert`
@@ -417,8 +417,8 @@ Regression configuration for inference.
     * `deberta_v2`: Use for DeBERTa v2 and v3-style models
     * `mpnet`: Use for MPNet-style models
     * `roberta`: Use for RoBERTa-style and BART-style models
-    * [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
-    * [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `xlm_roberta`: Use for XLMRoBERTa-style models
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `bert_ja`: Use for BERT-style models trained for the Japanese language.
 
 ::::{dropdown} Properties of tokenization
 `bert`
@@ -504,8 +504,8 @@ Regression configuration for inference.
 * `deberta_v2`: Use for DeBERTa v2 and v3-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
-* [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
-* [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
+* {applies_to}`stack: preview` {applies_to}`serverless: preview` `xlm_roberta`: Use for XLMRoBERTa-style models
+* {applies_to}`stack: preview` {applies_to}`serverless: preview` `bert_ja`: Use for BERT-style models trained for the Japanese language.
 Refer to [Properties of `tokenizaton`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) to review the properties of the `tokenization` object.
 ::::
 
@@ -527,8 +527,8 @@ Refer to [Properties of `tokenizaton`](https://www.elastic.co/docs/api/doc/elast
     * `deberta_v2`: Use for DeBERTa v2 and v3-style models
     * `mpnet`: Use for MPNet-style models
     * `roberta`: Use for RoBERTa-style and BART-style models
-    * [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
-    * [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `xlm_roberta`: Use for XLMRoBERTa-style models
+    * {applies_to}`stack: preview` {applies_to}`serverless: preview` `bert_ja`: Use for BERT-style models trained for the Japanese language.
 
     ::::{dropdown} Properties of tokenization
     `bert`

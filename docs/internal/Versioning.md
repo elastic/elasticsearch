@@ -36,6 +36,9 @@ In order to ensure consistency and robustness, all new `TransportVersion`s
 must first be created in the `main` branch and then backported to the relevant
 release branches.
 
+_Elastic developers_ - instructions in this section for managing transport
+versions are the same in Serverless.
+
 ### Internal state files
 
 The Elasticsearch server jar contains resource files representing each
@@ -50,9 +53,6 @@ regenerated to resolve the conflict before merging to `main`.
 
 All of these internal state files are managed by gradle tasks; they should
 not be edited directly.
-
-_Elastic developers_ - please see corresponding documentation for Serverless
-on creating transport versions for Serverless changes.
 
 ### Creating transport versions locally
 

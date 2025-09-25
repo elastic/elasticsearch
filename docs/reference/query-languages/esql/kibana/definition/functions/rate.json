@@ -3,7 +3,7 @@
   "type" : "time_series_agg",
   "name" : "rate",
   "description" : "The rate of a counter field.",
-  "note" : "Available with the TS command in snapshot builds",
+  "note" : "Available with the TS command",
   "signatures" : [
     {
       "params" : [

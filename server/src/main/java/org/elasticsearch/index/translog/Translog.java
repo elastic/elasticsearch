@@ -64,7 +64,8 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import java.util.zip.CRC32C;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
@@ -617,12 +618,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
             int size = header.length();
-            updateChecksum(header.slice(4, header.length() - 4), checksum);
+            updateChecksum(header, checksum, 4);
             final BytesReference source;
             if (operation instanceof Index index) {
                 source = index.source();
                 size += source.length();
-                updateChecksum(source, checksum);
+                updateChecksum(source, checksum, 0);
             } else {
                 source = null;
             }
@@ -1726,14 +1727,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private static void updateChecksum(BytesReference bytes, CRC32C checksum) throws IOException {
+    private static void updateChecksum(BytesReference bytes, Checksum checksum, final int offset) throws IOException {
         if (bytes.hasArray()) {
-            checksum.update(bytes.array(), bytes.arrayOffset(), bytes.length());
+            checksum.update(bytes.array(), bytes.arrayOffset() + offset, bytes.length() - offset);
         } else {
+            int remainingOffset = offset;
             BytesRefIterator iterator = bytes.iterator();
             BytesRef slice;
             while ((slice = iterator.next()) != null) {
-                checksum.update(slice.bytes, slice.offset, slice.length);
+                checksum.update(slice.bytes, slice.offset + remainingOffset, slice.length - remainingOffset);
+                remainingOffset = 0;
             }
         }
     }

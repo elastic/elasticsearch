@@ -18,7 +18,7 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import java.io.IOException;
 
 public class PatienceCollectorManager implements KnnCollectorManager {
-    private  static final double DEFAULT_SATURATION_THRESHOLD = 0.995;
+    private static final double DEFAULT_SATURATION_THRESHOLD = 0.995;
 
     private final KnnCollectorManager knnCollectorManager;
     private final int patience;

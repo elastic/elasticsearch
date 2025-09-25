@@ -1187,7 +1187,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * an operation to be routed to target shards,
      * this method returns the "effective" shard count as seen by this IndexMetadata.
      *
-     * The reshardSplitShardCountChecksum tells us whether the coordinator routed requests to the source shard or
+     * The reshardSplitShardCountSummary tells us whether the coordinator routed requests to the source shard or
      * to both source and target shards. Requests are routed to both source and target shards
      * once the target shards are ready for an operation.
      *
@@ -1195,14 +1195,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * undergoing a resharding operation. This method is used to populate a field in the shard level requests sent to
      * source and target shards, as a proxy for the cluster state version. The same calculation is then done at the source shard
      * to verify if the coordinator and source node's view of the resharding state have a mismatch.
-     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCountChecksum}
+     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCountSummary}
      * for a detailed description of how this value is used.
      *
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      * @param minShardState Minimum target shard state required for the target to be considered ready
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
-    private int getReshardSplitShardCountChecksum(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
+    private int getReshardSplitShardCountSummary(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
         assert shardId >= 0 && shardId < getNumberOfShards() : "shardId is out of bounds";
         int shardCount = getNumberOfShards();
         if (reshardingMetadata != null) {
@@ -1227,11 +1227,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Given a {@code shardId}, this method returns the "effective" shard count
      * as seen by this IndexMetadata, for indexing operations.
      *
-     * See {@code getReshardSplitShardCountChecksum} for more details.
+     * See {@code getReshardSplitShardCountSummary} for more details.
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      */
-    public int getReshardSplitShardCountChecksumForIndexing(int shardId) {
-        return (getReshardSplitShardCountChecksum(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF));
+    public int getReshardSplitShardCountSummaryForIndexing(int shardId) {
+        return (getReshardSplitShardCountSummary(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF));
     }
 
     /**
@@ -1242,8 +1242,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * See {@code getReshardSplitShardCount} for more details.
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      */
-    public int getReshardSplitShardCountChecksumForSearch(int shardId) {
-        return (getReshardSplitShardCountChecksum(shardId, IndexReshardingState.Split.TargetShardState.SPLIT));
+    public int getReshardSplitShardCountSummaryForSearch(int shardId) {
+        return (getReshardSplitShardCountSummary(shardId, IndexReshardingState.Split.TargetShardState.SPLIT));
     }
 
     public int getNumberOfReplicas() {

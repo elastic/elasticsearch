@@ -403,13 +403,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                 // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
                 var indexMetadata = project.index(shardId.getIndexName());
-                int reshardSplitShardCountChecksum = 0;
+                int reshardSplitShardCountSummary = 0;
                 if (indexMetadata != null) {
-                    reshardSplitShardCountChecksum = indexMetadata.getReshardSplitShardCountChecksumForIndexing(shardId.getId());
+                    reshardSplitShardCountSummary = indexMetadata.getReshardSplitShardCountSummaryForIndexing(shardId.getId());
                 }
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
-                    reshardSplitShardCountChecksum,
+                    reshardSplitShardCountSummary,
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0]),
                     bulkRequest.isSimulated()

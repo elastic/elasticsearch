@@ -47,8 +47,8 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
         super(shardId);
     }
 
-    public ReplicatedWriteRequest(@Nullable ShardId shardId, int reshardSplitShardCountChecksum) {
-        super(shardId, reshardSplitShardCountChecksum);
+    public ReplicatedWriteRequest(@Nullable ShardId shardId, int reshardSplitShardCountSummary) {
+        super(shardId, reshardSplitShardCountSummary);
     }
 
     @Override

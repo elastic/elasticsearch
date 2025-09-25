@@ -87,6 +87,10 @@ public class TestRemoteClusterSecurityExtension implements RemoteClusterSecurity
                         )
                     );
                 }
+                // We need to register here the default security
+                // server transport filter which ensures that all
+                // incoming transport requests are properly
+                // authenticated and authorized.
                 return Collections.unmodifiableMap(profileFilters);
             }
 

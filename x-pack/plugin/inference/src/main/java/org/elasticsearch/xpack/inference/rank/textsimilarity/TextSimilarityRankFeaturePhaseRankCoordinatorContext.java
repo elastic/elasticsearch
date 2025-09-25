@@ -178,7 +178,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
-        // TODO: Try running the RerankRequestChunker here.
         return new InferenceAction.Request(
             TaskType.RERANK,
             inferenceId,

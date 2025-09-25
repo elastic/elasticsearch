@@ -66,9 +66,12 @@ public class RerankRequestChunker {
     }
 
     private RankedDocsResults parseRankedDocResultsForChunks(RankedDocsResults rankedDocsResults) {
-        List<RankedDocsResults.RankedDoc> updatedRankedDocs = new ArrayList<>();
+        List<RankedDocsResults.RankedDoc> topRankedDocs = new ArrayList<>();
         Set<Integer> docIndicesSeen = new HashSet<>();
-        for (RankedDocsResults.RankedDoc rankedDoc : rankedDocsResults.getRankedDocs()) {
+
+        List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>(rankedDocsResults.getRankedDocs());
+        rankedDocs.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
+        for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             int chunkIndex = rankedDoc.index();
             int docIndex = rerankChunks.get(chunkIndex).docIndex();
 
@@ -79,13 +82,12 @@ public class RerankRequestChunker {
                     rankedDoc.relevanceScore(),
                     inputs.get(docIndex)
                 );
-                updatedRankedDocs.add(updatedRankedDoc);
+                topRankedDocs.add(updatedRankedDoc);
                 docIndicesSeen.add(docIndex);
             }
         }
-        updatedRankedDocs.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
 
-        return new RankedDocsResults(updatedRankedDocs);
+        return new RankedDocsResults(topRankedDocs);
     }
 
     public record RerankChunks(int docIndex, String chunkString) {};

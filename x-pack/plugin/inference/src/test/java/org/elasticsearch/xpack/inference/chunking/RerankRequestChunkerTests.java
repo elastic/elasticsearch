@@ -12,9 +12,10 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static java.lang.Math.max;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RerankRequestChunkerTests extends ESTestCase {
@@ -150,7 +151,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
             assertEquals(1, rankedDocResults.getRankedDocs().size());
-            var expectedRankedDocs = List.of(new RankedDocsResults.RankedDoc(0, relevanceScore1, inputs.get(0)));
+            var expectedRankedDocs = List.of(new RankedDocsResults.RankedDoc(0, max(relevanceScore1, relevanceScore2), inputs.get(0)));
             assertEquals(expectedRankedDocs, rankedDocResults.getRankedDocs());
         }, e -> fail("Expected successful parsing but got failure: " + e)));
 
@@ -171,10 +172,9 @@ public class RerankRequestChunkerTests extends ESTestCase {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
             assertEquals(2, rankedDocResults.getRankedDocs().size());
-            assertThat(
-                rankedDocResults.getRankedDocs().get(0).relevanceScore(),
-                greaterThanOrEqualTo(rankedDocResults.getRankedDocs().get(1).relevanceScore())
-            );
+            var sortedResults = new ArrayList<>(rankedDocResults.getRankedDocs());
+            sortedResults.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
+            assertEquals(sortedResults, rankedDocResults.getRankedDocs());
         }, e -> fail("Expected successful parsing but got failure: " + e)));
 
         var chunkedInputs = chunker.getChunkedInputs();
@@ -196,10 +196,9 @@ public class RerankRequestChunkerTests extends ESTestCase {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
             assertEquals(2, rankedDocResults.getRankedDocs().size());
-            assertThat(
-                rankedDocResults.getRankedDocs().get(0).relevanceScore(),
-                greaterThanOrEqualTo(rankedDocResults.getRankedDocs().get(1).relevanceScore())
-            );
+            var sortedResults = new ArrayList<>(rankedDocResults.getRankedDocs());
+            sortedResults.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
+            assertEquals(sortedResults, rankedDocResults.getRankedDocs());
         }, e -> fail("Expected successful parsing but got failure: " + e)));
 
         var chunkedInputs = chunker.getChunkedInputs();
@@ -222,10 +221,9 @@ public class RerankRequestChunkerTests extends ESTestCase {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
             assertEquals(2, rankedDocResults.getRankedDocs().size());
-            assertThat(
-                rankedDocResults.getRankedDocs().get(0).relevanceScore(),
-                greaterThanOrEqualTo(rankedDocResults.getRankedDocs().get(1).relevanceScore())
-            );
+            var sortedResults = new ArrayList<>(rankedDocResults.getRankedDocs());
+            sortedResults.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
+            assertEquals(sortedResults, rankedDocResults.getRankedDocs());
         }, e -> fail("Expected successful parsing but got failure: " + e)));
 
         var chunkedInputs = chunker.getChunkedInputs();

@@ -686,7 +686,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> requestTaskSettings,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var chunkedInputs = inputs;
         ActionListener<InferenceServiceResults> resultsListener = listener.delegateFailure((l, results) -> {
             if (results instanceof RankedDocsResults rankedDocsResults) {
                 if (topN != null) {
@@ -704,18 +703,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var longDocumentStrategy = serviceSettings.getLongDocumentStrategy();
             if (longDocumentStrategy == ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK) {
                 var rerankChunker = new RerankRequestChunker(query, inputs, serviceSettings.getMaxChunksPerDoc());
-                chunkedInputs = rerankChunker.getChunkedInputs();
+                inputs = rerankChunker.getChunkedInputs();
                 resultsListener = rerankChunker.parseChunkedRerankResultsListener(resultsListener);
             }
 
         }
-        var request = buildInferenceRequest(
-            model.mlNodeDeploymentId(),
-            new TextSimilarityConfigUpdate(query),
-            chunkedInputs,
-            inputType,
-            timeout
-        );
+        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
 
         var returnDocs = Boolean.TRUE;
         if (returnDocuments != null) {
@@ -725,7 +718,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             returnDocs = RerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
         }
 
-        Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? chunkedInputs::get : i -> null;
+        Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
 
         ActionListener<InferModelAction.Response> mlResultsListener = resultsListener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier))

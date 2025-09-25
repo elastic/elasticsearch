@@ -86,7 +86,7 @@ public class Version implements Comparable<Version>, Serializable {
     }
 
     public static Version fromString(final String s, final Mode mode) {
-       return fromString(s, mode, false);
+        return fromString(s, mode, false);
     }
 
     public static Version fromString(final String s, final boolean detached) {

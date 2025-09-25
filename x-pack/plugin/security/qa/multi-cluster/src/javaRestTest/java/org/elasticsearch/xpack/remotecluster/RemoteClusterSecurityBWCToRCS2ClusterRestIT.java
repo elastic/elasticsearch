@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;

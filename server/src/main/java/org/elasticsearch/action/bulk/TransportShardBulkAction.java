@@ -191,8 +191,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             BulkItemRequest bulkItemRequest = items[i];
             DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
-            int shardId = docWriteRequest.rerouteAtSourceDuringResharding(routing);
-            // int shardId = docWriteRequest.route(routing);
+            // int shardId = docWriteRequest.rerouteAtSourceDuringResharding(routing);
+            int shardId = docWriteRequest.route(routing);
             // System.out.println("shardId = " + shardId);
             List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                 new ShardId(index, shardId),

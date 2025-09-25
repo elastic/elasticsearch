@@ -398,6 +398,7 @@ public abstract class IndexRouting {
             BytesReference source
         ) {
             // System.out.println("Extract from source");
+            /*
             if (createTsidDuringRouting) {
                 assert tsid != null : "expecting a valid tsid";
                 hash = hash(tsid);
@@ -405,6 +406,9 @@ public abstract class IndexRouting {
                 // TODO: Is this always necessary ? This can be expensive. We should not do this on a transport thread I believe.
                 hash = hashRoutingFields(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
             }
+
+             */
+            hash = hash(tsid);
             int shardId = hashToShardId(hash);
             return rerouteWritesIfResharding(shardId);
         }

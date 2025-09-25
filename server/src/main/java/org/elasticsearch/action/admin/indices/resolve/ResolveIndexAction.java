@@ -97,6 +97,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
         private ResolvedIndexExpressions resolvedIndexExpressions = null;
         private boolean includeResolvedExpressions = false;
+        private boolean resolveCrossProject = false;
 
         public Request(String[] names) {
             this.names = names;
@@ -119,7 +120,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             String[] names,
             IndicesOptions indicesOptions,
             @Nullable EnumSet<IndexMode> indexModes,
-            boolean includeResolvedExpressions
+            boolean includeResolvedExpressions,
+            boolean resolveCrossProject
         ) {
             this.names = names;
             this.indicesOptions = indicesOptions;
@@ -127,6 +129,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 this.indexModes = indexModes;
             }
             this.includeResolvedExpressions = includeResolvedExpressions;
+            this.resolveCrossProject = resolveCrossProject;
         }
 
         @Override
@@ -148,6 +151,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             } else {
                 this.includeResolvedExpressions = false;
             }
+            if (in.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
+                this.resolveCrossProject = in.readBoolean();
+            } else {
+                this.resolveCrossProject = false;
+            }
         }
 
         @Override
@@ -160,6 +168,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
             if (out.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
                 out.writeBoolean(includeResolvedExpressions);
+            }
+            if (out.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
+                out.writeBoolean(resolveCrossProject);
             }
         }
 
@@ -198,8 +209,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
-        public boolean supportsCrossProjectSearch() {
-            return true;
+        public boolean resolveCrossProject() {
+            return resolveCrossProject;
         }
 
         @Override

@@ -550,31 +550,31 @@ public class AuthorizationService {
                         authzInfo,
                         projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(authorizedIndices -> {
-                            if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.supportsCrossProjectSearch()) {
-                                crossProjectSearchAuthzService.loadAuthorizedProjects(new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(TargetProjects authorizedProjects) {
-                                        logger.info("Loaded authorized projects: [{}]", authorizedProjects);
-                                        resolvedIndicesListener.onResponse(
-                                            indicesAndAliasesResolver.resolve(
-                                                action,
-                                                request,
-                                                projectMetadata,
-                                                authorizedIndices,
-                                                authorizedProjects
-                                            )
-                                        );
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        logger.info("Failed to load authorized projects", e);
-                                        resolvedIndicesListener.onFailure(e);
-                                    }
-                                });
+                            if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.resolveCrossProject()) {
+                                crossProjectSearchAuthzService.loadAuthorizedProjects(ActionListener.wrap(authorizedProjects -> {
+                                    logger.info("Loaded authorized projects: [{}]", authorizedProjects);
+                                    resolvedIndicesListener.onResponse(
+                                        indicesAndAliasesResolver.resolve(
+                                            action,
+                                            request,
+                                            projectMetadata,
+                                            authorizedIndices,
+                                            authorizedProjects
+                                        )
+                                    );
+                                }, e -> {
+                                    logger.error("Failed to load authorized projects", e);
+                                    resolvedIndicesListener.onFailure(e);
+                                }));
                             } else {
                                 resolvedIndicesListener.onResponse(
-                                    indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
+                                    indicesAndAliasesResolver.resolve(
+                                        action,
+                                        request,
+                                        projectMetadata,
+                                        authorizedIndices,
+                                        TargetProjects.NOT_CROSS_PROJECT
+                                    )
                                 );
                             }
                         }, e -> {

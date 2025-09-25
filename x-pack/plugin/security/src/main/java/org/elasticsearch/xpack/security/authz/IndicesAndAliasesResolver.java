@@ -366,7 +366,6 @@ class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-
                 final ResolvedIndices split;
                 if (replaceable.allowsRemoteIndices()) {
                     split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());

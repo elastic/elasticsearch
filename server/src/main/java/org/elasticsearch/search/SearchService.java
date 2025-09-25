@@ -1264,8 +1264,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request) {
+        ShardSearchContextId readerId = request.readerId();
         if (request.readerId() != null) {
-            ShardSearchContextId readerId = request.readerId();
             try {
                 return findReaderContext(readerId, request);
             } catch (SearchContextMissingException e) {

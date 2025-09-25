@@ -184,6 +184,7 @@ public class IndexVersions {
     public static final IndexVersion EXCLUDE_SOURCE_VECTORS_DEFAULT = def(9_035_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB = def(9_036_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion TSID_CREATED_DURING_ROUTING = def(9_037_0_00, Version.LUCENE_10_2_2);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_3_0 = def(9_038_0_00, Version.LUCENE_10_3_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

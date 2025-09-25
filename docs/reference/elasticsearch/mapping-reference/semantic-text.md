@@ -26,7 +26,7 @@ with [match](/reference/query-languages/query-dsl/query-dsl-match-query.md), [sp
 or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
 
 {applies_to}`serverless: ga` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to
-`.elser-2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
+`.elser-v2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
 This endpoint uses the [Elastic {{infer-cap}} Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
 {applies_to}`stack: ga 9.0` If you don’t specify an {{infer}} endpoint, the `inference_id` field defaults to

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -23,6 +24,8 @@ public class SourceToParse {
     private final BytesReference source;
 
     private final String id;
+
+    private final @Nullable BytesRef tsid;
 
     private final @Nullable String routing;
 
@@ -44,7 +47,8 @@ public class SourceToParse {
         Map<String, String> dynamicTemplates,
         Map<String, Map<String, String>> dynamicTemplatesParams,
         boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator
+        XContentMeteringParserDecorator meteringParserDecorator,
+        @Nullable BytesRef tsid
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -56,14 +60,15 @@ public class SourceToParse {
         this.dynamicTemplatesParams = dynamicTemplatesParams;
         this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
+        this.tsid = tsid;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, null, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
     public SourceToParse(
@@ -71,9 +76,10 @@ public class SourceToParse {
         BytesReference source,
         XContentType xContentType,
         String routing,
-        Map<String, String> dynamicTemplates
+        Map<String, String> dynamicTemplates,
+        BytesRef tsid
     ) {
-        this(id, source, xContentType, routing, dynamicTemplates, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, dynamicTemplates, Map.of(), true, XContentMeteringParserDecorator.NOOP, tsid);
     }
 
     public BytesReference source() {
@@ -120,5 +126,9 @@ public class SourceToParse {
 
     public boolean getIncludeSourceOnError() {
         return includeSourceOnError;
+    }
+
+    public BytesRef tsid() {
+        return tsid;
     }
 }

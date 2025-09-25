@@ -49,7 +49,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
         // while going top-to-bottom (upstream)
         return plan.transformDown(p -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINESTATS. It is perfectly fine that
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
             // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
             // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
             // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
@@ -115,7 +115,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
                 Attribute attribute = Expressions.attribute(aggregate.groupings().getFirst());
                 NamedExpression firstAggregate = aggregate.aggregates().getFirst();
-                remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id()));
+                remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, attribute.id()));
                 p = aggregate.with(aggregate.groupings(), remaining);
             }
         } else {

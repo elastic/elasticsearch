@@ -81,6 +81,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
@@ -424,8 +425,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             final ActionListener<SearchResponse> searchResponseActionListener;
             if (collectSearchTelemetry) {
+                Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                    original,
+                    Arrays.stream(resolvedIndices.getConcreteLocalIndices()).map(Index::getName).toArray(String[]::new)
+                );
                 if (collectCCSTelemetry == false || resolvedIndices.getRemoteClusterIndices().isEmpty()) {
-                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics);
+                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, searchRequestAttributes);
                 } else {
                     CCSUsage.Builder usageBuilder = new CCSUsage.Builder();
                     usageBuilder.setRemotesCount(resolvedIndices.getRemoteClusterIndices().size());
@@ -450,7 +455,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (shouldMinimizeRoundtrips(rewritten)) {
                         usageBuilder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
                     }
-                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, usageService, usageBuilder);
+                    searchResponseActionListener = new SearchTelemetryListener(
+                        delegate,
+                        searchResponseMetrics,
+                        searchRequestAttributes,
+                        usageService,
+                        usageBuilder
+                    );
                 }
             } else {
                 searchResponseActionListener = delegate;
@@ -1261,7 +1272,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
                     // be thrown when a search phase attempts to access it.
                     targetNodes.add(perNode.getNode());
-                    if (perNode.getSearchContextId().getSearcherId() != null) {
+                    ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
+                    if (shardSearchContextId != null && shardSearchContextId.isRetryable()) {
                         for (String node : group.allocatedNodes()) {
                             if (node.equals(perNode.getNode()) == false) {
                                 targetNodes.add(node);
@@ -1937,7 +1949,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
                         }
-                        if (perNode.getSearchContextId().getSearcherId() != null) {
+                        ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
+                        if (shardSearchContextId.isRetryable()) {
                             for (ShardRouting shard : shards) {
                                 if (shard.currentNodeId().equals(perNode.getNode()) == false) {
                                     targetNodes.add(shard.currentNodeId());
@@ -2035,23 +2048,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final SearchResponseMetrics searchResponseMetrics;
         private final UsageService usageService;
         private final boolean collectCCSTelemetry;
+        private final Map<String, Object> searchRequestAttributes;
 
         SearchTelemetryListener(
             ActionListener<SearchResponse> listener,
             SearchResponseMetrics searchResponseMetrics,
+            Map<String, Object> searchRequestAttributes,
             UsageService usageService,
             CCSUsage.Builder usageBuilder
         ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
+            this.searchRequestAttributes = searchRequestAttributes;
             this.collectCCSTelemetry = true;
             this.usageService = usageService;
             this.usageBuilder = usageBuilder;
         }
 
-        SearchTelemetryListener(ActionListener<SearchResponse> listener, SearchResponseMetrics searchResponseMetrics) {
+        SearchTelemetryListener(
+            ActionListener<SearchResponse> listener,
+            SearchResponseMetrics searchResponseMetrics,
+            Map<String, Object> searchRequestAttributes
+        ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
+            this.searchRequestAttributes = searchRequestAttributes;
             this.collectCCSTelemetry = false;
             this.usageService = null;
             this.usageBuilder = null;
@@ -2060,7 +2081,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onResponse(SearchResponse searchResponse) {
             try {
-                searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), searchRequestAttributes);
                 SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                 if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {

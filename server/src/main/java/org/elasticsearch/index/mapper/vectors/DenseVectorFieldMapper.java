@@ -45,7 +45,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -130,7 +129,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final int BBQ_MIN_DIMS = 64;
 
     private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
-    public static final FeatureFlag IVF_FORMAT = new FeatureFlag("ivf_format");
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -1549,18 +1547,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return true;
             }
-
-            @Override
-            public boolean isEnabled() {
-                return IVF_FORMAT.isEnabled();
-            }
         };
 
         public static Optional<VectorIndexType> fromString(String type) {
-            return Stream.of(VectorIndexType.values())
-                .filter(VectorIndexType::isEnabled)
-                .filter(vectorIndexType -> vectorIndexType.name.equals(type))
-                .findFirst();
+            return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
         }
 
         private final String name;
@@ -1583,10 +1573,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean isQuantized() {
             return quantized;
-        }
-
-        public boolean isEnabled() {
-            return true;
         }
 
         public String getName() {
@@ -2874,8 +2860,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorAsList);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),
+                IndexedSyntheticFieldLoader::copyVectorAsList
+            );
         }
         return null;
     }
@@ -2900,10 +2889,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
+        private final Thread creationThread;
 
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
+            this.creationThread = Thread.currentThread();
         }
 
         @Override
@@ -2930,6 +2921,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private DocValuesLoader createLoader(KnnVectorValues.DocIndexIterator iterator, boolean checkMagnitude) {
             return docId -> {
+                assert creationThread == Thread.currentThread()
+                    : "Thread mismatch: created by [" + creationThread + "], but accessed by [" + Thread.currentThread() + "]";
                 if (iterator.docID() > docId) {
                     return hasValue = false;
                 }

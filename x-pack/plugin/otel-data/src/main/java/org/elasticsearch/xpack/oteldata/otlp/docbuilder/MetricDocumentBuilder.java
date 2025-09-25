@@ -14,6 +14,8 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,7 +42,7 @@ public class MetricDocumentBuilder {
         this.byteStringAccessor = byteStringAccessor;
     }
 
-    public void buildMetricDocument(
+    public BytesRef buildMetricDocument(
         XContentBuilder builder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
@@ -56,7 +58,8 @@ public class MetricDocumentBuilder {
         buildDataStream(builder, dataPointGroup.targetIndex());
         buildScope(builder, dataPointGroup.scopeSchemaUrl(), dataPointGroup.scope());
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
-        builder.field("_metric_names_hash", dataPointGroup.getMetricNamesHash(hasher));
+        String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
+        builder.field("_metric_names_hash", metricNamesHash);
 
         long docCount = 0;
         builder.startObject("metrics");
@@ -83,6 +86,9 @@ public class MetricDocumentBuilder {
             builder.field("_doc_count", docCount);
         }
         builder.endObject();
+        TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
+        tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
+        return tsidBuilder.buildTsid();
     }
 
     private void buildResource(Resource resource, ByteString schemaUrl, XContentBuilder builder) throws IOException {

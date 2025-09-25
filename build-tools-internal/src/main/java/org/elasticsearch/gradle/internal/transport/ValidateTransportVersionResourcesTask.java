@@ -60,6 +60,13 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     @Input
     public abstract Property<Boolean> getShouldValidatePrimaryIdNotPatch();
 
+    /**
+     * The name of the upper bounds file which will be used at runtime on the current branch. Normally
+     * this equates to VersionProperties.getElasticsearchVersion().
+     */
+    @Input
+    public abstract Property<String> getCurrentUpperBoundName();
+
     private record IdAndDefinition(TransportVersionId id, TransportVersionDefinition definition) {}
 
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
@@ -76,6 +83,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<String, TransportVersionDefinition> allDefinitions = collectAllDefinitions(referableDefinitions, unreferableDefinitions);
         Map<Integer, List<IdAndDefinition>> idsByBase = collectIdsByBase(allDefinitions.values());
         Map<String, TransportVersionUpperBound> upperBounds = resources.getUpperBounds();
+        boolean onReleaseBranch = checkIfDefinitelyOnReleaseBranch(upperBounds);
 
         for (var definition : referableDefinitions.values()) {
             validateNamedDefinition(definition, referencedNames);
@@ -93,7 +101,9 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             validateUpperBound(upperBound, allDefinitions, idsByBase);
         }
 
-        validateLargestIdIsUsed(upperBounds, allDefinitions);
+        if (onReleaseBranch == false) {
+            validatePrimaryIds(resources, upperBounds, allDefinitions);
+        }
     }
 
     private Map<String, TransportVersionDefinition> collectAllDefinitions(
@@ -104,7 +114,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         for (var entry : unreferableDefinitions.entrySet()) {
             TransportVersionDefinition existing = allDefinitions.put(entry.getKey(), entry.getValue());
             if (existing != null) {
-                Path unreferablePath = getResources().get().getUnreferableDefinitionRepositoryPath(entry.getValue());
+                Path unreferablePath = getResources().get().getDefinitionPath(entry.getValue());
                 throwDefinitionFailure(existing, "has same name as unreferable definition [" + unreferablePath + "]");
             }
         }
@@ -131,15 +141,6 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     }
 
     private void validateNamedDefinition(TransportVersionDefinition definition, Set<String> referencedNames) {
-
-        // validate any modifications
-        Map<Integer, TransportVersionId> existingIdsByBase = new HashMap<>();
-        TransportVersionDefinition originalDefinition = getResources().get().getReferableDefinitionFromUpstream(definition.name());
-        if (originalDefinition != null) {
-            validateIdenticalPrimaryId(definition, originalDefinition);
-            originalDefinition.ids().forEach(id -> existingIdsByBase.put(id.base(), id));
-        }
-
         if (referencedNames.contains(definition.name()) == false) {
             throwDefinitionFailure(definition, "is not referenced");
         }
@@ -164,11 +165,28 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
                     throwDefinitionFailure(definition, "contains bwc id [" + id + "] with a patch part of 0");
                 }
             }
+        }
+        // validate any modifications
+        TransportVersionDefinition originalDefinition = getResources().get().getReferableDefinitionFromUpstream(definition.name());
+        if (originalDefinition != null) {
+            validateIdenticalPrimaryId(definition, originalDefinition);
+            for (int i = 1; i < originalDefinition.ids().size(); ++i) {
+                TransportVersionId originalId = originalDefinition.ids().get(i);
 
-            // check modifications of ids on same name, ie sharing same base
-            TransportVersionId maybeModifiedId = existingIdsByBase.get(id.base());
-            if (maybeModifiedId != null && maybeModifiedId.complete() != id.complete()) {
-                throwDefinitionFailure(definition, "modifies existing patch id from " + maybeModifiedId + " to " + id);
+                // we have a very small number of ids in a definition, so just search linearly
+                boolean found = false;
+                for (int j = 1; j < definition.ids().size(); ++j) {
+                    TransportVersionId id = definition.ids().get(j);
+                    if (id.base() == originalId.base()) {
+                        found = true;
+                        if (id.complete() != originalId.complete()) {
+                            throwDefinitionFailure(definition, "has modified patch id from " + originalId + " to " + id);
+                        }
+                    }
+                }
+                if (found == false) {
+                    throwDefinitionFailure(definition, "has removed id " + originalId);
+                }
             }
         }
     }
@@ -210,7 +228,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
         if (upperBoundDefinition.ids().contains(upperBound.definitionId()) == false) {
-            Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(upperBoundDefinition);
+            Path relativePath = getResources().get().getDefinitionPath(upperBoundDefinition);
             throwUpperBoundFailure(
                 upperBound,
                 "has id " + upperBound.definitionId() + " which is not in definition [" + relativePath + "]"
@@ -237,7 +255,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
 
         TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromUpstream(upperBound.name());
-        if (existingUpperBound != null) {
+        if (existingUpperBound != null && getShouldValidatePrimaryIdNotPatch().get()) {
             if (upperBound.definitionId().patch() != 0 && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
                 throwUpperBoundFailure(
                     upperBound,
@@ -254,7 +272,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             IdAndDefinition current = ids.get(ndx);
 
             if (previous.id().equals(current.id())) {
-                Path existingDefinitionPath = getResources().get().getReferableDefinitionRepositoryPath(previous.definition);
+                Path existingDefinitionPath = getResources().get().getDefinitionPath(previous.definition);
                 throwDefinitionFailure(
                     current.definition(),
                     "contains id " + current.id + " already defined in [" + existingDefinitionPath + "]"
@@ -270,14 +288,33 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
     }
 
-    private void validateLargestIdIsUsed(
+    private void validatePrimaryIds(
+        TransportVersionResourcesService resources,
         Map<String, TransportVersionUpperBound> upperBounds,
         Map<String, TransportVersionDefinition> allDefinitions
     ) {
         // first id is always the highest within a definition, and validated earlier
-        // note we use min instead of max because the id comparator is in descending order
-        var highestDefinition = allDefinitions.values().stream().min(Comparator.comparing(d -> d.ids().get(0))).get();
-        var highestId = highestDefinition.ids().get(0);
+        // note the first element is actually the highest because the id comparator is in descending order
+        var sortedDefinitions = allDefinitions.values().stream().sorted(Comparator.comparing(d -> d.ids().getFirst())).toList();
+        TransportVersionDefinition highestDefinition = sortedDefinitions.getFirst();
+        TransportVersionId highestId = highestDefinition.ids().getFirst();
+
+        if (sortedDefinitions.size() > 1 && getShouldValidateDensity().get()) {
+            TransportVersionDefinition secondHighestDefinition = sortedDefinitions.get(1);
+            TransportVersionId secondHighestId = secondHighestDefinition.ids().getFirst();
+            if (highestId.complete() > secondHighestId.complete() + 1000) {
+                throwDefinitionFailure(
+                    highestDefinition,
+                    "has primary id "
+                        + highestId
+                        + " which is more than maximum increment 1000 from id "
+                        + secondHighestId
+                        + " in definition ["
+                        + resources.getDefinitionPath(secondHighestDefinition)
+                        + "]"
+                );
+            }
+        }
 
         for (var upperBound : upperBounds.values()) {
             if (upperBound.definitionId().equals(highestId)) {
@@ -291,8 +328,17 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         );
     }
 
+    private boolean checkIfDefinitelyOnReleaseBranch(Map<String, TransportVersionUpperBound> upperBounds) {
+        // only want to look at definitions <= the current upper bound.
+        // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
+        String currentUpperBoundName = getCurrentUpperBoundName().get();
+        TransportVersionUpperBound currentUpperBound = upperBounds.get(currentUpperBoundName);
+
+        return upperBounds.values().stream().anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
+    }
+
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {
-        Path relativePath = getResources().get().getReferableDefinitionRepositoryPath(definition);
+        Path relativePath = getResources().get().getDefinitionPath(definition);
         throw new VerificationException("Transport version definition file [" + relativePath + "] " + message);
     }
 

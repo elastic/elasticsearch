@@ -677,3 +677,115 @@ id_2.0      | 0.36515
 id_1.0      | 0.18257
 id_0.0      | 0.0
 ;
+
+fuseWithRowLinearAndMultiValueGroupColumn
+
+required_capability: fuse_v5
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string), _fork = CASE(my_score == 0, ["foo", "bar"], _fork)
+| SORT my_score
+| LIMIT 10
+| FUSE LINEAR SCORE BY my_score
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score, _fork
+;
+
+warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+
+_id:keyword | my_score:double | _fork:keyword
+id_0.0      | null            | [foo, bar]
+id_4.0      | 4.0             | foo
+id_3.0      | 3.0             | foo
+id_2.0      | 2.0             | foo
+id_1.0      | 1.0             | foo
+;
+
+fuseWithRowLinearAndMultiValueScoreColumn
+
+required_capability: fuse_v5
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string), my_score = CASE(my_score == 0, [1, 2]::double, my_score)
+| SORT my_score
+| LIMIT 10
+| FUSE LINEAR SCORE BY my_score
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score, _fork
+;
+
+warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: score column contains multivalued entries; assigning null scores
+
+_id:keyword | my_score:double | _fork:keyword
+id_0.0      | null            | foo
+id_4.0      | 4.0             | foo
+id_3.0      | 3.0             | foo
+id_2.0      | 2.0             | foo
+id_1.0      | 1.0             | foo
+;
+
+fuseWithRowRRFAndMultiValueGroupColumn
+
+required_capability: fuse_v5
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string), _fork = CASE(my_score == 0, ["foo", "bar"], _fork)
+| SORT my_score
+| LIMIT 10
+| FUSE RRF SCORE BY my_score
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score, _fork
+;
+
+warning:Line 6:3: evaluation of [FUSE RRF SCORE BY my_score] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+
+_id:keyword | my_score:double | _fork:keyword
+id_0.0      | null            | [foo, bar]
+id_1.0      | 0.01639         | foo
+id_2.0      | 0.01613         | foo
+id_3.0      | 0.01587         | foo
+id_4.0      | 0.01563         | foo
+;
+
+fuseWithRowLinearL2NormAndZeroScores
+
+required_capability: fuse_v5
+
+ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", _fork = "foo"
+| MV_EXPAND _id
+| FUSE LINEAR WITH { "normalizer": "l2_norm" }
+| SORT _id
+| KEEP _id, _score
+;
+
+_id:keyword | _score:double
+a           | 0.0
+b           | 0.0
+c           | 0.0
+;
+
+fuseWithRowLinearMinMaxAndZeroScores
+
+required_capability: fuse_v5
+
+ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", _fork = "foo"
+| MV_EXPAND _id
+| FUSE LINEAR WITH { "normalizer": "minmax" }
+| SORT _id
+| KEEP _id, _score
+;
+
+_id:keyword | _score:double
+a           | 0.0
+b           | 0.0
+c           | 0.0
+;

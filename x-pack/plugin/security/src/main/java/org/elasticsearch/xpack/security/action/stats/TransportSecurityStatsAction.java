@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.stats;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -27,8 +26,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 public class TransportSecurityStatsAction extends TransportNodesAction<
     GetSecurityStatsNodesRequest,
@@ -80,12 +77,9 @@ public class TransportSecurityStatsAction extends TransportNodesAction<
 
     @Override
     protected GetSecurityStatsNodeResponse nodeOperation(final GetSecurityStatsNodeRequest request, final Task task) {
-        final CompletableFuture<Map<String, Object>> rolesStatsFuture = new CompletableFuture<>();
-        if (rolesStore == null) {
-            rolesStatsFuture.complete(null);
-        } else {
-            rolesStore.usageStats(ActionListener.wrap(rolesStatsFuture::complete, rolesStatsFuture::completeExceptionally));
-        }
-        return new GetSecurityStatsNodeResponse(clusterService.localNode(), rolesStatsFuture.join());
+        return new GetSecurityStatsNodeResponse(
+            clusterService.localNode(),
+            rolesStore == null ? null : rolesStore.usageStatsWithJustDls()
+        );
     }
 }

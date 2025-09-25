@@ -32,6 +32,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 

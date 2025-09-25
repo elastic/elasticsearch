@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
@@ -1065,17 +1066,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public void writeValue(ByteBuffer byteBuffer, float value) {
-            byteBuffer.putShort((short) (Float.floatToIntBits(value) >>> 16));
+            byteBuffer.putShort(BFloat16.floatToBFloat16(value));
         }
 
         @Override
         public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
-            b.value(Float.intBitsToFloat(byteBuffer.getShort() << 16));
+            b.value(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
         }
 
         @Override
         public int getNumBytes(int dimensions) {
-            return dimensions * Short.BYTES;
+            return dimensions * BFloat16.BYTES;
         }
     }
 

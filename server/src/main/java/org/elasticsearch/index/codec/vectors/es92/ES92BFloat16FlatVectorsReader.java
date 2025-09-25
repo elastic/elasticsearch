@@ -42,6 +42,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 import java.util.Map;

@@ -7,14 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.es92;
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.util.BitUtil;
 
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 
-class BFloat16 {
+public class BFloat16 {
 
     public static final int BYTES = Short.BYTES;
 
@@ -47,4 +47,14 @@ class BFloat16 {
             floats[i] = bFloat16ToFloat((short) BitUtil.VH_LE_SHORT.get(bfBytes, i * 2));
         }
     }
+
+    public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
+        assert floats.length == bFloats.remaining();
+        assert bFloats.order() == ByteOrder.LITTLE_ENDIAN;
+        for (int i = 0; i < floats.length; i++) {
+            floats[i] = bFloat16ToFloat(bFloats.get());
+        }
+    }
+
+    private BFloat16() {}
 }

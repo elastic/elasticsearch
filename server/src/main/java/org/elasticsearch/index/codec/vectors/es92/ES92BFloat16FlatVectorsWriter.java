@@ -46,6 +46,7 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.Closeable;
 import java.io.IOException;

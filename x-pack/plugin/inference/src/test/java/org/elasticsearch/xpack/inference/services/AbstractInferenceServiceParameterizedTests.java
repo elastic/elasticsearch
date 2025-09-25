@@ -10,80 +10,35 @@ package org.elasticsearch.xpack.inference.services;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.junit.After;
 import org.junit.Assume;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
-import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
-import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 /**
  * Base class for testing inference services using parameterized tests.
  */
-public abstract class AbstractInferenceServiceParameterizedTests extends InferenceServiceTestCase {
-
-    private final AbstractInferenceServiceTests.TestConfiguration testConfiguration;
-
-    protected final MockWebServer webServer = new MockWebServer();
-    protected ThreadPool threadPool;
-    protected HttpClientManager clientManager;
-    protected TestCase testCase;
-
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
+public abstract class AbstractInferenceServiceParameterizedTests extends AbstractInferenceServiceBaseTests {
 
     public AbstractInferenceServiceParameterizedTests(
-        AbstractInferenceServiceTests.TestConfiguration testConfiguration,
+        AbstractInferenceServiceBaseTests.TestConfiguration testConfiguration,
         TestCase testCase
     ) {
-        this.testConfiguration = Objects.requireNonNull(testConfiguration);
+        super(testConfiguration);
         this.testCase = testCase;
     }
 
@@ -92,11 +47,66 @@ public abstract class AbstractInferenceServiceParameterizedTests extends Inferen
         return testConfiguration.commonConfig().createService(threadPool, clientManager);
     }
 
+    public record TestCase(
+        String description,
+        Function<AbstractInferenceServiceBaseTests.TestConfiguration, Utils.PersistedConfig> createPersistedConfig,
+        ServiceParser serviceParser,
+        TaskType expectedTaskType,
+        boolean modelIncludesSecrets,
+        boolean expectFailure
+    ) {}
+
+    private record ServiceParserParams(
+        SenderService service,
+        Utils.PersistedConfig persistedConfig,
+        AbstractInferenceServiceBaseTests.TestConfiguration testConfiguration
+    ) {}
+
+    @FunctionalInterface
+    private interface ServiceParser {
+        Model parseConfigs(ServiceParserParams params);
+    }
+
+    private static class TestCaseBuilder {
+        private final String description;
+        private final Function<AbstractInferenceServiceBaseTests.TestConfiguration, Utils.PersistedConfig> createPersistedConfig;
+        private final ServiceParser serviceParser;
+        private final TaskType expectedTaskType;
+        private boolean modelIncludesSecrets;
+        private boolean expectFailure;
+
+        TestCaseBuilder(
+            String description,
+            Function<AbstractInferenceServiceBaseTests.TestConfiguration, Utils.PersistedConfig> createPersistedConfig,
+            ServiceParser serviceParser,
+            TaskType expectedTaskType
+        ) {
+            this.description = description;
+            this.createPersistedConfig = createPersistedConfig;
+            this.serviceParser = serviceParser;
+            this.expectedTaskType = expectedTaskType;
+        }
+
+        public TestCaseBuilder withSecrets() {
+            this.modelIncludesSecrets = true;
+            return this;
+        }
+
+        public TestCaseBuilder expectFailure() {
+            this.expectFailure = true;
+            return this;
+        }
+
+        public TestCase build() {
+            return new TestCase(description, createPersistedConfig, serviceParser, expectedTaskType, modelIncludesSecrets, expectFailure);
+        }
+    }
+
     @ParametersFactory
     public static Iterable<TestCase[]> parameters() throws IOException {
         return Arrays.asList(
             new TestCase[][] {
-                // parsePersistedConfig
+                // Test cases for parsePersistedConfig method
                 {
                     new TestCaseBuilder(
                         "Test parsing persisted config without chunking settings",
@@ -106,11 +116,7 @@ public abstract class AbstractInferenceServiceParameterizedTests extends Inferen
                             testConfiguration.commonConfig().createTaskSettingsMap(),
                             null
                         ),
-                        (service, persistedConfig, testConfiguration) -> service.parsePersistedConfig(
-                            "id",
-                            TaskType.TEXT_EMBEDDING,
-                            persistedConfig.config()
-                        ),
+                        (params) -> params.service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, params.persistedConfig.config()),
                         TaskType.TEXT_EMBEDDING
                     ).build() },
                 {
@@ -123,14 +129,56 @@ public abstract class AbstractInferenceServiceParameterizedTests extends Inferen
                             createRandomChunkingSettingsMap(),
                             null
                         ),
-                        (service, persistedConfig, testConfiguration) -> service.parsePersistedConfig(
-                            "id",
-                            TaskType.TEXT_EMBEDDING,
-                            persistedConfig.config()
-                        ),
+                        (params) -> params.service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, params.persistedConfig.config()),
                         TaskType.TEXT_EMBEDDING
                     ).build() },
-                // parsePersistedConfigWithSecrets
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config does not throw when an extra key exists in config",
+                        testConfiguration -> {
+                            var persistedConfigMap = getPersistedConfigMap(
+                                testConfiguration.commonConfig()
+                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
+                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                null
+                            );
+                            persistedConfigMap.config().put("extra_key", "value");
+                            return persistedConfigMap;
+                        },
+                        (params) -> params.service.parsePersistedConfig("id", TaskType.COMPLETION, params.persistedConfig.config()),
+                        TaskType.COMPLETION
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config does not throw when an extra key exists in service settings",
+                        testConfiguration -> {
+                            var serviceSettings = testConfiguration.commonConfig()
+                                .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT);
+                            serviceSettings.put("extra_key", "value");
+
+                            return getPersistedConfigMap(serviceSettings, testConfiguration.commonConfig().createTaskSettingsMap(), null);
+                        },
+                        (params) -> params.service.parsePersistedConfig("id", TaskType.COMPLETION, params.persistedConfig.config()),
+                        TaskType.COMPLETION
+                    ).build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config does not throw when an extra key exists in task settings",
+                        testConfiguration -> {
+                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap();
+                            taskSettingsMap.put("extra_key", "value");
+
+                            return getPersistedConfigMap(
+                                testConfiguration.commonConfig()
+                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
+                                taskSettingsMap,
+                                null
+                            );
+                        },
+                        (params) -> params.service.parsePersistedConfig("id", TaskType.COMPLETION, params.persistedConfig.config()),
+                        TaskType.COMPLETION
+                    ).build() },
+                // Test cases for parsePersistedConfigWithSecrets method
                 {
                     new TestCaseBuilder(
                         "Test parsing persisted config with secrets creates an embeddings model",
@@ -140,11 +188,11 @@ public abstract class AbstractInferenceServiceParameterizedTests extends Inferen
                             testConfiguration.commonConfig().createTaskSettingsMap(),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
-                        (service, persistedConfig, testConfiguration) -> service.parsePersistedConfigWithSecrets(
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
                             "id",
                             TaskType.TEXT_EMBEDDING,
-                            persistedConfig.config(),
-                            persistedConfig.secrets()
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
                         ),
                         TaskType.TEXT_EMBEDDING
                     ).withSecrets().build() },
@@ -159,11 +207,11 @@ public abstract class AbstractInferenceServiceParameterizedTests extends Inferen
                             createRandomChunkingSettingsMap(),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
-                        (service, persistedConfig, testConfiguration) -> service.parsePersistedConfigWithSecrets(
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
                             "id",
                             TaskType.TEXT_EMBEDDING,
-                            persistedConfig.config(),
-                            persistedConfig.secrets()
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
                         ),
                         TaskType.TEXT_EMBEDDING
                     ).withSecrets().build() },
@@ -177,11 +225,11 @@ public abstract class AbstractInferenceServiceParameterizedTests extends Inferen
                             testConfiguration.commonConfig().createTaskSettingsMap(),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
-                        (service, persistedConfig, testConfiguration) -> service.parsePersistedConfigWithSecrets(
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
                             "id",
                             TaskType.COMPLETION,
-                            persistedConfig.config(),
-                            persistedConfig.secrets()
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
                         ),
                         TaskType.COMPLETION
                     ).withSecrets().build() },
@@ -194,276 +242,146 @@ public abstract class AbstractInferenceServiceParameterizedTests extends Inferen
                             testConfiguration.commonConfig().createTaskSettingsMap(),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
-                        (service, persistedConfig, testConfiguration) -> service.parsePersistedConfigWithSecrets(
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
                             "id",
-                            testConfiguration.commonConfig().unsupportedTaskType(),
-                            persistedConfig.config(),
-                            persistedConfig.secrets()
+                            params.testConfiguration.commonConfig().unsupportedTaskType(),
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
+                        ),
+                        TaskType.COMPLETION
+                    ).withSecrets().expectFailure().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config with with secrets does not throw when an extra key exists in config",
+                        testConfiguration -> {
+                            var persistedConfigMap = getPersistedConfigMap(
+                                testConfiguration.commonConfig()
+                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
+                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                testConfiguration.commonConfig().createSecretSettingsMap()
+                            );
+                            persistedConfigMap.config().put("extra_key", "value");
+                            return persistedConfigMap;
+                        },
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
+                            "id",
+                            TaskType.COMPLETION,
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
+                        ),
+                        TaskType.COMPLETION
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config with with secrets does not throw when an extra key exists in service settings",
+                        testConfiguration -> {
+                            var serviceSettings = testConfiguration.commonConfig()
+                                .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT);
+                            serviceSettings.put("extra_key", "value");
+
+                            return getPersistedConfigMap(
+                                serviceSettings,
+                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                testConfiguration.commonConfig().createSecretSettingsMap()
+                            );
+                        },
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
+                            "id",
+                            TaskType.COMPLETION,
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
+                        ),
+                        TaskType.COMPLETION
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config with with secrets does not throw when an extra key exists in task settings",
+                        testConfiguration -> {
+                            var taskSettingsMap = testConfiguration.commonConfig().createTaskSettingsMap();
+                            taskSettingsMap.put("extra_key", "value");
+
+                            return getPersistedConfigMap(
+                                testConfiguration.commonConfig()
+                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
+                                taskSettingsMap,
+                                testConfiguration.commonConfig().createSecretSettingsMap()
+                            );
+                        },
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
+                            "id",
+                            TaskType.COMPLETION,
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
+                        ),
+                        TaskType.COMPLETION
+                    ).withSecrets().build() },
+                {
+                    new TestCaseBuilder(
+                        "Test parsing persisted config with with secrets does not throw when an extra key exists in secret settings",
+                        testConfiguration -> {
+                            var secretSettingsMap = testConfiguration.commonConfig().createSecretSettingsMap();
+                            secretSettingsMap.put("extra_key", "value");
+
+                            return getPersistedConfigMap(
+                                testConfiguration.commonConfig()
+                                    .createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.PERSISTENT),
+                                testConfiguration.commonConfig().createTaskSettingsMap(),
+                                secretSettingsMap
+                            );
+                        },
+                        (params) -> params.service.parsePersistedConfigWithSecrets(
+                            "id",
+                            TaskType.COMPLETION,
+                            params.persistedConfig.config(),
+                            params.persistedConfig.secrets()
                         ),
                         TaskType.COMPLETION
                     ).withSecrets().build() } }
         );
     }
 
-    public record TestCase(
-        String description,
-        Function<AbstractInferenceServiceTests.TestConfiguration, Utils.PersistedConfig> createPersistedConfig,
-        ServiceCallback serviceCallback,
-        TaskType expectedTaskType,
-        boolean modelIncludesSecrets,
-        boolean expectFailure
-    ) {}
-
-    @FunctionalInterface
-    interface ServiceCallback {
-        Model parseConfigs(
-            SenderService service,
-            Utils.PersistedConfig persistedConfig,
-            AbstractInferenceServiceTests.TestConfiguration testConfiguration
-        );
-    }
-
-    private static class TestCaseBuilder {
-        private final String description;
-        private final Function<AbstractInferenceServiceTests.TestConfiguration, Utils.PersistedConfig> createPersistedConfig;
-        private final ServiceCallback serviceCallback;
-        private final TaskType expectedTaskType;
-        private boolean modelIncludesSecrets;
-        private boolean expectFailure;
-
-        TestCaseBuilder(
-            String description,
-            Function<AbstractInferenceServiceTests.TestConfiguration, Utils.PersistedConfig> createPersistedConfig,
-            ServiceCallback serviceCallback,
-            TaskType expectedTaskType
-        ) {
-            this.description = description;
-            this.createPersistedConfig = createPersistedConfig;
-            this.serviceCallback = serviceCallback;
-            this.expectedTaskType = expectedTaskType;
-        }
-
-        public TestCaseBuilder withSecrets() {
-            this.modelIncludesSecrets = true;
-            return this;
-        }
-
-        public TestCaseBuilder withFailure() {
-            this.expectFailure = true;
-            return this;
-        }
-
-        public TestCase build() {
-            return new TestCase(description, createPersistedConfig, serviceCallback, expectedTaskType, modelIncludesSecrets, expectFailure);
-        }
-    }
-
     public void testPersistedConfig() throws Exception {
+        // If the service doesn't support the expected task type, then skip the test
+        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(testCase.expectedTaskType));
+
         var parseConfigTestConfig = testConfiguration.commonConfig();
         var persistedConfig = testCase.createPersistedConfig.apply(testConfiguration);
 
         try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var model = testCase.serviceCallback.parseConfigs(service, persistedConfig, testConfiguration);
 
-            if (persistedConfig.config().containsKey(ModelConfigurations.CHUNKING_SETTINGS)) {
-                @SuppressWarnings("unchecked")
-                var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    (Map<String, Object>) persistedConfig.config().get(ModelConfigurations.CHUNKING_SETTINGS)
-                );
-                assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
+            if (testCase.expectFailure) {
+                assertFailedParse(service, persistedConfig);
+            } else {
+                assertSuccessfulParse(service, persistedConfig);
             }
-
-            parseConfigTestConfig.assertModel(model, testCase.expectedTaskType, testCase.modelIncludesSecrets);
         }
     }
 
-    // parsePersistedConfigWithSecrets
+    private void assertFailedParse(SenderService service, Utils.PersistedConfig persistedConfig) {
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> testCase.serviceParser.parseConfigs(new ServiceParserParams(service, persistedConfig, testConfiguration))
+        );
 
-    public void testParsePersistedConfigWithSecrets_ThrowsUnsupportedModelType() throws Exception {
-        var parseConfigTestConfig = testConfiguration.commonConfig();
-
-        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType(), ConfigurationParseContext.PERSISTENT),
-                parseConfigTestConfig.createTaskSettingsMap(),
-                parseConfigTestConfig.createSecretSettingsMap()
-            );
-
-            var exception = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets(
-                    "id",
-                    parseConfigTestConfig.unsupportedTaskType(),
-                    persistedConfigMap.config(),
-                    persistedConfigMap.secrets()
-                )
-            );
-
-            assertThat(
-                exception.getMessage(),
-                containsString(
-                    Strings.format(fetchPersistedConfigTaskTypeParsingErrorMessageFormat(), parseConfigTestConfig.unsupportedTaskType())
-                )
-            );
-        }
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                Strings.format("service does not support task type [%s]", testConfiguration.commonConfig().unsupportedTaskType())
+            )
+        );
     }
 
-    protected String fetchPersistedConfigTaskTypeParsingErrorMessageFormat() {
-        return "service does not support task type [%s]";
-    }
+    private void assertSuccessfulParse(SenderService service, Utils.PersistedConfig persistedConfig) throws Exception {
+        var model = testCase.serviceParser.parseConfigs(new ServiceParserParams(service, persistedConfig, testConfiguration));
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        var parseConfigTestConfig = testConfiguration.commonConfig();
-
-        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var persistedConfigMap = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType(), ConfigurationParseContext.PERSISTENT),
-                parseConfigTestConfig.createTaskSettingsMap(),
-                parseConfigTestConfig.createSecretSettingsMap()
+        if (persistedConfig.config().containsKey(ModelConfigurations.CHUNKING_SETTINGS)) {
+            @SuppressWarnings("unchecked")
+            var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(
+                (Map<String, Object>) persistedConfig.config().get(ModelConfigurations.CHUNKING_SETTINGS)
             );
-            persistedConfigMap.config().put("extra_key", "value");
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                parseConfigTestConfig.taskType(),
-                persistedConfigMap.config(),
-                persistedConfigMap.secrets()
-            );
-
-            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType());
+            assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
         }
-    }
 
-    public void testParsePersistedConfigWithSecrets_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
-        var parseConfigTestConfig = testConfiguration.commonConfig();
-        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var serviceSettings = parseConfigTestConfig.createServiceSettingsMap(
-                parseConfigTestConfig.taskType(),
-                ConfigurationParseContext.PERSISTENT
-            );
-            serviceSettings.put("extra_key", "value");
-            var persistedConfigMap = getPersistedConfigMap(
-                serviceSettings,
-                parseConfigTestConfig.createTaskSettingsMap(),
-                parseConfigTestConfig.createSecretSettingsMap()
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                parseConfigTestConfig.taskType(),
-                persistedConfigMap.config(),
-                persistedConfigMap.secrets()
-            );
-
-            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType());
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
-        var parseConfigTestConfig = testConfiguration.commonConfig();
-        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var taskSettings = parseConfigTestConfig.createTaskSettingsMap();
-            taskSettings.put("extra_key", "value");
-            var config = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType(), ConfigurationParseContext.PERSISTENT),
-                taskSettings,
-                parseConfigTestConfig.createSecretSettingsMap()
-            );
-
-            var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType(), config.config(), config.secrets());
-
-            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType());
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        var parseConfigTestConfig = testConfiguration.commonConfig();
-        try (var service = parseConfigTestConfig.createService(threadPool, clientManager)) {
-            var secretSettingsMap = parseConfigTestConfig.createSecretSettingsMap();
-            secretSettingsMap.put("extra_key", "value");
-            var config = getPersistedConfigMap(
-                parseConfigTestConfig.createServiceSettingsMap(parseConfigTestConfig.taskType(), ConfigurationParseContext.PERSISTENT),
-                parseConfigTestConfig.createTaskSettingsMap(),
-                secretSettingsMap
-            );
-
-            var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType(), config.config(), config.secrets());
-
-            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType());
-        }
-    }
-
-    public void testInfer_ThrowsErrorWhenModelIsNotValid() throws IOException {
-        try (var service = testConfiguration.commonConfig().createService(threadPool, clientManager)) {
-            var listener = new PlainActionFuture<InferenceServiceResults>();
-
-            service.infer(
-                getInvalidModel("id", "service"),
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-
-            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(
-                exception.getMessage(),
-                is("The internal model was invalid, please delete the service [service] with id [id] and add it again.")
-            );
-        }
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
-        Assume.assumeTrue(testConfiguration.updateModelConfiguration().isEnabled());
-
-        try (var service = testConfiguration.commonConfig().createService(threadPool, clientManager)) {
-            var exception = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.updateModelWithEmbeddingDetails(getInvalidModel("id", "service"), randomNonNegativeInt())
-            );
-
-            assertThat(exception.getMessage(), containsString("Can't update embedding details for model"));
-        }
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
-        Assume.assumeTrue(testConfiguration.updateModelConfiguration().isEnabled());
-
-        try (var service = testConfiguration.commonConfig().createService(threadPool, clientManager)) {
-            var embeddingSize = randomNonNegativeInt();
-            var model = testConfiguration.updateModelConfiguration().createEmbeddingModel(null);
-
-            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-            assertEquals(SimilarityMeasure.DOT_PRODUCT, updatedModel.getServiceSettings().similarity());
-            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-        }
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
-        Assume.assumeTrue(testConfiguration.updateModelConfiguration().isEnabled());
-
-        try (var service = testConfiguration.commonConfig().createService(threadPool, clientManager)) {
-            var embeddingSize = randomNonNegativeInt();
-            var model = testConfiguration.updateModelConfiguration().createEmbeddingModel(SimilarityMeasure.COSINE);
-
-            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-            assertEquals(SimilarityMeasure.COSINE, updatedModel.getServiceSettings().similarity());
-            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
-        }
-    }
-
-    // streaming tests
-    public void testSupportedStreamingTasks() throws Exception {
-        try (var service = testConfiguration.commonConfig().createService(threadPool, clientManager)) {
-            assertThat(service.supportedStreamingTasks(), is(testConfiguration.commonConfig().supportedStreamingTasks()));
-            assertFalse(service.canStream(TaskType.ANY));
-        }
+        testConfiguration.commonConfig().assertModel(model, testCase.expectedTaskType, testCase.modelIncludesSecrets);
     }
 }

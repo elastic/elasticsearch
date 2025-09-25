@@ -69,42 +69,56 @@ import static org.hamcrest.Matchers.is;
 
 public class CustomServiceTests extends AbstractInferenceServiceTests {
 
-    public CustomServiceTests(TestCase testCase) {
-        super(createTestConfiguration(), testCase);
+    public CustomServiceTests() {
+        super(createTestConfiguration());
     }
 
-    private static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION) {
-            @Override
-            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                return CustomServiceTests.createService(threadPool, clientManager);
-            }
+    public static TestConfiguration createTestConfiguration() {
+        return new TestConfiguration.Builder(
+            new CommonConfig(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.CHAT_COMPLETION,
+                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
+            ) {
+                @Override
+                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                    return CustomServiceTests.createService(threadPool, clientManager);
+                }
 
-            @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                return CustomServiceTests.createServiceSettingsMap(taskType);
-            }
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                    return CustomServiceTests.createServiceSettingsMap(taskType);
+                }
 
-            @Override
-            protected Map<String, Object> createTaskSettingsMap() {
-                return CustomServiceTests.createTaskSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createTaskSettingsMap() {
+                    return CustomServiceTests.createTaskSettingsMap();
+                }
 
-            @Override
-            protected Map<String, Object> createSecretSettingsMap() {
-                return CustomServiceTests.createSecretSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createSecretSettingsMap() {
+                    return CustomServiceTests.createSecretSettingsMap();
+                }
 
-            @Override
-            protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                CustomServiceTests.assertModel(model, taskType, modelIncludesSecrets);
-            }
+                @Override
+                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                    CustomServiceTests.assertModel(model, taskType, modelIncludesSecrets);
+                }
 
-            @Override
-            protected EnumSet<TaskType> supportedStreamingTasks() {
-                return EnumSet.noneOf(TaskType.class);
+                @Override
+                protected EnumSet<TaskType> supportedStreamingTasks() {
+                    return EnumSet.noneOf(TaskType.class);
+                }
+
+                @Override
+                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+                    assertThat(
+                        rerankingInferenceService.rerankerWindowSize("any model"),
+                        CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+                    );
+                }
             }
-        }).enableUpdateModelTests(new UpdateModelConfiguration() {
+        ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
             protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
                 return createInternalEmbeddingModel(similarityMeasure);
@@ -807,13 +821,5 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("input"), is(List.of("a")));
         }
-    }
-
-    @Override
-    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(
-            rerankingInferenceService.rerankerWindowSize("any model"),
-            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
-        );
     }
 }

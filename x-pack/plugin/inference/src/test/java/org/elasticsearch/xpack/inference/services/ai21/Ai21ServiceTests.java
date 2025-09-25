@@ -81,13 +81,17 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
-    public Ai21ServiceTests(TestCase testCase) {
-        super(createTestConfiguration(), testCase);
+    public Ai21ServiceTests() {
+        super(createTestConfiguration());
     }
 
-    private static AbstractInferenceServiceTests.TestConfiguration createTestConfiguration() {
+    public static AbstractInferenceServiceTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceTests.TestConfiguration.Builder(
-            new AbstractInferenceServiceTests.CommonConfig(TaskType.COMPLETION, TaskType.TEXT_EMBEDDING) {
+            new AbstractInferenceServiceTests.CommonConfig(
+                TaskType.COMPLETION,
+                TaskType.TEXT_EMBEDDING,
+                EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+            ) {
 
                 @Override
                 protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
@@ -167,10 +171,6 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         return new HashMap<>(Map.of("api_key", "secret"));
     }
 
-    protected String fetchPersistedConfigTaskTypeParsingErrorMessageFormat() {
-        return "Failed to parse stored model [id] for [ai21] service, please delete and add the service again";
-    }
-
     @Before
     public void init() throws Exception {
         webServer.start();
@@ -183,16 +183,6 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         clientManager.close();
         terminate(threadPool);
         webServer.close();
-    }
-
-    @Override
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModel() {
-        // The Ai21Service does not support Text Embedding, so this test is not applicable.
-    }
-
-    @Override
-    public void testParseRequestConfig_CreatesAnEmbeddingsModel() {
-        // The Ai21Service does not support Text Embedding, so this test is not applicable.
     }
 
     public void testParseRequestConfig_CreatesChatCompletionsModel() throws IOException {

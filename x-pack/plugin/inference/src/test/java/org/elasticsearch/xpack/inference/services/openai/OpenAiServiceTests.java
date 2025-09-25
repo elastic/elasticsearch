@@ -87,7 +87,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
-import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -146,47 +145,53 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         webServer.close();
     }
 
-    public OpenAiServiceTests(TestCase testCase) {
-        super(createTestConfiguration(), testCase);
+    public OpenAiServiceTests() {
+        super(createTestConfiguration());
     }
 
     public static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.RERANK) {
-            @Override
-            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                return OpenAiServiceTests.createService(threadPool, clientManager);
-            }
+        return new TestConfiguration.Builder(
+            new CommonConfig(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.RERANK,
+                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+            ) {
+                @Override
+                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                    return OpenAiServiceTests.createService(threadPool, clientManager);
+                }
 
-            @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
-            }
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                    return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
+                }
 
-            @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
-                return OpenAiServiceTests.createServiceSettingsMap(taskType, parseContext);
-            }
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+                    return OpenAiServiceTests.createServiceSettingsMap(taskType, parseContext);
+                }
 
-            @Override
-            protected Map<String, Object> createTaskSettingsMap() {
-                return OpenAiServiceTests.createTaskSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createTaskSettingsMap() {
+                    return OpenAiServiceTests.createTaskSettingsMap();
+                }
 
-            @Override
-            protected Map<String, Object> createSecretSettingsMap() {
-                return getSecretSettingsMap(SECRET);
-            }
+                @Override
+                protected Map<String, Object> createSecretSettingsMap() {
+                    return getSecretSettingsMap(SECRET);
+                }
 
-            @Override
-            protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                OpenAiServiceTests.assertModel(model, taskType, modelIncludesSecrets);
-            }
+                @Override
+                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                    OpenAiServiceTests.assertModel(model, taskType, modelIncludesSecrets);
+                }
 
-            @Override
-            protected EnumSet<TaskType> supportedStreamingTasks() {
-                return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+                @Override
+                protected EnumSet<TaskType> supportedStreamingTasks() {
+                    return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+                }
             }
-        }).enableUpdateModelTests(new UpdateModelConfiguration() {
+        ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
             protected OpenAiEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
                 return createInternalEmbeddingModel(similarityMeasure, null);
@@ -343,68 +348,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 ),
                 modelVerificationListener
             );
-        }
-    }
-
-    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createOpenAiService()) {
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("model", "url", "org", null, null, true),
-                getOpenAiTaskSettingsMap("user")
-            );
-            persistedConfig.config().put("extra_key", "value");
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertNull(embeddingsModel.getSecretSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createOpenAiService()) {
-            var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, null, true);
-            serviceSettingsMap.put("extra_key", "value");
-
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getOpenAiTaskSettingsMap("user"));
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertNull(embeddingsModel.getSecretSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createOpenAiService()) {
-            var taskSettingsMap = getOpenAiTaskSettingsMap("user");
-            taskSettingsMap.put("extra_key", "value");
-
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("model", "url", "org", null, null, true), taskSettingsMap);
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
-
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertNull(embeddingsModel.getSecretSettings());
         }
     }
 

@@ -105,7 +105,10 @@ public class CustomService extends SenderService implements RerankingInferenceSe
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            var chunkingSettings = extractChunkingSettings(config, taskType);
+            ChunkingSettings chunkingSettings = null;
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+            }
 
             CustomModel model = createModel(
                 inferenceEntityId,
@@ -154,14 +157,6 @@ public class CustomService extends SenderService implements RerankingInferenceSe
                 Strings.format("Unsupported task type [%s] for custom service", model.getTaskType())
             );
         };
-    }
-
-    private static ChunkingSettings extractChunkingSettings(Map<String, Object> config, TaskType taskType) {
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return null;
     }
 
     @Override
@@ -229,7 +224,10 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        var chunkingSettings = extractChunkingSettings(config, taskType);
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
@@ -246,7 +244,10 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        var chunkingSettings = extractChunkingSettings(config, taskType);
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,

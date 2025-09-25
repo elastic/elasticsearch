@@ -77,6 +77,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
+import static org.elasticsearch.inference.TaskType.COMPLETION;
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -102,43 +105,45 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
-    public LlamaServiceTests(TestCase testCase) {
-        super(createTestConfiguration(), testCase);
+    public LlamaServiceTests() {
+        super(createTestConfiguration());
     }
 
-    private static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING) {
+    public static TestConfiguration createTestConfiguration() {
+        return new TestConfiguration.Builder(
+            new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION)) {
 
-            @Override
-            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                return LlamaServiceTests.createService(threadPool, clientManager);
-            }
+                @Override
+                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                    return LlamaServiceTests.createService(threadPool, clientManager);
+                }
 
-            @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                return LlamaServiceTests.createServiceSettingsMap(taskType);
-            }
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                    return LlamaServiceTests.createServiceSettingsMap(taskType);
+                }
 
-            @Override
-            protected Map<String, Object> createTaskSettingsMap() {
-                return new HashMap<>();
-            }
+                @Override
+                protected Map<String, Object> createTaskSettingsMap() {
+                    return new HashMap<>();
+                }
 
-            @Override
-            protected Map<String, Object> createSecretSettingsMap() {
-                return LlamaServiceTests.createSecretSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createSecretSettingsMap() {
+                    return LlamaServiceTests.createSecretSettingsMap();
+                }
 
-            @Override
-            protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                LlamaServiceTests.assertModel(model, taskType, modelIncludesSecrets);
-            }
+                @Override
+                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                    LlamaServiceTests.assertModel(model, taskType, modelIncludesSecrets);
+                }
 
-            @Override
-            protected EnumSet<TaskType> supportedStreamingTasks() {
-                return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+                @Override
+                protected EnumSet<TaskType> supportedStreamingTasks() {
+                    return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+                }
             }
-        }).enableUpdateModelTests(new UpdateModelConfiguration() {
+        ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
             protected LlamaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
                 return createInternalEmbeddingModel(similarityMeasure);
@@ -237,10 +242,6 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             ChunkingSettingsTests.createRandomChunkingSettings(),
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );
-    }
-
-    protected String fetchPersistedConfigTaskTypeParsingErrorMessageFormat() {
-        return "Failed to parse stored model [id] for [llama] service, please delete and add the service again";
     }
 
     @Before

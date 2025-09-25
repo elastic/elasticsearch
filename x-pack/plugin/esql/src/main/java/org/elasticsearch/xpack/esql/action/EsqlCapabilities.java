@@ -1539,6 +1539,8 @@ public class EsqlCapabilities {
         /** INLINE STATS supports remote indices */
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
 
+        INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled),
+
         /**
          * Support TS command in non-snapshot builds
          */

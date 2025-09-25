@@ -41,13 +41,14 @@ TS metrics
   | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
 ```
 
-This query calculates the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()` function is 
-applied per time series in hourly buckets. These rates are summed for each
+This query calculates the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()` 
+function is applied per time series in hourly buckets. These rates are summed for each
 host and hourly bucket (since each host can map to multiple time series).
 
 This paradigm—a pair of aggregation functions—is standard for time series
 querying. For supported inner (time series) functions per
-[metric type](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric), refer to [](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md). These functions also
+[metric type](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric), refer to 
+[](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md). These functions also
 apply to downsampled data, with the same semantics as for raw data.
 
 ::::{note}
@@ -90,15 +91,17 @@ TS metrics | STATS RATE(search_requests)
 
 **Best practices**
 
-- Avoid mixing aggregation functions on different metrics in the same query, to
-  avoid interference between different time-series. For instance, if one metric
-  is missing values for a given time-series, the aggregation function
-  may return null for a given combination of dimensions, which may lead to a
-  null result for that group if the secondary function returns null on a null
-  arg. More so, null metric filtering is more efficient when a query includes
-  a single metric.
-- Use the `TS` command for aggregations on time series data, rather than `FROM`. The `FROM` command is still available (for example, for listing document contents), but it's not optimized for time series data.
-- The `TS` command can't be combined with certain operations (such as [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is applied, you can process the tabular output with any applicable ES|QL operations.
+- Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
+  For example, in STATS max(rate(foo)) + rate(bar)), if foo and bar don't share the same dimension values, the rate
+  for one metric will be null for some dimension combinations. Because the + operator returns null when either input
+  is null, the entire result becomes null for those dimensions. Additionally, queries that aggregate a single metric
+  can filter out null values more efficiently.
+- Use the `TS` command for aggregations on time series data, rather than `FROM`. The `FROM` command is still available
+  (for example, for listing document contents), but it's not optimized for procesing time series data and may produce
+  unexpected results.
+- The `TS` command can't be combined with certain operations (such as
+  [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is
+  applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
 
 **Examples**

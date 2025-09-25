@@ -13,7 +13,9 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.*;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_V1;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
@@ -53,6 +55,11 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Tests using INSIST are not supported for now",
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using VIEWS not supported for now (until we merge VIEWS and Subqueries/FORK including branch merging)",
+            testCase.requiredCapabilities.contains(VIEWS_V1.capabilityName())
         );
 
         assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));

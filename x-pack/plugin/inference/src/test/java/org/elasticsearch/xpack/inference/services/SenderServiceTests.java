@@ -97,7 +97,6 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
 
-
             PlainActionFuture<Boolean> listener2 = new PlainActionFuture<>();
             service.start(mock(Model.class), listener2);
             listener2.actionGet(TIMEOUT);
@@ -200,7 +199,6 @@ public class SenderServiceTests extends ESTestCase {
 
         return sender;
     }
-
 
     private static class TestSenderService extends SenderService {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {

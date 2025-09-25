@@ -64,7 +64,7 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import java.util.zip.CRC32;
+import java.util.zip.CRC32C;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
@@ -613,7 +613,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final Operation operation) throws IOException {
         try (TranslogStreamOutput out = new TranslogStreamOutput(bigArrays.bytesRefRecycler())) {
-            CRC32 checksum = new CRC32();
+            CRC32C checksum = new CRC32C();
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
             int size = header.length();
@@ -1726,7 +1726,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private static void updateChecksum(BytesReference bytes, CRC32 checksum) throws IOException {
+    private static void updateChecksum(BytesReference bytes, CRC32C checksum) throws IOException {
         if (bytes.hasArray()) {
             checksum.update(bytes.array(), bytes.arrayOffset(), bytes.length());
         } else {

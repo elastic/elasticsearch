@@ -41,9 +41,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -98,7 +96,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public void provideAdditionalMetadata(
+    public void provideAdditionalSettings(
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,
@@ -106,8 +104,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final Instant resolvedAt,
         Settings settings,
         final List<CompressedXContent> combinedTemplateMappings,
-        final Settings.Builder additionalSettings,
-        final BiConsumer<String, Map<String, String>> additionalCustomMetadata
+        IndexVersion indexVersion,
+        final Settings.Builder additionalSettings
     ) {
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
         // This index name is used when validating component and index templates, we should skip this check in that case.

@@ -1,0 +1,15 @@
+placeholder 
+required_capability: text_embedding_function
+required_capability: not_existing_capability
+
+// tag::embedding-eval[]
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
+;
+// end::embedding-eval[]
+
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+

@@ -1,0 +1,5 @@
+pr: 135401
+summary: "OTLP: remove feature flag"
+area: TSDB
+type: enhancement
+issues: []

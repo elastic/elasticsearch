@@ -151,13 +151,7 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
-    public abstract int rerouteIndexingRequestIfResharding(
-        String id,
-        @Nullable String routing,
-        BytesRef tsid,
-        XContentType sourceType,
-        BytesReference source
-    );
+    public abstract int rerouteIndexingRequestIfResharding(IndexRequest indexRequest);
 
     public abstract int rerouteDeleteRequestIfResharding(String id, @Nullable String routing);
 
@@ -241,13 +235,11 @@ public abstract class IndexRouting {
 
         @Override
         public int rerouteIndexingRequestIfResharding(
-            String id,
-            @Nullable String routing,
-            BytesRef tsid,
-            XContentType sourceType,
-            BytesReference source
+            IndexRequest indexRequest
         ) {
             // System.out.println("Route based on Id");
+            String id = indexRequest.id();
+            String routing = indexRequest.routing();
             if (id == null) {
                 throw new IllegalStateException("id is required and should have been set by process");
             }
@@ -380,41 +372,28 @@ public abstract class IndexRouting {
 
         @Override
         public int indexShard(IndexRequest indexRequest) {
+            // System.out.println("Extract from source");
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(indexRequest.routing());
             hash = hashSource(indexRequest);
             int shardId = hashToShardId(hash);
+            // System.out.println("shardId = " + shardId);
             return (rerouteWritesIfResharding(shardId));
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
 
         @Override
-        public int rerouteIndexingRequestIfResharding(
-            String id,
-            @Nullable String routing,
-            BytesRef tsid,
-            XContentType sourceType,
-            BytesReference source
-        ) {
+        public int rerouteIndexingRequestIfResharding(IndexRequest indexRequest) {
             // System.out.println("Extract from source");
-            /*
-            if (createTsidDuringRouting) {
-                assert tsid != null : "expecting a valid tsid";
-                hash = hash(tsid);
-            } else {
-                // TODO: Is this always necessary ? This can be expensive. We should not do this on a transport thread I believe.
-                hash = hashRoutingFields(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
-            }
-
-             */
-            hash = hash(tsid);
+            // assert Transports.assertNotTransportThread("parsing the _source can get slow");
+            // TODO: Is this always necessary ? This can be expensive. postProcess adds some additional metadata
+            // TODO: to the indexing request, can that be used to get the hash in a cheaper way ? Or maybe we
+            // TODO: can add the hash to the IndexRequest ?
+            hash = hashSource(indexRequest);
             int shardId = hashToShardId(hash);
-            return rerouteWritesIfResharding(shardId);
-        }
-
-        public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
-            return hashRoutingFields(sourceType, source).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
+            // System.out.println("shardId = " + shardId);
+            return (rerouteWritesIfResharding(shardId));
         }
 
         private static int defaultOnEmpty() {
@@ -510,6 +489,7 @@ public abstract class IndexRouting {
 
             @Override
             protected int hashSource(IndexRequest indexRequest) {
+                // System.out.println("hashSource for routing path");
                 return hashRoutingFields(indexRequest.getContentType(), indexRequest.source()).buildHash(
                     IndexRouting.ExtractFromSource::defaultOnEmpty
                 );
@@ -565,6 +545,7 @@ public abstract class IndexRouting {
 
             @Override
             protected int hashSource(IndexRequest indexRequest) {
+                // System.out.println("hashSource for tsid");
                 BytesRef tsid = indexRequest.tsid();
                 if (tsid == null) {
                     tsid = buildTsid(indexRequest.getContentType(), indexRequest.indexSource().bytes());

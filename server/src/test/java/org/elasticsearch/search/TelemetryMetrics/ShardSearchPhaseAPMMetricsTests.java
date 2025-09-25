@@ -296,10 +296,8 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         assertTimeRangeAttributes(canMatchMeasurements, "user", false);
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(0, queryMeasurements.size());
-        assertTimeRangeAttributes(queryMeasurements, "user", false);
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         assertEquals(0, fetchMeasurements.size());
-        assertTimeRangeAttributes(fetchMeasurements, "user", false);
     }
 
     private static void assertTimeRangeAttributes(List<Measurement> measurements, String target, boolean isSystem) {

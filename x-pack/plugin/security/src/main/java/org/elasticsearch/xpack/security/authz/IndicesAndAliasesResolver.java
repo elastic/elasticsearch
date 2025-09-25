@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -319,7 +320,10 @@ class IndicesAndAliasesResolver {
             } else {
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()));
             }
+
             if (isAllIndices) {
+                var localExpressions = new HashSet<String>();
+
                 // First, if a selector is present, check to make sure that selectors are even allowed here
                 if (indicesOptions.allowSelectors() == false && allIndicesPatternSelector != null) {
                     String originalIndexExpression = indicesRequest.indices()[0];
@@ -337,12 +341,26 @@ class IndicesAndAliasesResolver {
                             nameExpressionResolver,
                             indicesRequest.includeDataStreams()
                         )) {
-                            resolvedIndicesBuilder.addLocal(
+                            localExpressions.add(
                                 IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector)
                             );
                         }
                     }
                 }
+
+                var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
+                resolvedExpressionsBuilder.addLocalExpressions(
+                    "_all",
+                    localExpressions,
+                    ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                );
+                var resolved = resolvedExpressionsBuilder.build();
+
+                if (recordResolvedIndexExpressions) {
+                    replaceable.setResolvedIndexExpressions(resolved);
+                }
+                resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
+
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {

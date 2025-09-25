@@ -432,11 +432,20 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
         }
     }
 
-    public void testTopNTwiceThenEnrichRemote() {
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
-        Boolean requestIncludeMeta = includeCCSMetadata.v1();
-        boolean responseExpectMeta = includeCCSMetadata.v2();
+    public void testLimitWithCardinalityChange() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | LIMIT 10
+            | WHERE user != "andres"
+            | %s
+            """, enrichHosts(Enrich.Mode.REMOTE));
+        // This is currently not supported, because WHERE is not cardinality preserving
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [LIMIT 10]@3:3"));
+    }
 
+    public void testTopNTwiceThenEnrichRemote() {
         String query = String.format(Locale.ROOT, """
             FROM *:events,events
             | eval ip= TO_STR(host)
@@ -444,9 +453,9 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             | LIMIT 9
             | SORT ip, user
             | LIMIT 5
-            | ENRICH _remote:hosts | KEEP host, timestamp, user, os
+            | ENRICH _remote:hosts
             """, enrichHosts(Enrich.Mode.REMOTE));
-        // This is currently not supported.
+        // This is currently not supported, because we can not handle double topN with remote enrich
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
         assertThat(error.getMessage(), containsString("Physical plan contains remote executing operation [EnrichExec] in local part"));
     }

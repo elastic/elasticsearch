@@ -71,8 +71,9 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // The InlineJoin is currently excluded, as its right-hand side uses as data source a StubRelation that points to the entire
             // left-hand side, so adding a limit in there would lead to the right-hand side work on incomplete data.
             // To avoid repeating this infinitely, we have to set duplicated = true.
-            // FIXME: we can put "true" here and allow join to coexist with limits better, but that would need some more test fixing,
-            // so postpone this for now.
+            // We use withLocal = false because if we have a remote join it will be forced into the fragment by the mapper anyway,
+            // And the verifier checks that there are no non-synthetic limits before the join.
+            // TODO: However, this means that the non-remote join will be always forced on the coordinator. We may want to revisit this.
             return duplicateLimitAsFirstGrandchild(limit, false);
         }
         return limit;

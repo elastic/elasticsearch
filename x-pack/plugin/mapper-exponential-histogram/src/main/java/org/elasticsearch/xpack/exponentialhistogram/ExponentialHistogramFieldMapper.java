@@ -284,7 +284,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public long ramBytesUsed() {
-                            return 0; // Unknown
+                            return 0; // No dynamic allocations
                         }
                     };
                 }

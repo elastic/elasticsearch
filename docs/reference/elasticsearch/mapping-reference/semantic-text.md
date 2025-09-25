@@ -88,7 +88,7 @@ PUT my-index-000001
     "properties": {
       "inference_field": {
         "type": "semantic_text",
-        "inference_id": ".elser-2-elastic"
+        "inference_id": ".elser-v2-elastic"
       }
     }
   }

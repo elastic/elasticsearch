@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
@@ -28,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCase {
 
     @Override
@@ -447,26 +446,9 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             | LIMIT 5
             | ENRICH _remote:hosts | KEEP host, timestamp, user, os
             """, enrichHosts(Enrich.Mode.REMOTE));
-        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
-            assertThat(
-                getValuesList(resp),
-                equalTo(
-                    List.of(
-                        List.of("192.168.1.2", 1L, "andres", "Windows"),
-                        List.of("192.168.1.2", 3L, "park", "Windows"),
-                        List.of("192.168.1.2", 3L, "park", "Windows"),
-                        Arrays.asList("192.168.1.25", 1L, "park", (String) null),
-                        List.of("192.168.1.3", 1L, "matthew", "MacOS"),
-                        List.of("192.168.1.5", 2L, "akio", "Android")
-                    )
-                )
-            );
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
-            assertCCSExecutionInfoDetails(executionInfo);
-        }
-
+        // This is currently not supported.
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
+        assertThat(error.getMessage(), containsString("Physical plan contains remote executing operation [EnrichExec] in local part"));
     }
 
     public void testLimitThenEnrichRemote() {

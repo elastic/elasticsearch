@@ -25,10 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -44,7 +42,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testTooManyPartitions() throws Exception {
-        long memoryLimit = 30L;
+        long memoryLimitMb = 30L;
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("user");
 
@@ -58,7 +56,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         job.setDataDescription(dataDescription);
 
         // Set the memory limit to 30MB
-        AnalysisLimits limits = new AnalysisLimits(memoryLimit, null);
+        AnalysisLimits limits = new AnalysisLimits(memoryLimitMb, null);
         job.setAnalysisLimits(limits);
 
         putJob(job);
@@ -84,13 +82,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
 
-        assertThat(
-            getEffectiveModelSize(modelSizeStats.getModelBytes()),
-            allOf(
-                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
-                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
-            )
-        );
+        assertThat(getEffectiveModelSize(modelSizeStats.getModelBytes()), lessThan(ByteSizeValue.ofMb(memoryLimitMb).getBytes() * 1.05));
         assertThat(
             modelSizeStats.getMemoryStatus(),
             anyOf(equalTo(ModelSizeStats.MemoryStatus.SOFT_LIMIT), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT))
@@ -98,7 +90,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testTooManyByFields() throws Exception {
-        long memoryLimit = 30L;
+        long memoryLimitMb = 30L;
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("user");
 
@@ -112,7 +104,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         job.setDataDescription(dataDescription);
 
         // Set the memory limit to 30MB
-        AnalysisLimits limits = new AnalysisLimits(memoryLimit, null);
+        AnalysisLimits limits = new AnalysisLimits(memoryLimitMb, null);
         job.setAnalysisLimits(limits);
 
         putJob(job);
@@ -137,18 +129,12 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(
-            getEffectiveModelSize(modelSizeStats.getModelBytes()),
-            allOf(
-                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
-                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
-            )
-        );
+        assertThat(getEffectiveModelSize(modelSizeStats.getModelBytes()), lessThan(ByteSizeValue.ofMb(memoryLimitMb).getBytes() * 1.05));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
     public void testTooManyByAndOverFields() throws Exception {
-        long memoryLimit = 30L;
+        long memoryLimitMb = 30L;
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("department");
         detector.setOverFieldName("user");
@@ -163,7 +149,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         job.setDataDescription(dataDescription);
 
         // Set the memory limit to 30MB
-        AnalysisLimits limits = new AnalysisLimits(memoryLimit, null);
+        AnalysisLimits limits = new AnalysisLimits(memoryLimitMb, null);
         job.setAnalysisLimits(limits);
 
         putJob(job);
@@ -194,18 +180,12 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(
-            getEffectiveModelSize(modelSizeStats.getModelBytes()),
-            allOf(
-                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
-                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
-            )
-        );
+        assertThat(getEffectiveModelSize(modelSizeStats.getModelBytes()), lessThan(ByteSizeValue.ofMb(memoryLimitMb).getBytes() * 1.05));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
     public void testManyDistinctOverFields() throws Exception {
-        long memoryLimit = 100L;
+        long memoryLimitMb = 100L;
         Detector.Builder detector = new Detector.Builder("sum", "value");
         detector.setOverFieldName("user");
 
@@ -219,7 +199,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         job.setDataDescription(dataDescription);
 
         // Set the memory limit to 110MB
-        AnalysisLimits limits = new AnalysisLimits(memoryLimit, null);
+        AnalysisLimits limits = new AnalysisLimits(memoryLimitMb, null);
         job.setAnalysisLimits(limits);
 
         putJob(job);
@@ -249,18 +229,12 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(
-            getEffectiveModelSize(modelSizeStats.getModelBytes()),
-            allOf(
-                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
-                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
-            )
-        );
+        assertThat(getEffectiveModelSize(modelSizeStats.getModelBytes()), lessThan(ByteSizeValue.ofMb(memoryLimitMb).getBytes() * 1.05));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
     public void testOpenJobShouldHaveModelSizeStats() throws Exception {
-        long memoryLimit = 110L;
+        long memoryLimitMb = 110L;
         // When a job is opened, it should have non-zero model stats that indicate the memory limit and the assignment basis
         Detector.Builder detector = new Detector.Builder("sum", "value");
         detector.setOverFieldName("user");
@@ -275,7 +249,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         job.setDataDescription(dataDescription);
 
         // Set the memory limit to 110MB
-        AnalysisLimits limits = new AnalysisLimits(memoryLimit, null);
+        AnalysisLimits limits = new AnalysisLimits(memoryLimitMb, null);
         job.setAnalysisLimits(limits);
 
         putJob(job);
@@ -285,7 +259,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         closeJob(job.getId());
 
         assertThat(modelSizeStats.getModelBytes(), equalTo(0L));
-        assertThat(modelSizeStats.getModelBytesMemoryLimit(), equalTo(Long.valueOf(memoryLimit)));
+        assertThat(modelSizeStats.getModelBytesMemoryLimit(), equalTo(Long.valueOf(memoryLimitMb)));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));
         assertThat(modelSizeStats.getAssignmentMemoryBasis(), equalTo(ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT));
 

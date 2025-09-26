@@ -71,10 +71,11 @@ public class DirectIOIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class);
     }
 
-    private void indexVectors() {
+    private String indexVectors(boolean directIO) {
+        String indexName = "test-vectors-" + directIO;
         String type = randomFrom("bbq_hnsw", "bbq_disk");
         assertAcked(
-            prepareCreate("foo-vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
+            prepareCreate(indexName).setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
                 .setMapping("""
                     {
                       "properties": {
@@ -85,27 +86,28 @@ public class DirectIOIT extends ESIntegTestCase {
                           "index": true,
                           "similarity": "l2_norm",
                           "index_options": {
-                            "type": "%type%",
-                            "on_disk_rescore": true
+                            "type": "%s",
+                            "on_disk_rescore": %s
                           }
                         }
                       }
                     }
-                    """.replace("%type%", type))
+                    """.formatted(type, directIO))
         );
-        ensureGreen("foo-vectors");
+        ensureGreen(indexName);
 
         for (int i = 0; i < 1000; i++) {
-            indexDoc("foo-vectors", Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
+            indexDoc(indexName, Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
         }
         refresh();
-        assertBBQIndexType(type); // test assertion to ensure that the correct index type is being used
+        assertBBQIndexType(indexName, type); // test assertion to ensure that the correct index type is being used
+        return indexName;
     }
 
     @SuppressWarnings("unchecked")
-    static void assertBBQIndexType(String type) {
-        var response = indicesAdmin().prepareGetFieldMappings("foo-vectors").setFields("fooVector").get();
-        var map = (Map<String, Object>) response.fieldMappings("foo-vectors", "fooVector").sourceAsMap().get("fooVector");
+    static void assertBBQIndexType(String indexName, String type) {
+        var response = indicesAdmin().prepareGetFieldMappings(indexName).setFields("fooVector").get();
+        var map = (Map<String, Object>) response.fieldMappings(indexName, "fooVector").sourceAsMap().get("fooVector");
         assertThat((String) ((Map<String, Object>) map.get("index_options")).get("type"), is(equalTo(type)));
     }
 
@@ -128,11 +130,39 @@ public class DirectIOIT extends ESIntegTestCase {
                 );
             mockLog.addExpectation(expectation);
 
-            indexVectors();
+            String indexName = indexVectors(true);
 
             // do a search
             var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
-            assertHitCount(prepareSearch("foo-vectors").setKnnSearch(knn), 10);
+            assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
+    public void testDirectIONotUsed() {
+        try (MockLog mockLog = MockLog.capture(FsDirectoryFactory.class)) {
+            // nothing about direct IO should be logged at all
+            MockLog.LoggingExpectation expectation = SUPPORTED
+                ? new MockLog.PatternNotSeenEventExpectation(
+                    "Direct IO used",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Opening .*\\.vec with direct IO"
+                )
+                : new MockLog.PatternNotSeenEventExpectation(
+                    "Direct IO not used",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Could not open .*\\.vec with direct IO"
+                );
+            mockLog.addExpectation(expectation);
+
+            String indexName = indexVectors(false);
+
+            // do a search
+            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }
     }

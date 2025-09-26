@@ -126,7 +126,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * @param queryCache
      * @param indexShard The shard to compute the shared RAM size for
      * @param cacheTotals Shard totals computed in getCacheTotalsForAllShards()
-     * @return
+     * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
     public static long getSharedRamSizeForShard(IndicesQueryCache queryCache, IndexShard indexShard, CacheTotals cacheTotals) {
         long sharedRamBytesUsed = queryCache != null ? queryCache.getSharedRamBytesUsed() : 0L;
@@ -141,7 +141,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             return 0L;
         }
         /*
-         * We have some shared ram usage that we try to distribute proportionally to the number of segment-requestss in the cache for each
+         * We have some shared ram usage that we try to distribute proportionally to the number of segment-requests in the cache for each
          * shard.
          */
         long totalItemsInCache = cacheTotals.totalItemsInCache();

@@ -1054,7 +1054,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.name().equals(score.name())) {
                     continue;
                 }
-                aggregates.add(new Alias(source, attr.name(), new Values(source, attr, aggFilter)));
+                var valuesAgg = new Values(source, attr, aggFilter);
+                if (valuesAgg.resolved()) {
+                    aggregates.add(new Alias(source, attr.name(), valuesAgg));
+                }
             }
 
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);

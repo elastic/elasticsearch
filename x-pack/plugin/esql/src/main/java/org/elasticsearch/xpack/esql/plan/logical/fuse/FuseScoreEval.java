@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -122,6 +123,8 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        validateInput(failures);
+
         if (options == null) {
             return;
         }
@@ -129,6 +132,23 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
         switch (fuseType) {
             case LINEAR -> validateLinearOptions(failures);
             case RRF -> validateRrfOptions(failures);
+        }
+    }
+
+    private void validateInput(Failures failures) {
+        Expression aggFilter = new Literal(source(), true, DataType.BOOLEAN);
+
+        for (Attribute attr : child().output()) {
+            var valuesAgg = new Values(source(), attr, aggFilter);
+
+            if (valuesAgg.resolved() == false) {
+                failures.add(
+                    new Failure(
+                        this,
+                        "cannot use [" + attr.name() + "] as an input of FUSE. Consider using [DROP " + attr.name() + "] before FUSE."
+                    )
+                );
+            }
         }
     }
 

@@ -90,14 +90,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    private void patchIncompatibleJavaVersion() {
-        Version bwcVersion = Version.fromString(bwcDistribution.baseVersion);
-        if (bwcVersion.onOrAfter(Version.V_8_0_0) && bwcVersion.onOrBefore(Version.V_8_4_3)) {
-            final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
-            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
-        }
-    }
-
     public void test20InstallUpgradedVersion() throws Exception {
         if (bwcDistribution.path.equals(distribution.path)) {
             // the old and new distributions are the same, so we are testing force upgrading

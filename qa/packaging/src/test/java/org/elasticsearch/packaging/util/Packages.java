@@ -115,7 +115,6 @@ public class Packages {
         }
         Version version = Version.fromString(distribution.baseVersion);
         boolean requiresPatch = Platforms.isUbuntu24() && (version.onOrAfter(Version.V_8_0_0) && version.onOrBefore(Version.V_8_4_3));
-        System.out.println("requiresPatch = " + requiresPatch);
         return requiresPatch;
     }
 
@@ -133,7 +132,20 @@ public class Packages {
             throw new RuntimeException("Upgrading distribution " + distribution + " failed: " + result);
         }
 
-        return Installation.ofPackage(sh, distribution);
+        Installation installation = Installation.ofPackage(sh, distribution);
+        if (requiresExplicitJavaHome(distribution)) {
+            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+        } else {
+            // Explicitly remove the line if added for previous installation
+            Files.write(
+                installation.envFile,
+                Files.readAllLines(installation.envFile).stream().filter(line -> line.startsWith("ES_JAVA_HOME") == false).toList(),
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            );
+        }
+        return installation;
     }
 
     public static Installation forceUpgradePackage(Shell sh, Distribution distribution) throws IOException {

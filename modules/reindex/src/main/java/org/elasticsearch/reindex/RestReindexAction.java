@@ -87,7 +87,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
      */
     @Override
     public Set<String> getFilteredFields() {
-        return Set.of();
+        assert false : "This method should never be called";
+        throw new UnsupportedOperationException();
     }
 
     @Override

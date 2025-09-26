@@ -211,4 +211,12 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     public String propertiesToString(boolean skipIfChild) {
         return super.propertiesToString(false);
     }
+
+    public boolean isPushable() {
+        return false;
+    }
+
+    public String asScript() {
+        throw new UnsupportedOperationException("asScript not implemented for " + getWriteableName());
+    }
 }

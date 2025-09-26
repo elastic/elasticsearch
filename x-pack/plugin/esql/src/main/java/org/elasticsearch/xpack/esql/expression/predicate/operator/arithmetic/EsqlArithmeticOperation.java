@@ -165,6 +165,16 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     @Override
+    public boolean isPushable() {
+        return left().isPushable() && right().isPushable();
+    }
+
+    @Override
+    public String asScript() {
+        return left().asScript() + function().symbol() + right().asScript();
+    }
+
+    @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();

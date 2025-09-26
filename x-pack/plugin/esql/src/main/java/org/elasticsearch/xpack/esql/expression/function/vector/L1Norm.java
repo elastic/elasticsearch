@@ -81,4 +81,8 @@ public class L1Norm extends VectorSimilarityFunction {
         return result;
     }
 
+    @Override
+    protected String scriptFunctionName() {
+        return "l1norm";
+    }
 }

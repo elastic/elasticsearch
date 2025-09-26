@@ -258,4 +258,14 @@ public class FieldAttribute extends TypedAttribute {
     public EsField field() {
         return field;
     }
+
+    @Override
+    public boolean isPushable() {
+        return true;
+    }
+
+    @Override
+    public String asScript() {
+        return "doc['" + fieldName().string() + "'].value";
+    }
 }

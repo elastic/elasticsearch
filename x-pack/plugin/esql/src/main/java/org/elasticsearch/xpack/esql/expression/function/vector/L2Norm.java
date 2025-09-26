@@ -78,4 +78,8 @@ public class L2Norm extends VectorSimilarityFunction {
         return (float) Math.sqrt(VectorUtil.squareDistance(leftScratch, rightScratch));
     }
 
+    @Override
+    protected String scriptFunctionName() {
+        return "l2norm";
+    }
 }

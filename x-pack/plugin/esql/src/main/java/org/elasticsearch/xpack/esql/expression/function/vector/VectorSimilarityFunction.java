@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Base class for vector similarity functions, which compute a similarity score between two dense vectors
@@ -86,6 +88,22 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
             getClass().getSimpleName() + "Evaluator"
         );
     }
+
+    @Override
+    public boolean isPushable() {
+        // Can only push if one of the arguments is a literal, and the other a field name
+        return left().foldable() && left().dataType() != NULL && right() instanceof FieldAttribute
+            || right().foldable() && right().dataType() != NULL && left() instanceof FieldAttribute;
+    }
+
+    @Override
+    public final String asScript() {
+        String queryVector = left().foldable() ? left().asScript() : right().asScript();
+        String fieldName = left().foldable() ? ((FieldAttribute) right()).name() : ((FieldAttribute) left()).name();
+        return "return doc['" + fieldName + "'].size() == 0 ? 0 : " + scriptFunctionName() + "(" + queryVector + ", '" + fieldName + "')";
+    }
+
+    protected abstract String scriptFunctionName();
 
     /**
      * Returns the similarity function to be used for evaluating the similarity between two vectors.

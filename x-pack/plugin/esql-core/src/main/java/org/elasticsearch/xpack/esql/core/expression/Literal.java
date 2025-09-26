@@ -236,4 +236,14 @@ public class Literal extends LeafExpression implements Accountable {
     private static long wkbAsLong(DataType dataType, BytesRef wkb) {
         return dataType == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
     }
+
+    @Override
+    public boolean isPushable() {
+        return true;
+    }
+
+    @Override
+    public String asScript() {
+        return value().toString();
+    }
 }

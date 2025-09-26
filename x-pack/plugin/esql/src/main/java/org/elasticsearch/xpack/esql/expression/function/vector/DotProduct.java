@@ -78,4 +78,10 @@ public class DotProduct extends VectorSimilarityFunction {
     public String getWriteableName() {
         return ENTRY.name;
     }
+
+    @Override
+    protected String scriptFunctionName() {
+        return "dotProduct";
+    }
+
 }

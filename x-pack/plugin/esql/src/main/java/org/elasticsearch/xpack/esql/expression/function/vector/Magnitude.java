@@ -132,6 +132,11 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
         }
     }
 
+    @Override
+    public boolean isPushable() {
+        return true;
+    }
+
     private record ScalarEvaluator(
         EvalOperator.ExpressionEvaluator child,
         ScalarEvaluatorFunction scalarFunction,

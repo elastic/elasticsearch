@@ -85,4 +85,9 @@ public class Hamming extends VectorSimilarityFunction {
         }
         return VectorUtil.xorBitCount(a, b);
     }
+
+    @Override
+    protected String scriptFunctionName() {
+        return "hamming";
+    }
 }

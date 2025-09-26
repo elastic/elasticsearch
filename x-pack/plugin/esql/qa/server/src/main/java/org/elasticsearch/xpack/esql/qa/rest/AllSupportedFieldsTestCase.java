@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
 import static org.elasticsearch.TransportVersions.INITIAL_ELASTICSEARCH_9_0;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -120,9 +121,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean supportsNodeAssignment() throws IOException {
         if (supportsNodeAssignment == null) {
+            for (NodeInfo i : allNodeToInfo().values()) {
+                logger.error("NOCOMMIT {}", i);
+            }
             supportsNodeAssignment = allNodeToInfo().values()
                 .stream()
-                .allMatch(i -> i.roles.contains("index") && i.roles.contains("search"));
+                .allMatch(i -> (i.roles.contains("index") && i.roles.contains("search")) || (i.roles.contains("data")));
         }
         return supportsNodeAssignment;
     }
@@ -435,7 +439,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Matcher<List<?>> expectedDenseVector(TransportVersion version) {
-        return version.onOrAfter(INITIAL_ELASTICSEARCH_9_0)
+        return version.onOrAfter(INDEX_SOURCE) // *after* 9.1
             ? matchesList().item(0.5).item(10.0).item(5.9999995)
             : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }

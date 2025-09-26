@@ -2,10 +2,5 @@
 
 **Description**
 
-The irate of a counter field. irate is the per-second rate of increase between the last two data points (it ignores all but the last two data points in each time period). This function is very similar to rate, but is more responsive to recent changes in the rate of increase.
-
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command
-::::
-
+Calculates the irate of a counter field. irate is the per-second rate of increase between the last two data points (it ignores all but the last two data points in each time period). This function is very similar to rate, but is more responsive to recent changes in the rate of increase.
 

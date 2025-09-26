@@ -2,10 +2,5 @@
 
 **Description**
 
-The idelta of a gauge. idelta is the absolute change between the last two data points (it ignores all but the last two data points in each time period). This function is very similar to delta, but is more responsive to recent changes.
-
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command
-::::
-
+Calculates the idelta of a gauge. idelta is the absolute change between the last two data points (it ignores all but the last two data points in each time period). This function is very similar to delta, but is more responsive to recent changes.
 

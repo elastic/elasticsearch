@@ -2,7 +2,7 @@
 
 ## `IRATE` [esql-irate]
 ```{applies_to}
-stack: unavailable
+stack: preview 9.2.0
 ```
 
 **Syntax**

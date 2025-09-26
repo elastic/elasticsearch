@@ -21,3 +21,6 @@ stack: unavailable
 
 :::{include} ../types/delta.md
 :::
+
+:::{include} ../examples/delta.md
+:::

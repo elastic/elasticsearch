@@ -282,7 +282,7 @@ from doc with aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -311,7 +311,7 @@ stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -342,7 +342,7 @@ grouping stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -383,7 +383,7 @@ sorting with aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_sorting]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       allowed_warnings_regex:
@@ -415,7 +415,7 @@ aggregate_metric_double unsortable:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_sorting]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       catch: /cannot sort on aggregate_metric_double/
@@ -431,7 +431,7 @@ stats on aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_partial_submetrics]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -471,7 +471,7 @@ stats on aggregate_metric_double missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_partial_submetrics ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -503,7 +503,7 @@ render aggregate_metric_double when missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -527,7 +527,7 @@ render aggregate_metric_double when missing value:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -551,7 +551,7 @@ to_string aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -574,7 +574,7 @@ from index pattern unsupported counter:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_partial_submetrics]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -666,7 +666,7 @@ to_aggregate_metric_double with multi_values:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_convert_to ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for to_aggregate_metric_double function"
 
   - do:
@@ -716,7 +716,7 @@ avg of aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_avg]
+          capabilities: [aggregate_metric_double_v0]
       reason: "support avg aggregations with aggregate metric double"
 
   - do:

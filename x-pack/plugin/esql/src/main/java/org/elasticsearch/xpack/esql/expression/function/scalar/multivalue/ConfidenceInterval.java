@@ -249,7 +249,6 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
         return new Number[] {
             mm + sm * (z0 + zl / (1 - Math.min(0.8, a * zl))),
-            bestEstimate,
             mm + sm * (z0 + zu / (1 - Math.min(0.8, a * zu))),
         };
     }

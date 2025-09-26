@@ -621,6 +621,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:spatial_shapes.ConvertCartesianShapeFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/135455
+- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
+  method: testBlobStoreCacheWithPartialCopyInMixedVersions
+  issue: https://github.com/elastic/elasticsearch/issues/135473
+- class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
+  method: testBlobStoreCacheWithFullCopyInMixedVersions
+  issue: https://github.com/elastic/elasticsearch/issues/135474
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135338
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/134407
+- class: org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT
+  method: testUsage {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135312
+- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
+  method: testUsage {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/135316
 
 # Examples:
 #

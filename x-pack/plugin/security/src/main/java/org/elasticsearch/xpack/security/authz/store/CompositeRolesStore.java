@@ -671,9 +671,7 @@ public class CompositeRolesStore {
     }
 
     public Map<String, Object> usageStatsWithJustDls() {
-        // LinkedHashMap for ordering in transport.
-        // if adding properties consider consistent ordering for human-readability of JSON.
-        return Map.of("dls", Map.of("bit_set_cache", new LinkedHashMap<>(dlsBitsetCache.usageStats())));
+        return Map.of("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {

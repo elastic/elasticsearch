@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
+import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -54,9 +55,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         "_doc._source.*",
         "_doc.properties.host**",
         "_doc.properties.resource**",
-        "_doc.subobjects",
-        "_doc.properties.message",
-        "_doc.properties.error.properties.message"
+        "_doc.subobjects"
     );
 
     private final LogsdbLicenseService licenseService;
@@ -249,6 +248,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             }
 
             try (var mapperService = mapperServiceFactory.get().apply(tmpIndexMetadata)) {
+                boolean maybeUsesPatternText = PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(indexTemplateAndCreateRequestSettings);
                 // combinedTemplateMappings can be null when creating system indices
                 // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
                 if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
@@ -262,6 +262,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     List<CompressedXContent> filteredMappings = new ArrayList<>(combinedTemplateMappings.size());
                     for (CompressedXContent mappingSource : combinedTemplateMappings) {
                         var ref = mappingSource.compressedReference();
+                        if (maybeUsesPatternText == false) {
+                            maybeUsesPatternText = mappingSource.string().contains(PatternTextFieldType.CONTENT_TYPE);
+                        }
                         var map = XContentHelper.convertToMap(ref, true, XContentType.JSON, MAPPING_INCLUDES, Set.of()).v2();
                         filteredMappings.add(new CompressedXContent(map));
                     }
@@ -279,10 +282,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     || addHostNameField
                     || (hostName instanceof NumberFieldMapper nfm && nfm.fieldType().hasDocValues())
                     || (hostName instanceof KeywordFieldMapper kfm && kfm.fieldType().hasDocValues());
-                boolean usesPatternText = PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(indexTemplateAndCreateRequestSettings)
-                    || mapperService.mappingLookup().getMapper("message") instanceof PatternTextFieldMapper
-                    || mapperService.mappingLookup().getMapper("error.message") instanceof PatternTextFieldMapper;
-                return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField, usesPatternText);
+                return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField, maybeUsesPatternText);
             }
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.

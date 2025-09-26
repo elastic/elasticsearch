@@ -89,7 +89,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             .build();
         final List<String> apiKeyIds = randomList(1, 5, () -> randomAlphaOfLengthBetween(4, 7));
         final Authentication authentication = AuthenticationTestHelper.builder().build();
-        final TransportRequest bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(apiKeyIds, null, null, null, null);
+        final TransportRequest bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(apiKeyIds, null, null, null);
 
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", bulkUpdateApiKeyRequest, authentication));
     }

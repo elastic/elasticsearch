@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -164,7 +163,6 @@ public class ApiKeyService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
-    private final SecurityFeatures securityFeatures = new SecurityFeatures();
 
     public static final Setting<String> STORED_HASH_ALGO_SETTING = XPackSettings.defaultStoredSecureTokenHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
@@ -636,8 +634,8 @@ public class ApiKeyService implements Closeable {
 
     private String getCertificateIdentityFromCreateRequest(final AbstractCreateApiKeyRequest request) {
         String certificateIdentityString = null;
-        if (request instanceof CreateCrossClusterApiKeyRequest) {
-            CertificateIdentity certIdentityObject = ((CreateCrossClusterApiKeyRequest) request).getCertificateIdentity();
+        if (request instanceof CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest) {
+            CertificateIdentity certIdentityObject = createCrossClusterApiKeyRequest.getCertificateIdentity();
             if (certIdentityObject != null) {
                 certificateIdentityString = certIdentityObject.value();
             }

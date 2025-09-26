@@ -18,7 +18,7 @@ import java.util.Map;
 public class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
 
     public static BulkUpdateApiKeyRequest usingApiKeyIds(String... ids) {
-        return new BulkUpdateApiKeyRequest(Arrays.stream(ids).toList(), null, null, null, null);
+        return new BulkUpdateApiKeyRequest(Arrays.stream(ids).toList(), null, null, null);
     }
 
     public static BulkUpdateApiKeyRequest wrap(final UpdateApiKeyRequest request) {
@@ -26,8 +26,7 @@ public class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
             List.of(request.getId()),
             request.getRoleDescriptors(),
             request.getMetadata(),
-            request.getExpiration(),
-            request.getCertificateIdentity()
+            request.getExpiration()
         );
     }
 
@@ -35,10 +34,9 @@ public class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
         final List<String> ids,
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
-        @Nullable final TimeValue expiration,
-        @Nullable final CertificateIdentity certificateIdentity
+        @Nullable final TimeValue expiration
     ) {
-        super(ids, roleDescriptors, metadata, expiration, certificateIdentity);
+        super(ids, roleDescriptors, metadata, expiration, null);
     }
 
     @Override

@@ -16,17 +16,16 @@ import java.util.Map;
 
 public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
     public static UpdateApiKeyRequest usingApiKeyId(final String id) {
-        return new UpdateApiKeyRequest(id, null, null, null, null);
+        return new UpdateApiKeyRequest(id, null, null, null);
     }
 
     public UpdateApiKeyRequest(
         final String id,
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
-        @Nullable final TimeValue expiration,
-        @Nullable final CertificateIdentity certificateIdentity
+        @Nullable final TimeValue expiration
     ) {
-        super(roleDescriptors, metadata, expiration, id, certificateIdentity);
+        super(roleDescriptors, metadata, expiration, id, null);
     }
 
     @Override

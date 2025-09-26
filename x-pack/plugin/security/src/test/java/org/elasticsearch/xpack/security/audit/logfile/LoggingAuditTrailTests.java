@@ -647,8 +647,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
             metadataWithSerialization.metadata(),
-            newExpiration,
-            null
+            newExpiration
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
         final var expectedUpdateKeyAuditEventString = String.format(
@@ -682,7 +681,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             keyIds,
             randomBoolean() ? null : keyRoleDescriptors,
             metadataWithSerialization.metadata(),
-            null,
             null
         );
         auditTrail.accessGranted(requestId, authentication, BulkUpdateApiKeyAction.NAME, bulkUpdateApiKeyRequest, authorizationInfo);

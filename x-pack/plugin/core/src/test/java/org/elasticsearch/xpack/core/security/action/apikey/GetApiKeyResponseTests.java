@@ -64,7 +64,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             null,
             null,
             null,
-            List.of() // empty limited-by role descriptor to simulate derived keys
+            List.of(), // empty limited-by role descriptor to simulate derived keys
+            null
         );
         ApiKey apiKeyInfo2 = createApiKeyInfo(
             "name2",
@@ -79,7 +80,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-type-y",
             Map.of(),
             List.of(),
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
         ApiKey apiKeyInfo3 = createApiKeyInfo(
             null,
@@ -94,7 +96,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-type-z",
             Map.of("foo", "bar"),
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
         final List<RoleDescriptor> crossClusterAccessRoleDescriptors = List.of(
             new RoleDescriptor(
@@ -119,7 +122,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-type-z",
             Map.of("foo", "bar"),
             crossClusterAccessRoleDescriptors,
-            null
+            null,
+            "CN=test,O=TestOrg"
         );
         String profileUid2 = "profileUid2";
         String profileUid4 = "profileUid4";
@@ -323,6 +327,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                       }
                     ]
                   },
+                  "certificate_identity": "CN=test,O=TestOrg",
                   "profile_uid": "profileUid4"
                 }
               ]
@@ -370,7 +375,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
         String realmType,
         Map<String, Object> metadata,
         List<RoleDescriptor> roleDescriptors,
-        List<RoleDescriptor> limitedByRoleDescriptors
+        List<RoleDescriptor> limitedByRoleDescriptors,
+        String certificate_identity
     ) {
         return new ApiKey(
             name,
@@ -386,48 +392,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors,
-            null
+            certificate_identity
         );
-    }
-
-    public void testToXContentWithCertificateIdentity() throws IOException {
-
-        final List<RoleDescriptor> crossClusterAccessRoleDescriptors = List.of(
-            new RoleDescriptor(
-                ROLE_DESCRIPTOR_NAME,
-                CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES,
-                new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges(CCS_INDICES_PRIVILEGE_NAMES).build(),
-                    RoleDescriptor.IndicesPrivileges.builder().indices("archive").privileges(CCR_INDICES_PRIVILEGE_NAMES).build(), },
-                null
-            )
-        );
-
-        ApiKey apiKeyWithCert = new ApiKey(
-            "cert-key",
-            "id-cert",
-            ApiKey.Type.CROSS_CLUSTER,
-            Instant.ofEpochMilli(100000L),
-            null,
-            false,
-            null,
-            "cert-user",
-            "cert-realm",
-            "cert-realm-type",
-            Map.of(),
-            crossClusterAccessRoleDescriptors,
-            null,
-            "CN=test,O=TestOrg"
-        );
-
-        GetApiKeyResponse.Item item = new GetApiKeyResponse.Item(apiKeyWithCert);
-        GetApiKeyResponse response = new GetApiKeyResponse(List.of(item));
-
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        String json = Strings.toString(builder);
-        assertThat(json, containsString("\"certificate_identity\":\"CN=test,O=TestOrg\""));
     }
 
     private String getType(String type) {

@@ -3203,8 +3203,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 5)),
             requestRoleDescriptors,
             Map.of(),
-            ApiKeyTests.randomFutureExpirationTime(),
-            null
+            ApiKeyTests.randomFutureExpirationTime()
         );
         final PlainActionFuture<BulkUpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
         service.updateApiKeys(authentication, updateRequest, userRoleDescriptorsWithWorkflowsRestriction, updateFuture);
@@ -3410,7 +3409,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .realmRef(new RealmRef("file", "file", "node-1"))
             .build(false);
 
-        BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
+        BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
             List.of(apiKeyId),
             null,
             null,
@@ -3518,7 +3517,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
 
         // Create an update request with an explicit null, which indicates the user wants to remove the certificate_identity from a key.
-        BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
+        BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
             List.of(apiKeyId),
             null,
             null,
@@ -3634,7 +3633,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
 
         // Request with omitted certificate identity (null) but updating metadata
-        BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
+        BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
             List.of(apiKeyId),
             null,
             Map.of("updated", "metadata"),

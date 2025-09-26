@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class UpdateApiKeyRequestTests extends ESTestCase {
 
     public void testNullValuesValidForNonIds() {
-        final var request = new UpdateApiKeyRequest("id", null, null, null, null);
+        final var request = new UpdateApiKeyRequest("id", null, null, null);
         assertNull(request.validate());
     }
 
@@ -31,13 +31,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
         final var reservedKey = "_" + randomAlphaOfLengthBetween(0, 10);
         final var metadataValue = randomAlphaOfLengthBetween(1, 10);
 
-        UpdateApiKeyRequest request = new UpdateApiKeyRequest(
-            randomAlphaOfLength(10),
-            null,
-            Map.of(reservedKey, metadataValue),
-            null,
-            null
-        );
+        UpdateApiKeyRequest request = new UpdateApiKeyRequest(randomAlphaOfLength(10), null, Map.of(reservedKey, metadataValue), null);
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));
@@ -73,7 +67,6 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                     null
                 )
             ),
-            null,
             null,
             null
         );

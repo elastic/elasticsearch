@@ -26,7 +26,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testEmptyIdsNotValid() {
-        final var request = new BulkUpdateApiKeyRequest(List.of(), null, null, null, null);
+        final var request = new BulkUpdateApiKeyRequest(List.of(), null, null, null);
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));
@@ -41,8 +41,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
             randomList(1, 5, () -> randomAlphaOfLength(10)),
             null,
             Map.of(reservedKey, metadataValue),
-            expiration,
-            null
+            expiration
         );
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
@@ -76,7 +75,6 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
                     null
                 )
             ),
-            null,
             null,
             null
         );

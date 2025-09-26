@@ -42,8 +42,7 @@ public interface BulkUpdateApiKeyRequestTranslator {
                     (List<String>) a[0],
                     (List<RoleDescriptor>) a[1],
                     (Map<String, Object>) a[2],
-                    TimeValue.parseTimeValue((String) a[3], null, "expiration"),
-                    (CertificateIdentity) a[4]
+                    TimeValue.parseTimeValue((String) a[3], null, "expiration")
                 )
             );
             parser.declareStringArray(constructorArg(), new ParseField("ids"));

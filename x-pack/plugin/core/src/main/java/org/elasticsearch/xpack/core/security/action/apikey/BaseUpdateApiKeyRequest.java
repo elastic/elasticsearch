@@ -38,7 +38,7 @@ public abstract class BaseUpdateApiKeyRequest extends LegacyActionRequest {
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration,
-        @Nullable CertificateIdentity certificateIdentity
+        @Nullable final CertificateIdentity certificateIdentity
     ) {
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;

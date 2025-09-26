@@ -28,7 +28,7 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
           "template": {
             "mappings": {
               "properties": {
-                "message": {
+                "pattern_field": {
                   "type": "pattern_text"
                 }
               }
@@ -48,7 +48,7 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
             assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "message"
+                "pattern_field"
             );
             assertThat(patternFieldMapping, hasEntry("disable_templating", true));
         }
@@ -60,7 +60,7 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
             assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "message"
+                "pattern_field"
             );
             assertThat(patternFieldMapping, hasEntry("disable_templating", true));
         }
@@ -70,7 +70,7 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
             assertEquals("false", getSetting(client(), backingIndex1, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "message"
+                "pattern_field"
             );
             assertThat(patternFieldMapping, not(hasKey("disable_templating")));
         }

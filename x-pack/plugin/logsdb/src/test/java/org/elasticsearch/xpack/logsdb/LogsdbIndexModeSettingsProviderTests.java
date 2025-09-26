@@ -984,7 +984,9 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testPatternTextNotAllowedByLicense() throws IOException {
         String[] patternTextLicenceCheckedFieldMappings = {
             "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"pattern_text\"}}}}",
-            "{\"_doc\":{\"properties\":{\"error\":{\"properties\":{\"message\":{\"type\":\"pattern_text\"}}}}}}}" };
+            "{\"_doc\":{\"properties\":{\"error\":{\"properties\":{\"message\":{\"type\":\"pattern_text\"}}}}}}",
+            "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"pattern_text\"}}}}",
+            "{\"_doc\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"pattern_text\"}}}}}}" };
 
         var expectedSettings = Settings.builder()
             .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)

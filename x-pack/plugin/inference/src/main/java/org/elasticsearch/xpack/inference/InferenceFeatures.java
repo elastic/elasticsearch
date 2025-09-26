@@ -50,6 +50,13 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
 
+    public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(INFERENCE_ENDPOINT_CACHE);
+    }
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         var testFeatures = new HashSet<>(
@@ -90,6 +97,7 @@ public class InferenceFeatures implements FeatureSpecification {
                 TEXT_SIMILARITY_RERANKER_SNIPPETS
             )
         );
+        testFeatures.addAll(getFeatures());
         return testFeatures;
     }
 }

@@ -80,7 +80,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         final SnapshotHistoryStore historyStore
     ) {
         this.projectId = projectId;
-        this.client = client;
+        this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
         this.clusterService = clusterService;
         this.historyStore = historyStore;
     }
@@ -157,8 +157,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             request.ignoreUnavailable(true);
             request.includeIndexNames(false);
 
-            var clientWithOrigin = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
-            clientWithOrigin.admin()
+            client.admin()
                 .cluster()
                 .execute(
                     TransportGetSnapshotsAction.TYPE,

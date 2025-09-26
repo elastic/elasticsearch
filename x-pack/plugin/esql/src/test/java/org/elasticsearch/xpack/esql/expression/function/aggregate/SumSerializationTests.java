@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -80,7 +81,12 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
             PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
             planOut.writeNamedWriteable(oldSum);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
-                PlanStreamInput planIn = new PlanStreamInput(in, getNamedWriteableRegistry(), configuration());
+                PlanStreamInput planIn = new PlanStreamInput(
+                    in,
+                    getNamedWriteableRegistry(),
+                    configuration(),
+                    new SerializationTestUtils.TestNameIdMapper()
+                );
                 Sum serialized = (Sum) planIn.readNamedWriteable(categoryClass());
                 assertThat(serialized.source(), equalTo(oldSum.source()));
                 assertThat(serialized.field(), equalTo(oldSum.field()));

@@ -78,6 +78,13 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    /**
+     * @param idMapper non-null for testing only, never in production!
+     */
+    DataNodeRequest(StreamInput in, PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
         this.sessionId = in.readString();
         this.configuration = new Configuration(
@@ -87,7 +94,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.clusterAlias = in.readString();
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
+        PlanStreamInput pin = idMapper == null
+            ? new PlanStreamInput(in, in.namedWriteableRegistry(), configuration)
+            : new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper);
+        this.plan = pin.readNamedWriteable(PhysicalPlan.class);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {

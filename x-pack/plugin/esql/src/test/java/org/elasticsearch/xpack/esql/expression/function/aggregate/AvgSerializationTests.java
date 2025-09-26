@@ -81,7 +81,12 @@ public class AvgSerializationTests extends AbstractExpressionSerializationTests<
             PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
             planOut.writeNamedWriteable(oldAvg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
-                PlanStreamInput planIn = new PlanStreamInput(in, getNamedWriteableRegistry(), configuration(), new SerializationTestUtils.TestNameIdMapper());
+                PlanStreamInput planIn = new PlanStreamInput(
+                    in,
+                    getNamedWriteableRegistry(),
+                    configuration(),
+                    new SerializationTestUtils.TestNameIdMapper()
+                );
                 Avg serialized = (Avg) planIn.readNamedWriteable(categoryClass());
                 assertThat(serialized.source(), equalTo(oldAvg.source()));
                 assertThat(serialized.field(), equalTo(oldAvg.field()));

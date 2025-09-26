@@ -2,7 +2,7 @@
 
 ## `INCREASE` [esql-increase]
 ```{applies_to}
-stack: unavailable
+stack: preview 9.2.0
 ```
 
 **Syntax**
@@ -20,4 +20,7 @@ stack: unavailable
 :::
 
 :::{include} ../types/increase.md
+:::
+
+:::{include} ../examples/increase.md
 :::

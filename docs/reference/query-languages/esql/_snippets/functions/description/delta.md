@@ -2,7 +2,7 @@
 
 **Description**
 
-The absolute change of a gauge field in a time window.
+Calculates the absolute change of a gauge field in a time window.
 
 ::::{note}
 Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command

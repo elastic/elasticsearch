@@ -311,14 +311,18 @@ public final class BulkRequestParser {
                 }
                 if (Integer.BYTES > data.length() - from) {
                     if (lastData) {
-                        throw new IllegalArgumentException("The bulk is malformed");
+                        throw new IllegalArgumentException(
+                            "Documents in the bulk request must be prefixed with the length of the document"
+                        );
                     }
                     break;
                 }
                 final int len = data.getInt(from);
                 if (len > data.length() - (from + Integer.BYTES)) {
                     if (lastData) {
-                        throw new IllegalArgumentException("The bulk is malformed");
+                        throw new IllegalArgumentException(
+                            "Documents in the bulk request must be prefixed with the length of the document"
+                        );
                     }
                     break;
                 }

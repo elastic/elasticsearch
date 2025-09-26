@@ -175,7 +175,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     meta.writeVInt(Math.toIntExact(maxOrd));
                     meta.writeByte((byte) ES819TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_BLOCK_SHIFT);
                     values = valuesProducer.getSortedNumeric(field);
-                    if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
+                    if (valuesProducer.mergeStats.supported() && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
                     DirectMonotonicWriter startDocs = DirectMonotonicWriter.getInstance(
@@ -211,7 +211,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                     values = valuesProducer.getSortedNumeric(field);
                     final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-                    if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
+                    if (valuesProducer.mergeStats.supported() && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

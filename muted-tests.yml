@@ -663,6 +663,9 @@ tests:
 - class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
   method: testIndexing {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/135511
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/135512
 
 # Examples:
 #

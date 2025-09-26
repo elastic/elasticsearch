@@ -44,8 +44,6 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
         "idp_custom_saml_attributes_allow_list"
     );
-    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH = IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST
-        .nextPatchVersion();
 
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();

@@ -76,7 +76,7 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
     }
 
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) == false) {
+        if (out.getTransportVersion().supports(ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) == false) {
             if (caseInsensitive()) {
                 // The plan has been optimized to run a case-insensitive match, which the remote peer cannot be notified of. Simply avoiding
                 // the serialization of the boolean would result in wrong results.

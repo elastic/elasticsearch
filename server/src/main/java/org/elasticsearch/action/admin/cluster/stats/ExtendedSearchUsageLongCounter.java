@@ -39,9 +39,12 @@ public class ExtendedSearchUsageLongCounter implements ExtendedSearchUsageMetric
         return Collections.unmodifiableMap(values);
     }
 
-    public ExtendedSearchUsageLongCounter merge(ExtendedSearchUsageLongCounter other) {
+    @Override
+    public ExtendedSearchUsageLongCounter merge(ExtendedSearchUsageMetric<?> other) {
+        assert other instanceof ExtendedSearchUsageLongCounter;
+        ExtendedSearchUsageLongCounter otherLongCounter = (ExtendedSearchUsageLongCounter) other;
         Map<String, Long> values = new java.util.HashMap<>(this.values);
-        other.getValues().forEach((key, otherValue) -> { values.merge(key, otherValue, Long::sum); });
+        otherLongCounter.getValues().forEach((key, otherValue) -> { values.merge(key, otherValue, Long::sum); });
         return new ExtendedSearchUsageLongCounter(values);
     }
 

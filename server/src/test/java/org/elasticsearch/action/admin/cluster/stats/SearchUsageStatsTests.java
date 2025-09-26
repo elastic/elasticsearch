@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStats.EMPTY;
 import static org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStatsTests.randomExtendedSearchUsage;
 import static org.elasticsearch.action.admin.cluster.stats.SearchUsageStats.EXTENDED_SEARCH_USAGE_TELEMETRY;
 
@@ -173,7 +174,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         assertEquals(Map.of(), searchUsageStats.getRescorerUsage());
         assertEquals(Map.of(), searchUsageStats.getSectionsUsage());
         assertEquals(0, searchUsageStats.getTotalSearchCount());
-        assertEquals(new ExtendedSearchUsageStats(), searchUsageStats.getExtendedSearchUsage());
+        assertEquals(EMPTY, searchUsageStats.getExtendedSearchUsage());
 
         ExtendedSearchUsageStats extendedSearchUsageStats = new ExtendedSearchUsageStats(
             Map.of("retrievers", Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", 10L))))
@@ -225,7 +226,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
             Map.of("query", 2L),
             Map.of("query", 10L),
             Map.of("knn", 10L),
-            new ExtendedSearchUsageStats(),
+            EMPTY,
             10L
         );
         assertEquals(
@@ -245,7 +246,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 version.onOrAfter(TransportVersions.V_8_12_0) ? randomRescorerUsage(RESCORER_TYPES.size()) : Map.of(),
                 randomSectionsUsage(SECTIONS.size()),
                 version.onOrAfter(TransportVersions.V_8_16_0) ? randomRetrieversUsage(RETRIEVERS.size()) : Map.of(),
-                version.supports(EXTENDED_SEARCH_USAGE_TELEMETRY) ? randomExtendedSearchUsage() : new ExtendedSearchUsageStats(),
+                version.supports(EXTENDED_SEARCH_USAGE_TELEMETRY) ? randomExtendedSearchUsage() : EMPTY,
                 randomLongBetween(0, Long.MAX_VALUE)
             );
             assertSerialization(testInstance, version);

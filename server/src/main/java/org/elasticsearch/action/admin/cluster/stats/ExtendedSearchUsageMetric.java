@@ -22,5 +22,5 @@ public interface ExtendedSearchUsageMetric<T extends ExtendedSearchUsageMetric<T
      * @param other Another {@link ExtendedSearchUsageMetric}.
      * @return ExtendedSearchUsageMetric The merged metric.
      */
-    T merge(T other);
+    T merge(ExtendedSearchUsageMetric<?> other);
 }

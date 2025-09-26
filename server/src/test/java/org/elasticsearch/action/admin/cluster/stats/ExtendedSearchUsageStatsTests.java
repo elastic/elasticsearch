@@ -18,6 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStats.EMPTY;
+
 public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCase<ExtendedSearchUsageStats> {
 
     @Override
@@ -44,7 +46,7 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
 
     public static ExtendedSearchUsageStats randomExtendedSearchUsage(boolean empty) {
         if (empty) {
-            return new ExtendedSearchUsageStats();
+            return EMPTY;
         }
         Map<String, Map<String, ExtendedSearchUsageMetric<?>>> categoriesToExtendedData = new HashMap<>();
 

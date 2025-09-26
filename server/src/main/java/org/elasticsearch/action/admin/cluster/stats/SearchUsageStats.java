@@ -51,7 +51,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = new HashMap<>();
         this.rescorers = new HashMap<>();
         this.retrievers = new HashMap<>();
-        this.extendedSearchUsageStats = new ExtendedSearchUsageStats();
+        this.extendedSearchUsageStats = ExtendedSearchUsageStats.EMPTY;
     }
 
     /**
@@ -82,7 +82,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.retrievers = in.getTransportVersion().onOrAfter(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
         this.extendedSearchUsageStats = in.getTransportVersion().supports(EXTENDED_SEARCH_USAGE_TELEMETRY)
             ? new ExtendedSearchUsageStats(in)
-            : new ExtendedSearchUsageStats();
+            : ExtendedSearchUsageStats.EMPTY;
     }
 
     @Override

@@ -36,6 +36,8 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
      */
     private final Map<String, Map<String, ExtendedSearchUsageMetric<?>>> categorizedExtendedData;
 
+    public static final ExtendedSearchUsageStats EMPTY = new ExtendedSearchUsageStats();
+
     public ExtendedSearchUsageStats() {
         this.categorizedExtendedData = new HashMap<>();
     }
@@ -64,14 +66,13 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
         );
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void merge(ExtendedSearchUsageStats other) {
         other.categorizedExtendedData.forEach((key, otherMap) -> {
             categorizedExtendedData.merge(key, otherMap, (existingMap, newMap) -> {
                 Map<String, ExtendedSearchUsageMetric<?>> mergedMap = new HashMap<>(existingMap);
-                newMap.forEach((innerKey, innerValue) -> {
-                    mergedMap.merge(innerKey, innerValue, (existing, incoming) -> ((ExtendedSearchUsageMetric) existing).merge(incoming));
-                });
+                newMap.forEach(
+                    (innerKey, innerValue) -> { mergedMap.merge(innerKey, innerValue, (existing, incoming) -> (existing).merge(incoming)); }
+                );
                 return mergedMap;
             });
         });

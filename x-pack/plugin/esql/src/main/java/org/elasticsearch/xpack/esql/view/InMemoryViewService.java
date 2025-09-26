@@ -22,7 +22,11 @@ public class InMemoryViewService extends ViewService {
     private ViewMetadata metadata;
 
     public InMemoryViewService(EsqlFunctionRegistry functionRegistry) {
-        super(functionRegistry, ViewServiceConfig.DEFAULT);
+        this(functionRegistry, ViewServiceConfig.DEFAULT);
+    }
+
+    public InMemoryViewService(EsqlFunctionRegistry functionRegistry, ViewServiceConfig config) {
+        super(functionRegistry, config);
         this.metadata = ViewMetadata.EMPTY;
     }
 

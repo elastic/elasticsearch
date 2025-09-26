@@ -53,12 +53,47 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view9", "from view8");
         addView("view10", "from view9");
         addView("view11", "from view10");
-        LogicalPlan plan = statement("from view11");
-        Exception e = expectThrows(VerificationException.class, () -> viewService.replaceViews(plan, telemetry, EsqlTestUtils.TEST_CFG));
+
+        // FROM view11 should fail
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> viewService.replaceViews(statement("from view11"), telemetry, EsqlTestUtils.TEST_CFG)
+        );
         assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 10 has been exceeded"));
+
+        // But FROM view10 should work
+        LogicalPlan rewritten = viewService.replaceViews(statement("from view10"), telemetry, EsqlTestUtils.TEST_CFG);
+        assertThat(rewritten, equalTo(statement("from emp")));
+    }
+
+    public void testModifiedViewDepth() {
+        var config = new ViewService.ViewServiceConfig(100, 10_000, 1);
+        InMemoryViewService customViewService = new InMemoryViewService(functionRegistry, config);
+        try {
+            addView("view1", "from emp", customViewService);
+            addView("view2", "from view1", customViewService);
+            addView("view3", "from view2", customViewService);
+
+            // FROM view2 should fail
+            Exception e = expectThrows(
+                VerificationException.class,
+                () -> customViewService.replaceViews(statement("from view2"), telemetry, EsqlTestUtils.TEST_CFG)
+            );
+            assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
+
+            // But FROM view1 should work
+            LogicalPlan rewritten = customViewService.replaceViews(statement("from view1"), telemetry, EsqlTestUtils.TEST_CFG);
+            assertThat(rewritten, equalTo(statement("from emp")));
+        } catch (Exception e) {
+            throw new AssertionError("unexpected exception", e);
+        }
     }
 
     private void addView(String name, String query) throws Exception {
+        addView(name, query, viewService);
+    }
+
+    private void addView(String name, String query, ViewService viewService) throws Exception {
         viewService.put(name, new View(query), ActionListener.noop(), EsqlTestUtils.TEST_CFG);
     }
 

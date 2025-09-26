@@ -321,7 +321,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         ensureRed(indexName);
 
         // verify that the shard store is effectively closed
-        assertTrue(plugin.shardStoreClosedListener.isDone());
+        safeGet(plugin.shardStoreClosedListener);
 
         if (closingThread != null) {
             closingThread.join();

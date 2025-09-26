@@ -170,17 +170,17 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                     }
                 }
                 if (scratch != null) {
-                    readFloatArray(block, block.getFirstValueIndex(position), scratch.length, scratch);
+                    readFloatArray(block, block.getFirstValueIndex(position), scratch);
                 }
                 return scratch;
             } else {
-                throw new EsqlClientException("VectorValueProvider not initialized");
+                throw new EsqlClientException("VectorValueProvider not properly initialized. Both [constantVector] and [block] are null.");
             }
         }
 
-        private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
-            for (int i = 0; i < dimensions; i++) {
-                scratch[i] = block.getFloat(position + i);
+        private static void readFloatArray(FloatBlock block, int firstValueIndex, float[] scratch) {
+            for (int i = 0; i < scratch.length; i++) {
+                scratch[i] = block.getFloat(firstValueIndex + i);
             }
         }
 
@@ -196,7 +196,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                 }
                 return 0;
             } else {
-                throw new EsqlClientException("VectorValueProvider not initialized");
+                throw new EsqlClientException("[VectorValueProvider] not initialized");
             }
         }
 
@@ -210,6 +210,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
             if (block != null) {
                 block.close();
                 block = null;
+                scratch = null;
             }
         }
 

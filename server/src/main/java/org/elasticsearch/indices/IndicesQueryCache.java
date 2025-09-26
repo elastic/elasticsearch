@@ -95,8 +95,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         /*
-         * We have some shared ram usage that we try to distribute proportionally to the number of documents in the cache cache for each
-         * shard.
+         * We have some shared ram usage that we try to distribute proportionally to the number of segment-requestss in the cache cache for
+         * each shard.
          */
         // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
         long totalItemsInCache = 0L;
@@ -130,7 +130,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         } else {
             /*
              * some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to the number of
-             * documents in the cache for this shard
+             * segment-requests in the cache for this shard (the number and size of documents associated with those requests is irrelevant
+             * for this calculation).
              */
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * itemsInCacheForShard / totalItemsInCache);
         }

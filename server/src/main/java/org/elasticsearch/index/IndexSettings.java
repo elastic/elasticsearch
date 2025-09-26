@@ -861,7 +861,7 @@ public final class IndexSettings {
      * Setting to control whether to use GPU for vectors indexing.
      * Currently only applicable for index_options.type: hnsw.
      *
-     * If unset or "auto", an automatic decision is made based on the presence of GPU, necessary libraries, vectors' count and dims.
+     * If unset or "auto", an automatic decision is made based on the presence of GPU, necessary libraries, vectors' index type.
      * If set to <code>true</code>, GPU must be used for vectors indexing, and if GPU or necessary libraries are not available,
      * an exception will be thrown.
      * If set to <code>false</code>, GPU will not be used for vectors indexing.

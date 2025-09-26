@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "https://github.com/rapidsai/cuvs/issues/1310")
-public class ESGpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();

@@ -18,7 +18,7 @@ import org.junit.BeforeClass;
 
 // CuVS prints tons of logs to stdout
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "https://github.com/rapidsai/cuvs/issues/1310")
-public class ESGpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();

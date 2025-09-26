@@ -182,11 +182,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED_8_19 = def(8_841_0_38);
     public static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED_8_19 = def(8_841_0_39);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19 = def(8_841_0_40);
-    public static final TransportVersion DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_8_19 = def(8_841_0_41);
-    public static final TransportVersion JOIN_ON_ALIASES_8_19 = def(8_841_0_42);
-    public static final TransportVersion ILM_ADD_SKIP_SETTING_8_19 = def(8_841_0_43);
-    public static final TransportVersion ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY_8_19 = def(8_841_0_44);
-    public static final TransportVersion ESQL_QUERY_PLANNING_DURATION_8_19 = def(8_841_0_45);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -246,11 +241,9 @@ public class TransportVersions {
     public static final TransportVersion REPO_ANALYSIS_COPY_BLOB = def(9_048_0_00);
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = def(9_049_0_00);
     public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = def(9_050_0_00);
-    public static final TransportVersion DEAD_ESQL_QUERY_PLANNING_DURATION = def(9_051_0_00);
     public static final TransportVersion DEAD_ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
     public static final TransportVersion DEAD_BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
     public static final TransportVersion DEAD_SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_054_0_00);
-    public static final TransportVersion ESQL_QUERY_PLANNING_DURATION = def(9_055_0_00);
     public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
     public static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_058_0_00);
     public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
@@ -277,10 +270,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED = def(9_083_0_00);
     public static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = def(9_084_0_00);
     public static final TransportVersion ESQL_LIMIT_ROW_SIZE = def(9_085_0_00);
-    public static final TransportVersion ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY = def(9_086_0_00);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = def(9_087_0_00);
-    public static final TransportVersion JOIN_ON_ALIASES = def(9_088_0_00);
-    public static final TransportVersion ILM_ADD_SKIP_SETTING = def(9_089_0_00);
     public static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = def(9_093_0_00);
     public static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = def(9_095_0_00);
     public static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = def(9_096_0_00);

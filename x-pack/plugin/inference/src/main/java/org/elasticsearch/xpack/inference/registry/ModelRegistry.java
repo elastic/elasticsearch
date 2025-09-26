@@ -249,6 +249,38 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        SubscribableListener.<SearchResponse>newForked(searchResponseListener -> {
+            QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
+            SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
+                .setQuery(queryBuilder)
+                .setSize(2)
+                .setAllowPartialSearchResults(false)
+                .request();
+
+            client.search(modelSearch, searchResponseListener);
+        }).<UnparsedModel>andThen((unparsedModelListener, searchResponse) -> {
+            // There should be a hit for the configurations
+            if (searchResponse.getHits().getHits().length == 0) {
+                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
+                if (maybeDefault != null) {
+                    getDefaultConfig(true, maybeDefault, unparsedModelListener);
+                } else {
+                    unparsedModelListener.onFailure(inferenceNotFoundException(inferenceEntityId));
+                }
+                return;
+            }
+
+            unparsedModelListener.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+        } ).addListener(listener.delegateResponse((failureListener, e) -> {
+            logger.warn(format("Failed to load inference endpoint with secrets [%s]", inferenceEntityId), e);
+            failureListener.onFailure(
+                new ElasticsearchException(
+                    format("Failed to load inference endpoint with secrets [%s], error: [%s]", inferenceEntityId, e.getMessage()),
+                    e
+                )
+            );
+        }));
+
         // TODO add a SubscribableListener here
         // 1. Do search
         // 2. If we don't find it, check in defaultConfigIds

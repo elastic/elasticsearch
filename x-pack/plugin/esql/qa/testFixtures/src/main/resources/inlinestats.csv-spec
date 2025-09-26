@@ -3916,7 +3916,9 @@ from employees
 inlineStatsOnAggregateMetricDouble
 required_capability: inline_stats
 required_capability: aggregate_metric_double_literal_registered
+required_capability: aggregate_metric_double_convert_to
 FROM k8s-downsampled
+| EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)     // Temporary workaround to enable aggregate_metric_double
 | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
 | SORT @timestamp, cluster, pod
 | KEEP @timestamp, cluster, pod, network.eth0.tx, tx_max

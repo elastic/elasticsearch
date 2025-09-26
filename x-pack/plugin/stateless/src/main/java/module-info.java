@@ -16,9 +16,11 @@
  */
 
 import co.elastic.elasticsearch.stateless.allocation.StatelessHeapUsageCollector;
+import co.elastic.elasticsearch.stateless.mapper.ServerlessRootObjectMapperNamespaceValidator;
 import co.elastic.elasticsearch.stateless.recovery.StatelessRestoreTransformer;
 
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 
 module org.elasticsearch.stateless {
@@ -39,6 +41,7 @@ module org.elasticsearch.stateless {
 
     exports co.elastic.elasticsearch.stateless to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.action to org.elasticsearch.server;
+    exports co.elastic.elasticsearch.stateless.mapper to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.xpack to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.recovery to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.commits to org.elasticsearch.server;
@@ -64,4 +67,5 @@ module org.elasticsearch.stateless {
             co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
     provides EstimatedHeapUsageCollector with StatelessHeapUsageCollector;
     provides IndexMetadataRestoreTransformer with StatelessRestoreTransformer;
+    provides RootObjectMapperNamespaceValidator with ServerlessRootObjectMapperNamespaceValidator;
 }

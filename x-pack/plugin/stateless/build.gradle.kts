@@ -60,7 +60,7 @@ dependencies {
 
 restResources {
     restApi {
-        include("_common", "cluster", "indices", "index")
+        include("_common", "cluster", "indices", "index", "search")
     }
 }
 

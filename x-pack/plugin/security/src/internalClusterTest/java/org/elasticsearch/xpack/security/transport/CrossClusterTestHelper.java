@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.test.InternalTestCluster;
 
-import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
-
 final class CrossClusterTestHelper {
 
     /**
@@ -20,11 +18,6 @@ final class CrossClusterTestHelper {
         RemoteClusterTransportInterceptor interceptor = cluster.getInstance(
             RemoteClusterTransportInterceptor.class,
             cluster.getRandomNodeName()
-        );
-
-        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
-            CrossClusterApiKeySignatureManager.class,
-            internalCluster().getRandomNodeName()
         );
 
         assert interceptor instanceof CrossClusterAccessTransportInterceptor

@@ -58,6 +58,7 @@ public class CrossClusterApiKeySignatureManager {
 
     private static final Map<String, String> SIGNATURE_ALGORITHM_BY_TYPE = Map.of("RSA", "SHA256withRSA", "EC", "SHA256withECDSA");
 
+    @SuppressWarnings("this-escape")
     public CrossClusterApiKeySignatureManager(Environment environment) {
         this.environment = environment;
         loadSigningConfigs();

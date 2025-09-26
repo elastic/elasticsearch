@@ -1086,7 +1086,8 @@ public class ActionModule extends AbstractModule {
             new NamedWriteableRegistry.Entry(
                 ExtendedSearchUsageMetric.class,
                 ExtendedSearchUsageLongCounter.NAME,
-                ExtendedSearchUsageLongCounter::new)
+                ExtendedSearchUsageLongCounter::new
+            )
         );
     }
 }

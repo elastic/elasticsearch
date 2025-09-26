@@ -29,12 +29,15 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of(
-            new NamedWriteableRegistry.Entry(
-                ExtendedSearchUsageMetric.class,
-                ExtendedSearchUsageLongCounter.NAME,
-                ExtendedSearchUsageLongCounter::new)
-        ));
+        return new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(
+                    ExtendedSearchUsageMetric.class,
+                    ExtendedSearchUsageLongCounter.NAME,
+                    ExtendedSearchUsageLongCounter::new
+                )
+            )
+        );
     }
 
     private static final List<String> QUERY_TYPES = List.of(

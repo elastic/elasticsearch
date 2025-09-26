@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,12 +27,15 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of(
-            new NamedWriteableRegistry.Entry(
-                ExtendedSearchUsageMetric.class,
-                ExtendedSearchUsageLongCounter.NAME,
-                ExtendedSearchUsageLongCounter::new)
-        ));
+        return new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(
+                    ExtendedSearchUsageMetric.class,
+                    ExtendedSearchUsageLongCounter.NAME,
+                    ExtendedSearchUsageLongCounter::new
+                )
+            )
+        );
     }
 
     public static ExtendedSearchUsageStats randomExtendedSearchUsage() {

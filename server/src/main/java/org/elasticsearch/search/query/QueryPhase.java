@@ -157,6 +157,7 @@ public class QueryPhase {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
+        queryResult.setRangeTimestampFrom(searchContext.getSearchExecutionContext().getRangeTimestampFrom());
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());

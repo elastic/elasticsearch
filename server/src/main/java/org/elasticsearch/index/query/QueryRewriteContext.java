@@ -78,6 +78,7 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
+    private Long rangeTimestampFrom;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -520,4 +521,21 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
+    /**
+     * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
+     */
+    public Long getRangeTimestampFrom() {
+        return rangeTimestampFrom;
+    }
+
+    /**
+     * Records the lower bound of a time range filter against the @timestamp field included in the query. For telemetry purposes.
+     */
+    public void setRangeTimestampFrom(long rangeTimestampFrom) {
+        if (this.rangeTimestampFrom == null) {
+            this.rangeTimestampFrom = rangeTimestampFrom;
+        } else {
+            this.rangeTimestampFrom = Math.min(rangeTimestampFrom, this.rangeTimestampFrom);
+        }
+    }
 }

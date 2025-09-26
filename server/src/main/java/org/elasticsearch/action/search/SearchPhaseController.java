@@ -487,7 +487,8 @@ public final class SearchPhaseController {
                 numReducePhases,
                 0,
                 0,
-                true
+                true,
+                null
             );
         }
         final List<QuerySearchResult> nonNullResults = new ArrayList<>();
@@ -516,6 +517,7 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        Long rangeTimestampFrom = null;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -523,6 +525,10 @@ public final class SearchPhaseController {
             size = Math.max(result.size(), size);
             if (result.sortValueFormats() != null) {
                 sortValueFormats = result.sortValueFormats();
+            }
+
+            if (rangeTimestampFrom == null) {
+                rangeTimestampFrom = result.getRangeTimestampFrom();
             }
 
             if (hasSuggest) {
@@ -579,7 +585,8 @@ public final class SearchPhaseController {
             numReducePhases,
             size,
             from,
-            false
+            false,
+            rangeTimestampFrom
         );
     }
 
@@ -662,7 +669,8 @@ public final class SearchPhaseController {
         // the offset into the merged top hits
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
-        boolean isEmptyResult
+        boolean isEmptyResult,
+        Long rangeTimestampFrom
     ) {
 
         public ReducedQueryPhase {
@@ -683,7 +691,8 @@ public final class SearchPhaseController {
                 timedOut,
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
-                numReducePhases
+                numReducePhases,
+                rangeTimestampFrom
             );
         }
 

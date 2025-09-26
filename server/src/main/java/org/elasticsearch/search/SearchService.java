@@ -1442,6 +1442,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // during rewrite and normalized / evaluate templates etc.
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
             Rewriteable.rewrite(request.getRewriteable(), context, true);
+            if (context.getRangeTimestampFrom() != null) {
+                searchContext.getSearchExecutionContext().setRangeTimestampFrom(context.getRangeTimestampFrom());
+            }
             assert searchContext.getSearchExecutionContext().isCacheable();
             success = true;
         } finally {

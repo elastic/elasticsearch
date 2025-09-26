@@ -29,6 +29,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.RescorerRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -36,6 +37,8 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
@@ -52,6 +55,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 
 public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_search_metrics2";
+    private static final String singleShardIndexName = "single_shard_test_search_metric";
+    private static final LocalDateTime NOW = LocalDateTime.now();
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -69,8 +75,29 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
                 .build()
         );
         ensureGreen(indexName);
-        prepareIndex(indexName).setId("1").setSource("body", "foo", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(indexName).setId("2").setSource("body", "foo", "@timestamp", "2024-12-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("1")
+            .setSource("body", "foo", "@timestamp", "2024-11-01", "event.ingested", "2024-11-01")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(indexName).setId("2")
+            .setSource("body", "foo", "@timestamp", "2024-12-01", "event.ingested", "2024-12-01")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        // we use a single shard index to test the case where query and fetch execute in the same round-trip
+        createIndex(
+            singleShardIndexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen(singleShardIndexName);
+        prepareIndex(singleShardIndexName).setId("1")
+            .setSource("body", "foo", "@timestamp", NOW.minusMinutes(5).format(FORMATTER))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(singleShardIndexName).setId("2")
+            .setSource("body", "foo", "@timestamp", NOW.minusMinutes(30).format(FORMATTER))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
     }
 
     @After
@@ -178,7 +205,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             SearchResponse searchResponse = client().prepareSearch("_all").setQuery(simpleQueryStringQuery("foo")).get();
             try {
                 assertNoFailures(searchResponse);
-                assertSearchHits(searchResponse, "1", "2");
+                assertSearchHits(searchResponse, "1", "2", "1", "2");
             } finally {
                 searchResponse.decRef();
             }
@@ -227,7 +254,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleQueryAgainstWildcardExpression() {
-        SearchResponse searchResponse = client().prepareSearch("*").setQuery(simpleQueryStringQuery("foo")).get();
+        SearchResponse searchResponse = client().prepareSearch("test*").setQuery(simpleQueryStringQuery("foo")).get();
         try {
             assertNoFailures(searchResponse);
             assertSearchHits(searchResponse, "1", "2");
@@ -382,7 +409,13 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals(1, measurements.size());
         Measurement measurement = measurements.getFirst();
         assertEquals(searchResponse.getTook().millis(), measurement.getLong());
-        assertTimeRangeAttributes(measurement.attributes());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(4, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_timestamp"));
+        // there were no results, and no shards queried, hence no range filter extracted from the query either
     }
 
     /**
@@ -404,6 +437,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals(1, measurements.size());
         Measurement measurement = measurements.getFirst();
         assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        // in this case the range query gets rewritten to a range query with open bounds on the shards. Here we test that query rewrite
+        // is able to grab the parsed range filter and propagate it all the way to the search response
         assertTimeRangeAttributes(measurement.attributes());
     }
 
@@ -427,11 +462,64 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     private static void assertTimeRangeAttributes(Map<String, Object> attributes) {
-        assertEquals(4, attributes.size());
+        assertEquals(5, attributes.size());
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
         assertEquals(true, attributes.get("range_timestamp"));
+        assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+    }
+
+    public void testTimeRangeFilterAllResultsFilterOnEventIngested() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("event.ingested").from("2024-10-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(4, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_event_ingested"));
+    }
+
+    public void testTimeRangeFilterOneResultQueryAndFetchRecentTimestamps() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(10))));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(singleShardIndexName)
+            .setQuery(boolQueryBuilder)
+            .addSort(new FieldSortBuilder("@timestamp"))
+            .get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(5, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("@timestamp", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_timestamp"));
+        assertEquals("15_minutes", attributes.get("timestamp_range_filter"));
     }
 
     private void resetMeter() {
@@ -439,6 +527,6 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {
-        return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
+        return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().getFirst();
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,6 +77,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private final RefCounted refCounted;
 
     private final SubscribableListener<Void> aggsContextReleased;
+
+    private Long rangeTimestampFrom;
 
     public QuerySearchResult() {
         this(false);
@@ -453,6 +456,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     reduced = in.readBoolean();
                 }
             }
+            if (in.getTransportVersion().onOrAfter(SearchResponse.TIMESTAMP_RANGE_TELEMETRY)) {
+                rangeTimestampFrom = in.readOptionalLong();
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -523,6 +529,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             out.writeBoolean(reduced);
         }
+        if (out.getTransportVersion().onOrAfter(SearchResponse.TIMESTAMP_RANGE_TELEMETRY)) {
+            out.writeOptionalLong(rangeTimestampFrom);
+        }
     }
 
     @Nullable
@@ -574,5 +583,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private static boolean versionSupportsBatchedExecution(TransportVersion transportVersion) {
         return transportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
             || transportVersion.isPatchFrom(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X);
+    }
+
+    public Long getRangeTimestampFrom() {
+        return rangeTimestampFrom;
+    }
+
+    public void setRangeTimestampFrom(Long rangeTimestampFrom) {
+        this.rangeTimestampFrom = rangeTimestampFrom;
     }
 }

@@ -232,6 +232,7 @@ public final class SearchResponseMerger implements Releasable {
                 tookInMillis,
                 shardFailures,
                 clusters,
+                null,
                 null
             );
         } finally {

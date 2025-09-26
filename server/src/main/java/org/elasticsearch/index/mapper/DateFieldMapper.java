@@ -944,7 +944,7 @@ public final class DateFieldMapper extends FieldMapper {
                     minValue = Long.min(minValue, skipper.minValue());
                     maxValue = Long.max(maxValue, skipper.maxValue());
                 }
-                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }
             byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {
@@ -954,7 +954,7 @@ public final class DateFieldMapper extends FieldMapper {
             long minValue = LongPoint.decodeDimension(minPackedValue, 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
-            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
         }
 
         public DateMathParser resolveDateMathParser(DateMathParser dateParser, Object from, Object to) {
@@ -977,7 +977,8 @@ public final class DateFieldMapper extends FieldMapper {
             boolean includeUpper,
             ZoneId timeZone,
             DateMathParser dateParser,
-            QueryRewriteContext context
+            QueryRewriteContext context,
+            String fieldName
         ) {
             dateParser = resolveDateMathParser(dateParser, from, to);
 
@@ -989,6 +990,9 @@ public final class DateFieldMapper extends FieldMapper {
                         return Relation.DISJOINT;
                     }
                     ++fromInclusive;
+                }
+                if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+                    context.setRangeTimestampFrom(fromInclusive);
                 }
             }
 

@@ -448,7 +448,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 includeUpper,
                 timeZone,
                 dateMathParser,
-                coordinatorRewriteContext
+                coordinatorRewriteContext,
+                dateFieldType.name()
             );
         }
         // If the field type is null or not of type DataFieldType then we have no idea whether this range query will match during

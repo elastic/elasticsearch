@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
@@ -61,6 +62,8 @@ import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearch
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    public static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
+
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
@@ -87,6 +90,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+    private final Long rangeTimestampFrom;
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
@@ -122,6 +126,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalBytesReference();
+        if (in.getTransportVersion().onOrAfter(TIMESTAMP_RANGE_TELEMETRY)) {
+            rangeTimestampFrom = in.readOptionalLong();
+        } else {
+            rangeTimestampFrom = null;
+        }
     }
 
     public SearchResponse(
@@ -155,6 +164,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillis,
             shardFailures,
             clusters,
+            null,
             null
         );
     }
@@ -185,7 +195,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillis,
             shardFailures,
             clusters,
-            pointInTimeId
+            pointInTimeId,
+            searchResponseSections.rangeTimestampFrom
         );
     }
 
@@ -204,7 +215,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        BytesReference pointInTimeId
+        BytesReference pointInTimeId,
+        Long rangeTimestampFrom
     ) {
         this.hits = hits;
         hits.incRef();
@@ -225,6 +237,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+        this.rangeTimestampFrom = rangeTimestampFrom;
     }
 
     @Override
@@ -462,6 +475,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         out.writeOptionalBytesReference(pointInTimeId);
+        if (out.getTransportVersion().onOrAfter(TIMESTAMP_RANGE_TELEMETRY)) {
+            out.writeOptionalLong(rangeTimestampFrom);
+        }
+    }
+
+    public Long getRangeTimestampFrom() {
+        return rangeTimestampFrom;
     }
 
     @Override
@@ -1152,6 +1172,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillisSupplier.get(),
             ShardSearchFailure.EMPTY_ARRAY,
             clusters,
+            null,
             null
         );
     }

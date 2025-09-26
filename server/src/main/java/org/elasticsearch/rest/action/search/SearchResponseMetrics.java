@@ -72,7 +72,8 @@ public class SearchResponseMetrics {
         return tookTime;
     }
 
-    public long recordTookTime(long tookTime, Map<String, Object> attributes) {
+    public long recordTookTime(long tookTime, Long rangeTimestampFrom, long nowInMillis, Map<String, Object> attributes) {
+        SearchRequestAttributesExtractor.addTimeRangeAttribute(rangeTimestampFrom, nowInMillis, attributes);
         tookDurationTotalMillisHistogram.record(tookTime, attributes);
         return tookTime;
     }

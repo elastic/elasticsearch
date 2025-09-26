@@ -960,8 +960,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testPatternTextNotAllowedByLicense() throws Exception {
-        assumeTrue("pattern_text feature must be enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
-
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERN_TEXT_TEMPLATING_FEATURE))).thenReturn(false);

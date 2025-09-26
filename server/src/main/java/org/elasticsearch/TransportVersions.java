@@ -192,7 +192,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19 = def(8_841_0_48);
     public static final TransportVersion NONE_CHUNKING_STRATEGY_8_19 = def(8_841_0_49);
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19 = def(8_841_0_50);
-    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = def(8_841_0_51);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -263,7 +262,6 @@ public class TransportVersions {
     public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
     public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
     public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
-    public static final TransportVersion SETTINGS_IN_DATA_STREAMS = def(9_064_0_00);
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = def(9_065_0_00);
     public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_0_00);
     public static final TransportVersion AGGREGATE_METRIC_DOUBLE_BLOCK = def(9_067_0_00);
@@ -280,7 +278,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED = def(9_078_0_00);
     public static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = def(9_079_0_00);
     public static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED = def(9_080_0_00);
-    public static final TransportVersion SETTINGS_IN_DATA_STREAMS_DRY_RUN = def(9_081_0_00);
     public static final TransportVersion ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION = def(9_082_0_00);
     public static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED = def(9_083_0_00);
     public static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = def(9_084_0_00);

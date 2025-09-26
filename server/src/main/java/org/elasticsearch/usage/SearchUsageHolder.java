@@ -82,7 +82,7 @@ public final class SearchUsageHolder {
         );
     }
 
-    private Map<String, Map<String, ExtendedSearchUsageMetric>> getExtendedSearchUsage() {
+    private Map<String, Map<String, ExtendedSearchUsageMetric<?>>> getExtendedSearchUsage() {
         return unmodifiableMap(
             extendedSearchUsage,
             nameMap -> unmodifiableMap(

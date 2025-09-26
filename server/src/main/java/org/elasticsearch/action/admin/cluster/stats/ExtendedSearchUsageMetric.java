@@ -10,17 +10,17 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 /**
  * Represents a metric colleged as part of {@link ExtendedSearchUsageStats}.
  */
-public interface ExtendedSearchUsageMetric extends NamedWriteable, ToXContent {
+public interface ExtendedSearchUsageMetric<T extends ExtendedSearchUsageMetric<T>> extends NamedWriteable, ToXContentFragment {
 
     /**
      * Merges two equivalent metrics together for statistical reporting.
      * @param other Another {@link ExtendedSearchUsageMetric}.
      * @return ExtendedSearchUsageMetric The merged metric.
      */
-    ExtendedSearchUsageMetric merge(ExtendedSearchUsageMetric other);
+    T merge(T other);
 }

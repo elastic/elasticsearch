@@ -34,41 +34,45 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
      *
      * Extended data is further segmented by name, e.g., collecting specific statistics for certain retrievers only.
      */
-    private final Map<String, Map<String, ExtendedSearchUsageMetric>> categoriesToExtendedData;
+    private final Map<String, Map<String, ExtendedSearchUsageMetric<?>>> categorizedExtendedData;
 
     public ExtendedSearchUsageStats() {
-        this.categoriesToExtendedData = new HashMap<>();
+        this.categorizedExtendedData = new HashMap<>();
     }
 
-    public ExtendedSearchUsageStats(Map<String, Map<String, ExtendedSearchUsageMetric>> categoriesToExtendedData) {
-        this.categoriesToExtendedData = categoriesToExtendedData;
+    public ExtendedSearchUsageStats(Map<String, Map<String, ExtendedSearchUsageMetric<?>>> categorizedExtendedData) {
+        this.categorizedExtendedData = categorizedExtendedData;
     }
 
     public ExtendedSearchUsageStats(StreamInput in) throws IOException {
-        this.categoriesToExtendedData = in.readMap(
+        this.categorizedExtendedData = in.readMap(
             StreamInput::readString,
             i -> i.readMap(StreamInput::readString, p -> p.readNamedWriteable(ExtendedSearchUsageMetric.class))
         );
     }
 
-    public Map<String, Map<String, ExtendedSearchUsageMetric>> getCategoriesToExtendedData() {
-        return Collections.unmodifiableMap(categoriesToExtendedData);
+    public Map<String, Map<String, ExtendedSearchUsageMetric<?>>> getCategorizedExtendedData() {
+        return Collections.unmodifiableMap(categorizedExtendedData);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(
-            categoriesToExtendedData,
+            categorizedExtendedData,
             StreamOutput::writeString,
             (o, v) -> o.writeMap(v, StreamOutput::writeString, (p, q) -> out.writeNamedWriteable(q))
         );
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void merge(ExtendedSearchUsageStats other) {
-        other.categoriesToExtendedData.forEach((key, otherMap) -> {
-            categoriesToExtendedData.merge(key, otherMap, (existingMap, newMap) -> {
-                Map<String, ExtendedSearchUsageMetric> mergedMap = new HashMap<>(existingMap);
-                newMap.forEach((innerKey, innerValue) -> { mergedMap.merge(innerKey, innerValue, ExtendedSearchUsageMetric::merge); });
+        other.categorizedExtendedData.forEach((key, otherMap) -> {
+            categorizedExtendedData.merge(key, otherMap, (existingMap, newMap) -> {
+                Map<String, ExtendedSearchUsageMetric<?>> mergedMap = new HashMap<>(existingMap);
+                newMap.forEach((innerKey, innerValue) -> {
+                    mergedMap.merge(innerKey, innerValue, (existing, incoming) ->
+                        ((ExtendedSearchUsageMetric) existing).merge(incoming));
+                });
                 return mergedMap;
             });
         });
@@ -78,9 +82,9 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         builder.startObject();
-        for (String category : categoriesToExtendedData.keySet()) {
+        for (String category : categorizedExtendedData.keySet()) {
             builder.startObject(category);
-            Map<String, ExtendedSearchUsageMetric> names = categoriesToExtendedData.get(category);
+            Map<String, ExtendedSearchUsageMetric<?>> names = categorizedExtendedData.get(category);
             for (String name : names.keySet()) {
                 builder.startObject(name);
                 names.get(name).toXContent(builder, params);
@@ -97,12 +101,12 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtendedSearchUsageStats that = (ExtendedSearchUsageStats) o;
-        return Objects.equals(categoriesToExtendedData, that.categoriesToExtendedData);
+        return Objects.equals(categorizedExtendedData, that.categorizedExtendedData);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(categoriesToExtendedData);
+        return Objects.hash(categorizedExtendedData);
     }
 
     @Override

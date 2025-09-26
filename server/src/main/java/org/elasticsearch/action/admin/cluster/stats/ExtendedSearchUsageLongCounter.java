@@ -14,13 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
 /**
  * An {@link ExtendedSearchUsageMetric} implementation that holds a map of values to counts.
  */
-public class ExtendedSearchUsageLongCounter implements ExtendedSearchUsageMetric {
+public class ExtendedSearchUsageLongCounter implements ExtendedSearchUsageMetric<ExtendedSearchUsageLongCounter> {
 
     public static final String NAME = "extended_search_usage_long_counter";
 
@@ -35,14 +36,12 @@ public class ExtendedSearchUsageLongCounter implements ExtendedSearchUsageMetric
     }
 
     public Map<String, Long> getValues() {
-        return values;
+        return Collections.unmodifiableMap(values);
     }
 
-    public ExtendedSearchUsageMetric merge(ExtendedSearchUsageMetric other) {
-        assert other instanceof ExtendedSearchUsageLongCounter;
+    public ExtendedSearchUsageLongCounter merge(ExtendedSearchUsageLongCounter other) {
         Map<String, Long> values = new java.util.HashMap<>(this.values);
-        ExtendedSearchUsageLongCounter otherLongCounter = (ExtendedSearchUsageLongCounter) other;
-        otherLongCounter.getValues().forEach((key, otherValue) -> { values.merge(key, otherValue, Long::sum); });
+        other.getValues().forEach((key, otherValue) -> { values.merge(key, otherValue, Long::sum); });
         return new ExtendedSearchUsageLongCounter(values);
     }
 

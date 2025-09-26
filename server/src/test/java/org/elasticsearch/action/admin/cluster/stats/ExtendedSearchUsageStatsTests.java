@@ -46,7 +46,7 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
         if (empty) {
             return new ExtendedSearchUsageStats();
         }
-        Map<String, Map<String, ExtendedSearchUsageMetric>> categoriesToExtendedData = new HashMap<>();
+        Map<String, Map<String, ExtendedSearchUsageMetric<?>>> categoriesToExtendedData = new HashMap<>();
 
         // TODO: Gate this behind a randomBoolean() in the future when we have other categories to add.
         categoriesToExtendedData.put("retrievers", randomExtendedRetrieversData());
@@ -54,11 +54,11 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
         return new ExtendedSearchUsageStats(categoriesToExtendedData);
     }
 
-    private static Map<String, ExtendedSearchUsageMetric> randomExtendedRetrieversData() {
-        Map<String, ExtendedSearchUsageMetric> retrieversData = new HashMap<>();
+    private static Map<String, ExtendedSearchUsageMetric<?>> randomExtendedRetrieversData() {
+        Map<String, ExtendedSearchUsageMetric<?>> retrieversData = new HashMap<>();
 
         // TODO: Gate this behind a randomBoolean() in the future when we have other values to add.
-        ExtendedSearchUsageMetric values = new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", randomLongBetween(1, 10)));
+        ExtendedSearchUsageMetric<?> values = new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", randomLongBetween(1, 10)));
         retrieversData.put("text_similarity_reranker", values);
 
         return retrieversData;
@@ -71,8 +71,8 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected ExtendedSearchUsageStats mutateInstance(ExtendedSearchUsageStats instance) throws IOException {
-        Map<String, Map<String, ExtendedSearchUsageMetric>> current = instance.getCategoriesToExtendedData();
-        Map<String, Map<String, ExtendedSearchUsageMetric>> modified = new HashMap<>();
+        Map<String, Map<String, ExtendedSearchUsageMetric<?>>> current = instance.getCategorizedExtendedData();
+        Map<String, Map<String, ExtendedSearchUsageMetric<?>>> modified = new HashMap<>();
         if (current.isEmpty()) {
             modified.put(
                 "retrievers",

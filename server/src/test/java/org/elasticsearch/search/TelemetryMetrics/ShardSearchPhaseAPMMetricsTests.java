@@ -279,12 +279,13 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     private static void assertTimeRangeAttributes(List<Measurement> measurements, String target, boolean isSystem) {
         for (Measurement measurement : measurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(5, attributes.size());
+            assertEquals(6, attributes.size());
             assertEquals(target, attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(true, attributes.get("range_timestamp"));
             assertEquals(isSystem, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
         }
     }
 

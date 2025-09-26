@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.HashMap;
@@ -70,6 +71,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
+            || f.field().equals(EsQueryExec.DOC_ID_FIELD) // FIXME(gal, NOCOMMIT) document
             || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
             || lookupFields.contains(f);
 

@@ -256,7 +256,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             configuration.newFoldContext(),
             plan,
             ComputeService.ReductionPlanFeatures.REMOTE_CLUSTER
-        );
+        ).reductionPlan(); // FIXME(gal, NOCOMMIT)
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();

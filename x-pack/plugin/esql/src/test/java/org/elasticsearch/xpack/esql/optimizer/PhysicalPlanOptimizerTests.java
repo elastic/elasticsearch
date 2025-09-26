@@ -8012,8 +8012,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT %d
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(plans.v2());
-        assertThat(reduction, equalTo(PlannerUtils.SimplePlanReduction.TOP_N));
+        var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var topN = as(reductionPlan, TopNExec.class);
+        assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
     }
 
     public void testReductionPlanForAggs() {

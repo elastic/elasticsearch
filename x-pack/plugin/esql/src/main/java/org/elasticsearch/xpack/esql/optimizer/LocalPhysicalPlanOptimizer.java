@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
@@ -95,7 +94,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         firstRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource && split == SplitPlanAfterTopN.SPLIT) {
             // This rule should only be applied once, since it is not idempotent.
-            firstRules.add(new AvoidFieldExtractionAfterTopN());
+            // firstRules.add(new AvoidFieldExtractionAfterTopN());
         }
         var prePushdown = new Batch<PhysicalPlan>("Pre-pushdown", Limiter.ONCE, firstRules.toArray(Rule[]::new));
 

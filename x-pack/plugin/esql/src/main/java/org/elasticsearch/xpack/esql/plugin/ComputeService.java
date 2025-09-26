@@ -76,6 +76,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
@@ -736,7 +737,7 @@ public class ComputeService {
         });
     }
 
-    static PhysicalPlan reductionPlan(
+    static PlannerUtils.ReductionPlanHack reductionPlan(
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
@@ -745,22 +746,24 @@ public class ComputeService {
     ) {
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         if (features == ReductionPlanFeatures.DISABLED) {
-            return originalPlan.replaceChild(source);
+            return new PlannerUtils.ReductionPlanHack(originalPlan.replaceChild(source), null);
         }
 
-        PhysicalPlan newPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
-            case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> source;
-            case PlannerUtils.SimplePlanReduction.TOP_N ->
+        Function<PhysicalPlan, PlannerUtils.ReductionPlanHack> pipelineBreakerReduction = p -> new PlannerUtils.ReductionPlanHack(
+            originalPlan.replaceChild(p.replaceChildren(List.of(source))),
+            originalPlan
+        );
+        return switch (PlannerUtils.reductionPlan(originalPlan)) {
+            case PlannerUtils.TopNReduction topN when features.supportsTopNSplit() ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
                 PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, originalPlan)
-                    .filter(ignored -> features.supportsTopNSplit())
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> originalPlan.replaceChildren(List.of(source)));
-            case PlannerUtils.ReducedPlan rp -> features.supportsOtherPlanReduction() ? rp.plan().replaceChildren(List.of(source)) : source;
+                    .orElseGet(() -> pipelineBreakerReduction.apply(topN.plan()));
+            case PlannerUtils.ReducedPlan rp when features.supportsOtherPlanReduction() -> pipelineBreakerReduction.apply(rp.plan());
+            default -> new PlannerUtils.ReductionPlanHack(originalPlan.replaceChild(source), originalPlan);
         };
-        return originalPlan.replaceChild(newPlan);
     }
 
     enum ReductionPlanFeatures implements Writeable {

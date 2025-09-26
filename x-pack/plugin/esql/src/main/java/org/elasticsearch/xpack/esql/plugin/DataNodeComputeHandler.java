@@ -556,7 +556,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
         ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
-        PhysicalPlan reductionPlan;
+        PlannerUtils.ReductionPlanHack reductionPlan;
         Configuration configuration = request.configuration();
         // We can avoid synchronization (for the most part) since the array elements are never modified, and the array is only added to,
         // with its size being known before we start the computation.
@@ -590,8 +590,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,
-            reductionPlan,
-            request,
+            reductionPlan.reductionPlan(),
+            request.withPlan(reductionPlan.updatedDataPlan()),
             failFastOnShardFailures,
             computeSearchContexts,
             ActionListener.releaseAfter(listener, computeSearchContexts)

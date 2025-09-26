@@ -30,9 +30,17 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
 
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
-        var docId = new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         final List<Attribute> attributes = new ArrayList<>();
-        attributes.add(docId);
+        // FIXME(gal, NOCOMMIT) explain
+        var sourceAttribute = plan.output().stream().filter(EsQueryExec::isSourceAttribute).toList();
+        if (sourceAttribute.size() > 1) {
+            throw new IllegalStateException("Expected at most one source attribute, found: " + sourceAttribute);
+        }
+        attributes.add(
+            sourceAttribute.isEmpty()
+                ? new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD)
+                : sourceAttribute.getFirst()
+        );
 
         if (plan.indexMode() == IndexMode.TIME_SERIES) {
             for (EsField field : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {

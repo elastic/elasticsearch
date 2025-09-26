@@ -249,4 +249,18 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionPlanFeatures
         );
     }
+
+    public DataNodeRequest withPlan(PhysicalPlan newPlan) {
+        return new DataNodeRequest(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shardIds,
+            aliasFilters,
+            newPlan,
+            indices,
+            indicesOptions,
+            reductionPlanFeatures
+        );
+    }
 }

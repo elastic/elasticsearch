@@ -26,6 +26,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class IndicesQueryCacheTests extends ESTestCase {
 
-    private static class DummyQuery extends Query implements org.apache.lucene.util.Accountable {
+    private static class DummyQuery extends Query implements Accountable {
 
         private final String id;
         private final long sizeInCache;
@@ -427,7 +428,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close();
     }
 
-    @SuppressWarnings("cast")
     public void testGetStatsMemory() throws Exception {
         /*
          * This test creates 2 shards, one with two segments and one with one. It makes unique queries against all 3 segments (so that each

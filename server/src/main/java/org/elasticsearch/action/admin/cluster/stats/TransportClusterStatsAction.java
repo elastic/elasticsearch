@@ -319,7 +319,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus,
             nodeInfo,
             nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()]),
+            shardsStats.toArray(new ShardStats[0]),
             searchUsageStats,
             repositoryUsageStats,
             ccsTelemetry,
@@ -481,7 +481,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         protected void onItemResponse(String clusterAlias, RemoteClusterStatsResponse response) {
             if (response != null) {
-                remoteClustersStats.computeIfPresent(clusterAlias, (k, v) -> v.acceptResponse(response));
+                remoteClustersStats.computeIfPresent(clusterAlias, (ignored, v) -> v.acceptResponse(response));
             }
         }
 

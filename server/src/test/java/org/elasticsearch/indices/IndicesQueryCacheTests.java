@@ -87,10 +87,10 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
             return new ConstantScoreWeight(this, boost) {
                 @Override
-                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
                     Scorer scorer = new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
                     return new DefaultScorerSupplier(scorer);
                 }
@@ -421,7 +421,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertNotSame(weight, cached);
         assertFalse(weight.scorerCalled);
         assertFalse(weight.scorerSupplierCalled);
-        cached.scorerSupplier(s.getIndexReader().leaves().get(0));
+        cached.scorerSupplier(s.getIndexReader().leaves().getFirst());
         assertFalse(weight.scorerCalled);
         assertTrue(weight.scorerSupplierCalled);
         IOUtils.close(r, dir);
@@ -429,7 +429,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close();
     }
 
-    public void testGetCacheTotalsForAllShards() throws Exception {
+    public void testGetCacheTotalsForAllShards() {
         ShardId shardId1 = new ShardId("index", "_na_", 0);
         ShardId shardId2 = new ShardId("index", "_na_", 1);
 
@@ -580,7 +580,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
          */
         shard1Segment1CacheMemoryShare = ((double) (2 * shard1Queries) / ((2 * shard1Queries) + shard2Queries)) * (totalMemoryMinusOverhead)
             + shard1Overhead;
-        cacheTotals = new IndicesQueryCache.CacheTotals(2 * shard1Queries + shard2Queries, 2);
+        cacheTotals = new IndicesQueryCache.CacheTotals(2L * shard1Queries + shard2Queries, 2);
         sharedRamSizeShard1 = IndicesQueryCache.getSharedRamSizeForShard(cache, shard1, cacheTotals);
         shard1CacheBytes = cache.getStats(shard1, sharedRamSizeShard1).getMemorySizeInBytes();
         assertThat((double) shard1CacheBytes, closeTo(shard1Segment1CacheMemoryShare, 1)); // accounting for rounding

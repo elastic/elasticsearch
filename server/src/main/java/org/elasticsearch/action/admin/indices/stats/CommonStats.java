@@ -179,7 +179,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Refresh -> stats.refresh = indexShard.refreshStats();
                     case Flush -> stats.flush = indexShard.flushStats();
                     case Warmer -> stats.warmer = indexShard.warmerStats();
-                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId(), 0L);
+                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId(), precomputedSharedRam);
                     case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
                     case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());
                     case Segments -> stats.segments = indexShard.segmentStats(

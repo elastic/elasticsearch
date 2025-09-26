@@ -82,7 +82,7 @@ public class IndexAbstractionResolver {
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
         boolean wildcardSeen = false;
         for (String index : indices) {
-            CrossProjectIndexExpressionsRewriter.Result rewritten = CrossProjectIndexExpressionsRewriter.rewrite(
+            CrossProjectIndexExpressionsRewriter.Result rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                 index,
                 originProjectAlias,
                 linkedProjectAliases

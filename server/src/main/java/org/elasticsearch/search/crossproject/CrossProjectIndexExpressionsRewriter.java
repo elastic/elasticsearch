@@ -68,7 +68,7 @@ public class CrossProjectIndexExpressionsRewriter {
         Set<String> linkedProjectNames = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
         List<Result> results = new ArrayList<>(indices.length);
         for (String resource : indices) {
-            results.add(rewrite(resource, originProject == null ? null : originProject.projectAlias(), linkedProjectNames));
+            results.add(rewriteIndexExpression(resource, originProject == null ? null : originProject.projectAlias(), linkedProjectNames));
         }
         return results;
     }
@@ -82,7 +82,7 @@ public class CrossProjectIndexExpressionsRewriter {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
-    public static Result rewrite(String resource, @Nullable String originProjectAlias, Set<String> linkedProjectAliases) {
+    public static Result rewriteIndexExpression(String resource, @Nullable String originProjectAlias, Set<String> linkedProjectAliases) {
         maybeThrowOnUnsupportedResource(resource);
 
         boolean isQualified = RemoteClusterAware.isRemoteIndexName(resource);

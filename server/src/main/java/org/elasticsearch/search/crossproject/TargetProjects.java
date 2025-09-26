@@ -9,17 +9,20 @@
 
 package org.elasticsearch.search.crossproject;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public record TargetProjects(ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
-    public static TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
+public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
+    public static final TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
 
     public TargetProjects(ProjectRoutingInfo originProject) {
         this(originProject, List.of());
     }
 
+    @Nullable
     public String originProjectAlias() {
         return originProject != null ? originProject.projectAlias() : null;
     }

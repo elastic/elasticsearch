@@ -44,6 +44,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler;
+import org.elasticsearch.search.crossproject.LinkedProjectExpressions;
+import org.elasticsearch.search.crossproject.RemoteIndexExpressions;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -70,6 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
+import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.lenientIndicesOptionsForFanout;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -614,15 +618,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
-            final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+            final IndicesOptions originalIndicesOptions = request.indicesOptions();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-                request.indicesOptions(),
+                request.resolveCrossProject ? lenientIndicesOptionsForFanout(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()
             );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             List<ResolvedIndex> indices = new ArrayList<>();
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
+            final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams, request.indexModes);
 
             final ResolvedIndexExpressions resolvedExpressions = request.getResolvedIndexExpressions();
@@ -633,7 +638,24 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         if (request.resolveCrossProject) {
-                            // TODO error handling
+                            Map<String, LinkedProjectExpressions> linkedProjectExpressions = remoteResponses.entrySet()
+                                .stream()
+                                .collect(
+                                    Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        e -> LinkedProjectExpressions.fromResolvedExpressions(e.getValue().getResolvedIndexExpressions())
+                                    )
+                                );
+                            try {
+                                CrossProjectSearchErrorHandler.crossProjectFanoutErrorHandling(
+                                    request.indicesOptions,
+                                    resolvedExpressions,
+                                    new RemoteIndexExpressions(linkedProjectExpressions)
+                                );
+                            } catch (Exception ex) {
+                                listener.onFailure(ex);
+                                return;
+                            }
                         }
                         mergeResults(remoteResponses, indices, aliases, dataStreams, request.indexModes);
                         listener.onResponse(new Response(indices, aliases, dataStreams));

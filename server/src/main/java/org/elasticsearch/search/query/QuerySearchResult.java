@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,6 +44,8 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
+    private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
+
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -456,7 +457,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     reduced = in.readBoolean();
                 }
             }
-            if (in.getTransportVersion().onOrAfter(SearchResponse.TIMESTAMP_RANGE_TELEMETRY)) {
+            if (in.getTransportVersion().onOrAfter(TIMESTAMP_RANGE_TELEMETRY)) {
                 rangeTimestampFrom = in.readOptionalLong();
             }
             success = true;
@@ -529,7 +530,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             out.writeBoolean(reduced);
         }
-        if (out.getTransportVersion().onOrAfter(SearchResponse.TIMESTAMP_RANGE_TELEMETRY)) {
+        if (out.getTransportVersion().onOrAfter(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(rangeTimestampFrom);
         }
     }

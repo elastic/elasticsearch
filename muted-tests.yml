@@ -657,6 +657,9 @@ tests:
 - class: org.elasticsearch.upgrades.TextRollingUpgradeIT
   method: testIndexing {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/135238
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/135236
 
 # Examples:
 #

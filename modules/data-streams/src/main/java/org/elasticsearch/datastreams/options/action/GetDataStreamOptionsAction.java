@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.datastreams.options.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -45,6 +45,10 @@ public class GetDataStreamOptionsAction {
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
+        private static final TransportVersion DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS = TransportVersion.fromName(
+            "data_stream_options_api_remove_include_defaults"
+        );
+
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -79,7 +83,8 @@ public class GetDataStreamOptionsAction {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().before(TransportVersions.DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_8_19)) {
+            // This boolean was removed in 8.19
+            if (in.getTransportVersion().supports(DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS) == false) {
                 in.readBoolean();
             }
         }
@@ -89,7 +94,7 @@ public class GetDataStreamOptionsAction {
             super.writeTo(out);
             out.writeOptionalStringArray(names);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().before(TransportVersions.DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_8_19)) {
+            if (out.getTransportVersion().supports(DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS) == false) {
                 out.writeBoolean(false);
             }
         }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -127,6 +128,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final String matchField;
 
+        private static final TransportVersion JOIN_ON_ALIASES = TransportVersion.fromName("join_on_aliases");
+
         TransportRequest(
             String sessionId,
             ShardId shardId,
@@ -148,7 +151,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ShardId shardId = new ShardId(in);
 
             String indexPattern;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (in.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 indexPattern = in.readString();
             } else {
                 indexPattern = shardId.getIndexName();
@@ -187,7 +190,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(sessionId);
             out.writeWriteable(shardId);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (out.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
                 throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);

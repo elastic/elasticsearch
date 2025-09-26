@@ -326,7 +326,7 @@ public final class TextFieldMapper extends FieldMapper {
                 }
 
                 // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-                if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                     return isSyntheticSourceEnabled
                         && isWithinMultiField == false
                         && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -1063,8 +1063,8 @@ public final class TextFieldMapper extends FieldMapper {
             return syntheticSourceDelegate.get().ignoreAbove().isIgnored(str) == false;
         }
 
-        public boolean needsToSupportSyntheticSource(final IndexVersion indexCreatedVersion) {
-            if (multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+        public boolean shouldStoreFieldForSyntheticSource(final IndexVersion indexCreatedVersion) {
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                 // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the
                 // parent
                 return isSyntheticSourceEnabled() && isWithinMultiField() == false;
@@ -1419,8 +1419,8 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        // if synthetic source needs to be supported, yet the field isn't stored, then we need to rely on something else
-        if (fieldType().needsToSupportSyntheticSource(indexCreatedVersion) && fieldType.stored() == false) {
+        // store the field if isn't stored yet, and we need it to be stored for synthetic source
+        if (fieldType.stored() == false && fieldType().shouldStoreFieldForSyntheticSource(indexCreatedVersion)) {
             // if we can rely on the synthetic source delegate for synthetic source, then exit as there is nothing to do
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
@@ -1443,7 +1443,7 @@ public final class TextFieldMapper extends FieldMapper {
     /**
      * Returns whether the current index version supports not storing fields by default when they're multi fields.
      */
-    public static boolean multiFieldsNotStoredByDefault_indexVersionCheck(final IndexVersion indexCreatedVersion) {
+    public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(final IndexVersion indexCreatedVersion) {
         return indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)
             || indexCreatedVersion.between(
                 IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,

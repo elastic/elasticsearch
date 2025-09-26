@@ -312,7 +312,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void test_store_parameter_defaults_to_false_with_latest_index_version_when_synthetic_source_is_enabled() throws IOException {
+    public void testStoreParameterDefaultsToFalseWithLatestIndexVersionWhenSyntheticSourceIsEnabled() throws IOException {
         var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
 
         var mapping = mapping(b -> {

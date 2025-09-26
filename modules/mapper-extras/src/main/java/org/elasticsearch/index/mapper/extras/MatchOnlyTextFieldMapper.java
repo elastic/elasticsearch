@@ -294,21 +294,21 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         ) {
             assert searchExecutionContext.isSourceSynthetic() : "Synthetic source should be enabled";
 
-            String parentField = searchExecutionContext.parentPath(name());
-            var parent = searchExecutionContext.lookup().fieldType(parentField);
+            String parentFieldName = searchExecutionContext.parentPath(name());
+            var parent = searchExecutionContext.lookup().fieldType(parentFieldName);
 
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.ignoreAbove().isSet()) {
-                final String parentFieldName = keywordParent.syntheticSourceFallbackFieldName();
+                final String parentFallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
                 if (parent.isStored()) {
-                    return storedFieldFetcher(parentField, parentFieldName);
+                    return storedFieldFetcher(parentFieldName, parentFallbackFieldName);
                 } else if (parent.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(parentFieldName));
+                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(parentFallbackFieldName));
                 }
             }
 
             if (parent.isStored()) {
-                return storedFieldFetcher(parentField);
+                return storedFieldFetcher(parentFieldName);
             } else if (parent.hasDocValues()) {
                 var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
                 return docValuesFieldFetcher(ifd);
@@ -701,7 +701,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.addToFieldNames(fieldType().name());
 
         // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
-        if (fieldType().textFieldType.needsToSupportSyntheticSource(indexCreatedVersion)) {
+        if (fieldType().textFieldType.shouldStoreFieldForSyntheticSource(indexCreatedVersion)) {
             // check if we can use the delegate
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;

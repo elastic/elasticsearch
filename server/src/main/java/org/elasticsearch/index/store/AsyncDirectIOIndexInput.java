@@ -389,6 +389,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         private final FileChannel channel;
         private final int blockSize;
         private final long[] prefetchPos;
+        // statically initialized to maxConcurrentPrefetches
         private final List<Future<ByteBuffer>> prefetchThreads;
         private final TreeMap<Long, Integer> posToSlot;
         private final IntDeque slots;
@@ -469,16 +470,10 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                 return false;
             }
             final Future<ByteBuffer> thread = prefetchThreads.get(slot);
-            if (thread == null) {
-                // free slot and decrement active prefetches
-                clearSlotAndMaybeStartPending(slot);
-                return false;
-            }
-            final ByteBuffer prefetchBuffer;
+            ByteBuffer prefetchBuffer = null;
             try {
-                prefetchBuffer = thread.get();
+                prefetchBuffer = thread == null ? null : thread.get();
             } catch (ExecutionException e) {
-                clearSlotAndMaybeStartPending(slot);
                 IOException ioException = (IOException) ExceptionsHelper.unwrap(e, IOException.class);
                 if (ioException != null) {
                     throw ioException;
@@ -486,12 +481,15 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                 throw new IOException(e.getCause());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return false;
+            } finally {
+                if (prefetchBuffer == null) {
+                    clearSlotAndMaybeStartPending(slot);
+                }
             }
             if (prefetchBuffer == null) {
-                clearSlotAndMaybeStartPending(slot);
                 return false;
             }
+
             // our buffer sizes are uniform, and match the required buffer size, however, the position here
             // might be before the requested pos, so offset it
             slice.put(prefetchBuffer);

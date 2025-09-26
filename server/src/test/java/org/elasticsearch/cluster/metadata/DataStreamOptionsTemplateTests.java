@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -21,6 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingTestCase<DataStreamOptions.Template> {
 
     public static final DataStreamOptions.Template RESET = new DataStreamOptions.Template(ResettableValue.reset());
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
 
     @Override
     protected Writeable.Reader<DataStreamOptions.Template> instanceReader() {
@@ -153,6 +155,7 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
         DataStreamOptions.Template withEnabledReset = new DataStreamOptions.Template(
             new DataStreamFailureStore.Template(ResettableValue.reset(), ResettableValue.undefined())
         );
+
         result = copyInstance(withEnabledReset, TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
         assertThat(result, equalTo(new DataStreamOptions.Template(ResettableValue.reset())));
     }

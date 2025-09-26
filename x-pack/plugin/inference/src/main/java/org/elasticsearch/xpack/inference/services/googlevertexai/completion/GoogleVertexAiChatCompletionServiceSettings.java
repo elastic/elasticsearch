@@ -182,6 +182,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         boolean isNonGoogleProvider = provider != null && provider != GoogleModelGardenProvider.GOOGLE;
         // If using a non-Google provider, at least one URL must be provided
         boolean hasAnyUrl = uri != null || streamingUri != null;
+        // If using Google Vertex AI, all three fields must be provided
         boolean hasAllVertexFields = projectId != null && location != null && modelId != null;
 
         if (isNonGoogleProvider) {

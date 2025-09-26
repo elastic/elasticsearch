@@ -28,16 +28,11 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
-import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -90,15 +85,11 @@ public class SerializationTestUtils {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
             serializer.write(planStreamOutput, orig);
 
-            PlanStreamInput.NameIdMapper nameIdMapper = orig instanceof Node<?> node
-                // For trees, reuse the NameIds to make equality testing easier
-                ? new TestNameIdMapper(node)
-                : new PlanStreamInput.NameIdMapper();
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config, nameIdMapper);
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config, new TestNameIdMapper());
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -138,50 +129,13 @@ public class SerializationTestUtils {
     }
 
     /**
-     * Reuses existing {@link NameId}s when deserializing a tree, rather than creating new ones all the time. This makes testing for
-     * equality easier because deserialized nodes will have the same {@link NameId} instances as the original ones.
+     * Maps NameIds seen in a plan to themselves rather than creating new, unique ones.
+     * This makes equality checks easier when comparing a plan to itself after serialization and deserialization.
      */
     public static class TestNameIdMapper extends PlanStreamInput.NameIdMapper {
-        public TestNameIdMapper() {
-            super();
-        };
-
-        @SuppressWarnings("this-escape")
-        public TestNameIdMapper(Node<?> node) {
-            super();
-            collectNameIds(node);
-        }
-
-        private void add(NameId id) {
-            seen().computeIfAbsent(id.id(), unused -> id);
-        }
-
-        public void collectNameIds(Node<?> node) {
-            if (node instanceof Expression e) {
-                e.forEachDown(NamedExpression.class, ne -> add(ne.id()));
-                return;
-            }
-
-            if (node instanceof QueryPlan<?> p) {
-                p.forEachExpressionDown(NamedExpression.class, ne -> add(ne.id()));
-            }
-
-            if (node instanceof LogicalPlan lp) {
-                lp.forEachDown(Lookup.class, lookup -> {
-                    if (lookup.localRelation() != null) {
-                        // The LocalRelation is not seen as part of the plan tree so we need to explicitly collect its NameIds.
-                        collectNameIds(lookup.localRelation());
-                    }
-                });
-            }
-
-            if (node instanceof PhysicalPlan p) {
-                p.forEachDown(FragmentExec.class, fragmentExec -> {
-                    // The fragment is not seen as part of the plan tree so we need to explicitly collect its NameIds.
-                    LogicalPlan fragment = fragmentExec.fragment();
-                    collectNameIds(fragment);
-                });
-            }
+        @Override
+        public NameId apply(long streamNameId) {
+            return new NameId(streamNameId);
         }
     }
 }

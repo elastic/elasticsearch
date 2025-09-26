@@ -53,15 +53,17 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
 
     @Override
     protected T copyInstance(T instance, TransportVersion version) throws IOException {
-        SerializationTestUtils.TestNameIdMapper idsNameMapper = new SerializationTestUtils.TestNameIdMapper();
-        idsNameMapper.collectNameIds(instance);
-
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
             (out, v) -> new PlanStreamOutput(out, configuration()).writeNamedWriteable(v),
             in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration(), idsNameMapper);
+                PlanStreamInput pin = new PlanStreamInput(
+                    in,
+                    in.namedWriteableRegistry(),
+                    configuration(),
+                    new SerializationTestUtils.TestNameIdMapper()
+                );
                 @SuppressWarnings("unchecked")
                 T deser = (T) pin.readNamedWriteable(categoryClass());
                 if (alwaysEmptySource()) {

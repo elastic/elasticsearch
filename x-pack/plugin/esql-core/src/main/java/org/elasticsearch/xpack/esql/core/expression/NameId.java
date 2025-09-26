@@ -32,6 +32,14 @@ public class NameId implements Writeable {
     }
 
     /**
+     * Absolutely only intended for tests, esp. to deal with serialization. Never use in production as it breaks the
+     * uniqueness guarantee.
+     */
+    public NameId(long id) {
+        this.id = id;
+    }
+
+    /**
      * For testing only. Otherwise, we only use name ids for equality checks and de-/serialization and don't rely on their exact
      * representation as long values.
      */

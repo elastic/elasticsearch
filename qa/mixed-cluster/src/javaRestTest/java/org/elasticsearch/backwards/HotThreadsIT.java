@@ -12,13 +12,10 @@ package org.elasticsearch.backwards;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HotThreadsIT extends ESRestTestCase {
-
-    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+public class HotThreadsIT extends AbstractMixedClusterTest {
 
     public void testHotThreads() throws Exception {
         final MixedClusterTestNodes nodes = MixedClusterTestNodes.buildNodes(client(), BWC_NODES_VERSION);

@@ -29,7 +29,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
     private static final String STATIC_TEST_CLUSTER_ALIAS = "static_test_cluster";
 
     public void testSignWithPemKeyConfig() {
-        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance();
+        final CrossClusterApiKeySignatureManager manager = getCrossClusterApiKeySignatureManagerInstance();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         X509CertificateSignature signature = manager.signerForClusterAlias(STATIC_TEST_CLUSTER_ALIAS).sign(testHeaders);
@@ -48,15 +48,14 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
     }
 
     public void testSignUnknownClusterAlias() {
-        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance();
+        final CrossClusterApiKeySignatureManager manager = getCrossClusterApiKeySignatureManagerInstance();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
         X509CertificateSignature signature = manager.signerForClusterAlias("unknowncluster").sign(testHeaders);
         assertNull(signature);
     }
 
     public void testSeveralKeyStoreAliases() {
-        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance();
-
+        final CrossClusterApiKeySignatureManager manager = getCrossClusterApiKeySignatureManagerInstance();
         try {
             // Create a new config without an alias. Since there are several aliases in the keystore, no signature should be generated
             updateClusterSettings(
@@ -72,6 +71,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
             );
 
             {
+                var signer = manager.signerForClusterAlias(DYNAMIC_TEST_CLUSTER_ALIAS);
                 X509CertificateSignature signature = signer.sign("test", "test");
                 assertNull(signature);
             }
@@ -82,6 +82,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
                     .put(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey(), "wholelottakey")
             );
             {
+                var signer = manager.signerForClusterAlias(DYNAMIC_TEST_CLUSTER_ALIAS);
                 X509CertificateSignature signature = signer.sign("test", "test");
                 assertNotNull(signature);
             }
@@ -92,6 +93,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
                     .put(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(DYNAMIC_TEST_CLUSTER_ALIAS).getKey(), "idonotexist")
             );
             {
+                var signer = manager.signerForClusterAlias(DYNAMIC_TEST_CLUSTER_ALIAS);
                 X509CertificateSignature signature = signer.sign("test", "test");
                 assertNotNull(signature);
             }
@@ -107,10 +109,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
     }
 
     public void testVerifyDiagnosticTrustManagerDisabled() {
-        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
-            CrossClusterApiKeySignatureManager.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySignatureManager manager = getCrossClusterApiKeySignatureManagerInstance();
 
         try {
             updateClusterSettings(Settings.builder().put(DIAGNOSE_TRUST_EXCEPTIONS.getKey(), false));
@@ -121,10 +120,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
     }
 
     public void testVerifyDiagnosticTrustManagerEnabledDefault() {
-        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
-            CrossClusterApiKeySignatureManager.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySignatureManager manager = getCrossClusterApiKeySignatureManagerInstance();
 
         assertTrue(manager.getTrustManager() instanceof DiagnosticTrustManager);
     }
@@ -150,8 +146,8 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
         return builder.build();
     }
 
-    private static CrossClusterApiKeySigner getCrossClusterApiKeySignerInstance() {
-        return CrossClusterTestHelper.getCrossClusterApiKeySigner(internalCluster());
+    private static CrossClusterApiKeySignatureManager getCrossClusterApiKeySignatureManagerInstance() {
+        return CrossClusterTestHelper.getCrossClusterApiKeySignatureManager(internalCluster());
     }
 
 }

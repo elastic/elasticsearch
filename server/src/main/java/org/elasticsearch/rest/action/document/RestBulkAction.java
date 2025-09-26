@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -41,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -62,6 +64,28 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
+
+    private static final String BULK_FORMAT_HEADER = "Bulk-Format";
+
+    public enum BulkFormat {
+        PREFIX_LENGTH,
+        MARKER_SUFFIX;
+
+        static BulkFormat parse(String bulkFormat) {
+            if (Strings.hasText(bulkFormat)) {
+                if ("marker-suffix".equalsIgnoreCase(bulkFormat)) {
+                    return MARKER_SUFFIX;
+                } else if ("prefix-length".equalsIgnoreCase(bulkFormat)) {
+                    return PREFIX_LENGTH;
+                } else {
+                    throw new IllegalArgumentException("Unknown bulk format: " + bulkFormat);
+                }
+            } else {
+                throw new IllegalArgumentException("Header [" + BULK_FORMAT_HEADER + "] cannot be empty.");
+            }
+        }
+    }
+
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
     private final IncrementalBulkService.Enabled incrementalEnabled;
@@ -127,6 +151,7 @@ public class RestBulkAction extends BaseRestHandler {
                     defaultListExecutedPipelines,
                     allowExplicitIndex,
                     request.getXContentType(),
+                    parseBulkFormatHeader(request.getHeaders()),
                     request.getRestApiVersion()
                 );
             } catch (Exception e) {
@@ -147,6 +172,16 @@ public class RestBulkAction extends BaseRestHandler {
                 () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
             );
         }
+    }
+
+    private static BulkFormat parseBulkFormatHeader(Map<String, List<String>> headers) {
+        List<String> header = headers.get(BULK_FORMAT_HEADER);
+        if (header == null || header.isEmpty()) {
+            return BulkFormat.MARKER_SUFFIX; // default bulk format
+        } else if (header.size() > 1) {
+            throw new IllegalArgumentException("Incorrect header [" + BULK_FORMAT_HEADER + "]. Only one value should be provided");
+        }
+        return BulkFormat.parse(header.get(0));
     }
 
     private static Exception parseFailureException(Exception e) {
@@ -188,6 +223,7 @@ public class RestBulkAction extends BaseRestHandler {
                     request.paramAsBoolean("list_executed_pipelines", false),
                     allowExplicitIndex,
                     request.getXContentType(),
+                    parseBulkFormatHeader(request.getHeaders()),
                     (indexRequest, type) -> items.add(indexRequest),
                     items::add,
                     items::add

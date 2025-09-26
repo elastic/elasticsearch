@@ -22,6 +22,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
@@ -111,10 +112,13 @@ public final class BulkRequestParser {
         BytesReference bytesReference,
         int from,
         int nextMarker,
-        XContentType xContentType
+        XContentType xContentType,
+        RestBulkAction.BulkFormat bulkFormat
     ) {
         final int length;
-        if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
+        if (RestBulkAction.BulkFormat.MARKER_SUFFIX == bulkFormat
+            && XContentType.JSON == xContentType
+            && bytesReference.get(nextMarker - 1) == (byte) '\r') {
             length = nextMarker - from - 1;
         } else {
             length = nextMarker - from;
@@ -138,6 +142,7 @@ public final class BulkRequestParser {
         @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
+        RestBulkAction.BulkFormat bulkFormat,
         BiConsumer<IndexRequest, String> indexRequestConsumer,
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
@@ -152,6 +157,7 @@ public final class BulkRequestParser {
             defaultListExecutedPipelines,
             allowExplicitIndex,
             xContentType,
+            bulkFormat,
             indexRequestConsumer,
             updateRequestConsumer,
             deleteRequestConsumer
@@ -170,6 +176,7 @@ public final class BulkRequestParser {
         @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
+        RestBulkAction.BulkFormat bulkFormat,
         BiConsumer<IndexRequest, String> indexRequestConsumer,
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
@@ -184,6 +191,7 @@ public final class BulkRequestParser {
             defaultListExecutedPipelines,
             allowExplicitIndex,
             xContentType,
+            bulkFormat,
             indexRequestConsumer,
             updateRequestConsumer,
             deleteRequestConsumer
@@ -207,6 +215,7 @@ public final class BulkRequestParser {
         private final boolean allowExplicitIndex;
 
         private final XContentType xContentType;
+        private final RestBulkAction.BulkFormat bulkFormat;
         private final byte marker;
         private final BiConsumer<IndexRequest, String> indexRequestConsumer;
         private final Consumer<UpdateRequest> updateRequestConsumer;
@@ -232,6 +241,7 @@ public final class BulkRequestParser {
             @Nullable Boolean defaultListExecutedPipelines,
             boolean allowExplicitIndex,
             XContentType xContentType,
+            RestBulkAction.BulkFormat bulkFormat,
             BiConsumer<IndexRequest, String> indexRequestConsumer,
             Consumer<UpdateRequest> updateRequestConsumer,
             Consumer<DeleteRequest> deleteRequestConsumer
@@ -245,7 +255,12 @@ public final class BulkRequestParser {
             this.defaultListExecutedPipelines = defaultListExecutedPipelines;
             this.allowExplicitIndex = allowExplicitIndex;
             this.xContentType = xContentType;
-            this.marker = xContentType.xContent().bulkSeparator();
+            this.bulkFormat = bulkFormat;
+            if (bulkFormat == RestBulkAction.BulkFormat.MARKER_SUFFIX) {
+                this.marker = xContentType.xContent().bulkSeparator();
+            } else {
+                this.marker = (byte) '0'; // no need of a marker for prefix length
+            }
             this.indexRequestConsumer = indexRequestConsumer;
             this.updateRequestConsumer = updateRequestConsumer;
             this.deleteRequestConsumer = deleteRequestConsumer;
@@ -257,14 +272,19 @@ public final class BulkRequestParser {
                 throw new IllegalStateException("Parser has already encountered exception", failure);
             }
             try {
-                return tryParse(data, lastData);
+                if (bulkFormat == RestBulkAction.BulkFormat.PREFIX_LENGTH) {
+                    return tryParseWithPrefixLength(data, lastData);
+                } else {
+                    assert bulkFormat == RestBulkAction.BulkFormat.MARKER_SUFFIX;
+                    return tryParseWithMarkSuffix(data, lastData);
+                }
             } catch (Exception e) {
                 failure = e;
                 throw e;
             }
         }
 
-        private int tryParse(BytesReference data, boolean lastData) throws IOException {
+        private int tryParseWithMarkSuffix(BytesReference data, boolean lastData) throws IOException {
             int from = 0;
             int consumed = 0;
 
@@ -275,25 +295,53 @@ public final class BulkRequestParser {
                     break;
                 }
                 incrementalFromOffset = nextMarker + 1;
-                line++;
-
-                if (currentRequest == null) {
-                    if (parseActionLine(data, from, nextMarker)) {
-                        if (currentRequest instanceof DeleteRequest deleteRequest) {
-                            deleteRequestConsumer.accept(deleteRequest);
-                            currentRequest = null;
-                        }
-                    }
-                } else {
-                    parseAndConsumeDocumentLine(data, from, nextMarker);
-                    currentRequest = null;
-                }
-
+                processRequest(data, from, nextMarker);
                 from = nextMarker + 1;
                 consumed = from;
             }
 
             return lastData ? from : consumed;
+        }
+
+        private int tryParseWithPrefixLength(BytesReference data, boolean lastData) throws IOException {
+            int from = 0;
+            while (true) {
+                if (from == data.length()) {
+                    break;
+                }
+                if (Integer.BYTES > data.length() - from) {
+                    if (lastData) {
+                        throw new IllegalArgumentException("The bulk is malformed");
+                    }
+                    break;
+                }
+                final int len = data.getInt(from);
+                if (len > data.length() - (from + Integer.BYTES)) {
+                    if (lastData) {
+                        throw new IllegalArgumentException("The bulk is malformed");
+                    }
+                    break;
+                }
+                from += Integer.BYTES;
+                processRequest(data, from, from + len);
+                from += len;
+            }
+            return from;
+        }
+
+        private void processRequest(BytesReference data, int from, int to) throws IOException {
+            line++;
+            if (currentRequest == null) {
+                if (parseActionLine(data, from, to)) {
+                    if (currentRequest instanceof DeleteRequest deleteRequest) {
+                        deleteRequestConsumer.accept(deleteRequest);
+                        currentRequest = null;
+                    }
+                }
+            } else {
+                parseAndConsumeDocumentLine(data, from, to);
+                currentRequest = null;
+            }
         }
 
         private boolean parseActionLine(BytesReference data, int from, int to) throws IOException {
@@ -526,13 +574,13 @@ public final class BulkRequestParser {
         private void parseAndConsumeDocumentLine(BytesReference data, int from, int to) throws IOException {
             assert currentRequest != null && currentRequest instanceof DeleteRequest == false;
             if (currentRequest instanceof IndexRequest indexRequest) {
-                indexRequest.source(sliceTrimmingCarriageReturn(data, from, to, xContentType), xContentType);
+                indexRequest.source(sliceTrimmingCarriageReturn(data, from, to, xContentType, bulkFormat), xContentType);
                 indexRequestConsumer.accept(indexRequest, currentType);
             } else if (currentRequest instanceof UpdateRequest updateRequest) {
                 try (
                     XContentParser sliceParser = createParser(
                         xContentType.xContent(),
-                        sliceTrimmingCarriageReturn(data, from, to, xContentType)
+                        sliceTrimmingCarriageReturn(data, from, to, xContentType, bulkFormat)
                     )
                 ) {
                     updateRequest.fromXContent(sliceParser);

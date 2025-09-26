@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.inference;
+package org.elasticsearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,7 +27,6 @@ import java.util.concurrent.TimeUnit;
  * <br/>
  * <code>public RetryRule retry = new RetryRule(3, TimeValue.timeValueSeconds(1));</code>
  * <br/>
- * See {@link InferenceGetServicesIT#retry} for an example.
  */
 public class RetryRule implements TestRule {
     private static final Logger logger = LogManager.getLogger(RetryRule.class);

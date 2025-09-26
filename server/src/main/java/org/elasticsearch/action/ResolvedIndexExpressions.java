@@ -34,6 +34,10 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         return expressions.stream().flatMap(e -> e.localExpressions().expressions().stream()).toList();
     }
 
+    public List<String> getRemoteIndicesList() {
+        return expressions.stream().flatMap(e -> e.remoteExpressions().stream()).toList();
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -47,20 +51,35 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
         /**
+         * Add a new resolved expression.
          * @param original         the original expression that was resolved -- may be blank for "access all" cases
          * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it.
          *                         May be empty.
          */
-        public void addLocalExpressions(
+        public void addExpressions(
             String original,
             HashSet<String> localExpressions,
-            ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
+            ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult,
+            HashSet<String> remoteExpressions
         ) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(localExpressions);
             Objects.requireNonNull(resolutionResult);
+            Objects.requireNonNull(remoteExpressions);
             expressions.add(
-                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), new HashSet<>())
+                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), remoteExpressions)
+            );
+        }
+
+        public void addRemoteExpressions(String original, HashSet<String> remoteExpressions) {
+            Objects.requireNonNull(original);
+            Objects.requireNonNull(remoteExpressions);
+            expressions.add(
+                new ResolvedIndexExpression(
+                    original,
+                    new LocalExpressions(new HashSet<>(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    remoteExpressions
+                )
             );
         }
 

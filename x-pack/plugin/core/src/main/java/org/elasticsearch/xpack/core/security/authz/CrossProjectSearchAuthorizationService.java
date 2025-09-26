@@ -13,10 +13,17 @@ import org.elasticsearch.search.crossproject.TargetProjects;
 public interface CrossProjectSearchAuthorizationService {
     void loadAuthorizedProjects(ActionListener<TargetProjects> listener);
 
+    boolean enabled();
+
     class Default implements CrossProjectSearchAuthorizationService {
         @Override
         public void loadAuthorizedProjects(ActionListener<TargetProjects> listener) {
             listener.onResponse(TargetProjects.NOT_CROSS_PROJECT);
+        }
+
+        @Override
+        public boolean enabled() {
+            return false;
         }
     }
 }

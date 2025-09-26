@@ -66,6 +66,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
      * A wildcard expression resolving to nothing is still considered a successful resolution.
      */
     public enum LocalIndexResolutionResult {
+        NONE,
         SUCCESS,
         CONCRETE_RESOURCE_NOT_VISIBLE,
         CONCRETE_RESOURCE_UNAUTHORIZED,

@@ -10,11 +10,21 @@
 package org.elasticsearch.search.crossproject;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public record TargetProjects(ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
     public static TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
 
     public TargetProjects(ProjectRoutingInfo originProject) {
         this(originProject, List.of());
+    }
+
+    public String originProjectAlias() {
+        return originProject != null ? originProject.projectAlias() : null;
+    }
+
+    public Set<String> linkedProjectAliases() {
+        return linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
     }
 }

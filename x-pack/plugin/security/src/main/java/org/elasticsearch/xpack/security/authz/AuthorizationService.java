@@ -212,12 +212,17 @@ public class AuthorizationService {
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
-        CrossProjectSearchAuthorizationService crossProjectSearchIndexExpressionsRewriter
+        CrossProjectSearchAuthorizationService crossProjectSearchAuthorizationService
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, linkedProjectConfigService, resolver, false);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(
+            settings,
+            linkedProjectConfigService,
+            resolver,
+            crossProjectSearchAuthorizationService.enabled()
+        );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);
@@ -238,7 +243,7 @@ public class AuthorizationService {
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
-        this.crossProjectSearchAuthzService = crossProjectSearchIndexExpressionsRewriter;
+        this.crossProjectSearchAuthzService = crossProjectSearchAuthorizationService;
     }
 
     public void checkPrivileges(

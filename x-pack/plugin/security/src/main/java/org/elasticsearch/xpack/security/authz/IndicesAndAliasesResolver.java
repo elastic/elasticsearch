@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
-import org.elasticsearch.xpack.security.authz.crossproject.CrossProjectIndexExpressionsRewriter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -369,35 +368,47 @@ class IndicesAndAliasesResolver {
             } else {
                 if (replaceable.resolveCrossProject() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
-                    Map<String, Set<String>> rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
-                        authorizedProjects.originProject(),
-                        authorizedProjects.linkedProjects(),
-                        replaceable.indices()
-                    );
-                }
+                    assert recordResolvedIndexExpressions : "cross-project requests must record resolved index expressions";
 
-                final ResolvedIndices split;
-                if (replaceable.allowsRemoteIndices()) {
-                    split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
-                } else {
-                    split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
-                }
-                final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
-                    split.getLocal(),
-                    indicesOptions,
-                    projectMetadata,
-                    authorizedIndices::all,
-                    authorizedIndices::check,
-                    indicesRequest.includeDataStreams()
-                );
-                // only store resolved expressions if configured, to avoid unnecessary memory usage
-                // once we've migrated from `indices()` to using resolved expressions holistically,
-                // we will always store them
-                if (recordResolvedIndexExpressions) {
+                    final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
+                        Arrays.asList(replaceable.indices()),
+                        // TODO make lenient
+                        indicesOptions,
+                        projectMetadata,
+                        authorizedIndices::all,
+                        authorizedIndices::check,
+                        authorizedProjects,
+                        indicesRequest.includeDataStreams()
+                    );
+
                     replaceable.setResolvedIndexExpressions(resolved);
+
+                    resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
+                    resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
+                } else {
+                    final ResolvedIndices split;
+                    if (replaceable.allowsRemoteIndices()) {
+                        split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+                    } else {
+                        split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
+                    }
+                    final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
+                        split.getLocal(),
+                        indicesOptions,
+                        projectMetadata,
+                        authorizedIndices::all,
+                        authorizedIndices::check,
+                        indicesRequest.includeDataStreams()
+                    );
+                    // only store resolved expressions if configured, to avoid unnecessary memory usage
+                    // once we've migrated from `indices()` to using resolved expressions holistically,
+                    // we will always store them
+                    if (recordResolvedIndexExpressions) {
+                        replaceable.setResolvedIndexExpressions(resolved);
+                    }
+                    resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
+                    resolvedIndicesBuilder.addRemote(split.getRemote());
                 }
-                resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
-                resolvedIndicesBuilder.addRemote(split.getRemote());
             }
 
             if (resolvedIndicesBuilder.isEmpty()) {

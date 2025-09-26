@@ -1443,8 +1443,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
             Rewriteable.rewrite(request.getRewriteable(), context, true);
             if (context.getRangeTimestampFrom() != null) {
-                //range queries may get rewritten to match_all or a range with open bounds. Rewriting in that case is the only place
-                //where we parse the date and set it to the context. We need to propagate it back from the clone into the original context
+                // range queries may get rewritten to match_all or a range with open bounds. Rewriting in that case is the only place
+                // where we parse the date and set it to the context. We need to propagate it back from the clone into the original context
                 searchContext.getSearchExecutionContext().setRangeTimestampFrom(context.getRangeTimestampFrom());
             }
             assert searchContext.getSearchExecutionContext().isCacheable();

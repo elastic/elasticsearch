@@ -357,10 +357,24 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             passThroughMapper,
             MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
         );
-        assertThat(merged.getMapper("metrics"), instanceOf(ObjectMapper.class));
-        ObjectMapper metrics = (ObjectMapper) merged.getMapper("metrics");
+        assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
+        PassThroughObjectMapper metrics = (PassThroughObjectMapper) merged.getMapper("metrics");
         assertThat(metrics.getMapper("cpu_usage"), instanceOf(KeywordFieldMapper.class));
         assertThat(metrics.getMapper("memory_usage"), instanceOf(KeywordFieldMapper.class));
+
+        var subobjectsTrueMapper = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.ENABLED)).add(
+                new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
+            )
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> subobjectsTrueMapper.merge(passThroughMapper, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
+        );
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {

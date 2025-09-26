@@ -136,6 +136,10 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return priority;
     }
 
+    public Explicit<Boolean> timeSeriesDimensionSubFields() {
+        return timeSeriesDimensionSubFields;
+    }
+
     @Override
     public PassThroughObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
@@ -169,7 +173,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 Math.max(priority, mergeWithPassThrough.priority)
             );
         }
-        if (mergeWithObjectMapper instanceof NestedObjectMapper nestedObjectMapper) {
+        if (mergeWithObjectMapper instanceof NestedObjectMapper) {
             MapperErrors.throwNestedMappingConflictError(fullPath());
         }
         if (isEligibleForMerge(mergeWithObjectMapper) == false) {
@@ -193,7 +197,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
      * - It is not a root mapper
      * - If it does not have subobjects true
      */
-    private boolean isEligibleForMerge(ObjectMapper objectMapper) {
+    static boolean isEligibleForMerge(ObjectMapper objectMapper) {
         return objectMapper.isRoot() == false
             && (objectMapper.subobjects == null
                 || objectMapper.subobjects.explicit() == false

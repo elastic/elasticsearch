@@ -33,8 +33,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFormat {
+public class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFormat {
 
+    static final String NAME = "ES93GenericHnswVectorsFormat";
     static final String VECTOR_FORMAT_INFO_EXTENSION = "vfi";
     static final String META_CODEC_NAME = "ES93GenericVectorsFormatMeta";
 
@@ -42,35 +43,72 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
     public static final int VERSION_GROUPVARINT = 1;
     public static final int VERSION_CURRENT = VERSION_GROUPVARINT;
 
-    public ES93GenericHnswVectorsFormat(String name) {
-        super(name);
+    static final Map<String, FlatVectorsFormat> availableFormats;
+
+    static {
+        ES93BinaryQuantizedVectorsFormat bbqFormat = new ES93BinaryQuantizedVectorsFormat(false);
+        ES93BinaryQuantizedVectorsFormat bbqFormatDirectIO = new ES93BinaryQuantizedVectorsFormat(true);
+        // ES815BitFlatVectorsFormat would go here too
+        availableFormats = Map.of(bbqFormat.getName(), bbqFormat, bbqFormatDirectIO.getName(), bbqFormatDirectIO);
     }
 
-    public ES93GenericHnswVectorsFormat(String name, int maxConn, int beamWidth) {
-        super(name, maxConn, beamWidth);
+    private final FlatVectorsFormat flatVectorsFormat;
+
+    public ES93GenericHnswVectorsFormat() {
+        super(NAME);
+        flatVectorsFormat = null;
     }
 
-    public ES93GenericHnswVectorsFormat(String name, int maxConn, int beamWidth, int numMergeWorkers, ExecutorService mergeExec) {
-        super(name, maxConn, beamWidth, numMergeWorkers, mergeExec);
+    public ES93GenericHnswVectorsFormat(FlatVectorsFormat flatVectorsFormat) {
+        super(NAME);
+        this.flatVectorsFormat = flatVectorsFormat;
+        if (availableFormats.containsKey(flatVectorsFormat.getName()) == false) {
+            throw new IllegalArgumentException("Unknown flat format " + flatVectorsFormat.getName());
+        }
+    }
+
+    public ES93GenericHnswVectorsFormat(int maxConn, int beamWidth) {
+        super(NAME, maxConn, beamWidth);
+        this.flatVectorsFormat = null;
+    }
+
+    public ES93GenericHnswVectorsFormat(int maxConn, int beamWidth, FlatVectorsFormat flatVectorsFormat) {
+        super(NAME, maxConn, beamWidth);
+        this.flatVectorsFormat = flatVectorsFormat;
+        if (availableFormats.containsKey(flatVectorsFormat.getName()) == false) {
+            throw new IllegalArgumentException("Unknown flat format " + flatVectorsFormat.getName());
+        }
+    }
+
+    public ES93GenericHnswVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        int numMergeWorkers,
+        ExecutorService mergeExec,
+        FlatVectorsFormat flatVectorsFormat
+    ) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
+        this.flatVectorsFormat = flatVectorsFormat;
+        if (availableFormats.containsKey(flatVectorsFormat.getName()) == false) {
+            throw new IllegalArgumentException("Unknown flat format " + flatVectorsFormat.getName());
+        }
     }
 
     @Override
     protected final FlatVectorsFormat flatVectorsFormat() {
-        return writeFlatVectorsFormat();
+        return flatVectorsFormat;
     }
-
-    protected abstract FlatVectorsFormat writeFlatVectorsFormat();
-
-    protected abstract Map<String, FlatVectorsFormat> supportedReadFlatVectorsFormats();
 
     @Override
     public final KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        var flatFormat = writeFlatVectorsFormat();
+        if (flatVectorsFormat == null) {
+            throw new IllegalStateException("Flat vector format to write with not specified");
+        }
         return new Lucene99HnswVectorsWriter(
             state,
             maxConn,
             beamWidth,
-            new ES93GenericFlatVectorsWriter(flatFormat.getName(), state, flatFormat.fieldsWriter(state)),
+            new ES93GenericFlatVectorsWriter(flatVectorsFormat.getName(), state, flatVectorsFormat.fieldsWriter(state)),
             numMergeWorkers,
             mergeExec
         );
@@ -78,9 +116,9 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
 
     @Override
     public final KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        var readFormats = supportedReadFlatVectorsFormats();
+        // reads the format to use from disk, ignores flatVectorsFormat field
         return new Lucene99HnswVectorsReader(state, new ES93GenericFlatVectorsReader(state, f -> {
-            var format = readFormats.get(f);
+            var format = availableFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state);
         }));
@@ -96,9 +134,7 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
             + ", beamWidth="
             + beamWidth
             + ", writeFlatVectorFormat="
-            + writeFlatVectorsFormat()
-            + ", readFlatVectorsFormats="
-            + supportedReadFlatVectorsFormats().values()
+            + flatVectorsFormat
             + ")";
     }
 }

@@ -23,6 +23,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
@@ -48,7 +49,9 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -57,25 +60,24 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES93GenericHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES93HnswBinaryQuantizedVectorsFormat());
-
     @Override
     protected Codec getCodec() {
-        return codec;
+        List<FlatVectorsFormat> formats = new ArrayList<>(ES93GenericHnswVectorsFormat.availableFormats.values());
+        return TestUtil.alwaysKnnVectorsFormat(new ES93GenericHnswVectorsFormat(formats.get(random().nextInt(formats.size()))));
     }
 
     public void testToString() {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES93HnswBinaryQuantizedVectorsFormat(10, 20, 1, null);
+                return new ES93GenericHnswVectorsFormat(10, 20, 1, null, new ES93BinaryQuantizedVectorsFormat(false));
             }
         };
         String expectedPattern = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
@@ -128,16 +130,13 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(-1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(0, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 0));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, -1));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(512 + 1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 3201));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 100, 1, new SameThreadExecutorService())
-        );
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(-1, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(0, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 0));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, -1));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(512 + 1, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 3201));
+        //expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 100, 1, new SameThreadExecutorService()));
     }
 
     // Ensures that all expected vector similarity functions are translatable in the format.

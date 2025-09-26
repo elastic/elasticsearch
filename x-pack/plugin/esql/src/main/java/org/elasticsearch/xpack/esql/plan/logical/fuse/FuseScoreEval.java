@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -130,7 +131,8 @@ public class FuseScoreEval extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        validateLimitedInput(failures);
+        validateInput(failures);
+        validatePipelineBreakerBeforeFuse(failures);
         if (options == null) {
             return;
         }
@@ -141,7 +143,27 @@ public class FuseScoreEval extends UnaryPlan
         }
     }
 
-    private void validateLimitedInput(Failures failures) {
+    private void validateInput(Failures failures) {
+        // Since we use STATS BY to merge rows together, we need to make sure that all columns can be used in STATS BY.
+        // When the input of FUSE contains unsupported columns, we don't want to fail with a STATS BY validation error,
+        // but with an error specific to FUSE.
+        Expression aggFilter = new Literal(source(), true, DataType.BOOLEAN);
+
+        for (Attribute attr : child().output()) {
+            var valuesAgg = new Values(source(), attr, aggFilter);
+
+            if (valuesAgg.resolved() == false) {
+                failures.add(
+                    new Failure(
+                        this,
+                        "cannot use [" + attr.name() + "] as an input of FUSE. Consider using [DROP " + attr.name() + "] before FUSE."
+                    )
+                );
+            }
+        }
+    }
+
+    private void validatePipelineBreakerBeforeFuse(Failures failures) {
         var myself = this;
         Holder<Boolean> hasLimitedInput = new Holder<>(false);
         this.forEachUp(LogicalPlan.class, plan -> {

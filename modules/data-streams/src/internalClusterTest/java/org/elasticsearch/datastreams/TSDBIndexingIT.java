@@ -666,10 +666,11 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
         if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
         } else {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
         }
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
 
         // put mapping with k8s.pod.uid as another time series dimension
         var putMappingRequest = new PutMappingRequest(dataStreamName).source("""
@@ -685,10 +686,39 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
         if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
         } else {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
         }
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+
+        // put dynamic template defining time series dimensions
+        // we don't support index.dimensions in that case
+        putMappingRequest = new PutMappingRequest(dataStreamName).source("""
+            {
+              "dynamic_templates": [
+                {
+                  "labels": {
+                    "path_match": "labels.*",
+                    "mapping": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
+                }
+              ]
+            }
+            """, XContentType.JSON);
+        assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(
+                getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH),
+                containsInAnyOrder("metricset", "labels.*", "k8s.pod.name")
+            );
+        } else {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), containsInAnyOrder("metricset"));
+        }
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
 
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
     }

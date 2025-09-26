@@ -17,6 +17,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -76,7 +77,7 @@ public class DirectIOIT extends ESIntegTestCase {
         String type = randomFrom("bbq_hnsw", "bbq_disk");
         assertAcked(
             prepareCreate(indexName).setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
-                .setMapping("""
+                .setMapping(Strings.format("""
                     {
                       "properties": {
                         "fooVector": {
@@ -92,7 +93,7 @@ public class DirectIOIT extends ESIntegTestCase {
                         }
                       }
                     }
-                    """.formatted(type, directIO))
+                    """, type, directIO))
         );
         ensureGreen(indexName);
 

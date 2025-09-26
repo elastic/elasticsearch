@@ -153,7 +153,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         );
 
         // Validate that either Google Model Garden or Google Vertex AI settings are provided
-        if ((provider == null && uri == null && streamingUri == null) && (projectId == null || location == null || modelId == null)) {
+        if ((uri == null && streamingUri == null) && (projectId == null || location == null || modelId == null)) {
             validationException.addValidationError(String.format(Locale.ROOT, """
                 For Google Model Garden, you must provide either provider with url and/or streaming_url. \
                 For Google Vertex AI models, you must provide location, project_id, and model. \

@@ -303,6 +303,13 @@ public class VerifierTests extends ESTestCase {
                 )
             );
         }
+
+        if (EsqlCapabilities.Cap.FUSE_V6.isEnabled()) {
+            assertEquals(
+                "1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.",
+                error("from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE", analyzer)
+            );
+        }
     }
 
     public void testRoundFunctionInvalidInputs() {

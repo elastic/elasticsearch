@@ -248,10 +248,10 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                 try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positionCount)) {
                     for (int p = 0; p < positionCount; p++) {
                         float[] leftVector = left.getVector(p);
-                        float[] rightvector = right.getVector(p);
+                        float[] rightVector = right.getVector(p);
 
                         int dimsLeft = leftVector == null ? 0 : leftVector.length;
-                        int dimsRight = rightvector == null ? 0 : rightvector.length;
+                        int dimsRight = rightVector == null ? 0 : rightVector.length;
 
                         if (dimsLeft == 0 || dimsRight == 0) {
                             // A null value on the left or right vector. Similarity is null
@@ -264,7 +264,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                                 dimsRight
                             );
                         }
-                        float result = similarityFunction.calculateSimilarity(leftVector, rightvector);
+                        float result = similarityFunction.calculateSimilarity(leftVector, rightVector);
                         builder.appendDouble(result);
                     }
                     return builder.build();

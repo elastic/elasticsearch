@@ -122,13 +122,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                 right = new VectorValueProvider(null, toEvaluator.apply(rightExpression).get(context));
             }
             // TODO check whether to use this custom evaluator or reuse / define an existing one
-            return new SimilarityEvaluator(
-                left,
-                right,
-                similarityFunction,
-                evaluatorName,
-                context.blockFactory()
-            );
+            return new SimilarityEvaluator(left, right, similarityFunction, evaluatorName, context.blockFactory());
         }
 
         @Override
@@ -145,20 +139,20 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         float[] scratch;
 
         VectorValueProvider(ArrayList<Float> constantVector, EvalOperator.ExpressionEvaluator expressionEvaluator) {
-            if(constantVector != null) {
+            if (constantVector != null) {
                 this.constantVector = new float[constantVector.size()];
                 for (int i = 0; i < constantVector.size(); i++) {
                     this.constantVector[i] = constantVector.get(i);
                 }
-            }else {
+            } else {
                 this.constantVector = null;
             }
             this.expressionEvaluator = expressionEvaluator;
         }
 
         private void eval(Page page) {
-            if(expressionEvaluator != null) {
-               block = (FloatBlock) expressionEvaluator.eval(page);
+            if (expressionEvaluator != null) {
+                block = (FloatBlock) expressionEvaluator.eval(page);
             }
         }
 
@@ -190,7 +184,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
             }
         }
 
-        public int getDimensions(){
+        public int getDimensions() {
             if (constantVector != null) {
                 return constantVector.length;
             } else if (block != null) {
@@ -207,11 +201,20 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         }
 
         public long baseRamBytesUsed() {
-            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector)) + (expressionEvaluator == null ? 0 : expressionEvaluator.baseRamBytesUsed());
+            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector)) + (expressionEvaluator == null
+                ? 0
+                : expressionEvaluator.baseRamBytesUsed());
+        }
+
+        public void finishBlock() {
+            if (block != null) {
+                block.close();
+                block = null;
+            }
         }
 
         public void close() {
-            Releasables.close(block, expressionEvaluator);
+            Releasables.close(expressionEvaluator);
         }
 
         @Override
@@ -267,7 +270,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                     return builder.build();
                 }
             } finally {
-                Releasables.close(left, right);
+                left.finishBlock();
+                right.finishBlock();
             }
         }
 
@@ -283,7 +287,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public void close() {
-//            Releasables.close(left, right);
+            Releasables.close(left, right);
         }
     }
 }

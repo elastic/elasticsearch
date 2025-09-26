@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -27,14 +28,28 @@ import java.util.Set;
 import java.util.function.Function;
 
 public abstract class ViewService {
-    /**
-     * Maximum number of views referencing views referencing views.
-     */
-    private static final int MAX_VIEW_DEPTH = 10;
+    private final ViewServiceConfig config;
     private final EsqlFunctionRegistry functionRegistry;
 
-    public ViewService(EsqlFunctionRegistry functionRegistry) {
+    public record ViewServiceConfig(int maxViews, int maxViewSize, int maxViewDepth) {
+
+        public static final String MAX_VIEWS_COUNT_SETTING = "esql.views.max_count";
+        public static final String MAX_VIEWS_SIZE_SETTING = "esql.views.max_size";
+        public static final String MAX_VIEWS_DEPTH_SETTING = "esql.views.max_depth";
+        public static final ViewServiceConfig DEFAULT = new ViewServiceConfig(100, 10_000, 10);
+
+        public static ViewServiceConfig fromSettings(Settings settings) {
+            return new ViewServiceConfig(
+                settings.getAsInt(MAX_VIEWS_COUNT_SETTING, DEFAULT.maxViews),
+                settings.getAsInt(MAX_VIEWS_SIZE_SETTING, DEFAULT.maxViewSize),
+                settings.getAsInt(MAX_VIEWS_DEPTH_SETTING, DEFAULT.maxViewDepth)
+            );
+        }
+    }
+
+    public ViewService(EsqlFunctionRegistry functionRegistry, ViewServiceConfig config) {
         this.functionRegistry = functionRegistry;
+        this.config = config;
     }
 
     protected abstract ViewMetadata getMetadata();
@@ -51,13 +66,13 @@ public abstract class ViewService {
                     return ur;
                 }
                 View view = views.views().get(name);
-                if (seen.size() > MAX_VIEW_DEPTH) {
-                    throw viewError("too many views referencing views ", seen);
-                }
                 boolean alreadySeen = seen.contains(name);
                 seen.add(name);
                 if (alreadySeen) {
                     throw viewError("circular view reference ", seen);
+                }
+                if (seen.size() > config.maxViewDepth) {
+                    throw viewError("The maximum allowed view depth of " + config.maxViewDepth + " has been exceeded: ", seen);
                 }
                 return resolve(view, telemetry, configuration);
             });
@@ -95,16 +110,36 @@ public abstract class ViewService {
      */
     public void put(String name, View view, ActionListener<Void> callback, Configuration configuration) {
         assertMasterNode();
-        new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry), configuration);
-        // TODO should we validate this in the transport action and make it async? like plan like a query
-        // TODO postgresql does.
-
+        validatePutView(name, view, configuration);
         updateViewMetadata(callback, current -> {
             Map<String, View> original = getMetadata().views();
             Map<String, View> updated = new HashMap<>(original);
             updated.put(name, view);
             return updated;
         });
+    }
+
+    private void validatePutView(String name, View view, Configuration configuration) {
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+        if (view == null) {
+            throw new IllegalArgumentException("view is missing");
+        }
+        if (Strings.isNullOrEmpty(view.query())) {
+            throw new IllegalArgumentException("view query is missing or empty");
+        }
+        if (view.query().length() > config.maxViewSize) {
+            throw new IllegalArgumentException(
+                "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + config.maxViewSize
+            );
+        }
+        if (getMetadata().views().containsKey(name) == false && getMetadata().views().size() >= config.maxViews) {
+            throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
+        }
+        new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry), configuration);
+        // TODO should we validate this in the transport action and make it async? like plan like a query
+        // TODO postgresql does.
     }
 
     /**

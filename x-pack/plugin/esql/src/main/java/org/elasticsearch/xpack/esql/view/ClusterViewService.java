@@ -24,8 +24,8 @@ import java.util.function.Function;
 public class ClusterViewService extends ViewService {
     private final ClusterService clusterService;
 
-    public ClusterViewService(EsqlFunctionRegistry functionRegistry, ClusterService clusterService) {
-        super(functionRegistry);
+    public ClusterViewService(EsqlFunctionRegistry functionRegistry, ClusterService clusterService, ViewServiceConfig config) {
+        super(functionRegistry, config);
         this.clusterService = clusterService;
     }
 

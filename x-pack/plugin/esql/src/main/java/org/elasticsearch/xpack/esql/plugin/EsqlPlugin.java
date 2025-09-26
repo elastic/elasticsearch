@@ -233,7 +233,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        ViewService viewService = new ClusterViewService(functionRegistry, services.clusterService());
+        ViewService viewService = new ClusterViewService(
+            functionRegistry,
+            services.clusterService(),
+            ViewService.ViewServiceConfig.fromSettings(settings)
+        );
         setupSharedSecrets();
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())

@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -58,7 +59,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_search_metrics2";
     private static final String singleShardIndexName = "single_shard_test_search_metric";
     private static final LocalDateTime NOW = LocalDateTime.now(ZoneOffset.UTC);
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT);
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -503,6 +504,33 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals(true, attributes.get("range_event_ingested"));
     }
 
+    public void testTimeRangeFilterAllResultsFilterOnEventIngestedAndTimestamp() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("event.ingested").from("2024-10-01"));
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(6, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_event_ingested"));
+        assertEquals(true, attributes.get("range_timestamp"));
+        assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+    }
+
     public void testTimeRangeFilterOneResultQueryAndFetchRecentTimestamps() {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(10))));
@@ -529,6 +557,77 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("@timestamp", attributes.get("sort"));
         assertEquals(true, attributes.get("range_timestamp"));
         assertEquals("15_minutes", attributes.get("timestamp_range_filter"));
+    }
+
+    public void testMultipleTimeRangeFiltersQueryAndFetchRecentTimestamps() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        // we take the lowest of the two bounds
+        boolQueryBuilder.must(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(20))));
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(10))));
+        // should and must_not get ignored
+        boolQueryBuilder.should(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(2))));
+        boolQueryBuilder.mustNot(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(1))));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(singleShardIndexName)
+            .setQuery(boolQueryBuilder)
+            .addSort(new FieldSortBuilder("@timestamp"))
+            .get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(5, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("@timestamp", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_timestamp"));
+        assertEquals("1_hour", attributes.get("timestamp_range_filter"));
+    }
+
+    public void testTimeRangeFilterAllResultsShouldClause() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.should(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertSimpleQueryAttributes(measurement.attributes());
+    }
+
+    public void testTimeRangeFilterOneResultMustNotClause() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.mustNot(new RangeQueryBuilder("@timestamp").from("2024-12-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        assertSimpleQueryAttributes(measurement.attributes());
     }
 
     private void resetMeter() {

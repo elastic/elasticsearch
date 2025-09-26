@@ -104,8 +104,7 @@ public class QueryPhase {
                         queryPhaseRankShardContext.rankWindowSize()
                     )
                 ) {
-                    Long rangeTimestampFrom = searchContext.getSearchExecutionContext().getRangeTimestampFrom();
-                    QueryPhase.addCollectorsAndSearch(rankSearchContext, rangeTimestampFrom);
+                    QueryPhase.addCollectorsAndSearch(rankSearchContext, null);
                     QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
                     rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
                     serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();

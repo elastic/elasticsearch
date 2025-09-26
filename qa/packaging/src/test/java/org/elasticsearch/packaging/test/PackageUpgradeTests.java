@@ -60,8 +60,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
     }
 
     public void test12SetupBwcVersion() throws Exception {
-        patchIncompatibleJavaVersion();
-
         startElasticsearch();
 
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
@@ -89,9 +87,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
         );
 
         assertDocsExist();
-
         stopElasticsearch();
-        sh.getEnv().remove("ES_JAVA_HOME");
     }
 
     private void patchIncompatibleJavaVersion() {

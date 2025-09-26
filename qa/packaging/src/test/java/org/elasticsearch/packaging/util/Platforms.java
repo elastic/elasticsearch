@@ -53,6 +53,15 @@ public class Platforms {
         return new Shell().runIgnoreExitCode("which docker").isSuccess();
     }
 
+    public static boolean isUbuntu24() {
+        if (LINUX) {
+            String osRelease = getOsRelease();
+            return osRelease.contains("id=ubuntu") && osRelease.contains("VERSION_ID=\"24.04\"");
+        } else {
+            return false;
+        }
+    }
+
     public static void onWindows(PlatformAction action) throws Exception {
         if (WINDOWS) {
             action.run();

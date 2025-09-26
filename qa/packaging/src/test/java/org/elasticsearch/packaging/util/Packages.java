@@ -86,7 +86,7 @@ public class Packages {
     public static Installation installPackage(Shell sh, Distribution distribution, @Nullable Predicate<String> outputPredicate)
         throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
-        if (distribution.hasJdk == false) {
+        if (requiresExplicitJavaHome(distribution)) {
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
@@ -98,7 +98,7 @@ public class Packages {
         }
         Installation installation = Installation.ofPackage(sh, distribution);
         installation.setElasticPassword(captureElasticPasswordFromOutput(result));
-        if (distribution.hasJdk == false) {
+        if (requiresExplicitJavaHome(distribution)) {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
 
@@ -107,6 +107,14 @@ public class Packages {
         }
 
         return installation;
+    }
+
+    private static boolean requiresExplicitJavaHome(Distribution distribution) {
+        if (distribution.hasJdk == false) {
+            return true;
+        }
+        Version version = Version.fromString(distribution.version);
+        return Platforms.isUbuntu24() && (version.onOrAfter(Version.V_8_0_0) && version.onOrBefore(Version.V_8_4_3));
     }
 
     private static String captureElasticPasswordFromOutput(Result result) {

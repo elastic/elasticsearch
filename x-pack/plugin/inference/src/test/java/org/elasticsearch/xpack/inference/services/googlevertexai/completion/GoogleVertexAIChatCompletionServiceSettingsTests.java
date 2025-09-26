@@ -8,16 +8,20 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.hamcrest.Matchers;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED;
+import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
     GoogleVertexAiChatCompletionServiceSettings> {
@@ -50,6 +54,111 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
                 instance.rateLimitSettings()
             );
         }
+    }
+
+    public void testFromMapGoogleVertexAi_Success() {
+        GoogleVertexAiChatCompletionServiceSettings settings = GoogleVertexAiChatCompletionServiceSettings.fromMap(
+            new HashMap<>(Map.of("project_id", "my-project", "location", "us-central1", "model_id", "my-model")),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(settings.projectId(), is("my-project"));
+        assertThat(settings.location(), is("us-central1"));
+        assertThat(settings.modelId(), is("my-model"));
+        assertThat(settings.provider(), is(GoogleModelGardenProvider.GOOGLE));
+        assertNull(settings.streamingUri());
+        assertNull(settings.uri());
+        assertThat(settings.rateLimitSettings(), is(new RateLimitSettings(1000)));
+    }
+
+    public void testFromMapGoogleModelGarden_Success() {
+        GoogleVertexAiChatCompletionServiceSettings settings = GoogleVertexAiChatCompletionServiceSettings.fromMap(
+            new HashMap<>(Map.of("url", "url", "streaming_url", "streaming_url", "provider", "anthropic")),
+            ConfigurationParseContext.REQUEST
+        );
+        assertNull(settings.projectId());
+        assertNull(settings.location());
+        assertNull(settings.modelId());
+        assertThat(settings.provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+        assertThat(settings.uri().toString(), is("url"));
+        assertThat(settings.streamingUri().toString(), is("streaming_url"));
+        assertThat(settings.rateLimitSettings(), is(new RateLimitSettings(1000)));
+    }
+
+    public void testFromMapGoogleModelGarden_NoProvider_Success() {
+        GoogleVertexAiChatCompletionServiceSettings settings = GoogleVertexAiChatCompletionServiceSettings.fromMap(
+            new HashMap<>(Map.of("url", "url", "streaming_url", "streaming_url")),
+            ConfigurationParseContext.REQUEST
+        );
+        assertNull(settings.projectId());
+        assertNull(settings.location());
+        assertNull(settings.modelId());
+        assertThat(settings.provider(), is(GoogleModelGardenProvider.GOOGLE));
+        assertThat(settings.uri().toString(), is("url"));
+        assertThat(settings.streamingUri().toString(), is("streaming_url"));
+        assertThat(settings.rateLimitSettings(), is(new RateLimitSettings(1000)));
+    }
+
+    public void testFromMapGoogleModelGarden_NoUrl_Success() {
+        GoogleVertexAiChatCompletionServiceSettings settings = GoogleVertexAiChatCompletionServiceSettings.fromMap(
+            new HashMap<>(Map.of("streaming_url", "streaming_url", "provider", "anthropic")),
+            ConfigurationParseContext.REQUEST
+        );
+        assertNull(settings.projectId());
+        assertNull(settings.location());
+        assertNull(settings.modelId());
+        assertThat(settings.provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+        assertNull(settings.uri());
+        assertThat(settings.streamingUri().toString(), is("streaming_url"));
+        assertThat(settings.rateLimitSettings(), is(new RateLimitSettings(1000)));
+    }
+
+    public void testFromMapGoogleModelGarden_NoStreamingUrl_Success() {
+        GoogleVertexAiChatCompletionServiceSettings settings = GoogleVertexAiChatCompletionServiceSettings.fromMap(
+            new HashMap<>(Map.of("url", "url", "provider", "anthropic")),
+            ConfigurationParseContext.REQUEST
+        );
+        assertNull(settings.projectId());
+        assertNull(settings.location());
+        assertNull(settings.modelId());
+        assertThat(settings.provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+        assertNull(settings.streamingUri());
+        assertThat(settings.rateLimitSettings(), is(new RateLimitSettings(1000)));
+    }
+
+    public void testFromMapGoogleModelGarden_NoUrls_Failure() {
+        testValidationFailure(Map.of("provider", "anthropic"), """
+            Validation Failed: 1: For Google Model Garden, you must provide either provider with url and/or streaming_url. \
+            For Google Vertex AI models, you must provide location, project_id, and model. provider, url and streaming url were \
+            not provided. Provided values: location=null, project_id=null, model_id=null;""");
+    }
+
+    public void testFromMapGoogleVertexAi_NoModel_Failure() {
+        testValidationFailure(Map.of("project_id", "my-project", "location", "us-central1"), """
+            Validation Failed: 1: For Google Model Garden, you must provide either provider with url and/or streaming_url. \
+            For Google Vertex AI models, you must provide location, project_id, and model. provider, url and streaming url were \
+            not provided. Provided values: location=us-central1, project_id=my-project, model_id=null;""");
+    }
+
+    public void testFromMapGoogleVertexAi_NoLocation_Failure() {
+        testValidationFailure(Map.of("project_id", "my-project", "model_id", "my-model"), """
+            Validation Failed: 1: For Google Model Garden, you must provide either provider with url and/or streaming_url. \
+            For Google Vertex AI models, you must provide location, project_id, and model. provider, url and streaming url were \
+            not provided. Provided values: location=null, project_id=my-project, model_id=my-model;""");
+    }
+
+    public void testFromMapGoogleVertexAi_NoProject_Failure() {
+        testValidationFailure(Map.of("location", "us-central1", "model_id", "my-model"), """
+            Validation Failed: 1: For Google Model Garden, you must provide either provider with url and/or streaming_url. \
+            For Google Vertex AI models, you must provide location, project_id, and model. provider, url and streaming url were \
+            not provided. Provided values: location=us-central1, project_id=null, model_id=my-model;""");
+    }
+
+    private static void testValidationFailure(Map<String, String> taskSettingsMap, String expectedErrorMessage) {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiChatCompletionServiceSettings.fromMap(new HashMap<>(taskSettingsMap), ConfigurationParseContext.REQUEST)
+        );
+        assertThat(thrownException.getMessage(), Matchers.is(expectedErrorMessage));
     }
 
     @Override

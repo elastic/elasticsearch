@@ -78,7 +78,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
-        .withData("languages_non_unique_key.csv");
+        .withData("languages_non_unique_key.csv")
+        .withDynamicTypeMapping(Map.of("country", "text"));
     private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
@@ -268,6 +269,11 @@ public class CsvTestsDataLoader {
     );
     public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
+    private static final ViewConfig ADDRESS_COUNTRIES = new ViewConfig("address_countries");
+    private static final ViewConfig AIRPORTS_COUNTRIES = new ViewConfig("airports_countries");
+    private static final ViewConfig LANGUAGES_COUNTRIES = new ViewConfig("languages_countries");
+    public static final List<ViewConfig> VIEW_CONFIGS = List.of(ADDRESS_COUNTRIES, AIRPORTS_COUNTRIES, LANGUAGES_COUNTRIES);
+
     /**
      * <p>
      * Loads spec data on a local ES server.
@@ -422,13 +428,43 @@ public class CsvTestsDataLoader {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
+        logger.info("Loading test datasets");
         for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, timeSeriesOnly)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets, logger);
+        logger.info("Loading enrich policies");
         for (var policy : ENRICH_POLICIES) {
             loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+        }
+    }
+
+    public static void loadViewsIntoEs(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        if (clusterHasViewSupport(client, logger)) {
+            logger.info("Loading views");
+            for (var view : VIEW_CONFIGS) {
+                loadView(client, view.viewName, view.viewFileName, logger);
+            }
+            // Just for debugging output TODO: remove
+            clusterHasViewSupport(client, logger);
+        } else {
+            logger.info("Skipping loading views as the cluster does not support views");
+        }
+    }
+
+    public static void deleteViews(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        if (clusterHasViewSupport(client, logger)) {
+            logger.info("Deleting views");
+            for (var view : VIEW_CONFIGS) {
+                deleteView(client, view.viewName, logger);
+            }
+            // Just for debugging output TODO: remove
+            clusterHasViewSupport(client, logger);
+        } else {
+            logger.info("Skipping deleting views as the cluster does not support views");
         }
     }
 
@@ -568,6 +604,7 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+        logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
         URL policyMapping = getResource("/" + policyFileName);
         String entity = readTextFile(policyMapping);
         Request request = new Request("PUT", "/_enrich/policy/" + policyName);
@@ -576,6 +613,71 @@ public class CsvTestsDataLoader {
 
         request = new Request("POST", "/_enrich/policy/" + policyName + "/_execute");
         client.performRequest(request);
+    }
+
+    private static void loadView(RestClient client, String viewName, String viewFilename, Logger logger) throws IOException {
+        String viewQuery = loadViewQuery(viewName, viewFilename, logger);
+        Request request = new Request("PUT", "/_query/view/" + viewName);
+        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", " ") + "\"}");
+        Response response = client.performRequest(request);
+        logger.info("View creation response: {}", response.getStatusLine());
+        getView(client, viewName, logger);
+    }
+
+    static String loadViewQuery(String viewName, String viewFilename, Logger logger) throws IOException {
+        logger.info("Loading view [{}] from file [{}]", viewName, viewFilename);
+        URL viewFile = getResource("/" + viewFilename);
+        return readTextFile(viewFile);
+    }
+
+    private static boolean getView(RestClient client, String viewName, Logger logger) throws IOException {
+        Request request = new Request("GET", "/_query/view/" + viewName);
+        try {
+            Response response = client.performRequest(request);
+            logger.info("View response status: {}", response.getStatusLine());
+            logger.info("View response body info: {}", response.getEntity());
+            logger.info("View response body: {}", new String(response.getEntity().getContent().readAllBytes()));
+        } catch (ResponseException e) {
+            logger.info("View error: {}", e.getMessage());
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            if (code == 400 || code == 404) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
+    }
+
+    private static boolean clusterHasViewSupport(RestClient client, Logger logger) throws IOException {
+        Request request = new Request("GET", "/_query/views");
+        try {
+            Response response = client.performRequest(request);
+            logger.info("View listing response: {}", response.getStatusLine());
+            logger.info("View response body info: {}", response.getEntity());
+            logger.info("View response body: {}", new String(response.getEntity().getContent().readAllBytes()));
+        } catch (ResponseException e) {
+            logger.info("View listing error: {}", e.getMessage());
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            // Different versions of Elasticsearch return different codes when views are not supported
+            if (code == 400 || code == 500 || code == 405) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
+    }
+
+    private static void deleteView(RestClient client, String viewName, Logger logger) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
+        } catch (ResponseException e) {
+            logger.info("View delete error: {}", e.getMessage());
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500
+            if (code != 404 && code != 400 && code != 500) {
+                throw e;
+            }
+        }
     }
 
     private static URL getResource(String name) {
@@ -587,6 +689,7 @@ public class CsvTestsDataLoader {
     }
 
     private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+        logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         URL mapping = getResource("/" + dataset.mappingFileName);
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
@@ -853,15 +956,16 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping,
+        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
+        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
         boolean requiresInferenceEndpoint
     ) {
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, false);
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, false);
         }
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false);
         }
 
         public TestDataset withIndex(String indexName) {
@@ -872,6 +976,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -884,6 +989,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -896,6 +1002,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -908,6 +1015,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -920,6 +1028,7 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 false,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
@@ -932,12 +1041,35 @@ public class CsvTestsDataLoader {
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
         public TestDataset withInferenceEndpoint(boolean needsInference) {
-            return new TestDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                needsInference
+            );
         }
 
         private Settings readSettingsFile() throws IOException {
@@ -950,6 +1082,12 @@ public class CsvTestsDataLoader {
             }
 
             return indexSettings;
+        }
+    }
+
+    public record ViewConfig(String viewName, String viewFileName) {
+        public ViewConfig(String viewName) {
+            this(viewName, "views/" + viewName + ".esql");
         }
     }
 

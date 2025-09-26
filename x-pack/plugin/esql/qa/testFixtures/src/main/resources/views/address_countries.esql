@@ -1,0 +1,3 @@
+FROM addresses
+| RENAME city.country.name AS country
+| STATS count=COUNT() BY country

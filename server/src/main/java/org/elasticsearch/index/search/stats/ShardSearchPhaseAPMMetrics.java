@@ -10,6 +10,7 @@
 package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -42,16 +43,29 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request());
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+        Long rangeTimestampFrom = searchExecutionContext.getRangeTimestampFrom();
+        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request(), rangeTimestampFrom);
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
-        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request());
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+        Long rangeTimestampFrom = searchExecutionContext.getRangeTimestampFrom();
+        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request(), rangeTimestampFrom);
     }
 
-    private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos, ShardSearchRequest request) {
-        Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(request);
+    private static void recordPhaseLatency(
+        LongHistogram histogramMetric,
+        long tookInNanos,
+        ShardSearchRequest request,
+        Long rangeTimestampFrom
+    ) {
+        Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(
+            request,
+            rangeTimestampFrom,
+            request.nowInMillis()
+        );
         histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);
     }
 }

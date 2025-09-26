@@ -126,39 +126,45 @@ public class SessionUtilsTests extends ESTestCase {
 
     // Generates a list of Pages with one BytesRef block, each of different positions, filled with random bytes.
     private static PagesRec generatePages(int minBytes, int maxBytes, BlockFactory blockFactory) {
-        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
+        BytesRefBlock.Builder builder = null;
+        try {
+            builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
 
-        byte[] buffer = new byte[maxBytes];
-        List<Page> pages = new ArrayList<>();
+            byte[] buffer = new byte[maxBytes];
+            List<Page> pages = new ArrayList<>();
 
-        int producedBytes = 0;
-        int producedRows = 0;
-        int rowsPerPage = randomIntBetween(1, 100);
-        int rows = 0;
-        while (producedBytes < maxBytes) {
-            int rowBytes = Math.min(randomIntBetween(1, maxBytes / minBytes), maxBytes - producedBytes);
-            byte[] rowValue = randomByteArrayOfLength(rowBytes);
+            int producedBytes = 0;
+            int producedRows = 0;
+            int rowsPerPage = randomIntBetween(1, 100);
+            int rows = 0;
+            while (producedBytes < maxBytes) {
+                int rowBytes = Math.min(randomIntBetween(1, maxBytes / minBytes), maxBytes - producedBytes);
+                byte[] rowValue = randomByteArrayOfLength(rowBytes);
 
-            builder.appendBytesRef(new BytesRef(rowValue));
-            System.arraycopy(rowValue, 0, buffer, producedBytes, rowBytes);
+                builder.appendBytesRef(new BytesRef(rowValue));
+                System.arraycopy(rowValue, 0, buffer, producedBytes, rowBytes);
 
-            producedBytes += rowBytes;
-            rows++;
+                producedBytes += rowBytes;
+                rows++;
 
-            if (rows > rowsPerPage) {
-                producedRows += rows;
-                rows = 0;
-                enqueueBlock(builder, pages);
-                builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
-                rowsPerPage = randomIntBetween(1, 100);
+                if (rows > rowsPerPage) {
+                    producedRows += rows;
+                    rows = 0;
+                    enqueueBlock(builder, pages);
+                    Releasables.close(builder);
+                    builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
+                    rowsPerPage = randomIntBetween(1, 100);
+                }
             }
-        }
-        if (rows > 0) {
-            producedRows += rows;
-            enqueueBlock(builder, pages);
-        }
+            if (rows > 0) {
+                producedRows += rows;
+                enqueueBlock(builder, pages);
+            }
 
-        return new PagesRec(pages, buffer, producedBytes, producedRows);
+            return new PagesRec(pages, buffer, producedBytes, producedRows);
+        } finally {
+            Releasables.close(builder);
+        }
     }
 
     private BlockFactory blockFactory(long maxBytes) {
@@ -172,6 +178,5 @@ public class SessionUtilsTests extends ESTestCase {
     private static void enqueueBlock(BytesRefBlock.Builder builder, List<Page> pages) {
         Block block = builder.build();
         pages.add(new Page(block));
-        Releasables.close(builder);
     }
 }

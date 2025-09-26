@@ -1,5 +1,0 @@
-pr: 135540
-summary: Deterministic response order of `_security/stats/`
-area: Authorization
-type: enhancement
-issues: []

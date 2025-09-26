@@ -2,7 +2,6 @@ config:
   trigger-phrase: '.*run\W+elasticsearch-ci/bwc.*'
   skip-labels:
     - ">test-mute"
-    - test-gpu # TODO remove this once the non-gpu steps work correctly
     - "test-full-bwc"
 steps:
   - group: bwc-snapshots

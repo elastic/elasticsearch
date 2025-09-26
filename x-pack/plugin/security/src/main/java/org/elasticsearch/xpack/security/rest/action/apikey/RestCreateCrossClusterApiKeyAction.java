@@ -15,7 +15,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
@@ -43,7 +46,8 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
             (String) args[0],
             (CrossClusterApiKeyRoleDescriptorBuilder) args[1],
             TimeValue.parseTimeValue((String) args[2], null, "expiration"),
-            (Map<String, Object>) args[3]
+            (Map<String, Object>) args[3],
+            (CertificateIdentity) args[4]
         )
     );
 
@@ -52,6 +56,12 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         PARSER.declareObject(constructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? new CertificateIdentity(null) : new CertificateIdentity(p.text()),
+            new ParseField("certificate_identity"),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
     }
 
     /**

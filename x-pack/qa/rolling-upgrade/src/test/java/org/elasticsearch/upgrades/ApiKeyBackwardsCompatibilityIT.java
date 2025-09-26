@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
@@ -131,7 +132,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByVersion();
+                    this.createClientsByCapability(this::nodeSupportApiKeyRemoteIndices);
                     // succeed when remote_indices are not provided
                     final boolean includeRoles = randomBoolean();
                     final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
@@ -202,6 +203,62 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     randomValueOtherThan(initialApiKeyRoleWithRemoteIndices, () -> randomRoleDescriptors(true))
                 );
                 authenticateWithApiKey(apiKeyWithRemoteIndices.v1(), apiKeyWithRemoteIndices.v2());
+            }
+        }
+    }
+
+    public void testCertificateIdentityBackwardsCompatibility() throws Exception {
+        assumeTrue(
+            "certificate identity backwards compatibility only relevant when upgrading from pre-9.2.0",
+            UPGRADE_FROM_VERSION.before(Version.V_9_2_0)
+        );
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
+                assertThat(
+                    exception.getMessage(),
+                    anyOf(containsString("unknown field [certificate_identity]"), containsString("certificate_identity not supported"))
+                );
+            }
+            case MIXED -> {
+                try {
+                    this.createClientsByCapability(this::nodeSupportsCertificateIdentity);
+
+                    // Test against old node - should get parsing error
+                    Exception oldNodeException = expectThrows(
+                        Exception.class,
+                        () -> createCrossClusterApiKeyWithCertIdentity(oldVersionClient, "CN=test-.*")
+                    );
+                    assertThat(
+                        oldNodeException.getMessage(),
+                        anyOf(containsString("unknown field [certificate_identity]"), containsString("certificate_identity not supported"))
+                    );
+
+                    // Test against new node - should get mixed-version error
+                    Exception newNodeException = expectThrows(
+                        Exception.class,
+                        () -> createCrossClusterApiKeyWithCertIdentity(newVersionClient, "CN=test-.*")
+                    );
+                    assertThat(
+                        newNodeException.getMessage(),
+                        containsString("cluster is in a mixed-version state and does not yet support the [certificate_identity] field")
+                    );
+                } finally {
+                    this.closeClientsByVersion();
+                }
+            }
+            case UPGRADED -> {
+                // Fully upgraded cluster should support certificate identity
+                final Tuple<String, String> apiKey = createCrossClusterApiKeyWithCertIdentity("CN=test-.*");
+
+                // Verify the API key was created with certificate identity
+                final Request getApiKeyRequest = new Request("GET", "/_security/api_key");
+                getApiKeyRequest.addParameter("id", apiKey.v1());
+                final Response getResponse = client().performRequest(getApiKeyRequest);
+                assertOK(getResponse);
+
+                final ObjectPath getPath = ObjectPath.createFromResponse(getResponse);
+                assertThat(getPath.evaluate("api_keys.0.certificate_identity"), equalTo("CN=test-.*"));
             }
         }
     }
@@ -341,8 +398,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
-    private void createClientsByVersion() throws IOException {
-        var clientsByCapability = getRestClientByCapability();
+    private void createClientsByCapability(Function<Map<String, Object>, Boolean> capabilityChecker) throws IOException {
+        var clientsByCapability = getRestClientByCapability(capabilityChecker);
         if (clientsByCapability.size() == 2) {
             for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
                 if (client.getKey() == false) {
@@ -367,27 +424,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             newVersionClient.close();
             newVersionClient = null;
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<Boolean, RestClient> getRestClientByCapability() throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
-        assertOK(response);
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
-        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
-            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            var capabilitySupported = nodeSupportApiKeyRemoteIndices(nodeDetails);
-            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
-                .add(HttpHost.create((String) httpInfo.get("publish_address")));
-        }
-        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
-        for (var entry : hostsByCapability.entrySet()) {
-            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
-        }
-        return clientsByCapability;
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {
@@ -424,4 +460,67 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
         apiKeysVerifier.accept(apiKeys);
     }
+
+    private boolean nodeSupportsCertificateIdentity(Map<String, Object> nodeDetails) {
+        String nodeVersionString = (String) nodeDetails.get("version");
+        Version nodeVersion = Version.fromString(nodeVersionString);
+        // Certificate identity was introduced in 9.2.0
+        return nodeVersion.onOrAfter(Version.V_9_2_0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Boolean, RestClient> getRestClientByCapability(Function<Map<String, Object>, Boolean> capabilityChecker)
+        throws IOException {
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        assertOK(response);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
+            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
+            var capabilitySupported = capabilityChecker.apply(nodeDetails);
+            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
+            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
+                .add(HttpHost.create((String) httpInfo.get("publish_address")));
+        }
+
+        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
+        for (var entry : hostsByCapability.entrySet()) {
+            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
+        }
+        return clientsByCapability;
+    }
+
+    private Tuple<String, String> createCrossClusterApiKeyWithCertIdentity(String certificateIdentity) throws IOException {
+        return createCrossClusterApiKeyWithCertIdentity(client(), certificateIdentity);
+    }
+
+    private Tuple<String, String> createCrossClusterApiKeyWithCertIdentity(RestClient client, String certificateIdentity)
+        throws IOException {
+        final String name = "test-cc-api-key-" + randomAlphaOfLengthBetween(3, 5);
+        final Request createApiKeyRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+                "name": "%s",
+                "certificate_identity": "%s",
+                "access": {
+                    "search": [
+                        {
+                            "names": ["test-*"]
+                        }
+                    ]
+                }
+            }""", name, certificateIdentity));
+
+        final Response createResponse = client.performRequest(createApiKeyRequest);
+        assertOK(createResponse);
+        final ObjectPath path = ObjectPath.createFromResponse(createResponse);
+        final String id = path.evaluate("id");
+        final String key = path.evaluate("api_key");
+        assertThat(id, notNullValue());
+        assertThat(key, notNullValue());
+        return Tuple.tuple(id, key);
+    }
+
 }

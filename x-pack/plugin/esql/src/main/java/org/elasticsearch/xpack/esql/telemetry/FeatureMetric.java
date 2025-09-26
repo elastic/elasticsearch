@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -60,8 +60,8 @@ public enum FeatureMetric {
     MV_EXPAND(MvExpand.class::isInstance),
     SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),
-    FROM(EsRelation.class::isInstance),
-    TS(TimeSeriesAggregate.class::isInstance),
+    FROM(x -> x instanceof EsRelation relation && relation.indexMode() != IndexMode.TIME_SERIES),
+    TS(x -> x instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
     RENAME(Rename.class::isInstance),

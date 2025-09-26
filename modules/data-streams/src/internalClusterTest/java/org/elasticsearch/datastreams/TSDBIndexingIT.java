@@ -714,13 +714,11 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
         if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
-            assertThat(exception.getMessage(), containsString(
-                "Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
-            );
             assertThat(
-                getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS),
-                containsInAnyOrder("metricset", "k8s.pod.name")
+                exception.getMessage(),
+                containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
             );
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
         } else {
             assertAcked(putMappingFuture);

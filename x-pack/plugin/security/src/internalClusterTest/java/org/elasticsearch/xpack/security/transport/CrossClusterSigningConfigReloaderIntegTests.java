@@ -125,10 +125,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
 
     public void testDependentKeyConfigFilesUpdated() throws Exception {
         assumeFalse("Test credentials uses key encryption not supported in Fips JVM", inFipsJvm());
-        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
-            CrossClusterApiKeySignatureManager.class,
-            internalCluster().getRandomNodeName()
-        );
+        var manager = getCrossClusterApiKeySignatureManagerInstance();
 
         String testClusterAlias = "test_cluster";
         var signer = manager.signerForClusterAlias(testClusterAlias);
@@ -183,10 +180,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
     }
 
     public void testInitialBadDependentFileAvailableAfterUpdate() throws Exception {
-        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
-            CrossClusterApiKeySignatureManager.class,
-            internalCluster().getRandomNodeName()
-        );
+        var manager = getCrossClusterApiKeySignatureManagerInstance();
 
         String testClusterAlias = "test_cluster";
         var signer = manager.signerForClusterAlias(testClusterAlias);
@@ -239,11 +233,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
 
     public void testRemoveFileWithConfig() throws Exception {
         try {
-            final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
-                CrossClusterApiKeySignatureManager.class,
-                internalCluster().getRandomNodeName()
-            );
-
+            var manager = getCrossClusterApiKeySignatureManagerInstance();
             var signer = manager.signerForClusterAlias("test_cluster");
 
             assertNull(signer.sign("a_header"));
@@ -299,11 +289,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         Consumer<String> clusterCreator,
         Consumer<String> clusterRemover
     ) throws Exception {
-        final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
-            CrossClusterApiKeySignatureManager.class,
-            internalCluster().getRandomNodeName()
-        );
-
+        var manager = getCrossClusterApiKeySignatureManagerInstance();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         try {
@@ -390,4 +376,9 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         // Needs to be enabled to allow updates to secure settings
         return true;
     }
+
+    private static CrossClusterApiKeySignatureManager getCrossClusterApiKeySignatureManagerInstance() {
+        return CrossClusterTestHelper.getCrossClusterApiKeySignatureManager(internalCluster());
+    }
+
 }

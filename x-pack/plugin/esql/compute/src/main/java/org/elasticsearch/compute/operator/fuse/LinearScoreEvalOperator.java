@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.operator.fuse;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -15,7 +19,11 @@ import org.elasticsearch.compute.data.DoubleVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
@@ -60,6 +68,12 @@ public class LinearScoreEvalOperator implements Operator {
     private final Deque<Page> outputPages;
     private boolean finished;
 
+    private long emitNanos;
+    private int pagesReceived = 0;
+    private int pagesProcessed = 0;
+    private long rowsReceived = 0;
+    private long rowsEmitted = 0;
+
     public LinearScoreEvalOperator(int discriminatorPosition, int scorePosition, LinearConfig config) {
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
@@ -79,6 +93,8 @@ public class LinearScoreEvalOperator implements Operator {
     @Override
     public void addInput(Page page) {
         inputPages.add(page);
+        pagesReceived++;
+        rowsReceived += page.getPositionCount();
     }
 
     @Override
@@ -90,35 +106,58 @@ public class LinearScoreEvalOperator implements Operator {
     }
 
     private void createOutputPages() {
+        final var emitStart = System.nanoTime();
         normalizer.preprocess(inputPages, scorePosition, discriminatorPosition);
+        try {
+            while (inputPages.isEmpty() == false) {
+                Page inputPage = inputPages.peek();
+                processInputPage(inputPage);
+                inputPages.removeFirst();
+                pagesProcessed += 1;
+            }
+        } finally {
+            emitNanos = System.nanoTime() - emitStart;
+            Releasables.close(inputPages);
+        }
+    }
 
-        while (inputPages.isEmpty() == false) {
-            Page inputPage = inputPages.peek();
+    private void processInputPage(Page inputPage) {
+        BytesRefBlock discriminatorBlock = inputPage.getBlock(discriminatorPosition);
+        DoubleVectorBlock initialScoreBlock = inputPage.getBlock(scorePosition);
 
-            BytesRefBlock discriminatorBlock = inputPage.getBlock(discriminatorPosition);
-            DoubleVectorBlock initialScoreBlock = inputPage.getBlock(scorePosition);
+        Page newPage = null;
+        Block scoreBlock = null;
+        DoubleVector.Builder scores = null;
 
-            DoubleVector.Builder scores = discriminatorBlock.blockFactory().newDoubleVectorBuilder(discriminatorBlock.getPositionCount());
+        try {
+            scores = discriminatorBlock.blockFactory().newDoubleVectorBuilder(discriminatorBlock.getPositionCount());
 
             for (int i = 0; i < inputPage.getPositionCount(); i++) {
                 String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
 
                 var weight = config.weights().get(discriminator) == null ? 1.0 : config.weights().get(discriminator);
 
-                Double score = initialScoreBlock.getDouble(i);
+                double score = initialScoreBlock.getDouble(i);
                 scores.appendDouble(weight * normalizer.normalize(score, discriminator));
             }
-            Block scoreBlock = scores.build().asBlock();
-            inputPage = inputPage.appendBlock(scoreBlock);
 
-            int[] projections = new int[inputPage.getBlockCount() - 1];
+            scoreBlock = scores.build().asBlock();
+            newPage = inputPage.appendBlock(scoreBlock);
 
-            for (int i = 0; i < inputPage.getBlockCount() - 1; i++) {
-                projections[i] = i == scorePosition ? inputPage.getBlockCount() - 1 : i;
+            int[] projections = new int[newPage.getBlockCount() - 1];
+
+            for (int i = 0; i < newPage.getBlockCount() - 1; i++) {
+                projections[i] = i == scorePosition ? newPage.getBlockCount() - 1 : i;
             }
-            inputPages.removeFirst();
-            outputPages.add(inputPage.projectBlocks(projections));
-            inputPage.releaseBlocks();
+
+            outputPages.add(newPage.projectBlocks(projections));
+        } finally {
+            if (newPage != null) {
+                newPage.releaseBlocks();
+            }
+            if (scoreBlock == null && scores != null) {
+                Releasables.close(scores);
+            }
         }
     }
 
@@ -132,7 +171,11 @@ public class LinearScoreEvalOperator implements Operator {
         if (finished == false || outputPages.isEmpty()) {
             return null;
         }
-        return outputPages.removeFirst();
+
+        Page page = outputPages.removeFirst();
+        rowsEmitted += page.getPositionCount();
+
+        return page;
     }
 
     @Override
@@ -154,6 +197,69 @@ public class LinearScoreEvalOperator implements Operator {
             + ", config="
             + config
             + "]";
+    }
+
+    @Override
+    public Operator.Status status() {
+        return new Status(emitNanos, pagesReceived, pagesProcessed, rowsReceived, rowsEmitted);
+    }
+
+    public record Status(long emitNanos, int pagesReceived, int pagesProcessed, long rowsReceived, long rowsEmitted)
+        implements
+            Operator.Status {
+
+        public static final TransportVersion ESQL_FUSE_LINEAR_OPERATOR_STATUS = TransportVersion.fromName(
+            "esql_fuse_linear_operator_status"
+        );
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "linearScoreEval",
+            Status::new
+        );
+
+        Status(StreamInput streamInput) throws IOException {
+            this(streamInput.readLong(), streamInput.readInt(), streamInput.readInt(), streamInput.readLong(), streamInput.readLong());
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.supports(ESQL_FUSE_LINEAR_OPERATOR_STATUS);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(emitNanos);
+            out.writeInt(pagesReceived);
+            out.writeInt(pagesProcessed);
+            out.writeLong(rowsReceived);
+            out.writeLong(rowsEmitted);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("emit_nanos", emitNanos);
+            if (builder.humanReadable()) {
+                builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
+            }
+            builder.field("pages_received", pagesReceived);
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            return builder.endObject();
+        }
     }
 
     private Normalizer createNormalizer(LinearConfig.Normalizer normalizer) {

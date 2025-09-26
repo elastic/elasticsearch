@@ -36,6 +36,7 @@ dependencies {
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(':x-pack:plugin:ml')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"

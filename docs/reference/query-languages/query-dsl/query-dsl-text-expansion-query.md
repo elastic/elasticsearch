@@ -1,5 +1,8 @@
 ---
 navigation_title: "Text expansion"
+applies_to:
+  stack: deprecated 8.15
+  serverless: deprecated
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-text-expansion-query.html
 ---
@@ -7,9 +10,7 @@ mapped_pages:
 # Text expansion query [query-dsl-text-expansion-query]
 
 
-::::{admonition} Deprecated in 8.15.0.
-:class: warning
-
+::::{warning}
 This query has been replaced by [Sparse vector](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md).
 ::::
 
@@ -54,19 +55,19 @@ GET _search
 `model_text`
 :   (Required, string) The query text you want to use for search.
 
-`pruning_config`
-:   (Optional, object) [preview] Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. Default: Disabled.
+`pruning_config` {applies_to}`stack: preview` {applies_to}`serverless: preview`
+:   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. Default: Disabled.
 
     Parameters for `<pruning_config>` are:
 
     `tokens_freq_ratio_threshold`
-    :   (Optional, integer) [preview] Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
+    :   (Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
 
     `tokens_weight_threshold`
-    :   (Optional, float) [preview] Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
+    :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
 
     `only_score_pruned_tokens`
-    :   (Optional, boolean) [preview] If `true` we only input pruned tokens into scoring, and discard non-pruned tokens. It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results. Default: `false`.
+    :   (Optional, boolean) If `true` we only input pruned tokens into scoring, and discard non-pruned tokens. It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results. Default: `false`.
 
     ::::{note}
     The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSER that provided the optimal results.
@@ -189,8 +190,12 @@ GET my-index/_search
 
 
 ## Example ELSER query with pruning configuration and rescore [text-expansion-query-with-pruning-config-and-rescore-example]
+```{applies_to}
+stack: preview
+serverless: preview
+```
 
-The following is an extension to the above example that adds a [preview] pruning configuration to the `text_expansion` query. The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.
+The following is an extension to the previous example that adds a pruning configuration  to the `text_expansion` query. The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.
 
 Token pruning happens at the shard level. While this should result in the same tokens being labeled as insignificant across shards, this is not guaranteed based on the composition of each shard. Therefore, if you are running `text_expansion` with a `pruning_config` on a multi-shard index, we strongly recommend adding a [Rescore filtered search results](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) function with the tokens that were originally pruned from the query. This will help mitigate any shard-level inconsistency with pruned tokens and provide better relevance overall.
 

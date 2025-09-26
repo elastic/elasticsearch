@@ -65,6 +65,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -670,7 +671,9 @@ public class CompositeRolesStore {
     }
 
     public Map<String, Object> usageStatsWithJustDls() {
-        return Map.of("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
+        // LinkedHashMap for ordering in transport.
+        // if adding properties consider consistent ordering for human-readability of JSON.
+        return Map.of("dls", Map.of("bit_set_cache", new LinkedHashMap<>(dlsBitsetCache.usageStats())));
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {

@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.TransportVersion;
@@ -214,8 +213,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 anyOf(
                     instanceOf(ESKnnFloatVectorQuery.class),
                     instanceOf(DenseVectorQuery.Floats.class),
-                    instanceOf(BooleanQuery.class),
-                    instanceOf(PatienceKnnVectorQuery.class)
+                    instanceOf(BooleanQuery.class)
                 )
             );
             case BYTE -> assertThat(
@@ -223,8 +221,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 anyOf(
                     instanceOf(ESKnnByteVectorQuery.class),
                     instanceOf(DenseVectorQuery.Bytes.class),
-                    instanceOf(BooleanQuery.class),
-                    instanceOf(PatienceKnnVectorQuery.class)
+                    instanceOf(BooleanQuery.class)
                 )
             );
         }
@@ -296,15 +293,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
         assertThat(
             query,
-            anyOf(
-                equalTo(knnVectorQueryBuilt),
-                equalTo(
-                    knnVectorQueryBuilt instanceof ESKnnByteVectorQuery esKnnByteVectorQuery
-                        ? PatienceKnnVectorQuery.fromByteQuery(esKnnByteVectorQuery)
-                        : PatienceKnnVectorQuery.fromFloatQuery((ESKnnFloatVectorQuery) knnVectorQueryBuilt)
-                ),
-                equalTo(bruteForceVectorQueryBuilt)
-            )
+            anyOf(instanceOf(ESKnnFloatVectorQuery.class), instanceOf(DenseVectorQuery.Floats.class), instanceOf(BooleanQuery.class))
         );
     }
 

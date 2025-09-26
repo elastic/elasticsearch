@@ -38,7 +38,7 @@ public class PutSamplingConfigurationActionTests extends AbstractWireSerializing
 
     @Override
     protected PutSamplingConfigurationAction.Request mutateInstance(PutSamplingConfigurationAction.Request instance) {
-        return switch (1) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> {
                 PutSamplingConfigurationAction.Request mutated = new PutSamplingConfigurationAction.Request(
                     randomValueOtherThan(instance.getSampleConfiguration().rate(), () -> randomDoubleBetween(0.0, 1.0, true)),

@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED;
 
 public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
     GoogleVertexAiChatCompletionServiceSettings> {
@@ -28,11 +33,38 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
     }
 
     @Override
+    protected GoogleVertexAiChatCompletionServiceSettings mutateInstanceForVersion(
+        GoogleVertexAiChatCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        if (version.supports(ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
+            return instance;
+        } else {
+            return new GoogleVertexAiChatCompletionServiceSettings(
+                instance.projectId(),
+                instance.location(),
+                instance.modelId(),
+                null,
+                null,
+                null,
+                instance.rateLimitSettings()
+            );
+        }
+    }
+
+    @Override
     protected GoogleVertexAiChatCompletionServiceSettings createTestInstance() {
+        return createRandom();
+    }
+
+    private static GoogleVertexAiChatCompletionServiceSettings createRandom() {
         return new GoogleVertexAiChatCompletionServiceSettings(
             randomString(),
             randomString(),
             randomString(),
+            createOptionalUri(randomOptionalString()),
+            createOptionalUri(randomOptionalString()),
+            randomFrom(GoogleModelGardenProvider.ANTHROPIC, null),
             new RateLimitSettings(randomIntBetween(1, 1000))
         );
     }

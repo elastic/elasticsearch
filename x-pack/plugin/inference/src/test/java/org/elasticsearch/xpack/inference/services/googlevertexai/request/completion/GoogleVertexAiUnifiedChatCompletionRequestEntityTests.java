@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.googlevertexai.request;
+package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ParsingException;

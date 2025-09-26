@@ -12,6 +12,9 @@ public class GoogleVertexAiServiceFields {
     public static final String LOCATION = "location";
 
     public static final String PROJECT_ID = "project_id";
+    public static final String URL_SETTING_NAME = "url";
+    public static final String STREAMING_URL_SETTING_NAME = "streaming_url";
+    public static final String PROVIDER_SETTING_NAME = "provider";
 
     /**
      * According to https://cloud.google.com/vertex-ai/docs/quotas#text-embedding-limits the limit is `250`.

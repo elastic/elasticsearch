@@ -65,8 +65,24 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.streamingURI = buildUriStreaming(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
-            this.nonStreamingUri = buildUriNonStreaming(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            var uri = serviceSettings.uri();
+            var streamingUri = serviceSettings.streamingUri();
+            // For Google Model Garden uri or streamingUri must be set. If not - location, projectId and modelId must be set
+            if (uri != null || streamingUri != null) {
+                // If both uris are provided, each will be used as-is (non-streaming vs. streaming).
+                // If only one is provided, it will be reused for both non-streaming and streaming requests.
+                // Some providers require both (e.g. Anthropic, Mistral, Ai21).
+                // Some providers work fine with a single URL (e.g. Meta, Hugging Face).
+                this.nonStreamingUri = Objects.requireNonNullElse(uri, streamingUri);
+                this.streamingURI = Objects.requireNonNullElse(streamingUri, uri);
+            } else {
+                // If neither uri nor streamingUri is provided, build them from location, projectId, and modelId.
+                var location = serviceSettings.location();
+                var projectId = serviceSettings.projectId();
+                var model = serviceSettings.modelId();
+                this.streamingURI = buildUriStreaming(location, projectId, model);
+                this.nonStreamingUri = buildUriNonStreaming(location, projectId, model);
+            }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -86,7 +102,10 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         var newServiceSettings = new GoogleVertexAiChatCompletionServiceSettings(
             originalModelServiceSettings.projectId(),
             originalModelServiceSettings.location(),
-            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            request.model() != null ? request.model() : originalModelServiceSettings.modelId(),
+            originalModelServiceSettings.uri(),
+            originalModelServiceSettings.streamingUri(),
+            originalModelServiceSettings.provider(),
             originalModelServiceSettings.rateLimitSettings()
         );
 
@@ -112,11 +131,12 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             return model;
         }
 
-        var requestTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettingsMap);
-        if (requestTaskSettings.isEmpty() || model.getTaskSettings().equals(requestTaskSettings)) {
+        var newTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettingsMap);
+        if (newTaskSettings.isEmpty() || model.getTaskSettings().equals(newTaskSettings)) {
             return model;
         }
-        var combinedTaskSettings = GoogleVertexAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
+
+        var combinedTaskSettings = GoogleVertexAiChatCompletionTaskSettings.of(model.getTaskSettings(), newTaskSettings);
         return new GoogleVertexAiChatCompletionModel(model, combinedTaskSettings);
     }
 

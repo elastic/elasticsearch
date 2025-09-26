@@ -15,12 +15,10 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -39,9 +37,9 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHeapStats {
+public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
+    public ES920DiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);
     }
 
@@ -94,12 +92,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         final int[] scratch = new int[targetQuery.length];
-        float[] targetQueryCopy = ArrayUtil.copyArray(targetQuery);
-        if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
-            VectorUtil.l2normalize(targetQueryCopy);
-        }
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
-            targetQueryCopy,
+            targetQuery,
+            new float[targetQuery.length],
             scratch,
             (byte) 7,
             fieldEntry.globalCentroid()
@@ -584,11 +579,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
 
         private void quantizeQueryIfNecessary() {
             if (quantized == false) {
-                System.arraycopy(target, 0, scratch, 0, target.length);
-                if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
-                    VectorUtil.l2normalize(scratch);
-                }
-                queryCorrections = quantizer.scalarQuantize(scratch, quantizationScratch, (byte) 4, centroid);
+                assert fieldInfo.getVectorSimilarityFunction() != COSINE || VectorUtil.isUnitVector(target);
+                queryCorrections = quantizer.scalarQuantize(target, scratch, quantizationScratch, (byte) 4, centroid);
                 transposeHalfByte(quantizationScratch, quantizedQueryScratch);
                 quantized = true;
             }

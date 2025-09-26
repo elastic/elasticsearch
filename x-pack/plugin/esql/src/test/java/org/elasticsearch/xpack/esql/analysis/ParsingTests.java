@@ -132,16 +132,20 @@ public class ParsingTests extends ESTestCase {
 
     public void testJoinOnConstant() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields at the moment, found [123]",
+            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [123]",
             error("row languages = 1, gender = \"f\" | lookup join test on 123")
         );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields at the moment, found [\"abc\"]",
+            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [\"abc\"]",
             error("row languages = 1, gender = \"f\" | lookup join test on \"abc\"")
         );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields at the moment, found [false]",
+            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [false]",
             error("row languages = 1, gender = \"f\" | lookup join test on false")
         );
     }
@@ -213,6 +217,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSet() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = parse("SET foo = \"bar\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
@@ -232,6 +237,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetWithTripleQuotes() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = parse("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
@@ -249,6 +255,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testMultipleSet() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = parse(
             "SET foo = \"bar\"; SET bar = 2; SET foo = \"baz\"; SET x = 3.5; SET y = false; SET z = null; row a = 1",
             new QueryParams()
@@ -265,6 +272,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetArrays() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = parse("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(2));
@@ -274,6 +282,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetWithNamedParams() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = parse(
             "SET foo = \"bar\"; SET bar = ?a; SET foo = \"baz\"; SET x = ?x; row a = 1",
             new QueryParams(
@@ -293,6 +302,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testSetWithPositionalParams() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = parse(
             "SET foo = \"bar\"; SET bar = ?; SET foo = \"baz\"; SET x = ?; row a = ?",
             new QueryParams(

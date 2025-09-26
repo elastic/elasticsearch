@@ -189,8 +189,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             }
             return queryString;
         }
-
-        boolean isPhraseMatch = ctx.fieldQueryValue().QUOTED_STRING() != null;
+        boolean isPhraseMatch = ctx.fieldQueryValue().fieldQueryValueLiteral().QUOTED_STRING() != null;
 
         MultiMatchQueryBuilder multiMatchQuery = QueryBuilders.multiMatchQuery(queryText)
             .type(isPhraseMatch ? MultiMatchQueryBuilder.Type.PHRASE : MultiMatchQueryBuilder.Type.BEST_FIELDS)
@@ -246,8 +245,10 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         } else if (fieldQueryValueCtx.booleanFieldQueryValue() != null) {
             return parseBooleanFieldQuery(fieldNameCtx, fieldQueryValueCtx.booleanFieldQueryValue());
         } else {
+            assert fieldQueryValueCtx.fieldQueryValueLiteral() != null;
+
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-            String queryText = extractText(fieldQueryValueCtx);
+            String queryText = extractText(fieldQueryValueCtx.fieldQueryValueLiteral());
             boolean hasWildcard = hasWildcard(fieldQueryValueCtx);
 
             withFields(fieldNameCtx, (fieldName, mappedFieldType) -> {
@@ -265,7 +266,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
                     fieldQuery = rangeFieldQuery;
                 } else if (isKeywordField(mappedFieldType)) {
                     fieldQuery = QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
-                } else if (fieldQueryValueCtx.QUOTED_STRING() != null) {
+                } else if (fieldQueryValueCtx.fieldQueryValueLiteral().QUOTED_STRING() != null) {
                     fieldQuery = QueryBuilders.matchPhraseQuery(fieldName, queryText);
                 } else {
                     fieldQuery = QueryBuilders.matchQuery(fieldName, queryText);

@@ -31,6 +31,7 @@ public class BlobCacheMetrics {
     public static final String LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY = "file_extension";
     public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
+    public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -43,6 +44,7 @@ public class BlobCacheMetrics {
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
     private final LongCounter epochChanges;
+    private final LongHistogram searchOriginDownloadTime;
 
     public enum CachePopulationReason {
         /**
@@ -100,7 +102,12 @@ public class BlobCacheMetrics {
                 "The time spent copying data into the cache",
                 "milliseconds"
             ),
-            meterRegistry.registerLongCounter("es.blob_cache.epoch.total", "The epoch changes of the LFU cache", "count")
+            meterRegistry.registerLongCounter("es.blob_cache.epoch.total", "The epoch changes of the LFU cache", "count"),
+            meterRegistry.registerLongHistogram(
+                SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME,
+                "The distribution of time in millis taken to download data from remote storage for search requests",
+                "milliseconds"
+            )
         );
 
         meterRegistry.registerLongGauge(
@@ -137,7 +144,8 @@ public class BlobCacheMetrics {
         DoubleHistogram cachePopulationThroughput,
         LongCounter cachePopulationBytes,
         LongCounter cachePopulationTime,
-        LongCounter epochChanges
+        LongCounter epochChanges,
+        LongHistogram searchOriginDownloadTime
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -147,6 +155,7 @@ public class BlobCacheMetrics {
         this.cachePopulationBytes = cachePopulationBytes;
         this.cachePopulationTime = cachePopulationTime;
         this.epochChanges = epochChanges;
+        this.searchOriginDownloadTime = searchOriginDownloadTime;
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -167,31 +176,35 @@ public class BlobCacheMetrics {
         return cacheMissLoadTimes;
     }
 
+    public LongHistogram getSearchOriginDownloadTime() {
+        return searchOriginDownloadTime;
+    }
+
     /**
      * Record the various cache population metrics after a chunk is copied to the cache
      *
-     * @param blobName The file that was requested and triggered the cache population.
+     * @param fileName The actual (lucene) file that's requested from the blob location
      * @param bytesCopied The number of bytes copied
      * @param copyTimeNanos The time taken to copy the bytes in nanoseconds
      * @param cachePopulationReason The reason for the cache being populated
      * @param cachePopulationSource The source from which the data is being loaded
      */
     public void recordCachePopulationMetrics(
-        String blobName,
+        String fileName,
         int bytesCopied,
         long copyTimeNanos,
         CachePopulationReason cachePopulationReason,
         CachePopulationSource cachePopulationSource
     ) {
-        LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(blobName);
-        String blobFileExtension = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+        LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(fileName);
+        String luceneFileExt = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
         Map<String, Object> metricAttributes = Map.of(
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason.name(),
             CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
             cachePopulationSource.name(),
             LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
-            blobFileExtension
+            luceneFileExt
         );
         assert bytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(bytesCopied, metricAttributes);

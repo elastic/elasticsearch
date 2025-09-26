@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -40,7 +39,7 @@ public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
 
     @SuppressWarnings("this-escape")
     public NodeRealAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
-        super(settings, clusterSettings, discoveryNodes);
+        super(discoveryNodes);
         awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         updateNodesByAvailabilityZone();
         clusterSettings.addSettingsUpdateConsumer(
@@ -58,13 +57,12 @@ public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
         return awarenessAttributes;
     }
 
-    public NodesByAvailabilityZone buildNodesByAvailabilityZone(DiscoveryNodes discoveryNodes) {
+    @Override
+    protected NodesByAvailabilityZone buildNodesByAvailabilityZone(Collection<DiscoveryNode> discoveryNodes) {
         return buildNodesByAvailabilityZone(discoveryNodes, awarenessAttributes);
     }
 
-    private static NodesByAvailabilityZone buildNodesByAvailabilityZone(DiscoveryNodes discoveryNodes, List<String> awarenessAttributes) {
-        Collection<DiscoveryNode> nodes = discoveryNodes.getNodes().values();
-
+    private static NodesByAvailabilityZone buildNodesByAvailabilityZone(Collection<DiscoveryNode> nodes, List<String> awarenessAttributes) {
         if (awarenessAttributes.isEmpty()) {
             return new NodesByAvailabilityZone(
                 Map.of(List.of(), nodes),
@@ -110,7 +108,7 @@ public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
      * This is different to {@link #getMlNodesByAvailabilityZone()} in that the latter returns the ML nodes by availability zone
      * of the latest cluster state, while this method does the same for a specific cluster state.
      *
-     * @param clusterState The cluster state whose nodes will be used to detect ML nodes by availability zone.
+     * @param nodes The nodes which will be used to detect ML nodes by availability zone.
      * @return A map whose keys are lists of awareness attribute values in the same order as the configured awareness attribute
      *         names, and whose values are collections of nodes that have that combination of attributes. If availability zones
      *         are not configured then the map will contain one entry mapping an empty list to a collection of all nodes. If
@@ -119,7 +117,7 @@ public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
      *         distinguished by calling one of the other methods.)
      */
     @Override
-    public Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(ClusterState clusterState) {
-        return buildNodesByAvailabilityZone(clusterState.nodes(), awarenessAttributes).mlNodes();
+    public Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(List<DiscoveryNode> nodes) {
+        return buildNodesByAvailabilityZone(nodes, awarenessAttributes).mlNodes();
     }
 }

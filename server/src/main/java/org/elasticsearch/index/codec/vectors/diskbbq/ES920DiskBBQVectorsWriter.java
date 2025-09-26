@@ -17,7 +17,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
@@ -51,12 +50,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int centroidsPerParentCluster;
 
     public ES920DiskBBQVectorsWriter(
+        String rawVectorFormatName,
         SegmentWriteState state,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster
     ) throws IOException {
-        super(state, rawVectorDelegate);
+        super(state, rawVectorFormatName, rawVectorDelegate);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
     }
@@ -182,25 +182,25 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
             int[] quantized = new int[fieldInfo.getVectorDimension()];
             byte[] binary = new byte[BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8];
-            float[] overspillScratch = new float[fieldInfo.getVectorDimension()];
+            float[] scratch = new float[fieldInfo.getVectorDimension()];
             for (int i = 0; i < assignments.length; i++) {
                 int c = assignments[i];
                 float[] centroid = centroidSupplier.centroid(c);
                 float[] vector = floatVectorValues.vectorValue(i);
                 boolean overspill = overspillAssignments.length > i && overspillAssignments[i] != -1;
-                // if overspilling, this means we quantize twice, and quantization mutates the in-memory representation of the vector
-                // so, make a copy of the vector to avoid mutating it
-                if (overspill) {
-                    System.arraycopy(vector, 0, overspillScratch, 0, fieldInfo.getVectorDimension());
-                }
-
-                OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(vector, quantized, (byte) 1, centroid);
+                OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
+                    vector,
+                    scratch,
+                    quantized,
+                    (byte) 1,
+                    centroid
+                );
                 BQVectorUtils.packAsBinary(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 if (overspill) {
                     int s = overspillAssignments[i];
                     // write the overspill vector as well
-                    result = quantizer.scalarQuantize(overspillScratch, quantized, (byte) 1, centroidSupplier.centroid(s));
+                    result = quantizer.scalarQuantize(vector, scratch, quantized, (byte) 1, centroidSupplier.centroid(s));
                     BQVectorUtils.packAsBinary(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {
@@ -383,7 +383,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
-            new OnHeapCentroidSupplier(centroidGroups.centroids),
+            CentroidSupplier.fromArray(centroidGroups.centroids),
             fieldInfo.getVectorDimension(),
             osq,
             globalCentroid
@@ -576,18 +576,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    interface QuantizedVectorValues {
-        int count();
-
-        byte[] next() throws IOException;
-
-        OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException;
-    }
-
-    interface IntToBooleanFunction {
-        boolean apply(int ord);
-    }
-
     static class QuantizedCentroids implements QuantizedVectorValues {
         private final CentroidSupplier supplier;
         private final OptimizedScalarQuantizer quantizer;
@@ -629,10 +617,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             }
             currOrd++;
             float[] vector = supplier.centroid(ordTransformer.apply(currOrd));
-            // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
-            // due to overspill, so we copy the vector to a scratch array
-            System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
-            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 7, centroid);
+            corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 7, centroid);
             for (int i = 0; i < quantizedVectorScratch.length; i++) {
                 quantizedVector[i] = (byte) quantizedVectorScratch[i];
             }
@@ -686,10 +671,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             currOrd++;
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
-            // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
-            // due to overspill, so we copy the vector to a scratch array
-            System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
-            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
+            corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
             BQVectorUtils.packAsBinary(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }
@@ -763,39 +745,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
             bitSum = quantizedVectorsInput.readShort();
-        }
-    }
-
-    private static class IntSorter extends IntroSorter {
-        int pivot = -1;
-        private final int[] arr;
-        private final IntToIntFunction func;
-
-        private IntSorter(int[] arr, IntToIntFunction func) {
-            this.arr = arr;
-            this.func = func;
-        }
-
-        @Override
-        protected void setPivot(int i) {
-            pivot = func.apply(arr[i]);
-        }
-
-        @Override
-        protected int comparePivot(int j) {
-            return Integer.compare(pivot, func.apply(arr[j]));
-        }
-
-        @Override
-        protected int compare(int a, int b) {
-            return Integer.compare(func.apply(arr[a]), func.apply(arr[b]));
-        }
-
-        @Override
-        protected void swap(int i, int j) {
-            final int tmp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = tmp;
         }
     }
 }

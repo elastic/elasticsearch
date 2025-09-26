@@ -70,13 +70,6 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractRollingUpgradeWithS
         super(upgradedNodes);
     }
 
-    @Override
-    protected void beforeUpgrade() {
-        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
-    }
-
     public void testIndexing() throws Exception {
         assumeTrue("requires storing leaf array offsets", oldClusterHasFeature("gte_v9.1.0"));
         String dataStreamName = "logs-bwc-test";

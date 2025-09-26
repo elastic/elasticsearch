@@ -114,13 +114,6 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractRollingUp
           }
         }""";
 
-    @Override
-    protected void beforeUpgrade() {
-        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
-    }
-
     public void testLogsIndexing() throws IOException {
         if (isOldCluster()) {
             // given - create a template and data stream

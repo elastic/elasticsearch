@@ -54,7 +54,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     protected abstract ElasticsearchCluster getUpgradeCluster();
 
-    protected void beforeUpgrade() {}
+    protected void beforeUpgrade() {
+        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
+            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
+        }
+    }
 
     @Before
     public void upgradeNode() throws Exception {

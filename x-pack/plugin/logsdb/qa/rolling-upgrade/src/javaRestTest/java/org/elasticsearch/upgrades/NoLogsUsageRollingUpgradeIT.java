@@ -26,13 +26,6 @@ public class NoLogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecur
         super(upgradedNodes);
     }
 
-    @Override
-    protected void beforeUpgrade() {
-        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
-    }
-
     public void testUsage() throws Exception {
         String dataStreamName = "logs-mysql-error";
         if (isOldCluster()) {

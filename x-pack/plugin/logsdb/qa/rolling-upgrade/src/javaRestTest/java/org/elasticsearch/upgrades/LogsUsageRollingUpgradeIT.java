@@ -29,13 +29,6 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecurit
         super(upgradedNodes);
     }
 
-    @Override
-    protected void beforeUpgrade() {
-        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
-    }
-
     public void testUsage() throws Exception {
         assumeFalse("logsdb.prior_logs_usage only gets set in 8.x", oldClusterHasFeature("gte_v9.0.0"));
         String dataStreamName = "logs-mysql-error";

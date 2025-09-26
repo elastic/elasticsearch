@@ -24,6 +24,9 @@ tasks.named('forbiddenApisMain').configure {
 }
 repositories {
   mavenLocal()
+  maven {
+    url = uri("https://storage.googleapis.com/elasticsearch-cuvs-snapshots")
+  }
 }
 
 dependencies {

@@ -24,6 +24,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FUSE_V6;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
@@ -358,13 +359,15 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         // Since FORK, RERANK, COMPLETION and CHANGE_POINT are not supported on remote indices, we can't check them here against the remote
         // LOOKUP JOIN
 
-        assertEquals("5:3: LOOKUP JOIN with remote indices can't be executed after [FUSE GROUP BY my_key]@3:3", error("""
-            FROM test,remote:test METADATA _id, _index, _score
-            | EVAL my_key = "foo"
-            | FUSE GROUP BY my_key
-            | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
-            | LIMIT 2""", analyzer));
+        if (FUSE_V6.isEnabled()) {
+            assertEquals("5:3: LOOKUP JOIN with remote indices can't be executed after [FUSE GROUP BY my_key]@3:3", error("""
+                FROM test,remote:test METADATA _id, _index, _score
+                | EVAL my_key = "foo"
+                | FUSE GROUP BY my_key
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | LIMIT 2""", analyzer));
+        }
     }
 
     public void testRemoteEnrichAfterLookupJoinWithPipelineBreaker() {

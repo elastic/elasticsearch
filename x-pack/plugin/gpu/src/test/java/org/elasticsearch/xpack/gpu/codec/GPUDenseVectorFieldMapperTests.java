@@ -43,7 +43,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     public void testKnnVectorsFormat() throws IOException {
         // TODO improve test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("hnsw");
-        String expectedStr = "ESGpuHnswVectorsFormat(name=ESGpuHnswVectorsFormat, "
+        String expectedStr = "ES92GpuHnswVectorsFormat(name=ES92GpuHnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedStr, knnVectorsFormat.toString());
     }
@@ -52,7 +52,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
     public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
         // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
-        String expectedStr = "ESGPUHnswScalarQuantizedVectorsFormat(name=ESGPUHnswScalarQuantizedVectorsFormat, "
+        String expectedStr = "ES92GPUHnswScalarQuantizedVectorsFormat(name=ES92GPUHnswScalarQuantizedVectorsFormat, "
             + "maxConn=16, beamWidth=128, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
         assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
     }

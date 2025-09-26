@@ -56,20 +56,20 @@ import java.util.Objects;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
-import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
-import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
-import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
-import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
-import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
+import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
+import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
+import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
+import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
+import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
+import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
  * so that it can be searched on CPU with Lucene99HNSWVectorReader.
  */
-final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
-    private static final Logger logger = LogManager.getLogger(ESGpuHnswVectorsWriter.class);
-    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ESGpuHnswVectorsWriter.class);
+final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(ES92GpuHnswVectorsWriter.class);
+    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES92GpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
     private final CuVSResourceManager cuVSResourceManager;
@@ -83,7 +83,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
     private boolean finished;
     private final CuVSMatrix.DataType dataType;
 
-    ESGpuHnswVectorsWriter(
+    ES92GpuHnswVectorsWriter(
         CuVSResourceManager cuVSResourceManager,
         SegmentWriteState state,
         int M,
@@ -154,12 +154,13 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
      * This method and the private helpers it calls only need to support FLOAT32.
      * For FlatFieldVectorWriter we only need to support float[] during flush: during indexing users provide floats[], and pass floats to
      * FlatFieldVectorWriter, even when we have a BYTE dataType (i.e. an "int8_hnsw" type).
-     * During merging, we use quantized data, so we need to support byte[] too (see {@link ESGpuHnswVectorsWriter#mergeOneField}),
+     * During merging, we use quantized data, so we need to support byte[] too (see {@link ES92GpuHnswVectorsWriter#mergeOneField}),
      * but not here.
      * That's how our other current formats work: use floats during indexing, and quantized data to build graph during merging.
      * </p>
      */
     @Override
+    // TODO: fix sorted index case
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         flatVectorWriter.flush(maxDoc, sortMap);
         try {
@@ -445,6 +446,7 @@ final class ESGpuHnswVectorsWriter extends KnnVectorsWriter {
 
     // TODO check with deleted documents
     @Override
+    // fix sorted index case
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
         final int numVectors;

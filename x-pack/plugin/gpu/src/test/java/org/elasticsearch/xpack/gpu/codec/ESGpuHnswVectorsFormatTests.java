@@ -30,7 +30,7 @@ public class ESGpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     @BeforeClass
     public static void beforeClass() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
-        codec = TestUtil.alwaysKnnVectorsFormat(new ESGpuHnswVectorsFormat());
+        codec = TestUtil.alwaysKnnVectorsFormat(new ES92GpuHnswVectorsFormat());
     }
 
     @Override

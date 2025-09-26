@@ -39,8 +39,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.gpu.codec.ESGpuHnswSQVectorsFormat;
-import org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -114,9 +114,9 @@ public class KnnIndexTester {
             format = new ES920DiskBBQVectorsFormat(args.ivfClusterSize(), ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (args.quantizeBits() == 32) {
-                format = new ESGpuHnswVectorsFormat();
+                format = new ES92GpuHnswVectorsFormat();
             } else if (args.quantizeBits() == 7) {
-                format = new ESGpuHnswSQVectorsFormat();
+                format = new ES92GpuHnswSQVectorsFormat();
             } else {
                 throw new IllegalArgumentException(
                     "GPU HNSW index type only supports 7 or 32 bits quantization, but got: " + args.quantizeBits()

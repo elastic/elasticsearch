@@ -453,7 +453,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         when(queryCache.getCacheSizeForShard(shardId2)).thenReturn(200L);
 
         IndicesQueryCache.CacheTotals totals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
-        assertEquals(300L, totals.totalSize());
+        assertEquals(300L, totals.totalItemsInCache());
         assertEquals(2, totals.shardCount());
     }
 

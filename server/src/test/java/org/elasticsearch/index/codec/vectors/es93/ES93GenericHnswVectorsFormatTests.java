@@ -44,7 +44,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
-import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 
@@ -136,7 +135,8 @@ public class ES93GenericHnswVectorsFormatTests extends BaseKnnVectorsFormatTestC
         expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, -1));
         expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(512 + 1, 20));
         expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 3201));
-        //expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 100, 1, new SameThreadExecutorService()));
+        // expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 100, 1, new
+        // SameThreadExecutorService()));
     }
 
     // Ensures that all expected vector similarity functions are translatable in the format.

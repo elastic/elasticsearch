@@ -1367,7 +1367,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V5(Build.current().isSnapshot()),
+        FUSE_V6(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.

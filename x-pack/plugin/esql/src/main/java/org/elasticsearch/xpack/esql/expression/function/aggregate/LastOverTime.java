@@ -52,9 +52,8 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long", "integer", "double", "_tsid" },
-        description = "The latest value of a field, where recency determined by the `@timestamp` field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") }
     )
     public LastOverTime(Source source, @Param(name = "field", type = { "long", "integer", "double", "_tsid" }) Expression field) {
@@ -120,7 +119,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.TSID_DATA_TYPE,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long or _tsid"
+            "date_nanos, datetime or _tsid"
         ).and(
             isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
         );

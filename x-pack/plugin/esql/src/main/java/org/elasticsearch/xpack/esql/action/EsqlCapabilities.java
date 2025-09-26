@@ -1543,9 +1543,15 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
-        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 
-        ;
+        /**
+         * INLINE STATS fix incorrect prunning of null filtering
+         * https://github.com/elastic/elasticsearch/pull/135011
+         */
+        INLINE_STATS_FIX_PRUNING_NULL_FILTER(INLINESTATS_V11.enabled),
+
+        INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled);
 
         private final boolean enabled;
 

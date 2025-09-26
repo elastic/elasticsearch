@@ -140,8 +140,7 @@ public class CrossProjectErrorsUtil {
             && localExpressions.localIndexResolutionResult() == SUCCESS;
 
         if (resourceFound && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
-            // a concrete index locally and either was a flat expression or was the only thing we needed to search
-            logger.info(
+            logger.debug(
                 "Local cluster has canonical expression for original expression [{}], skipping remote existence check",
                 originalExpression
             );
@@ -150,7 +149,7 @@ public class CrossProjectErrorsUtil {
         List<ElasticsearchException> exceptions = new ArrayList<>();
         ElasticsearchException localException = localExpressions.exception();
         if (localException != null) {
-            exceptions.add(localException); // TODO MP group together and throw exceptions
+            exceptions.add(localException);
         }
 
         for (String remoteExpression : localResolvedIndices.remoteExpressions()) {
@@ -177,10 +176,15 @@ public class CrossProjectErrorsUtil {
                     throw new IndexNotFoundException(remoteExpression);
                 }
                 if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                    throw new ElasticsearchSecurityException(
+                    // we only ever get exceptions if they are security related
+                    // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
+                    // as 403 or 404
+                    ElasticsearchSecurityException e = new ElasticsearchSecurityException(
                         "authorization errors while resolving [" + remoteExpression + "]",
                         RestStatus.FORBIDDEN
                     );
+                    exceptions.forEach(e::addSuppressed);
+                    throw e;
                 }
             } else {
                 boolean foundFlat = false;
@@ -196,55 +200,6 @@ public class CrossProjectErrorsUtil {
                     throw new IndexNotFoundException(remoteExpression);
                 }
             }
-
         }
-        //
-        // int numberOfQualifiedFound = resourceFound ? 1 : 0;
-        // for (var linkedProjectExpressions : remoteResolvedExpressions.expressions().values()) {
-        // // for each linked project we check if the resolved expressions contains the original expression and check for resolution status
-        // ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
-        // .get(originalExpression);
-        // assert resolvedRemoteExpression != null : "we should always have resolved expressions from remote";
-        //
-        // Set<String> remoteExpressions = resolvedRemoteExpression.expressions();
-        // assert remoteExpressions != null : "we should always have replaced expressions";
-        //
-        // logger.debug("Replaced indices from remote response resolved: [{}]", remoteExpressions);
-        // boolean existsRemotely = false == remoteExpressions.isEmpty()
-        // && resolvedRemoteExpression.localIndexResolutionResult() == SUCCESS;
-        // if (existsRemotely) {
-        // if (isFlatWorldResource) {
-        // logger.debug(
-        // "Remote project has resolved entries for [{}], skipping further remote existence check",
-        // originalExpression
-        // );
-        // resourceFound = true;
-        // break;
-        // } else {
-        // numberOfQualifiedFound++;
-        // }
-        // } else if (resolvedRemoteExpression.exception() != null) {
-        // exceptions.add(resolvedRemoteExpression.exception());
-        // }
-        // }
-        // boolean missingFlatResource = isFlatWorldResource && false == resourceFound;
-        // boolean missingQualifiedResource = false == isFlatWorldResource
-        // && numberOfQualifiedFound < localResolvedIndices.remoteExpressions().size();
-        //
-        // if (missingFlatResource || missingQualifiedResource) {
-        // if (false == exceptions.isEmpty()) {
-        // // we only ever get exceptions if they are security related
-        // // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
-        // // as 403 or 404
-        // ElasticsearchSecurityException e = new ElasticsearchSecurityException(
-        // "authorization errors while resolving [" + originalExpression + "]",
-        // RestStatus.FORBIDDEN
-        // );
-        // exceptions.forEach(e::addSuppressed);
-        // throw e;
-        // } else {
-        // throw new IndexNotFoundException(originalExpression);
-        // }
-        // }
     }
 }

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -36,7 +37,6 @@ import static org.hamcrest.Matchers.lessThan;
 public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
 
     private static final long PROCESS_OVERHEAD_BYTES = ByteSizeValue.ofMb(20).getBytes();
-    private static final long MB_25_BYTES = ByteSizeValue.ofMb(25L).getBytes();
 
     @After
     public void cleanUpTest() {
@@ -84,11 +84,13 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
 
-        assertThat(getEffectiveModelSize(modelSizeStats.getModelBytes()), 
-        allOf(
-            greaterThan(MB_25_BYTES),
-            lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes()*1.05)
-        ));
+        assertThat(
+            getEffectiveModelSize(modelSizeStats.getModelBytes()),
+            allOf(
+                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
+                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
+            )
+        );
         assertThat(
             modelSizeStats.getMemoryStatus(),
             anyOf(equalTo(ModelSizeStats.MemoryStatus.SOFT_LIMIT), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT))
@@ -136,10 +138,10 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(
-            getEffectiveModelSize(modelSizeStats.getModelBytes()), 
+            getEffectiveModelSize(modelSizeStats.getModelBytes()),
             allOf(
-                greaterThan(MB_25_BYTES),
-                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes()*1.05)
+                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
+                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
             )
         );
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
@@ -192,11 +194,13 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(getEffectiveModelSize(modelSizeStats.getModelBytes()), 
-        allOf(
-            greaterThan(MB_25_BYTES),
-            lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes()*1.05)
-        ));
+        assertThat(
+            getEffectiveModelSize(modelSizeStats.getModelBytes()),
+            allOf(
+                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
+                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
+            )
+        );
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
@@ -245,11 +249,13 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(getEffectiveModelSize(modelSizeStats.getModelBytes()), 
-        allOf(
-            greaterThan(MB_25_BYTES),
-            lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes()*1.05)
-        ));
+        assertThat(
+            getEffectiveModelSize(modelSizeStats.getModelBytes()),
+            allOf(
+                greaterThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 0.15),
+                lessThan(ByteSizeValue.ofMb(memoryLimit).getBytes() * 1.05)
+            )
+        );
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
@@ -279,7 +285,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         closeJob(job.getId());
 
         assertThat(modelSizeStats.getModelBytes(), equalTo(0L));
-        assertThat(modelSizeStats.getModelBytesMemoryLimit(), equalTo(memoryLimit));
+        assertThat(modelSizeStats.getModelBytesMemoryLimit(), equalTo(Long.valueOf(memoryLimit)));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));
         assertThat(modelSizeStats.getAssignmentMemoryBasis(), equalTo(ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT));
 
@@ -293,9 +299,9 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         return record;
     }
 
-    private long getEffectiveModelSize(long modelBytes) {
-        // The reported model size is the process size and includes the process overhead, 
+    private double getEffectiveModelSize(long modelBytes) {
+        // The reported model size is the process size and includes the process overhead,
         // so we need to subtract the overhead to get the effective model size
-        return modelBytes - PROCESS_OVERHEAD_BYTES;
+        return (double) (modelBytes - PROCESS_OVERHEAD_BYTES);
     }
 }

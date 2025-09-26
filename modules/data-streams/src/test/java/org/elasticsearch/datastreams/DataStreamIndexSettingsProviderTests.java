@@ -956,10 +956,18 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         // we don't support index.dimensions with dynamic templates so we'll unset index.dimensions
-        Settings result = onUpdateMappings(null, "labels.*", mapping);
-        assertThat(result.size(), equalTo(2));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("labels.*"));
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> onUpdateMappings(null, "labels.*", mapping)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "Cannot add dimension fields via dynamic templates or mappings for an index with index.dimensions. "
+                    + "Please change the index template and roll over the data stream "
+                    + "instead of modifying the mappings of the backing indices."
+            )
+        );
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {

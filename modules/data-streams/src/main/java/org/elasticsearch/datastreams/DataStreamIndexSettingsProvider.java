@@ -172,11 +172,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         boolean hasChanges = indexDimensions.size() != newIndexDimensions.size()
             && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
         if (matchesAllDimensions == false) {
-            // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
-            // and set index.routing_path instead.
-            // This can happen if a new dynamic template with time_series_dimension: true is added to an existing index.
-            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
-            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions);
+            throw new IllegalArgumentException(
+                "Cannot add dimension fields via dynamic templates or mappings for an index with "
+                    + INDEX_DIMENSIONS.getKey()
+                    + ". "
+                    + "Please change the index template and roll over the data stream "
+                    + "instead of modifying the mappings of the backing indices."
+            );
         } else if (hasChanges) {
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
         }

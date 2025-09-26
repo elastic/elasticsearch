@@ -8,7 +8,7 @@
 * [`PERCENTILE`](../../functions-operators/aggregation-functions.md#esql-percentile)
 * [`SAMPLE`](../../functions-operators/aggregation-functions.md#esql-sample)
 * {applies_to}`stack: preview` {applies_to}`serverless: preview` [`ST_CENTROID_AGG`](../../functions-operators/aggregation-functions.md#esql-st_centroid_agg)
-* [{applies_to}`stack: preview` {applies_to}`serverless: preview` [`ST_EXTENT_AGG`](../../functions-operators/aggregation-functions.md#esql-st_extent_agg)
+* {applies_to}`stack: preview` {applies_to}`serverless: preview` [`ST_EXTENT_AGG`](../../functions-operators/aggregation-functions.md#esql-st_extent_agg)
 * [`STD_DEV`](../../functions-operators/aggregation-functions.md#esql-std_dev)
 * [`SUM`](../../functions-operators/aggregation-functions.md#esql-sum)
 * [`TOP`](../../functions-operators/aggregation-functions.md#esql-top)

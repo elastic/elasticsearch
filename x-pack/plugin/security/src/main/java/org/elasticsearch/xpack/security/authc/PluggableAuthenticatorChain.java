@@ -100,7 +100,7 @@ public class PluggableAuthenticatorChain implements Authenticator {
                     }
                 }, ex -> iteratingListener.onFailure(context.getRequest().exceptionProcessingRequest(ex, token))));
             } else {
-                iteratingListener.onResponse(null); // try the next custom authenticator
+                iteratingListener.onResponse(AuthenticationResult.notHandled()); // try the next custom authenticator
             }
         };
     }

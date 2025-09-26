@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -75,6 +76,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             defaultListExecutedPipelines,
             true,
             request.getXContentType(),
+            RestBulkAction.BulkFormat.MARKER_SUFFIX,
             request.getRestApiVersion()
         );
 

@@ -384,7 +384,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size) throws IOException {
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader)) {
+        TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, newContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
                 // this controls whether a timeout is raised or not. We abstract time away by pretending that the clock stops
@@ -471,7 +471,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         ContextIndexSearcher contextIndexSearcher = newContextSearcher(reader);
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
         suggestionSearchContext.addSuggestion("suggestion", new TestSuggestionContext(new TestSuggester(contextIndexSearcher), null));
-        TestSearchContext context = new TestSearchContext(null, indexShard, contextIndexSearcher) {
+        TestSearchContext context = new TestSearchContext(createSearchExecutionContext(), indexShard, contextIndexSearcher) {
             @Override
             public SuggestionSearchContext suggest() {
                 return suggestionSearchContext;

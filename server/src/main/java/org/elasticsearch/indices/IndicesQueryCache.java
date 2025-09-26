@@ -383,7 +383,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             if (numEntries > 0) {
                 // We can't use ShardCoreKeyMap here because its core closed
                 // listener is called before the listener of the cache which
-                // triggers this eviction. So instead we use use stats2 that
+                // triggers this eviction. So instead we use stats2 that
                 // we only evict when nothing is cached anymore on the segment
                 // instead of relying on close listeners
                 final StatsAndCount statsAndCount = stats2.get(readerCoreKey);

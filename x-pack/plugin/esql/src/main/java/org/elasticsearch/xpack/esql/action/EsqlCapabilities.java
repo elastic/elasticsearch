@@ -1469,17 +1469,17 @@ public class EsqlCapabilities {
         /**
          * URL encoding function.
          */
-        URL_ENCODE(Build.current().isSnapshot()),
+        URL_ENCODE(),
 
         /**
          * URL component encoding function.
          */
-        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+        URL_ENCODE_COMPONENT(),
 
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot()),
+        URL_DECODE(),
 
         /**
          * Allow lookup join on boolean expressions

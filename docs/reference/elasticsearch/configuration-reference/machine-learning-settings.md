@@ -79,6 +79,10 @@ $$$xpack.ml.max_open_jobs$$$
 `xpack.ml.max_open_jobs`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum number of jobs that can run simultaneously on a node. In this context, jobs include both {{anomaly-jobs}} and {{dfanalytics-jobs}}. The maximum number of jobs is also constrained by memory usage. Thus if the estimated memory usage of the jobs would be higher than allowed, fewer jobs will run on a node. Prior to version 7.1, this setting was a per-node non-dynamic setting. It became a cluster-wide dynamic setting in version 7.1. As a result, changes to its value after node startup are used only after every node in the cluster is running version 7.1 or higher. The minimum value is `1`; the maximum value is `512`. Defaults to `512`.
 
+    ::::{note}
+    This is a cluster-wide setting. If it is configured with different values across nodes, Elasticsearch resolves the inconsistency by applying the lowest configured value across the cluster as the effective cluster-wide limit.
+    ::::
+
 `xpack.ml.nightly_maintenance_requests_per_second`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The rate at which the nightly maintenance task deletes expired model snapshots and results. The setting is a proxy to the [`requests_per_second`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query) parameter used in the delete by query requests and controls throttling. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Valid values must be greater than `0.0` or equal to `-1.0`, where `-1.0` means a default value is used. Defaults to `-1.0`
 

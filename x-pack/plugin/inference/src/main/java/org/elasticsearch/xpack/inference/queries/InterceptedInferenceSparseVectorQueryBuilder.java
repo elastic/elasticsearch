@@ -33,6 +33,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+
 public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> {
     public static final String NAME = "intercepted_inference_sparse_vector";
 
@@ -43,15 +45,23 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         super(originalQuery);
     }
 
+    public InterceptedInferenceSparseVectorQueryBuilder(
+        SparseVectorQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        super(originalQuery, inferenceResultsMap);
+    }
+
     public InterceptedInferenceSparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
-    public InterceptedInferenceSparseVectorQueryBuilder(
+    private InterceptedInferenceSparseVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap);
+        super(other, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -65,8 +75,14 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected String getInferenceIdOverride() {
-        return originalQuery.getInferenceId();
+    protected FullyQualifiedInferenceId getInferenceIdOverride() {
+        FullyQualifiedInferenceId override = null;
+        String originalInferenceId = originalQuery.getInferenceId();
+        if (originalInferenceId != null) {
+            override = new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, originalInferenceId);
+        }
+
+        return override;
     }
 
     @Override
@@ -96,8 +112,8 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
-        return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap);
+    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
+        return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -111,7 +127,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            rewritten = querySemanticTextField(semanticTextFieldType);
+            rewritten = querySemanticTextField(indexMetadataContext.getLocalClusterAlias(), semanticTextFieldType);
         } else {
             rewritten = queryNonSemanticTextField();
         }
@@ -138,7 +154,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         return originalQuery.getFieldName();
     }
 
-    private QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+    private QueryBuilder querySemanticTextField(String clusterAlias, SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
         MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
         if (modelSettings == null) {
             // No inference results have been indexed yet
@@ -149,12 +165,12 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
 
         List<WeightedToken> queryVector = originalQuery.getQueryVectors();
         if (queryVector == null) {
-            String inferenceId = originalQuery.getInferenceId();
-            if (inferenceId == null) {
-                inferenceId = semanticTextFieldType.getSearchInferenceId();
+            FullyQualifiedInferenceId fullyQualifiedInferenceId = getInferenceIdOverride();
+            if (fullyQualifiedInferenceId == null) {
+                fullyQualifiedInferenceId = new FullyQualifiedInferenceId(clusterAlias, semanticTextFieldType.getSearchInferenceId());
             }
 
-            queryVector = getQueryVector(inferenceId);
+            queryVector = getQueryVector(fullyQualifiedInferenceId);
         }
 
         SparseVectorQueryBuilder innerSparseVectorQuery = new SparseVectorQueryBuilder(
@@ -174,12 +190,12 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     private QueryBuilder queryNonSemanticTextField() {
         List<WeightedToken> queryVector = originalQuery.getQueryVectors();
         if (queryVector == null) {
-            String inferenceId = originalQuery.getInferenceId();
-            if (inferenceId == null) {
+            FullyQualifiedInferenceId fullyQualifiedInferenceId = getInferenceIdOverride();
+            if (fullyQualifiedInferenceId == null) {
                 throw new IllegalArgumentException("Either query vector or inference ID must be specified");
             }
 
-            queryVector = getQueryVector(inferenceId);
+            queryVector = getQueryVector(fullyQualifiedInferenceId);
         }
 
         return new SparseVectorQueryBuilder(
@@ -192,10 +208,10 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         ).boost(originalQuery.boost()).queryName(originalQuery.queryName());
     }
 
-    private List<WeightedToken> getQueryVector(String inferenceId) {
-        InferenceResults inferenceResults = inferenceResultsMap.get(inferenceId);
+    private List<WeightedToken> getQueryVector(FullyQualifiedInferenceId fullyQualifiedInferenceId) {
+        InferenceResults inferenceResults = inferenceResultsMap.get(fullyQualifiedInferenceId);
         if (inferenceResults == null) {
-            throw new IllegalStateException("Could not find inference results from inference endpoint [" + inferenceId + "]");
+            throw new IllegalStateException("Could not find inference results from inference endpoint [" + fullyQualifiedInferenceId + "]");
         } else if (inferenceResults instanceof TextExpansionResults == false) {
             throw new IllegalArgumentException(
                 "Expected query inference results to be of type ["

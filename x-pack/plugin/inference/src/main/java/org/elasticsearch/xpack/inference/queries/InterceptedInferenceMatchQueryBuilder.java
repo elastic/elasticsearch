@@ -31,15 +31,23 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
         super(originalQuery);
     }
 
+    public InterceptedInferenceMatchQueryBuilder(
+        MatchQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        super(originalQuery, inferenceResultsMap);
+    }
+
     public InterceptedInferenceMatchQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
     private InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap);
+        super(other, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -63,8 +71,8 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
-        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap);
+    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
+        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, ccsRequest);
     }
 
     @Override

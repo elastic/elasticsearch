@@ -14,8 +14,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.gpu.codec.ESGpuHnswSQVectorsFormat;
-import org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 public class GPUPlugin extends Plugin implements MapperPlugin {
 
@@ -58,16 +58,16 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
             int efConstruction = hnswIndexOptions.efConstruction();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                efConstruction = ESGpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
             }
-            return new ESGpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
+            return new ES92GpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
             DenseVectorFieldMapper.Int8HnswIndexOptions int8HnswIndexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) indexOptions;
             int efConstruction = int8HnswIndexOptions.efConstruction();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                efConstruction = ESGpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
             }
-            return new ESGpuHnswSQVectorsFormat(
+            return new ES92GpuHnswSQVectorsFormat(
                 int8HnswIndexOptions.m(),
                 efConstruction,
                 int8HnswIndexOptions.confidenceInterval(),

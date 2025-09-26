@@ -37,9 +37,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
 
 /**
  * <p>
@@ -59,28 +61,53 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     public static final NodeFeature NEW_SEMANTIC_QUERY_INTERCEPTORS = new NodeFeature("search.new_semantic_query_interceptors");
 
+    static final TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = TransportVersion.fromName(
+        "inference_results_map_with_cluster_alias"
+    );
+
     protected final T originalQuery;
-    protected final Map<String, InferenceResults> inferenceResultsMap;
+    protected final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
+    protected final boolean ccsRequest;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
+        this(originalQuery, null);
+    }
+
+    protected InterceptedInferenceQueryBuilder(T originalQuery, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         Objects.requireNonNull(originalQuery, "original query must not be null");
         this.originalQuery = originalQuery;
-        this.inferenceResultsMap = null;
+        this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
+        this.ccsRequest = false;
     }
 
     @SuppressWarnings("unchecked")
     protected InterceptedInferenceQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.originalQuery = (T) in.readNamedWriteable(QueryBuilder.class);
-        this.inferenceResultsMap = in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)));
+        if (in.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            this.inferenceResultsMap = in.readOptional(
+                i1 -> i1.readImmutableMap(FullyQualifiedInferenceId::new, i2 -> i2.readNamedWriteable(InferenceResults.class))
+            );
+        } else {
+            this.inferenceResultsMap = convertFromBwcInferenceResultsMap(
+                in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)))
+            );
+        }
+        if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            this.ccsRequest = in.readBoolean();
+        } else {
+            this.ccsRequest = false;
+        }
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
+        this.ccsRequest = ccsRequest;
     }
 
     /**
@@ -120,9 +147,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * Generate a copy of {@code this} using the provided inference results map.
      *
      * @param inferenceResultsMap The inference results map
+     * @param ccsRequest Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
-    protected abstract QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap);
+    protected abstract QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest);
 
     /**
      * Rewrite to a {@link QueryBuilder} appropriate for a specific index's mappings. The implementation can use
@@ -154,7 +182,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     /**
      * Get the query-time inference ID override. If not applicable or available, {@code null} should be returned.
      */
-    protected String getInferenceIdOverride() {
+    protected FullyQualifiedInferenceId getInferenceIdOverride() {
         return null;
     }
 
@@ -168,7 +196,32 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(originalQuery);
-        out.writeOptional((o, v) -> o.writeMap(v, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            out.writeOptional(
+                (o, v) -> o.writeMap(v, StreamOutput::writeWriteable, StreamOutput::writeNamedWriteable),
+                inferenceResultsMap
+            );
+        } else {
+            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, id) -> {
+                if (id.clusterAlias().equals(LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    throw new IllegalArgumentException("Cannot serialize remote cluster inference results in a mixed-version cluster");
+                }
+                o2.writeString(id.inferenceId());
+            }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        }
+        if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            out.writeBoolean(ccsRequest);
+        } else if (ccsRequest) {
+            throw new IllegalArgumentException(
+                "One or more nodes does not support "
+                    + originalQuery.getName()
+                    + " query cross-cluster search when querying a ["
+                    + SemanticTextFieldMapper.CONTENT_TYPE
+                    + "] field. Please update all nodes to at least Elasticsearch "
+                    + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
+                    + "."
+            );
+        }
     }
 
     @Override
@@ -183,12 +236,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     protected boolean doEquals(InterceptedInferenceQueryBuilder<T> other) {
-        return Objects.equals(originalQuery, other.originalQuery) && Objects.equals(inferenceResultsMap, other.inferenceResultsMap);
+        return Objects.equals(originalQuery, other.originalQuery)
+            && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
+            && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(originalQuery, inferenceResultsMap);
+        return Objects.hash(originalQuery, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -227,11 +282,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (this.inferenceResultsMap != null) {
-            inferenceResultsErrorCheck(this.inferenceResultsMap);
-            return this;
-        }
-
         QueryBuilder rewrittenBwC = doRewriteBwC(queryRewriteContext);
         if (rewrittenBwC != this) {
             return rewrittenBwC;
@@ -241,14 +291,19 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         // In this case, the remote data node will receive the original query, which will in turn result in an error about querying an
         // unsupported field type.
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        Set<String> inferenceIds = getInferenceIdsForFields(
+        Set<FullyQualifiedInferenceId> inferenceIds = getInferenceIdsForFields(
             resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+            queryRewriteContext.getLocalClusterAlias(),
             getFields(),
             resolveWildcards(),
             useDefaultFields()
         );
 
-        if (inferenceIds.isEmpty()) {
+        // If we are handling a CCS request, always retain the intercepted query logic so that we can get inference results generated on
+        // the local cluster from the inference results map when rewriting on remote cluster data nodes. This can be necessary when:
+        // - A query specifies an inference ID override
+        // - Only non-inference fields are queried on the remote cluster
+        if (inferenceIds.isEmpty() && this.ccsRequest == false) {
             // Not querying a semantic text field
             return originalQuery;
         }
@@ -256,41 +311,52 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         // Validate early to prevent partial failures
         coordinatorNodeValidate(resolvedIndices);
 
-        // TODO: Check for supported CCS mode here (once we support CCS)
-        if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
             throw new IllegalArgumentException(
                 originalQuery.getName()
                     + " query does not support cross-cluster search when querying a ["
                     + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field"
+                    + "] field when [ccs_minimize_roundtrips] is false"
             );
         }
 
-        String inferenceIdOverride = getInferenceIdOverride();
+        FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();
         if (inferenceIdOverride != null) {
             inferenceIds = Set.of(inferenceIdOverride);
         }
 
-        // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results are
-        // provided by the user.
-        String query = getQuery();
-        Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
-        if (query != null) {
-            for (String inferenceId : inferenceIds) {
-                SemanticQueryBuilder.registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
+        QueryBuilder rewritten = this;
+        if (queryRewriteContext.hasAsyncActions() == false) {
+            // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results
+            // are provided by the user. Ensure that we set an empty inference results map in this case so that it is always non-null after
+            // coordinator node rewrite.
+            Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = SemanticQueryBuilder.getInferenceResults(
+                queryRewriteContext,
+                inferenceIds,
+                this.inferenceResultsMap,
+                getQuery()
+            );
+
+            if (modifiedInferenceResultsMap == this.inferenceResultsMap) {
+                // The inference results map is fully populated, so we can perform error checking
+                inferenceResultsErrorCheck(modifiedInferenceResultsMap);
+            } else {
+                rewritten = copy(modifiedInferenceResultsMap, ccsRequest);
             }
         }
 
-        return copy(inferenceResultsMap);
+        return rewritten;
     }
 
-    private static Set<String> getInferenceIdsForFields(
+    private static Set<FullyQualifiedInferenceId> getInferenceIdsForFields(
         Collection<IndexMetadata> indexMetadataCollection,
+        String clusterAlias,
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields
     ) {
-        Set<String> inferenceIds = new HashSet<>();
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = new HashSet<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             final Map<String, Float> indexQueryFields = (useDefaultFields && fields.isEmpty())
                 ? getDefaultFields(indexMetadata.getSettings())
@@ -301,23 +367,34 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 if (indexInferenceFields.containsKey(indexQueryField)) {
                     // No wildcards in field name
                     InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(indexQueryField);
-                    inferenceIds.add(inferenceFieldMetadata.getSearchInferenceId());
+                    fullyQualifiedInferenceIds.add(
+                        new FullyQualifiedInferenceId(clusterAlias, inferenceFieldMetadata.getSearchInferenceId())
+                    );
                     continue;
                 }
                 if (resolveWildcards) {
                     if (Regex.isMatchAllPattern(indexQueryField)) {
-                        indexInferenceFields.values().forEach(ifm -> inferenceIds.add(ifm.getSearchInferenceId()));
+                        indexInferenceFields.values()
+                            .forEach(
+                                ifm -> fullyQualifiedInferenceIds.add(
+                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
+                                )
+                            );
                     } else if (Regex.isSimpleMatchPattern(indexQueryField)) {
                         indexInferenceFields.values()
                             .stream()
                             .filter(ifm -> Regex.simpleMatch(indexQueryField, ifm.getName()))
-                            .forEach(ifm -> inferenceIds.add(ifm.getSearchInferenceId()));
+                            .forEach(
+                                ifm -> fullyQualifiedInferenceIds.add(
+                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
+                                )
+                            );
                     }
                 }
             }
         }
 
-        return inferenceIds;
+        return fullyQualifiedInferenceIds;
     }
 
     private static Map<String, Float> getInferenceFieldsMap(
@@ -360,9 +437,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 
-    private static void inferenceResultsErrorCheck(Map<String, InferenceResults> inferenceResultsMap) {
+    private static void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         for (var entry : inferenceResultsMap.entrySet()) {
-            String inferenceId = entry.getKey();
+            String inferenceId = entry.getKey().inferenceId();
             InferenceResults inferenceResults = entry.getValue();
 
             if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {

@@ -14,10 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
@@ -284,7 +284,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return authorizationHandler.supportedStreamingTasks();
+        return EnumSet.of(TaskType.CHAT_COMPLETION);
     }
 
     @Override
@@ -371,7 +371,7 @@ public class ElasticInferenceService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -381,14 +381,14 @@ public class ElasticInferenceService extends SenderService {
             var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
 
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-                inputs.getInputs(),
+                inputs,
                 DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
                 denseTextEmbeddingsModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
                 var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
             }
 
             return;
@@ -398,14 +398,14 @@ public class ElasticInferenceService extends SenderService {
             var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
 
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-                inputs.getInputs(),
+                inputs,
                 SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE,
                 model.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
                 var action = sparseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
             }
 
             return;
@@ -460,9 +460,16 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
+    /**
+     * This shouldn't be called because the configuration changes based on the authorization.
+     * Instead, retrieve the authorization directly from the EIS gateway and use the static method
+     * {@link ElasticInferenceService#createConfiguration(EnumSet)} to create a configuration based on the authorization response.
+     */
     @Override
     public InferenceServiceConfiguration getConfiguration() {
-        return authorizationHandler.getConfiguration();
+        throw new UnsupportedOperationException(
+            "The EIS configuration changes depending on authorization, requests should be made directly to EIS instead"
+        );
     }
 
     @Override
@@ -472,7 +479,11 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public boolean hideFromConfigurationApi() {
-        return authorizationHandler.hideFromConfigurationApi();
+        // This shouldn't be called because the configuration changes based on the authorization
+        // Instead, retrieve the authorization directly from the EIS gateway and use the response to determine if EIS is authorized
+        throw new UnsupportedOperationException(
+            "The EIS configuration changes depending on authorization, requests should be made directly to EIS instead"
+        );
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -637,7 +648,7 @@ public class ElasticInferenceService extends SenderService {
 
     private static List<ChunkedInference> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            var inputsAsList = EmbeddingsInput.of(inputs).getStringInputs();
+            var inputsAsList = inputs.castTo(EmbeddingsInput.class).getInputs();
             return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));
@@ -656,62 +667,45 @@ public class ElasticInferenceService extends SenderService {
         return new TraceContext(traceParent, traceState);
     }
 
-    public static class Configuration {
+    public static InferenceServiceConfiguration createConfiguration(EnumSet<TaskType> enabledTaskTypes) {
+        var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-        private final EnumSet<TaskType> enabledTaskTypes;
-        private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
+        configurationMap.put(
+            MODEL_ID,
+            new SettingsConfiguration.Builder(
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
+            ).setDescription("The name of the model to use for the inference task.")
+                .setLabel("Model ID")
+                .setRequired(true)
+                .setSensitive(false)
+                .setUpdatable(false)
+                .setType(SettingsConfigurationFieldType.STRING)
+                .build()
+        );
 
-        public Configuration(EnumSet<TaskType> enabledTaskTypes) {
-            this.enabledTaskTypes = enabledTaskTypes;
-            configuration = initConfiguration();
-        }
+        configurationMap.put(
+            MAX_INPUT_TOKENS,
+            new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
+                "Allows you to specify the maximum number of tokens per input."
+            )
+                .setLabel("Maximum Input Tokens")
+                .setRequired(false)
+                .setSensitive(false)
+                .setUpdatable(false)
+                .setType(SettingsConfigurationFieldType.INTEGER)
+                .build()
+        );
 
-        private LazyInitializable<InferenceServiceConfiguration, RuntimeException> initConfiguration() {
-            return new LazyInitializable<>(() -> {
-                var configurationMap = new HashMap<String, SettingsConfiguration>();
+        configurationMap.putAll(
+            RateLimitSettings.toSettingsConfiguration(
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
+            )
+        );
 
-                configurationMap.put(
-                    MODEL_ID,
-                    new SettingsConfiguration.Builder(
-                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
-                    ).setDescription("The name of the model to use for the inference task.")
-                        .setLabel("Model ID")
-                        .setRequired(true)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-
-                configurationMap.put(
-                    MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
-                        "Allows you to specify the maximum number of tokens per input."
-                    )
-                        .setLabel("Maximum Input Tokens")
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.INTEGER)
-                        .build()
-                );
-
-                configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfiguration(
-                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
-                    )
-                );
-
-                return new InferenceServiceConfiguration.Builder().setService(NAME)
-                    .setName(SERVICE_NAME)
-                    .setTaskTypes(enabledTaskTypes)
-                    .setConfigurations(configurationMap)
-                    .build();
-            });
-        }
-
-        public InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
-        }
+        return new InferenceServiceConfiguration.Builder().setService(NAME)
+            .setName(SERVICE_NAME)
+            .setTaskTypes(enabledTaskTypes)
+            .setConfigurations(configurationMap)
+            .build();
     }
 }

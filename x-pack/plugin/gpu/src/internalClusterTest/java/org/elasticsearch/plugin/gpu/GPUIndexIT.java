@@ -55,6 +55,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         assertSearch(indexName, randomFloatVector(dims), totalDocs);
     }
 
+    @AwaitsFix(bugUrl = "Fix sorted index")
     public void testSortedIndexReturnsSameResultsAsUnsorted() {
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";

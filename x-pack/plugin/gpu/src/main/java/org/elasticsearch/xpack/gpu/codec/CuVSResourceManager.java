@@ -75,7 +75,7 @@ public interface CuVSResourceManager {
 
         /** A multiplier on input data to account for intermediate and output data size required while processing it */
         static final double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
-        static final int MAX_RESOURCES = 2;
+        static final int MAX_RESOURCES = 4;
 
         static class Holder {
             static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(

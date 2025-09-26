@@ -1,0 +1,5 @@
+pr: 135545
+summary: Add GPUPlugin for vector indeces on GPU
+area: Vector Search
+type: feature
+issues: []

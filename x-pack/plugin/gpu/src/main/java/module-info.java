@@ -5,6 +5,9 @@
  * 2.0.
  */
 
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
+
 /** Provides GPU-accelerated support for vector indexing. */
 module org.elasticsearch.gpu {
     requires org.elasticsearch.logging;
@@ -17,8 +20,5 @@ module org.elasticsearch.gpu {
     exports org.elasticsearch.xpack.gpu.codec;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.gpu.GPUFeatures;
-    provides org.apache.lucene.codecs.KnnVectorsFormat
-        with
-            org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat,
-            org.elasticsearch.xpack.gpu.codec.ESGpuHnswSQVectorsFormat;
+    provides org.apache.lucene.codecs.KnnVectorsFormat with ES92GpuHnswVectorsFormat, ES92GpuHnswSQVectorsFormat;
 }

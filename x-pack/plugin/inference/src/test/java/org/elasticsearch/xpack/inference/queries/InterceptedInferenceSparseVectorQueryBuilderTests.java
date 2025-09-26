@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -53,6 +54,14 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
             randomBoolean(),
             TokenPruningConfigTests.testInstance()
         ).boost(randomFloatBetween(0.1f, 4.0f, true)).queryName(randomAlphanumericOfLength(5));
+    }
+
+    @Override
+    protected InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> createInterceptedQueryBuilder(
+        SparseVectorQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        return new InterceptedInferenceSparseVectorQueryBuilder(originalQuery, inferenceResultsMap);
     }
 
     @Override
@@ -121,7 +130,8 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
             Map.of(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
         QueryBuilder coordinatorRewritten = rewriteAndFetch(sparseVectorQuery, queryRewriteContext);
 
@@ -134,7 +144,9 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
 
-        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(SPARSE_INFERENCE_ID);
+        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(
+            new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
+        );
         assertThat(inferenceResults, notNullValue());
         assertThat(inferenceResults, instanceOf(TextExpansionResults.class));
         TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;

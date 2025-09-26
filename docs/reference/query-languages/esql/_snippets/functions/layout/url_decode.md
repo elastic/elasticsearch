@@ -2,8 +2,7 @@
 
 ## `URL_DECODE` [esql-url_decode]
 ```{applies_to}
-stack: development
-serverless: preview
+stack: ga 9.2.0
 ```
 
 **Syntax**

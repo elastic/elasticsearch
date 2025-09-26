@@ -158,7 +158,8 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
         }
     }
 
-    public void testCCSAgainstDisconnectedRemoteWithSkipUnavailableTrueInlinestats() throws Exception {
+    public void testCCSAgainstDisconnectedRemoteWithSkipUnavailableTrueInlineStats() throws Exception {
+        assumeTrue("requires inlinestats", EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.isEnabled());
         int numClusters = 3;
         Map<String, Object> testClusterInfo = setupClusters(numClusters);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -174,7 +175,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             // close remote-cluster-1 so that it is unavailable
             cluster(REMOTE_CLUSTER_1).close();
 
-            try (EsqlQueryResponse resp = runQuery("FROM logs-*,*:logs-* | INLINESTATS sum (v) | SORT v", requestIncludeMeta)) {
+            try (EsqlQueryResponse resp = runQuery("FROM logs-*,*:logs-* | INLINE STATS sum (v) | SORT v", requestIncludeMeta)) {
                 List<List<Object>> values = getValuesList(resp);
                 // 20 is local + cluster2 but not cluster1
                 assertThat(values, hasSize(20));
@@ -207,7 +208,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             // 1) the local cluster indexExpression and REMOTE_CLUSTER_2 indexExpression match no indices
             // 2) the REMOTE_CLUSTER_1 is unavailable
             // 3) both remotes are marked as skip_un=true
-            String query = "FROM nomatch*," + REMOTE_CLUSTER_1 + ":logs-*," + REMOTE_CLUSTER_2 + ":nomatch* | INLINESTATS sum (v)";
+            String query = "FROM nomatch*," + REMOTE_CLUSTER_1 + ":logs-*," + REMOTE_CLUSTER_2 + ":nomatch* | INLINE STATS sum (v)";
             try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
@@ -243,7 +244,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             // close remote-cluster-2 so that it is also unavailable
             cluster(REMOTE_CLUSTER_2).close();
 
-            try (EsqlQueryResponse resp = runQuery("FROM logs-*,*:logs-* | INLINESTATS sum (v) | SORT v", requestIncludeMeta)) {
+            try (EsqlQueryResponse resp = runQuery("FROM logs-*,*:logs-* | INLINE STATS sum (v) | SORT v", requestIncludeMeta)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(10));
                 values.forEach(row -> assertThat(row.get(4), equalTo(45L)));
@@ -289,7 +290,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
             boolean responseExpectMeta = includeCCSMetadata.v2();
 
-            String stats = randomFrom("STATS", "INLINESTATS");
+            String stats = randomStats();
             // query only the REMOTE_CLUSTER_1
             try (
                 EsqlQueryResponse resp = runQuery(
@@ -379,7 +380,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
 
-            String stats = randomFrom("STATS", "INLINESTATS");
+            String stats = randomStats();
             final Exception exception = expectThrows(
                 Exception.class,
                 () -> runQuery("FROM logs-*,*:logs-* | " + stats + " sum (v) | SORT v", requestIncludeMeta)
@@ -399,7 +400,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
         try {
             Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
-            String stats = randomFrom("STATS", "INLINESTATS");
+            String stats = randomStats();
             {
                 // close the remote cluster so that it is unavailable
                 cluster(REMOTE_CLUSTER_1).close();

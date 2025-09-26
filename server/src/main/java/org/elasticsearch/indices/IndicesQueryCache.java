@@ -129,9 +129,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
         } else {
             /*
-             * some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to the number of
+             * Some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to the number of
              * segment-requests in the cache for this shard (the number and size of documents associated with those requests is irrelevant
              * for this calculation).
+             * Note that this was a somewhat arbitrary decision. Calculating it by number of documents might have been better. Calculating
+             * it by number of documents weighted by size would also be good, but possibly more expensive. But the decision to attribute
+             * memory proportionally to the number of segment-requests was made a long time ago, and we're sticking with that here for the
+             * sake of consistency and backwards compatibility.
              */
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * itemsInCacheForShard / totalItemsInCache);
         }

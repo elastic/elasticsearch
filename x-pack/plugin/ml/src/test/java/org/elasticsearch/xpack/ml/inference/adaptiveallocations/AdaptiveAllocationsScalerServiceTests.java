@@ -193,7 +193,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
-        safeSleep(1200);
+        safeSleep(1500);
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -287,7 +287,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
-        safeSleep(1200);
+        safeSleep(1500);
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -354,7 +354,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
-        safeSleep(1200);
+        safeSleep(1500);
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -508,5 +508,4 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             100L
         );
     }
-
 }

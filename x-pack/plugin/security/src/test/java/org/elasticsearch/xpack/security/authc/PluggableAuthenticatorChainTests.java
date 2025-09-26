@@ -116,11 +116,6 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
         }
-
-        @Override
-        public Authentication getAuthentication(AuthenticationResult<User> result, String nodeName) {
-            return AuthenticationTestHelper.builder().user(result.getValue()).build(false);
-        }
     }
 
     public class TokenBAuthenticator implements CustomAuthenticator {
@@ -154,11 +149,6 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
             } else {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
-        }
-
-        @Override
-        public Authentication getAuthentication(AuthenticationResult<User> result, String nodeName) {
-            return AuthenticationTestHelper.builder().user(result.getValue()).build(false);
         }
     }
 

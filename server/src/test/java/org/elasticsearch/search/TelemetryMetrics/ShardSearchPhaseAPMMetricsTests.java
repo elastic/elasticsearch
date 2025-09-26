@@ -309,7 +309,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            //the range query was rewritten to one without bounds: we do track the from but we don't set the boolean flag
+            // the range query was rewritten to one without bounds: we do track the from but we don't set the boolean flag
             assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
         }
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
@@ -323,7 +323,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            //no time range filter bucketing on the fetch phase, the query was rewritten to one without bounds
+            // no time range filter bucketing on the fetch phase, the query was rewritten to one without bounds
         }
     }
 

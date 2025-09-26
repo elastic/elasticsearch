@@ -415,7 +415,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             .creationDate(System.currentTimeMillis())
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        //final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        // final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
             0,

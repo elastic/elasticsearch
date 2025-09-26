@@ -136,6 +136,9 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
     }
 
     private void validateInput(Failures failures) {
+        // Since we use STATS BY to merge rows together, we need to make sure that all columns can be used in STATS BY.
+        // When the input of FUSE contains unsupported columns, we don't want to fail with a STATS BY validation error,
+        // but with an error specific to FUSE.
         Expression aggFilter = new Literal(source(), true, DataType.BOOLEAN);
 
         for (Attribute attr : child().output()) {

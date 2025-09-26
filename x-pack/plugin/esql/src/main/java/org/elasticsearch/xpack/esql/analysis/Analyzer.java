@@ -1055,6 +1055,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     continue;
                 }
                 var valuesAgg = new Values(source, attr, aggFilter);
+                // Use VALUES only on supported fields.
+                // FuseScoreEval will check that the input contains only columns with supported data types
+                // and will fail with an appropriate error message if it doesn't.
                 if (valuesAgg.resolved()) {
                     aggregates.add(new Alias(source, attr.name(), valuesAgg));
                 }

@@ -64,8 +64,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
 
@@ -247,7 +245,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
-    public void test_ignore_above_index_level_setting() throws IOException {
+    public void testIgnoreAboveIndexLevelSetting() throws IOException {
         // given
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -269,7 +267,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(mapper.fieldType().ignoreAbove().isSet());
     }
 
-    public void test_ignore_above_index_level_setting_is_overridden_by_field_level_ignore_above_in_standard_indices() throws IOException {
+    public void testIgnoreAboveIndexLevelSettingIsOverriddenByFieldLevelIgnoreAboveInStandardIndices() throws IOException {
         // given
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -309,7 +307,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(fieldMapper3.fieldType().ignoreAbove().isSet());
     }
 
-    public void test_ignore_above_index_level_setting_is_overridden_by_field_level_ignore_above_in_logsdb_indices() throws IOException {
+    public void testIgnoreAboveIndexLevelSettingIsOverriddenByFieldLevelIgnoreAboveInLogsdbIndices() throws IOException {
         // given
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -1066,7 +1064,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
-    public void test_value_is_stored_when_it_exceeds_ignore_above_and_field_is_not_a_multi_field() throws IOException {
+    public void testValueIsStoredWhenItExceedsIgnoreAboveAndFieldIsNotAMultiField() throws IOException {
         // given
         MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("potato");
@@ -1085,7 +1083,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.notNullValue());
     }
 
-    public void test_value_is_not_stored_when_it_exceeds_ignore_above_and_field_is_a_multi_field() throws IOException {
+    public void testValueIsNotStoredWhenItExceedsIgnoreAboveAndFieldIsAMultiField() throws IOException {
         // given
         MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("potato").field("type", "text");
@@ -1112,7 +1110,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.nullValue());
     }
 
-    public void test_value_exceeds_ignore_above_when_synthetic_source_disabled() throws IOException {
+    public void testValueExceedsIgnoreAboveWhenSyntheticSourceDisabled() throws IOException {
         // given
         final MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("potato");

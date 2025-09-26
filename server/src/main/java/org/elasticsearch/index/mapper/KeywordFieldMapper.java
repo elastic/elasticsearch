@@ -1316,7 +1316,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             enableDocValuesSkipper,
             forceDocValuesSkipper,
             indexSourceKeepMode,
-            fieldType().isWithinMultiField()  // TODO: is this ok?
+            fieldType().isWithinMultiField()
         ).dimension(fieldType().isDimension()).init(this);
     }
 

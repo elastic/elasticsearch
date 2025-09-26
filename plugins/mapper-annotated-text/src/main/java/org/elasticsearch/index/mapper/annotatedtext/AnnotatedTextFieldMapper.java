@@ -583,7 +583,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     private boolean needsToSupportSyntheticSource() {
-        if (TextFieldMapper.multiFieldsNotStoredByDefault_indexVersionCheck(indexCreatedVersion)) {
+        if (TextFieldMapper.multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
             // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the parent
             return fieldType().isSyntheticSourceEnabled() && fieldType().isWithinMultiField() == false;
         }

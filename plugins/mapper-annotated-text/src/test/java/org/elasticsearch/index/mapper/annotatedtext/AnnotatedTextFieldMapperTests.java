@@ -293,7 +293,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.get(0).fieldType().stored());
     }
 
-    public void test_store_parameter_defaults_to_false_in_latest_index_version_when_synthetic_source_is_enabled() throws IOException {
+    public void testStoreParameterDefaultsToFalse() throws IOException {
         // given
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "annotated_text"); }));
 
@@ -305,7 +305,21 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertFalse(fields.getFirst().fieldType().stored());
     }
 
-    public void testStoreParameterDefaultsBwc() throws IOException {
+    public void testStoreParameterDefaultsToFalseWhenSyntheticSourceIsEnabled() throws IOException {
+        // given
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        DocumentMapper mapper = createMapperService(indexSettings, fieldMapping(b -> { b.field("type", "annotated_text"); }))
+            .documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsWhenIndexVersionIsNotLatest() throws IOException {
         var timeSeriesIndexMode = randomBoolean();
         var isStored = randomBoolean();
         var hasKeywordFieldForSyntheticSource = randomBoolean();

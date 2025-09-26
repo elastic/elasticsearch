@@ -380,9 +380,7 @@ class IndicesAndAliasesResolver {
                         authorizedProjects,
                         indicesRequest.includeDataStreams()
                     );
-
                     replaceable.setResolvedIndexExpressions(resolved);
-
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else {

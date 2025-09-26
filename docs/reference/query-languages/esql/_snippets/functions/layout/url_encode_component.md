@@ -2,8 +2,7 @@
 
 ## `URL_ENCODE_COMPONENT` [esql-url_encode_component]
 ```{applies_to}
-stack: development
-serverless: preview
+stack: ga 9.2.0
 ```
 
 **Syntax**

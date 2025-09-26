@@ -76,6 +76,7 @@ public class IndexAbstractionResolver {
         TargetProjects targetProjects,
         boolean includeDataStreams
     ) {
+        // TODO preflight checks and assertions (e.g., no *,-* expression)
         final String originProjectAlias = targetProjects.originProjectAlias();
         final Set<String> linkedProjectAliases = targetProjects.linkedProjectAliases();
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();

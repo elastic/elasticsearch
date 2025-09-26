@@ -47,7 +47,7 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
     public ExtendedSearchUsageStats(StreamInput in) throws IOException {
         this.categoriesToExtendedData = in.readMap(
             StreamInput::readString,
-            i -> i.readMap(StreamInput::readString, ExtendedSearchUsageLongCounter::new)
+            i -> i.readMap(StreamInput::readString, p -> p.readNamedWriteable(ExtendedSearchUsageMetric.class))
         );
     }
 
@@ -60,7 +60,7 @@ public class ExtendedSearchUsageStats implements Writeable, ToXContent {
         out.writeMap(
             categoriesToExtendedData,
             StreamOutput::writeString,
-            (o, v) -> o.writeMap(v, StreamOutput::writeString, (p, q) -> q.writeTo(p))
+            (o, v) -> o.writeMap(v, StreamOutput::writeString, (p, q) -> out.writeNamedWriteable(q))
         );
     }
 

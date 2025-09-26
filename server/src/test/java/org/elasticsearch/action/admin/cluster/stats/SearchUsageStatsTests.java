@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -25,6 +26,16 @@ import static org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageSt
 import static org.elasticsearch.action.admin.cluster.stats.SearchUsageStats.EXTENDED_SEARCH_USAGE_TELEMETRY;
 
 public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<SearchUsageStats> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(List.of(
+            new NamedWriteableRegistry.Entry(
+                ExtendedSearchUsageMetric.class,
+                ExtendedSearchUsageLongCounter.NAME,
+                ExtendedSearchUsageLongCounter::new)
+        ));
+    }
 
     private static final List<String> QUERY_TYPES = List.of(
         "match",

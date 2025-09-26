@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ToXContent;
 
 /**

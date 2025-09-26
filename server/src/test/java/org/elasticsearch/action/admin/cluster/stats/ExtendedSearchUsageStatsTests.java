@@ -9,11 +9,14 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCase<ExtendedSearchUsageStats> {
@@ -21,6 +24,16 @@ public class ExtendedSearchUsageStatsTests extends AbstractWireSerializingTestCa
     @Override
     protected Reader<ExtendedSearchUsageStats> instanceReader() {
         return ExtendedSearchUsageStats::new;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(List.of(
+            new NamedWriteableRegistry.Entry(
+                ExtendedSearchUsageMetric.class,
+                ExtendedSearchUsageLongCounter.NAME,
+                ExtendedSearchUsageLongCounter::new)
+        ));
     }
 
     public static ExtendedSearchUsageStats randomExtendedSearchUsage() {

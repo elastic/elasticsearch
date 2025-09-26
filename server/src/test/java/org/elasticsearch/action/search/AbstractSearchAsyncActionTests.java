@@ -15,6 +15,9 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -33,6 +36,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -258,12 +262,38 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             20,
             () -> new Tuple<>(
                 new ShardId("index", "index-uuid", idGenerator.getAndIncrement()),
-                new SearchContextIdForNode(null, randomFrom(nodeIds), randomSearchShardId())
+                new SearchContextIdForNode(
+                    null,
+                    randomFrom(nodeIds),
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), randomUUID())
+                )
             )
         );
         PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
             SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
         );
+
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        Arrays.stream(nodeIds).forEach(id -> nodesBuilder.add(DiscoveryNodeUtils.create(id)));
+        DiscoveryNodes nodes = nodesBuilder.build();
+        final Set<ShardSearchContextId> freedContexts = new CopyOnWriteArraySet<>();
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+
+            @Override
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
+                freedContexts.add(contextId);
+            }
+
+            @Override
+            public Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                return new SearchAsyncActionTests.MockConnection(node);
+            }
+        };
+
         {
             // case 1, result shard ids are identical to original PIT ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
@@ -281,10 +311,15 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 results,
                 ShardSearchFailure.EMPTY_ARRAY,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                TransportVersionUtils.randomCompatibleVersion(random())
+                TransportVersionUtils.randomCompatibleVersion(random()),
+                searchTransportService,
+                nodes,
+                logger
             );
+            assertEquals(0, freedContexts.size());
             assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
         }
+        freedContexts.clear();
         {
             // case 2, some results are from different nodes but have same context Ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
@@ -311,7 +346,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 results,
                 ShardSearchFailure.EMPTY_ARRAY,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                TransportVersionUtils.randomCompatibleVersion(random())
+                TransportVersionUtils.randomCompatibleVersion(random()),
+                searchTransportService,
+                nodes,
+                logger
             );
             assertNotSame(reEncodedId, pointInTimeBuilder.getEncodedId());
             SearchContextId reEncodedPit = SearchContextId.decode(
@@ -319,18 +357,22 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 reEncodedId
             );
             assertEquals(originalShardIdMap.size(), reEncodedPit.shards().size());
+            logger.info(freedContexts);
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode original = originalShardIdMap.get(shardId);
                 SearchContextIdForNode reEncoded = reEncodedPit.shards().get(shardId);
                 assertNotNull(reEncoded);
                 if (shardsWithSwappedNodes.contains(shardId)) {
                     assertNotEquals(original.getNode(), reEncoded.getNode());
+                    assertTrue(freedContexts.contains(reEncoded.getSearchContextId()));
                 } else {
                     assertEquals(original.getNode(), reEncoded.getNode());
+                    assertFalse(freedContexts.contains(reEncoded.getSearchContextId()));
                 }
                 assertEquals(original.getSearchContextId(), reEncoded.getSearchContextId());
             }
         }
+        freedContexts.clear();
         {
             // case 3, result shard ids are identical to original PIT id but some are missing. Stay with original PIT id in this case
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
@@ -350,7 +392,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 results,
                 ShardSearchFailure.EMPTY_ARRAY,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                TransportVersionUtils.randomCompatibleVersion(random())
+                TransportVersionUtils.randomCompatibleVersion(random()),
+                searchTransportService,
+                nodes,
+                logger
             );
             assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
         }

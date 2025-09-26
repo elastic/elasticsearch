@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
@@ -41,10 +42,10 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -101,6 +102,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
+    private final DiscoveryNodes discoveryNodes;
 
     AbstractSearchAsyncAction(
         String name,
@@ -155,6 +157,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.mintransportVersion = clusterState.getMinTransportVersion();
+        this.discoveryNodes = clusterState.nodes();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
@@ -623,7 +626,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 results.getAtomicArray().asList(),
                 failures,
                 namedWriteableRegistry,
-                mintransportVersion
+                mintransportVersion,
+                searchTransportService,
+                discoveryNodes,
+                logger
             );
         } else {
             return null;
@@ -635,7 +641,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         List<Result> results,
         ShardSearchFailure[] failures,
         NamedWriteableRegistry namedWriteableRegistry,
-        TransportVersion mintransportVersion
+        TransportVersion mintransportVersion,
+        SearchTransportService searchTransportService,
+        DiscoveryNodes nodes,
+        Logger logger
     ) {
         SearchContextId original = originalPit.getSearchContextId(namedWriteableRegistry);
         boolean idChanged = false;
@@ -644,10 +653,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
             ShardId shardId = searchShardTarget.getShardId();
             SearchContextIdForNode originalShard = original.shards().get(shardId);
-            if (originalShard != null
-                && Objects.equals(originalShard.getClusterAlias(), searchShardTarget.getClusterAlias())
-                && Objects.equals(originalShard.getSearchContextId(), result.getContextId())) {
-                // result shard and context id match the originalShard one, check if the node is different and replace if so
+            if (originalShard != null && originalShard.getSearchContextId() != null && originalShard.getSearchContextId().isRetryable()) {
+                // check if the node is different, if so we need to re-encode the PIT
                 String originalNode = originalShard.getNode();
                 if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
                     // the target node for this shard entry in the PIT has changed, we need to update it
@@ -658,15 +665,32 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     updatedShardMap.put(
                         shardId,
                         new SearchContextIdForNode(
-                            originalShard.getClusterAlias(),
+                            searchShardTarget.getClusterAlias(),
                             searchShardTarget.getNodeId(),
-                            originalShard.getSearchContextId()
+                            result.getContextId()
                         )
                     );
                 }
             }
         }
         if (idChanged) {
+            // we free all old contexts that have moved, just in case we have re-tried them elsewhere but they still exist in the old
+            // location
+            Collection<SearchContextIdForNode> contextsToClose = updatedShardMap.keySet()
+                .stream()
+                .map(shardId -> original.shards().get(shardId))
+                .collect(Collectors.toCollection(ArrayList::new));
+            TransportClosePointInTimeAction.closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<Integer>() {
+                @Override
+                public void onResponse(Integer integer) {
+                    // ignore
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.trace("Failure while freeing old point in time contexts", e);
+                }
+            });
             // we also need to add shard that are not in the results for some reason (e.g. query rewrote to match none) but that
             // were part of the original PIT
             for (ShardId shardId : original.shards().keySet()) {
@@ -674,6 +698,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     updatedShardMap.put(shardId, original.shards().get(shardId));
                 }
             }
+
             return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, failures);
         } else {
             return originalPit.getEncodedId();

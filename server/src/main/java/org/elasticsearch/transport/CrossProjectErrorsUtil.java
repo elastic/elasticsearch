@@ -78,7 +78,6 @@ public class CrossProjectErrorsUtil {
         RemoteIndexExpressions remoteResolvedExpressions
     ) {
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
-            // nothing to do since we're in lenient mode
             logger.debug("Skipping index existence check in lenient mode");
             return;
         }

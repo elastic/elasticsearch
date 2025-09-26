@@ -366,11 +366,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             shardStats.cacheCount += 1;
             shardStats.ramBytesUsed += ramBytesUsed;
 
-            StatsAndCount statsAndCount = stats2.get(readerCoreKey);
-            if (statsAndCount == null) {
-                statsAndCount = new StatsAndCount(shardStats);
-                stats2.put(readerCoreKey, statsAndCount);
-            }
+            StatsAndCount statsAndCount = stats2.computeIfAbsent(readerCoreKey, ignored -> new StatsAndCount(shardStats));
             statsAndCount.count += 1;
         }
 

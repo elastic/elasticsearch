@@ -462,6 +462,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
         }
+        final AtomicBoolean phaseFailureEncountered = new AtomicBoolean(false);
         perNodeQueries.forEach((routing, request) -> {
             if (request.shards.size() == 1) {
                 executeAsSingleRequest(routing, request.shards.getFirst());
@@ -483,6 +484,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
             searchTransportService.transportService()
                 .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
+
                     @Override
                     public NodeQueryResponse read(StreamInput in) throws IOException {
                         return new NodeQueryResponse(in);
@@ -533,8 +535,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
                                 queryPhaseResultConsumer.failure.compareAndSet(null, cause);
                             }
-                            logger.debug("Raising phase failure for " + cause + " while executing search on node " + routing.nodeId());
-                            onPhaseFailure(getName(), "", cause);
+                            if (phaseFailureEncountered.compareAndSet(false, true)) {
+                                logger.debug("Raising phase failure for " + cause + " while executing search on node " + routing.nodeId());
+                                onPhaseFailure(getName(), "", cause);
+                            } else {
+                                // we already failed the phase, ignore any additional failures and just log them if debug enabled
+                                logger.debug("Ignoring additional phase failure for " + cause + " from search on node " + routing.nodeId());
+                            }
                         }
                     }
                 });
@@ -542,7 +549,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     }
 
     private void executeWithoutBatching(CanMatchPreFilterSearchPhase.SendingTarget targetNode, NodeQueryRequest request) {
-        for (ShardToQuery shard : request.shards) {
+        for (SearchQueryThenFetchAsyncAction.ShardToQuery shard : request.shards) {
             executeAsSingleRequest(targetNode, shard);
         }
     }

@@ -38,6 +38,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,7 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_search_metrics2";
     private static final String singleShardIndexName = "single_shard_test_search_metric";
-    private static final LocalDateTime NOW = LocalDateTime.now();
+    private static final LocalDateTime NOW = LocalDateTime.now(ZoneOffset.UTC);
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Override
@@ -320,6 +321,14 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals(2, measurements.size());
         assertThat(measurements.getFirst().getLong(), Matchers.lessThan(searchResponse.getTook().millis()));
         assertEquals(searchResponse.getTook().millis(), measurements.getLast().getLong());
+        for (Measurement measurement : measurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(4, attributes.size());
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals("pit", attributes.get("pit_scroll"));
+        }
     }
 
     public void testMultiSearch() {

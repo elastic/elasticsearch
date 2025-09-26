@@ -14,7 +14,6 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -269,12 +268,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS(),
 
         /**
          * Support for the expressions in grouping in {@code INLINESTATS} syntax.
          */
-        INLINESTATS_V2(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS_V2(),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -993,12 +992,12 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS_V11,
 
         /**
          * Renamed `INLINESTATS` to `INLINE STATS`.
          */
-        INLINE_STATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINE_STATS,
 
         /**
          * Support partial_results
@@ -1368,7 +1367,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V4(Build.current().isSnapshot()),
+        FUSE_V5(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1469,17 +1468,17 @@ public class EsqlCapabilities {
         /**
          * URL encoding function.
          */
-        URL_ENCODE(Build.current().isSnapshot()),
+        URL_ENCODE(),
 
         /**
          * URL component encoding function.
          */
-        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+        URL_ENCODE_COMPONENT(),
 
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot()),
+        URL_DECODE(),
 
         /**
          * Allow lookup join on boolean expressions

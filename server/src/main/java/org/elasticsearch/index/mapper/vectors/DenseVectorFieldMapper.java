@@ -125,7 +125,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
 
-    private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
+    private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = true;
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;

@@ -112,9 +112,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         int shardCount = 0;
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
-                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
+                final var shardId = indexShard.shardId();
+                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(shardId) : 0L;
                 shardCount++;
-                assert cacheSize >= 0 : "Unexpected cache size of " + cacheSize + " for shard " + indexShard.shardId();
+                assert cacheSize >= 0 : "Unexpected cache size of " + cacheSize + " for shard " + shardId;
                 totalItemsInCache += cacheSize;
             }
         }
@@ -124,11 +125,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     /**
      * This method computes the shared RAM size in bytes for the given indexShard.
      * @param queryCache
-     * @param indexShard The shard to compute the shared RAM size for
+     * @param shardId The shard to compute the shared RAM size for
      * @param cacheTotals Shard totals computed in getCacheTotalsForAllShards()
      * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
-    public static long getSharedRamSizeForShard(IndicesQueryCache queryCache, IndexShard indexShard, CacheTotals cacheTotals) {
+    public static long getSharedRamSizeForShard(IndicesQueryCache queryCache, ShardId shardId, CacheTotals cacheTotals) {
         long sharedRamBytesUsed = queryCache != null ? queryCache.getSharedRamBytesUsed() : 0L;
         if (sharedRamBytesUsed == 0L) {
             return 0L;
@@ -145,7 +146,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          * shard.
          */
         long totalItemsInCache = cacheTotals.totalItemsInCache();
-        long itemsInCacheForShard = queryCache.getCacheSizeForShard(indexShard.shardId());
+        long itemsInCacheForShard = queryCache.getCacheSizeForShard(shardId);
         final long additionalRamBytesUsed;
         if (totalItemsInCache == 0) {
             // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards

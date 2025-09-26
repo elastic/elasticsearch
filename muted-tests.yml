@@ -594,15 +594,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/510_range_query_out_of_bounds/Test range query for half_float field with out of bounds upper limit}
   issue: https://github.com/elastic/elasticsearch/issues/135365
-- class: org.elasticsearch.xpack.esql.session.SessionUtilsTests
-  method: testFromPages
-  issue: https://github.com/elastic/elasticsearch/issues/135377
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithoutNulls {TestCase=<date_nanos>, <date_nanos>, <time_duration>, <_source> #12}"
   issue: https://github.com/elastic/elasticsearch/issues/135394
-- class: org.elasticsearch.xpack.esql.session.SessionUtilsTests
-  method: testCheckPagesBelowSize
-  issue: https://github.com/elastic/elasticsearch/issues/135398
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testDataStreamValidationDoesNotBreakUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/135406
@@ -615,9 +609,6 @@ tests:
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413
-- class: org.elasticsearch.index.engine.MergeWithFailureIT
-  method: testFailedMergeDeadlock
-  issue: https://github.com/elastic/elasticsearch/issues/135443
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:spatial_shapes.ConvertCartesianShapeFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/135455
@@ -669,6 +660,15 @@ tests:
 - class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
   method: testIndexing {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/135511
+- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/135512
+- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/135525
+- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
+  method: testFewDifferentValues
+  issue: https://github.com/elastic/elasticsearch/issues/135538
 
 # Examples:
 #

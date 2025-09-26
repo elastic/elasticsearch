@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
@@ -300,6 +302,7 @@ public class Approximate {
         logger.debug("generating approximate plan (p={})", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Set<NameId> variablesWithConfidenceInterval = new HashSet<>();
+        Set<NameId> variablesWithPastConfidenceInterval = new HashSet<>();
 
         Alias bucketId = new Alias(
             Source.EMPTY,
@@ -345,21 +348,33 @@ public class Approximate {
             } else if (encounteredStats.get()) {
                 System.out.println("@@@ UPDATE variablesWithConfidenceInterval");
                 System.out.println("plan = " + plan);
-                System.out.println("vars = " + variablesWithConfidenceInterval);
+                System.out.println("vars = " + variablesWithConfidenceInterval + " / " + variablesWithPastConfidenceInterval);
                 switch (plan) {
                     case Eval eval:
-                        for (NamedExpression field : eval.fields()) {
+                        for (Alias field : eval.fields()) {
                             if (field.anyMatch(expr -> expr instanceof NamedExpression named && variablesWithConfidenceInterval.contains(named.id()))) {
-                                variablesWithConfidenceInterval.add(field.id());
+                                // TODO: blacklist / whitelist?
+                                if (field.child() instanceof MvAppend == false && field.dataType().isNumeric()) {
+                                    variablesWithConfidenceInterval.add(field.id());
+                                } else {
+                                    variablesWithPastConfidenceInterval.add(field.id());
+                                }
+                            } else if (field.anyMatch(expr -> expr instanceof NamedExpression named && variablesWithPastConfidenceInterval.contains(named.id()))) {
+                                variablesWithPastConfidenceInterval.add(field.id());
                             }
                         }
+                        break;
+                    case Project project:
+                        List<NamedExpression> projections = new ArrayList<>(project.projections());
+                        projections.add(bucketId.toAttribute());
+                        plan = project.withProjections(projections);
                         break;
                     case Rename rename:
                         // TODO
                         break;
                     default:
                 }
-                System.out.println("vars = " + variablesWithConfidenceInterval);
+                System.out.println("vars = " + variablesWithConfidenceInterval + " / " + variablesWithPastConfidenceInterval);
             }
             return plan;
         });
@@ -372,17 +387,22 @@ public class Approximate {
             if (attribute.id() == bucketId.id()) {
                 continue;
             }
-            if (variablesWithConfidenceInterval.contains(attribute.id())) {
-                aggregates.add(new Alias(
+            if (variablesWithConfidenceInterval.contains(attribute.id()) || variablesWithPastConfidenceInterval.contains(attribute.id())) {
+                Alias bestEstimate = new Alias(
                     Source.EMPTY,
                     attribute.name(),
-                    new ConfidenceInterval(
+                    new Values(
                         Source.EMPTY,
-                        new Min(
-                            Source.EMPTY,
-                            attribute,
-                            new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1))
-                        ),
+                        attribute,
+                        new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1))
+                    )
+                );
+                aggregates.add(bestEstimate);
+                if (variablesWithConfidenceInterval.contains(attribute.id())) {
+                    aggregates.add(new Alias(
+                        Source.EMPTY, "CONFIDENCE_INTERVAL(" + attribute.name() + ")", new ConfidenceInterval(
+                        Source.EMPTY,
+                        bestEstimate.toAttribute(),
                         new Top(
                             Source.EMPTY,
                             attribute,
@@ -391,9 +411,11 @@ public class Approximate {
                             Literal.keyword(Source.EMPTY, "ASC")
                         ),
                         Literal.integer(Source.EMPTY, BUCKET_COUNT),
-                        Literal.fromDouble(Source.EMPTY, 0.0)  // TODO: fix, 0.0 or NaN ??
+                        Literal.fromDouble(Source.EMPTY, 0.0)
+                        // TODO: fix, 0.0 or NaN ?? TODO: remove!!
                     )
-                ));
+                    ));
+                }
             } else {
                 aggregates.add(attribute);
                 groupings.add(attribute);

@@ -876,7 +876,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexingOperationListeners;
     }
 
-    List<SearchOperationListener> getSearchOperationListener() { // pkg private for testing
+    public List<SearchOperationListener> getSearchOperationListener() { // pkg private for testing
         return searchOperationListeners;
     }
 

@@ -2020,6 +2020,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert canMatchContext.request.searchType() == SearchType.QUERY_THEN_FETCH
             : "unexpected search type: " + canMatchContext.request.searchType();
         Releasable releasable = null;
+        long startTime = System.nanoTime();
+        // need a copy because the original can be rewritten
+        ShardSearchRequest origShardSearchRequest = new ShardSearchRequest(canMatchContext.request);
         try {
             IndexService indexService;
             final boolean hasRefreshPending;
@@ -2034,6 +2037,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     indexService = readerContext.indexService();
                     QueryRewriteContext queryRewriteContext = canMatchContext.getQueryRewriteContext(indexService);
                     if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
+                        indexService.getSearchOperationListener()
+                            .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
                         return new CanMatchShardResponse(false, null);
                     }
                     searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
@@ -2061,6 +2066,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     canMatchContext.request,
                     canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
                 ) == false) {
+                    canMatchContext.getIndexService()
+                        .getSearchOperationListener()
+                        .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
                     return new CanMatchShardResponse(false, null);
                 }
                 boolean needsWaitForRefresh = canMatchContext.request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
@@ -2077,8 +2085,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (canMatch || hasRefreshPending) {
                     FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
                     final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                    canMatchContext.getIndexService()
+                        .getSearchOperationListener()
+                        .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
                     return new CanMatchShardResponse(true, minMax);
                 }
+                canMatchContext.getIndexService()
+                    .getSearchOperationListener()
+                    .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
                 return new CanMatchShardResponse(false, null);
             }
         } catch (Exception e) {

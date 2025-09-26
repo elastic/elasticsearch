@@ -140,16 +140,23 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             // extend beyond the closing of all shards.
             return 0L;
         }
-
-        long totalSize = cacheTotals.totalSize();
-        long cacheSize = queryCache.getCacheSizeForShard(indexShard.shardId());
+        /*
+         * We have some shared ram usage that we try to distribute proportionally to the number of segment-requestss in the cache for each
+         * shard.
+         */
+        long totalItemsInCache = cacheTotals.totalSize();
+        long itemsInCacheForShard = queryCache.getCacheSizeForShard(indexShard.shardId());
         final long additionalRamBytesUsed;
-        if (totalSize == 0) {
+        if (totalItemsInCache == 0) {
             // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
         } else {
-            // some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to cache footprint
-            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+            /*
+             * some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to the number of
+             * segment-requests in the cache for this shard (the number and size of documents associated with those requests is irrelevant
+             * for this calculation).
+             */
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * itemsInCacheForShard / totalItemsInCache);
         }
         assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
         return additionalRamBytesUsed;

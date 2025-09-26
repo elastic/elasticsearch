@@ -40,6 +40,8 @@ public class MachineDependentHeap {
 
     private static final FeatureFlag NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG = new FeatureFlag("new_ml_memory_computation");
 
+    private boolean useNewMlMemoryComputation = false;
+
     public MachineDependentHeap() {}
 
     /**
@@ -55,6 +57,11 @@ public class MachineDependentHeap {
         SystemMemoryInfo systemMemoryInfo,
         List<String> userDefinedJvmOptions
     ) throws IOException, InterruptedException {
+        if (userDefinedJvmOptions.contains("-Des.new_ml_memory_computation_feature_flag_enabled=true")
+            || NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG.isEnabled()) {
+            useNewMlMemoryComputation = true;
+        }
+
         // TODO: this could be more efficient, to only parse final options once
         final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
         if (isMaxHeapSpecified(finalJvmOptions) || isMinHeapSpecified(finalJvmOptions) || isInitialHeapSpecified(finalJvmOptions)) {
@@ -107,7 +114,7 @@ public class MachineDependentHeap {
             case ML_ONLY -> {
                 double heapFractionBelow16GB = 0.4;
                 double heapFractionAbove16GB = 0.1;
-                if (NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG.isEnabled()) {
+                if (useNewMlMemoryComputation) {
                     heapFractionBelow16GB = 0.4 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
                     heapFractionAbove16GB = 0.1 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
                 }

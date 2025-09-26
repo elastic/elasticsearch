@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -42,11 +43,13 @@ public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
+    private final ClusterService clusterService;
 
-    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
+    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         Objects.requireNonNull(factory);
         sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     public Sender getSender() {
@@ -67,35 +70,34 @@ public abstract class SenderService implements InferenceService {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
         init();
-        var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
-        var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, returnDocuments, topN, stream);
+        var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 
     private static InferenceInputs createInput(
         SenderService service,
         Model model,
-        List<ChunkInferenceInput> input,
+        List<String> input,
         InputType inputType,
         @Nullable String query,
         @Nullable Boolean returnDocuments,
         @Nullable Integer topN,
         boolean stream
     ) {
-        List<String> textInput = ChunkInferenceInput.inputs(input);
         return switch (model.getTaskType()) {
-            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(textInput, stream);
+            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
             case RERANK -> {
                 ValidationException validationException = new ValidationException();
                 service.validateRerankParameters(returnDocuments, topN, validationException);
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
-                yield new QueryAndDocsInputs(query, textInput, returnDocuments, topN, stream);
+                yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
             }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
@@ -142,7 +144,7 @@ public abstract class SenderService implements InferenceService {
         }
 
         // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, inputType, timeout, listener);
+        doChunkedInfer(model, input, taskSettings, inputType, timeout, listener);
     }
 
     protected abstract void doInfer(
@@ -166,7 +168,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

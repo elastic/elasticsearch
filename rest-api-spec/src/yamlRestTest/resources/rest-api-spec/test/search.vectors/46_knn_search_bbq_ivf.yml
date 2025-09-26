@@ -1,12 +1,12 @@
 setup:
   - requires:
-      cluster_features: ["mapper.ivf_format_cluster_feature"]
-      reason: Needs mapper.ivf_format_cluster_feature feature
+      cluster_features: ["mapper.bbq_disk_support"]
+      reason: Needs mapper.bbq_disk_support feature
   - skip:
       features: "headers"
   - do:
       indices.create:
-        index: bbq_ivf
+        index: bbq_disk
         body:
           settings:
             index:
@@ -19,11 +19,11 @@ setup:
                 index: true
                 similarity: max_inner_product
                 index_options:
-                  type: bbq_ivf
+                  type: bbq_disk
 
   - do:
       index:
-        index: bbq_ivf
+        index: bbq_disk
         id: "1"
         body:
           vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
@@ -37,11 +37,11 @@ setup:
   # Flush in order to provoke a merge later
   - do:
       indices.flush:
-        index: bbq_ivf
+        index: bbq_disk
 
   - do:
       index:
-        index: bbq_ivf
+        index: bbq_disk
         id: "2"
         body:
           vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
@@ -55,11 +55,11 @@ setup:
   # Flush in order to provoke a merge later
   - do:
       indices.flush:
-        index: bbq_ivf
+        index: bbq_disk
 
   - do:
       index:
-        index: bbq_ivf
+        index: bbq_disk
         id: "3"
         body:
           name: rabbit.jpg
@@ -74,11 +74,11 @@ setup:
   # Flush in order to provoke a merge later
   - do:
       indices.flush:
-        index: bbq_ivf
+        index: bbq_disk
 
   - do:
       indices.forcemerge:
-        index: bbq_ivf
+        index: bbq_disk
         max_num_segments: 1
 
   - do:
@@ -87,7 +87,7 @@ setup:
 "Test knn search":
   - do:
       search:
-        index: bbq_ivf
+        index: bbq_disk
         body:
           knn:
             field: vector
@@ -106,6 +106,28 @@ setup:
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "2" }
 ---
+"Test knn search with visit_percentage":
+  - do:
+      search:
+        index: bbq_disk
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            visit_percentage: 1.0
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
 "Vector rescoring has same scoring as exact search for kNN section":
   - skip:
       features: "headers"
@@ -116,7 +138,7 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
-        index: bbq_ivf
+        index: bbq_disk
         body:
           knn:
             field: vector
@@ -182,7 +204,7 @@ setup:
                 element_type: byte
                 index: true
                 index_options:
-                  type: bbq_ivf
+                  type: bbq_disk
 
   - do:
       catch: bad_request
@@ -196,7 +218,7 @@ setup:
                 dims: 64
                 index: false
                 index_options:
-                  type: bbq_ivf
+                  type: bbq_disk
 ---
 "Test index configured rescore vector":
   - skip:
@@ -216,7 +238,7 @@ setup:
                 index: true
                 similarity: max_inner_product
                 index_options:
-                  type: bbq_ivf
+                  type: bbq_disk
                   rescore_vector:
                     oversample: 1.5
 
@@ -298,7 +320,7 @@ setup:
               vector:
                 type: dense_vector
                 index_options:
-                  type: bbq_ivf
+                  type: bbq_disk
                   rescore_vector:
                     oversample: 0
 
@@ -314,7 +336,7 @@ setup:
               vector:
                 type: dense_vector
                 index_options:
-                  type: bbq_ivf
+                  type: bbq_disk
                   rescore_vector:
                     oversample: 1
 
@@ -326,7 +348,7 @@ setup:
             vector:
               type: dense_vector
               index_options:
-                type: bbq_ivf
+                type: bbq_disk
                 rescore_vector:
                   oversample: 0
 
@@ -354,7 +376,7 @@ setup:
                 index: true
                 similarity: max_inner_product
                 index_options:
-                  type: bbq_ivf
+                  type: bbq_disk
                   rescore_vector:
                     oversample: 0
 
@@ -430,7 +452,7 @@ setup:
               index: true
               similarity: max_inner_product
               index_options:
-                type: bbq_ivf
+                type: bbq_disk
                 rescore_vector:
                   oversample: 2
 
@@ -470,7 +492,7 @@ setup:
               index: true
               similarity: max_inner_product
               index_options:
-                type: bbq_ivf
+                type: bbq_disk
                 rescore_vector:
                   oversample: 0
 
@@ -509,6 +531,6 @@ setup:
 "default oversample value":
   - do:
       indices.get_mapping:
-        index: bbq_ivf
+        index: bbq_disk
 
-  - match: { bbq_ivf.mappings.properties.vector.index_options.rescore_vector.oversample: 3.0 }
+  - match: { bbq_disk.mappings.properties.vector.index_options.rescore_vector.oversample: 3.0 }

@@ -16,6 +16,8 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -24,6 +26,8 @@ import java.io.IOException;
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
  */
 class ValuesFromManyReader extends ValuesReader {
+    private static final Logger log = LogManager.getLogger(ValuesFromManyReader.class);
+
     private final int[] forwards;
     private final int[] backwards;
     private final BlockLoader.RowStrideReader[] rowStride;
@@ -35,6 +39,7 @@ class ValuesFromManyReader extends ValuesReader {
         forwards = docs.shardSegmentDocMapForwards();
         backwards = docs.shardSegmentDocMapBackwards();
         rowStride = new BlockLoader.RowStrideReader[operator.fields.length];
+        log.debug("initializing {} positions", docs.getPositionCount());
     }
 
     @Override
@@ -70,9 +75,7 @@ class ValuesFromManyReader extends ValuesReader {
                 builders[f] = new Block.Builder[operator.shardContexts.size()];
                 converters[f] = new BlockLoader[operator.shardContexts.size()];
             }
-            try (
-                ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory, docs.getPositionCount())
-            ) {
+            try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory)) {
                 int p = forwards[offset];
                 int shard = docs.shards().getInt(p);
                 int segment = docs.segments().getInt(p);
@@ -84,7 +87,9 @@ class ValuesFromManyReader extends ValuesReader {
                 read(firstDoc, shard);
 
                 int i = offset + 1;
-                while (i < forwards.length) {
+                long estimated = estimatedRamBytesUsed();
+                long dangerZoneBytes = Long.MAX_VALUE; // TODO danger_zone if ascending
+                while (i < forwards.length && estimated < dangerZoneBytes) {
                     p = forwards[i];
                     shard = docs.shards().getInt(p);
                     segment = docs.segments().getInt(p);
@@ -96,8 +101,17 @@ class ValuesFromManyReader extends ValuesReader {
                     verifyBuilders(loaderBlockFactory, shard);
                     read(docs.docs().getInt(p), shard);
                     i++;
+                    estimated = estimatedRamBytesUsed();
+                    log.trace("{}: bytes loaded {}/{}", p, estimated, dangerZoneBytes);
                 }
                 buildBlocks();
+                if (log.isDebugEnabled()) {
+                    long actual = 0;
+                    for (Block b : target) {
+                        actual += b.ramBytesUsed();
+                    }
+                    log.debug("loaded {} positions total estimated/actual {}/{} bytes", p, estimated, actual);
+                }
             }
         }
 
@@ -114,6 +128,9 @@ class ValuesFromManyReader extends ValuesReader {
                     target[f] = targetBlock.filter(backwards);
                 }
                 operator.sanityCheckBlock(rowStride[f], backwards.length, target[f], f);
+            }
+            if (target[0].getPositionCount() != docs.getPositionCount()) {
+                throw new IllegalStateException("partial pages not yet supported");
             }
         }
 
@@ -140,6 +157,18 @@ class ValuesFromManyReader extends ValuesReader {
             for (int f = 0; f < operator.fields.length; f++) {
                 Releasables.closeExpectNoException(builders[f]);
             }
+        }
+
+        private long estimatedRamBytesUsed() {
+            long estimated = 0;
+            for (Block.Builder[] builders : this.builders) {
+                for (Block.Builder builder : builders) {
+                    if (builder != null) {
+                        estimated += builder.estimatedBytes();
+                    }
+                }
+            }
+            return estimated;
         }
     }
 

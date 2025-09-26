@@ -41,7 +41,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         var fields = (Map<String, Object>) fieldMapping.get("fields");
         if (fields != null) {
-            var keywordMultiFieldMapping = (Map<String, Object>) fields.get("kwd");
+            var keywordMultiFieldMapping = (Map<String, Object>) fields.get("subfield_keyword");
             Object normalizer = fields.get("normalizer");
             boolean docValues = hasDocValues(keywordMultiFieldMapping, true);
             boolean store = keywordMultiFieldMapping.getOrDefault("store", false).equals(true);

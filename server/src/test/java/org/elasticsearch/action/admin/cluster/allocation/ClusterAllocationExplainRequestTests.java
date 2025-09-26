@@ -37,4 +37,66 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
         assertEquals(request.getCurrentNode(), actual.getCurrentNode());
     }
 
+    public void testToStringWithEmptyBody() {
+        ClusterAllocationExplainRequest clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(randomTimeValue());
+        clusterAllocationExplainRequest.includeYesDecisions(true);
+        clusterAllocationExplainRequest.includeDiskInfo(false);
+
+        String expected = "ClusterAllocationExplainRequest[useAnyUnassignedShard=true,"
+            + "include_yes_decisions?=true,include_disk_info?=false";
+        assertEquals(expected, clusterAllocationExplainRequest.toString());
+    }
+
+    public void testToStringWithValidBodyButCurrentNodeIsNull() {
+        String index = "test-index";
+        int shard = randomInt();
+        boolean primary = randomBoolean();
+        ClusterAllocationExplainRequest clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(
+            randomTimeValue(),
+            index,
+            shard,
+            primary,
+            null
+        );
+        clusterAllocationExplainRequest.includeYesDecisions(false);
+        clusterAllocationExplainRequest.includeDiskInfo(true);
+
+        String expected = "ClusterAllocationExplainRequest[index="
+            + index
+            + ",shard="
+            + shard
+            + ",primary?="
+            + primary
+            + ",include_yes_decisions?=false"
+            + ",include_disk_info?=true";
+        assertEquals(expected, clusterAllocationExplainRequest.toString());
+    }
+
+    public void testToStringWithAllBodyParameters() {
+        String index = "test-index";
+        int shard = randomInt();
+        boolean primary = randomBoolean();
+        String currentNode = "current_node";
+        ClusterAllocationExplainRequest clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(
+            randomTimeValue(),
+            index,
+            shard,
+            primary,
+            currentNode
+        );
+        clusterAllocationExplainRequest.includeYesDecisions(false);
+        clusterAllocationExplainRequest.includeDiskInfo(true);
+
+        String expected = "ClusterAllocationExplainRequest[index="
+            + index
+            + ",shard="
+            + shard
+            + ",primary?="
+            + primary
+            + ",current_node="
+            + currentNode
+            + ",include_yes_decisions?=false"
+            + ",include_disk_info?=true";
+        assertEquals(expected, clusterAllocationExplainRequest.toString());
+    }
 }

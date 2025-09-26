@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
@@ -69,7 +68,7 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
             builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
             builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), useSyntheticRecovery);
         }
-        builder.put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true);
+        builder.put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true);
         return builder.build();
     }
 
@@ -113,7 +112,6 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
     }
 
     public void testSnapshotRecovery() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         List<Translog.Index> expectedOperations = new ArrayList<>();
         int size = randomIntBetween(10, 50);
         for (int i = 0; i < size; i++) {

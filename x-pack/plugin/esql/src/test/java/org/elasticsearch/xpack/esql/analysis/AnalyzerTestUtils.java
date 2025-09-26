@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +38,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 
 public final class AnalyzerTestUtils {
 
@@ -61,27 +63,36 @@ public final class AnalyzerTestUtils {
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
-        return new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolution,
-                defaultLookupResolution(),
-                defaultEnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            verifier
-        );
+        return analyzer(indexResolution, defaultLookupResolution(), verifier);
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution, Verifier verifier) {
+        return analyzer(indexResolution, lookupResolution, defaultEnrichResolution(), verifier);
+    }
+
+    public static Analyzer analyzer(
+        IndexResolution indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        Verifier verifier
+    ) {
+        return analyzer(indexResolution, lookupResolution, enrichResolution, verifier, TEST_CFG);
+    }
+
+    public static Analyzer analyzer(
+        IndexResolution indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        Verifier verifier,
+        Configuration config
+    ) {
         return new Analyzer(
             new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
+                config,
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 lookupResolution,
-                defaultEnrichResolution(),
+                enrichResolution,
                 defaultInferenceResolution()
             ),
             verifier
@@ -89,17 +100,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
-        return new Analyzer(
-            new AnalyzerContext(
-                config,
-                new EsqlFunctionRegistry(),
-                indexResolution,
-                defaultLookupResolution(),
-                defaultEnrichResolution(),
-                defaultInferenceResolution()
-            ),
-            verifier
-        );
+        return analyzer(indexResolution, defaultLookupResolution(), defaultEnrichResolution(), verifier, config);
     }
 
     public static Analyzer analyzer(Verifier verifier) {
@@ -196,12 +197,37 @@ public final class AnalyzerTestUtils {
         return enrichResolution;
     }
 
+    public static final String RERANKING_INFERENCE_ID = "reranking-inference-id";
+    public static final String COMPLETION_INFERENCE_ID = "completion-inference-id";
+    public static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
+    public static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
+    public static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
+    public static final List<String> VALID_INFERENCE_IDS = List.of(
+        RERANKING_INFERENCE_ID,
+        COMPLETION_INFERENCE_ID,
+        TEXT_EMBEDDING_INFERENCE_ID,
+        CHAT_COMPLETION_INFERENCE_ID,
+        SPARSE_EMBEDDING_INFERENCE_ID
+    );
+    public static final String ERROR_INFERENCE_ID = "error-inference-id";
+
     public static InferenceResolution defaultInferenceResolution() {
         return InferenceResolution.builder()
-            .withResolvedInference(new ResolvedInference("reranking-inference-id", TaskType.RERANK))
-            .withResolvedInference(new ResolvedInference("completion-inference-id", TaskType.COMPLETION))
-            .withError("error-inference-id", "error with inference resolution")
+            .withResolvedInference(new ResolvedInference(RERANKING_INFERENCE_ID, TaskType.RERANK))
+            .withResolvedInference(new ResolvedInference(COMPLETION_INFERENCE_ID, TaskType.COMPLETION))
+            .withResolvedInference(new ResolvedInference(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING))
+            .withResolvedInference(new ResolvedInference(CHAT_COMPLETION_INFERENCE_ID, TaskType.CHAT_COMPLETION))
+            .withResolvedInference(new ResolvedInference(SPARSE_EMBEDDING_INFERENCE_ID, TaskType.SPARSE_EMBEDDING))
+            .withError(ERROR_INFERENCE_ID, "error with inference resolution")
             .build();
+    }
+
+    public static String randomInferenceId() {
+        return ESTestCase.randomFrom(VALID_INFERENCE_IDS);
+    }
+
+    public static String randomInferenceIdOtherThan(String... excludes) {
+        return ESTestCase.randomValueOtherThanMany(Arrays.asList(excludes)::contains, AnalyzerTestUtils::randomInferenceId);
     }
 
     public static void loadEnrichPolicyResolution(

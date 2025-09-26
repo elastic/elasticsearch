@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class DisabledSearchStats implements SearchStats {
 
@@ -49,12 +48,12 @@ public class DisabledSearchStats implements SearchStats {
     }
 
     @Override
-    public byte[] min(FieldName field, DataType dataType) {
+    public Object min(FieldName field) {
         return null;
     }
 
     @Override
-    public byte[] max(FieldName field, DataType dataType) {
+    public Object max(FieldName field) {
         return null;
     }
 

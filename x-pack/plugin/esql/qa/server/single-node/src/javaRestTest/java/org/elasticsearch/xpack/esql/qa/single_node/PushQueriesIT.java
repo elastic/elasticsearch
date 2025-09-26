@@ -21,10 +21,12 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,6 +56,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> args() {
@@ -146,9 +151,10 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" OR foo == 2
             """;
+        // query rewrite optimizations apply to foo, since it's query value is always outside the range of indexed values
         String luceneQuery = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]";
-            case KEYWORD -> "test:%value foo:[2 TO 2]";
+            case AUTO, TEXT_WITH_KEYWORD -> "#test.keyword:%value -_ignored:test.keyword";
+            case KEYWORD -> "test:%value";
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
@@ -165,16 +171,17 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" AND foo == 1
             """;
+        // query rewrite optimizations apply to foo, since it's query value is always within the range of indexed values
         List<String> luceneQueryOptions = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
-            case KEYWORD -> List.of("#test:%value #foo:[1 TO 1]");
-            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("foo:[1 TO 1]");
+            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword");
+            case KEYWORD -> List.of("test:%value");
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
                  * single_value_match is here because there are extra documents hiding in the index
                  * that don't have the `foo` field.
                  */
-                List.of("#foo:[1 TO 1] #single_value_match(foo)", "foo:[1 TO 1]");
+                List.of("#FieldExistsQuery [field=foo] #single_value_match(foo)", "foo:[1 TO 1]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
@@ -275,6 +282,42 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
 
+    public void testRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test rlike "%value.*"
+            """;
+        String luceneQuery = switch (type) {
+            case KEYWORD -> "test:/%value.*/";
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
+    public void testRLikeList() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE test rlike ("%value.*", "abc.*")
+            """;
+        String luceneQuery = switch (type) {
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
     enum ComputeSignature {
         FILTER_IN_COMPUTE(
             matchesList().item("LuceneSourceOperator")
@@ -312,7 +355,7 @@ public class PushQueriesIT extends ESRestTestCase {
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
         builder.profile(true);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
             getResultMatcher(result).entry(

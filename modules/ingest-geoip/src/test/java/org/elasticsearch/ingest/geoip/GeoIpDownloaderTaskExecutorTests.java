@@ -52,6 +52,101 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
 
     }
 
+    /*
+     * This tests that if a default or final pipeline has a pipeline processor that has a geoip processor that has
+     * download_database_on_pipeline_creation set to false, then we will correctly acknowledge that the pipeline has a geoip processor so
+     * that we download it appropriately.
+     */
+    public void testHasAtLeastOneGeoipProcessorInPipelineProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
+        String innerInnerPipelineJson = """
+            {
+              "processors":[""" + getGeoIpProcessor(false) + """
+              ]
+            }
+            """;
+        String innerPipelineJson = """
+                        {
+              "processors":[{"pipeline": {"name": "innerInnerPipeline"}}
+              ]
+            }
+            """;
+        String outerPipelineJson = """
+                        {
+              "processors":[{"pipeline": {"name": "innerPipeline"}}
+              ]
+            }
+            """;
+        IngestMetadata ingestMetadata = new IngestMetadata(
+            Map.of(
+                "innerInnerPipeline",
+                new PipelineConfiguration("innerInnerPipeline", new BytesArray(innerInnerPipelineJson), XContentType.JSON),
+                "innerPipeline",
+                new PipelineConfiguration("innerPipeline", new BytesArray(innerPipelineJson), XContentType.JSON),
+                "outerPipeline",
+                new PipelineConfiguration("outerPipeline", new BytesArray(outerPipelineJson), XContentType.JSON)
+            )
+        );
+        // The pipeline is not used in any index, expected to return false.
+        var projectMetadata = projectMetadataWithIndex(b -> {}, ingestMetadata);
+        assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
+
+        // The pipeline is set as default pipeline in an index, expected to return true.
+        projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.DEFAULT_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
+        assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
+
+        // The pipeline is set as final pipeline in an index, expected to return true.
+        projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.FINAL_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
+        assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
+    }
+
+    public void testHasAtLeastOneGeoipProcessorRecursion() throws IOException {
+        /*
+         * The pipeline in this test is invalid -- it has a cycle from outerPipeline -> innerPipeline -> innerInnerPipeline ->
+         * innerPipeline. Since this method is called at server startup, we want to make sure that we don't get a StackOverFlowError and
+         * that we don't throw any kind of validation exception (since that would be an unexpected change of behavior).
+         */
+        String innerInnerPipelineJson = """
+            {
+              "processors":[""" + getGeoIpProcessor(false) + """
+              , {"pipeline": {"name": "innerPipeline"}}
+              ]
+            }
+            """;
+        String innerPipelineJson = """
+                        {
+              "processors":[{"pipeline": {"name": "innerInnerPipeline"}}
+              ]
+            }
+            """;
+        String outerPipelineJson = """
+                        {
+              "processors":[{"pipeline": {"name": "innerPipeline"}}
+              ]
+            }
+            """;
+        IngestMetadata ingestMetadata = new IngestMetadata(
+            Map.of(
+                "innerInnerPipeline",
+                new PipelineConfiguration("innerInnerPipeline", new BytesArray(innerInnerPipelineJson), XContentType.JSON),
+                "innerPipeline",
+                new PipelineConfiguration("innerPipeline", new BytesArray(innerPipelineJson), XContentType.JSON),
+                "outerPipeline",
+                new PipelineConfiguration("outerPipeline", new BytesArray(outerPipelineJson), XContentType.JSON)
+            )
+        );
+        // The pipeline is not used in any index, expected to return false.
+        var projectMetadata = projectMetadataWithIndex(b -> {}, ingestMetadata);
+        assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
+
+        // The pipeline is set as default pipeline in an index, expected to return true.
+        projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.DEFAULT_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
+        assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
+
+        // The pipeline is set as final pipeline in an index, expected to return true.
+        projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.FINAL_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
+        assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
+    }
+
     public void testHasAtLeastOneGeoipProcessor() throws IOException {
         var projectId = Metadata.DEFAULT_PROJECT_ID;
         List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors(true);

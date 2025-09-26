@@ -37,7 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -664,7 +664,7 @@ public class MetadataDataStreamsService {
         }
 
         Set<String> dataStreamNames = dataStreams.stream().map(DataStream::getName).collect(Collectors.toSet());
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(projectState, dataStreamNames);
+        Set<String> snapshottingDataStreams = SnapshotsServiceUtils.snapshottingDataStreams(projectState, dataStreamNames);
         if (snapshottingDataStreams.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot delete data streams that are being snapshotted: ["

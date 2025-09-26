@@ -14,8 +14,17 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.server;
     requires org.elasticsearch.painless;
     requires org.elasticsearch.painless.spi;
+    requires org.elasticsearch.ingest.common;
+    requires org.elasticsearch.ingest.useragent;
     requires org.elasticsearch.mustache;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.xcore;
+    requires org.elasticsearch.constantkeyword;
+    requires org.elasticsearch.redact;
+    requires org.elasticsearch.spatial;
+    requires org.elasticsearch.wildcard;
+    requires org.elasticsearch.ingest.geoip;
+    requires com.maxmind.db;
 
     exports org.elasticsearch.logstashbridge;
     exports org.elasticsearch.logstashbridge.common;

@@ -6,7 +6,7 @@ completion using a ROW source operator
 required_capability: completion
 
 ROW prompt="Who is Victor Hugo?"
-| COMPLETION completion_output = prompt WITH test_completion
+| COMPLETION completion_output = prompt WITH { "inference_id" : "test_completion" }
 ;
 
 prompt:keyword      | completion_output:keyword
@@ -18,7 +18,7 @@ completion using a ROW source operator and prompt is a multi-valued field
 required_capability: completion
 
 ROW prompt=["Answer the following question:", "Who is Victor Hugo?"]
-| COMPLETION completion_output = prompt WITH test_completion
+| COMPLETION completion_output = prompt WITH { "inference_id" : "test_completion" }
 ;
 
 prompt:keyword                                        | completion_output:keyword
@@ -34,7 +34,7 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
 | LIMIT 2
-| COMPLETION title WITH test_completion
+| COMPLETION title WITH { "inference_id" : "test_completion" }
 | KEEP title, completion
 ;
 
@@ -51,7 +51,7 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
 | LIMIT 2
-| COMPLETION CONCAT("This is a prompt: ", title) WITH test_completion
+| COMPLETION CONCAT("This is a prompt: ", title) WITH { "inference_id" : "test_completion" }
 | KEEP title, completion
 ;
 

@@ -16,9 +16,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -53,6 +55,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -148,7 +151,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new CustomService(senderFactory, createWithEmptySettings(threadPool));
+        return new CustomService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
@@ -803,5 +806,18 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("input"), is(List.of("a")));
         }
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService(threadPool, clientManager);
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any model"),
+            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
     }
 }

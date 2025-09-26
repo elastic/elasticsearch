@@ -26,20 +26,23 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,8 +50,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -59,6 +64,20 @@ import java.util.function.LongSupplier;
  */
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
+
+    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(9) {
+        {
+            add("error_trace");
+            add("filter_path");
+            add("id");
+            add("index");
+            add("op_type");
+            add("pretty");
+            add("refresh");
+            add("require_data_stream");
+            add("timeout");
+        }
+    };
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -71,6 +90,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor coordinationExecutor;
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
+    protected final FeatureService featureService;
+    protected final SamplingService samplingService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -83,7 +104,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
-        LongSupplier relativeTimeNanosProvider
+        LongSupplier relativeTimeNanosProvider,
+        FeatureService featureService,
+        SamplingService samplingService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -95,9 +118,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.coordinationExecutor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
         this.systemCoordinationExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE_COORDINATION);
         this.ingestForwarder = new IngestActionForwarder(transportService);
+        this.featureService = featureService;
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
+        this.samplingService = samplingService;
     }
 
     @Override
@@ -183,44 +208,48 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, false);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
-        throws IOException {
+    private boolean applyPipelines(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener,
+        boolean haveRunIngestService
+    ) throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
-        final Metadata metadata;
+        final ProjectMetadata project;
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         if (bulkRequest.isSimulated()
             && (componentTemplateSubstitutions.isEmpty() == false || indexTemplateSubstitutions.isEmpty() == false)) {
             /*
-             * If this is a simulated request, and there are template substitutions, then we want to create and use a new metadata that has
+             * If this is a simulated request, and there are template substitutions, then we want to create and use a new project that has
              * those templates. That is, we want to add the new templates (which will replace any that already existed with the same name),
              * and remove the indices and data streams that are referred to from the bulkRequest so that we get settings from the templates
              * rather than from the indices/data streams.
              */
-            Metadata originalMetadata = state.metadata();
-            @FixForMultiProject // properly ensure simulated actions work with MP
-            Metadata.Builder simulatedMetadataBuilder = Metadata.builder(originalMetadata);
+            ProjectMetadata originalProject = state.metadata().getProject(projectId);
+            ProjectMetadata.Builder simulatedMetadataBuilder = ProjectMetadata.builder(originalProject);
             if (componentTemplateSubstitutions.isEmpty() == false) {
                 Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
-                updatedComponentTemplates.putAll(originalMetadata.getProject(projectId).componentTemplates());
+                updatedComponentTemplates.putAll(originalProject.componentTemplates());
                 updatedComponentTemplates.putAll(componentTemplateSubstitutions);
                 simulatedMetadataBuilder.componentTemplates(updatedComponentTemplates);
             }
             if (indexTemplateSubstitutions.isEmpty() == false) {
                 Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
-                updatedIndexTemplates.putAll(originalMetadata.getProject(projectId).templatesV2());
+                updatedIndexTemplates.putAll(originalProject.templatesV2());
                 updatedIndexTemplates.putAll(indexTemplateSubstitutions);
                 simulatedMetadataBuilder.indexTemplates(updatedIndexTemplates);
             }
             /*
-             * We now remove the index from the simulated metadata to force the templates to be used. Note that simulated requests are
+             * We now remove the index from the simulated project to force the templates to be used. Note that simulated requests are
              * always index requests -- no other type of request is supported.
              */
             for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
@@ -236,12 +265,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     }
                 }
             }
-            metadata = simulatedMetadataBuilder.build();
+            project = simulatedMetadataBuilder.build();
         } else {
-            metadata = state.getMetadata();
+            project = state.metadata().getProject(projectId);
         }
 
-        ProjectMetadata project = metadata.getProject(projectId);
         Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
@@ -284,6 +312,16 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
+        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+            /*
+             * Else ample only if this request has not passed through IngestService::executeBulkRequest. Otherwise, some request within the
+             * bulk had pipelines and we sampled in IngestService already.
+             */
+            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                if (actionRequest instanceof IndexRequest ir) {
+                    samplingService.maybeSample(project, ir);
+                }
+            }
         }
         return false;
     }
@@ -319,7 +357,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                         @Override
                         protected void doRun() throws IOException {
-                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, true);
                         }
 
                         @Override
@@ -397,12 +435,80 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        ActionListener<BulkResponse> listener
+        ActionListener<BulkResponse> listener,
+        boolean haveRunIngestService
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
-        if (applyPipelines(task, bulkRequest, executor, listener) == false) {
-            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
+
+        // Validate child stream writes before processing pipelines
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
+
+        DocWriteRequest<?> req;
+        int i = -1;
+        while (bulkRequestModifier.hasNext()) {
+            req = bulkRequestModifier.next();
+            i++;
+            doStreamsChecks(bulkRequest, projectMetadata, req, bulkRequestModifier, i);
         }
+
+        var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
+
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, haveRunIngestService) == false) {
+            doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
+        }
+    }
+
+    private void doStreamsChecks(
+        BulkRequest bulkRequest,
+        ProjectMetadata projectMetadata,
+        DocWriteRequest<?> req,
+        BulkRequestModifier bulkRequestModifier,
+        int i
+    ) {
+        for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
+            if (req instanceof IndexRequest ir && ir.isPipelineResolved() == false) {
+                IllegalArgumentException e = null;
+                if (streamType.matchesStreamPrefix(req.index())) {
+                    e = new IllegalArgumentException(
+                        "Direct writes to child streams are prohibited. Index directly into the ["
+                            + streamType.getStreamName()
+                            + "] stream instead"
+                    );
+                }
+
+                if (e == null && streamsRestrictedParamsUsed(bulkRequest) && req.index().equals(streamType.getStreamName())) {
+                    e = new IllegalArgumentException(
+                        "When writing to a stream, only the following parameters are allowed: ["
+                            + String.join(", ", STREAMS_ALLOWED_PARAMS)
+                            + "] however the following were used: "
+                            + bulkRequest.requestParamsUsed()
+                    );
+                }
+
+                if (e != null) {
+                    Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+
+                    if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
+                        if (Boolean.TRUE.equals(failureStoreEnabled)) {
+                            bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                        } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
+                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
+                        } else {
+                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                        }
+                    } else {
+                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+
+    private boolean streamsRestrictedParamsUsed(BulkRequest bulkRequest) {
+        return Sets.difference(bulkRequest.requestParamsUsed(), STREAMS_ALLOWED_PARAMS).isEmpty() == false;
     }
 
     /**

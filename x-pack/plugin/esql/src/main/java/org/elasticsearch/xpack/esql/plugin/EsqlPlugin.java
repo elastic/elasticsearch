@@ -17,13 +17,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -33,9 +30,11 @@ import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
+import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -67,7 +66,8 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -75,6 +75,8 @@ import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -84,11 +86,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
-    public static final boolean INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats").isEnabled();
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -106,6 +108,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         1000,
         1,
         10000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_default_size",
+        1_000_000,
+        1,
+        10_000_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_max_size",
+        10_000_000,
+        1,
+        1_000_000_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -160,14 +180,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
-    public static final Setting<DataPartitioning> DEFAULT_DATA_PARTITIONING = Setting.enumSetting(
-        DataPartitioning.class,
-        "esql.default_data_partitioning",
-        DataPartitioning.AUTO,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
@@ -191,12 +203,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
-    private final List<Verifier.ExtraCheckers> extraCheckers = new ArrayList<>();
-    private final Settings settings;
-
-    public EsqlPlugin(Settings settings) {
-        this.settings = settings;
-    }
+    private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -210,14 +217,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
+            .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
+            .toList();
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
-                extraCheckers,
-                settings
+                extraCheckers
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -257,15 +267,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
             QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
             ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
             ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
             ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
             ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-            DEFAULT_DATA_PARTITIONING,
+            PhysicalSettings.DEFAULT_DATA_PARTITIONING,
+            PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
+            PhysicalSettings.LUCENE_TOPN_LIMIT,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
-            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX
+            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
+            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
         );
     }
 
@@ -320,7 +335,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
-        entries.add(TimeSeriesSourceOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
         entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
@@ -328,6 +342,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(SampleOperator.Status.ENTRY);
+        entries.add(LinearScoreEvalOperator.Status.ENTRY);
+
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
 
@@ -354,6 +371,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        extraCheckers.addAll(loader.loadExtensions(Verifier.ExtraCheckers.class));
+        extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
     }
 }

@@ -61,10 +61,10 @@ public class StdDevTests extends AbstractAggregationTestCase {
                 welfordAlgorithm.add(value);
             }
             var result = welfordAlgorithm.evaluate();
-            var expected = Double.isInfinite(result) ? null : result;
+            var expected = Double.isFinite(result) ? result : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "StdDev[field=Attribute[channel=0]]",
+                standardAggregatorName("StdDev", fieldSupplier.type()),
                 DataType.DOUBLE,
                 equalTo(expected)
             );

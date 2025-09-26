@@ -419,3 +419,65 @@ emp_no:integer | job_positions:keyword
 10001          | Accountant
 10001          | Senior Python Developer          
 ;
+
+testMvExpandInconsistentColumnOrder1
+required_capability: fix_mv_expand_inconsistent_column_order
+from message_types
+| eval foo_1 = 1, foo_2 = 2 
+| sort message
+| mv_expand foo_1
+;
+
+message:keyword         | type:keyword | foo_1:integer | foo_2:integer
+Connected to 10.1.0.1   | Success      | 1             | 2
+Connected to 10.1.0.2   | Success      | 1             | 2
+Connected to 10.1.0.3   | Success      | 1             | 2
+Connection error        | Error        | 1             | 2
+Development environment | Development  | 1             | 2
+Disconnected            | Disconnected | 1             | 2
+Production environment  | Production   | 1             | 2
+;
+
+testMvExpandInconsistentColumnOrder2
+required_capability: fix_mv_expand_inconsistent_column_order
+from message_types
+| eval foo_1 = [1, 3], foo_2 = 2
+| sort message
+| mv_expand foo_1
+;
+
+message:keyword         | type:keyword | foo_1:integer | foo_2:integer
+Connected to 10.1.0.1   | Success      | 1             | 2
+Connected to 10.1.0.1   | Success      | 3             | 2
+Connected to 10.1.0.2   | Success      | 1             | 2
+Connected to 10.1.0.2   | Success      | 3             | 2
+Connected to 10.1.0.3   | Success      | 1             | 2
+Connected to 10.1.0.3   | Success      | 3             | 2
+Connection error        | Error        | 1             | 2
+Connection error        | Error        | 3             | 2
+Development environment | Development  | 1             | 2
+Development environment | Development  | 3             | 2
+Disconnected            | Disconnected | 1             | 2
+Disconnected            | Disconnected | 3             | 2
+Production environment  | Production   | 1             | 2
+Production environment  | Production   | 3             | 2
+;
+
+testMvExpandInconsistentColumnOrder3
+required_capability: fix_mv_expand_inconsistent_column_order
+from message_types
+| sort type
+| eval language_code = 1, `language_name` = false, message = true, foo_3 = 1, foo_2 = null
+| eval foo_3 = "1", `foo_3` = -1, foo_1 = 1, `language_code` = null, `foo_2` = "1"
+| mv_expand foo_1
+| limit 5
+;
+
+type:keyword | language_name:boolean | message:boolean | foo_3:integer | foo_1:integer | language_code:null | foo_2:keyword
+Development  | false                 | true            | -1            | 1             | null               | 1
+Disconnected | false                 | true            | -1            | 1             | null               | 1
+Error        | false                 | true            | -1            | 1             | null               | 1
+Production   | false                 | true            | -1            | 1             | null               | 1
+Success      | false                 | true            | -1            | 1             | null               | 1
+;
+

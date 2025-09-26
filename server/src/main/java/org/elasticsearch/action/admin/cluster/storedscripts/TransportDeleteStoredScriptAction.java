@@ -58,7 +58,7 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        ScriptService.deleteStoredScript(clusterService, request, listener);
+        ScriptService.deleteStoredScript(clusterService, projectResolver.getProjectId(), request, listener);
     }
 
     @Override

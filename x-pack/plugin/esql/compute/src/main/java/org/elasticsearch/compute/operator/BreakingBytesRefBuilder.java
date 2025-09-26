@@ -12,6 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -162,6 +163,13 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         return SHALLOW_SIZE + bytesArrayRamBytesUsed(bytes.bytes.length);
     }
 
+    /**
+     * Builds a {@link StreamOutput} view into the {@link BreakingBytesRefBuilder}.
+     */
+    public StreamOutput stream() {
+        return new Stream();
+    }
+
     private static long bytesArrayRamBytesUsed(long capacity) {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity);
     }
@@ -170,4 +178,32 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     public void close() {
         breaker.addWithoutBreaking(-ramBytesUsed());
     }
+
+    private class Stream extends StreamOutput {
+        @Override
+        public long position() {
+            return length();
+        }
+
+        @Override
+        public void writeByte(byte b) {
+            append(b);
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {
+            append(b, offset, length);
+        }
+
+        @Override
+        public void flush() {}
+
+        /**
+         * Closes this stream to further operations. NOOP because we don't want to
+         * close the builder when we close.
+         */
+        @Override
+        public void close() {}
+    }
+
 }

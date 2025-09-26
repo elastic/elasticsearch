@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -28,10 +29,12 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -50,7 +53,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -96,6 +98,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         public void refreshLicense() {}
     };
+
+    public static final DesiredBalanceShardsAllocator.ShardAllocationExplainer TEST_ONLY_EXPLAINER = (
+        shard,
+        allocation) -> ShardAllocationDecision.NOT_TAKEN;
 
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.EMPTY);
@@ -174,8 +180,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             queue.getThreadPool(),
             clusterService,
             null,
-            TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER,
+            DesiredBalanceMetrics.NOOP
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -301,6 +308,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
+    @Deprecated(forRemoval = true)
     public static ClusterState startInitializingShardsAndReroute(
         AllocationService allocationService,
         ClusterState clusterState,
@@ -310,6 +318,24 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             allocationService,
             clusterState,
             clusterState.routingTable().index(index).shardsWithState(INITIALIZING)
+        );
+    }
+
+    /**
+     * Mark all initializing shards for the given index as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(
+        AllocationService allocationService,
+        ClusterState clusterState,
+        ProjectId projectId,
+        String index
+    ) {
+        return startShardsAndReroute(
+            allocationService,
+            clusterState,
+            clusterState.routingTable(projectId).index(index).shardsWithState(INITIALIZING)
         );
     }
 

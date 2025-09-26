@@ -1,0 +1,126 @@
+ # Tests for dot_product similarity function
+ 
+ similarityWithVectorField
+ required_capability: dot_product_vector_similarity_function
+ 
+// tag::vector-dot-product[]
+ from colors
+ | eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) 
+ | sort similarity desc, color asc 
+// end::vector-dot-product[]
+ | limit 10
+ | keep color, similarity
+ ;
+ 
+// tag::vector-dot-product-result[]
+color:text | similarity:double
+azure      | 65025.5
+cyan       | 65025.5
+white      | 65025.5
+mint cream | 64388.0
+snow       | 63750.5
+honeydew   | 63113.0
+ivory      | 63113.0
+sea shell  | 61583.0
+lavender   | 61200.5
+old lace   | 60563.0
+// end::vector-dot-product-result[] 
+;
+
+similarityAsPartOfExpression
+required_capability: dot_product_vector_similarity_function
+
+from colors
+| eval score = round((1 + v_dot_product(rgb_vector, [0, 255, 255]) / 2), 3) 
+| sort score desc, color asc 
+| limit 10
+| keep color, score
+;
+
+color:text | score:double
+azure      | 32513.75
+cyan       | 32513.75
+white      | 32513.75
+mint cream | 32195.0
+snow       | 31876.25
+honeydew   | 31557.5
+ivory      | 31557.5
+sea shell  | 30792.5
+lavender   | 30601.25
+old lace   | 30282.5
+;
+
+similarityWithLiteralVectors
+required_capability: dot_product_vector_similarity_function
+ 
+row a = 1
+| eval similarity = round(v_dot_product([1, 2, 3], [0, 1, 2]), 3) 
+| keep similarity
+;
+
+similarity:double
+4.5
+;
+
+similarityWithStats
+required_capability: dot_product_vector_similarity_function
+
+from colors
+| eval similarity = round(v_dot_product(rgb_vector, [0, 255, 255]), 3) 
+| stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
+;
+
+avg:double | min:double | max:double
+39519.017  | 0.5        | 65025.5
+;
+
+similarityWithNull
+required_capability: dot_product_vector_similarity_function
+required_capability: vector_similarity_functions_support_null
+
+from colors
+| eval similarity = v_dot_product(rgb_vector, null) 
+| stats total_null = count(*) where similarity is null
+;
+
+total_null:long
+59
+;
+
+
+similarityWithRow
+required_capability: dot_product_vector_similarity_function
+required_capability: to_dense_vector_function
+ 
+row vector = to_dense_vector([1, 2, 3])
+| eval similarity = round(v_dot_product(vector, [0, 1, 2]), 3) 
+;
+
+vector: dense_vector | similarity:double
+[1.0, 2.0, 3.0]      | 4.5
+;
+
+similarityWithVectorField
+required_capability: dot_product_vector_similarity_function
+required_capability: to_dense_vector_function
+
+from colors
+| eval query = to_dense_vector([0, 255, 255])
+| eval similarity = v_dot_product(rgb_vector, query) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+azure      | 65025.5
+cyan       | 65025.5
+white      | 65025.5
+mint cream | 64388.0
+snow       | 63750.5
+honeydew   | 63113.0
+ivory      | 63113.0
+sea shell  | 61583.0
+lavender   | 61200.5
+old lace   | 60563.0
+;

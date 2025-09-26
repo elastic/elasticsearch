@@ -11,18 +11,22 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -59,7 +63,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
-public class VoyageAIService extends SenderService {
+public class VoyageAIService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "voyageai";
 
     private static final String SERVICE_NAME = "Voyage AI";
@@ -89,6 +93,17 @@ public class VoyageAIService extends SenderService {
         72
     );
 
+    private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
+        "rerank-lite-1",
+        2800 // The smallest model has a 4K context length https://docs.voyageai.com/docs/reranker
+    );
+
+    /**
+     * Apart from rerank-lite-1 all other models have a context length of at least 8k.
+     * This value is based on 1 token == 0.75 words and allowing for some overhead
+     */
+    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 5500;
+
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
         InputType.SEARCH,
@@ -96,8 +111,16 @@ public class VoyageAIService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    public VoyageAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public VoyageAIService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public VoyageAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -285,7 +308,7 @@ public class VoyageAIService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -300,14 +323,14 @@ public class VoyageAIService extends SenderService {
         var actionCreator = new VoyageAIActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-            inputs.getInputs(),
+            inputs,
             getBatchSize(voyageaiModel),
             voyageaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = voyageaiModel.accept(actionCreator, taskSettings);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -357,6 +380,12 @@ public class VoyageAIService extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        Integer inputSize = RERANKERS_INPUT_SIZE.get(modelId);
+        return inputSize != null ? inputSize : DEFAULT_RERANKER_INPUT_SIZE_WORDS;
     }
 
     public static class Configuration {

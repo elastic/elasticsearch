@@ -152,7 +152,9 @@ $$$index-refresh-interval-setting$$$
 `index.refresh_interval` {applies_to}`serverless: all`
 :   How often to perform a refresh operation, which makes recent changes to the index visible to search. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. To opt out of this behavior, set an explicit value for the refresh interval, even if it matches the default value.
 
-    The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In both cases, the setting can be set to `-1` to disable refresh.
+    The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In {{serverless-short}}, `5s` is also the minimum value that can be set.
+
+    In both cases, the setting can be set to `-1` to disable refresh.
 
 $$$index-max-result-window$$$
 
@@ -256,16 +258,16 @@ $$$index-final-pipeline$$$
 $$$index-hidden$$$ `index.hidden` {applies_to}`serverless: all`
 :   Indicates whether the index should be hidden by default. Hidden indices are not returned by default when using a wildcard expression. This behavior is controlled per request through the use of the `expand_wildcards` parameter. Possible values are `true` and `false` (default).
 
-$$$index-dense-vector-hnsw-filter-heuristic$$$ `index.dense_vector.hnsw_filter_heuristic` {applies_to}`serverless: all`
-:   The heuristic to utilize when executing a filtered search against vectors in an HNSW graph. This setting is in technical preview may be changed or removed in a future release. It can be set to:
+$$$index-dense-vector-hnsw-filter-heuristic$$$ `index.dense_vector.hnsw_filter_heuristic` {applies_to}`serverless: preview` {applies_to}`stack: preview 9.1`
+:   The heuristic to utilize when executing a filtered search against vectors in an HNSW graph. It can be set to:
 
 * `acorn` (default) - Only vectors that match the filter criteria are searched. This is the fastest option, and generally provides faster searches at similar recall to `fanout`, but `num_candidates` might need to be increased for exceptionally high recall requirements.
 * `fanout` - All vectors are compared with the query vector, but only those passing the criteria are added to the search results. Can be slower than `acorn`, but may yield higher recall.
 
 $$$index-esql-stored-fields-sequential-proportion$$$
 
-`index.esql.stored_fields_sequential_proportion`
-:   Tuning parameter for deciding when {{esql}} will load [Stored fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#stored-fields) using a strategy tuned for loading dense sequence of documents. Allows values between 0.0 and 1.0 and defaults to 0.2. Indices with documents smaller than 10kb may see speed improvements loading `text` fields by setting this lower.
+`index.esql.stored_fields_sequential_proportion` {applies_to}`stack: ga 9.1`
+:   Tuning parameter for deciding when {{esql}} will load [stored fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#stored-fields) using a strategy tuned for loading dense sequence of documents. Allows values between 0.0 and 1.0 and defaults to 0.2. Indices with documents smaller than 10kb may see speed improvements loading `text` fields by setting this lower.
 
-$$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination`
+$$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
 :   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `true`.

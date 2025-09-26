@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -56,31 +55,22 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * step does type resolution and fails queries based on invalid type expressions.
  */
 public class Verifier {
-    public interface ExtraCheckers {
-        /**
-         * Build a list of checks to perform on the plan. Each one is called once per
-         * {@link LogicalPlan} node in the plan.
-         */
-        List<BiConsumer<LogicalPlan, Failures>> extra(Settings settings);
-    }
 
     /**
      * Extra plan verification checks defined in plugins.
      */
-    private final List<ExtraCheckers> extraCheckers;
+    private final List<BiConsumer<LogicalPlan, Failures>> extraCheckers;
     private final Metrics metrics;
     private final XPackLicenseState licenseState;
-    private final Settings settings;
 
     public Verifier(Metrics metrics, XPackLicenseState licenseState) {
-        this(metrics, licenseState, Collections.emptyList(), Settings.EMPTY);
+        this(metrics, licenseState, Collections.emptyList());
     }
 
-    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<ExtraCheckers> extraCheckers, Settings settings) {
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<BiConsumer<LogicalPlan, Failures>> extraCheckers) {
         this.metrics = metrics;
         this.licenseState = licenseState;
         this.extraCheckers = extraCheckers;
-        this.settings = settings;
     }
 
     /**
@@ -104,9 +94,7 @@ public class Verifier {
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
-        for (ExtraCheckers e : extraCheckers) {
-            planCheckers.addAll(e.extra(settings));
-        }
+        planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
         plan.forEachDown(p -> {
@@ -325,6 +313,9 @@ public class Verifier {
         allowed.add(DataType.GEO_SHAPE);
         allowed.add(DataType.CARTESIAN_POINT);
         allowed.add(DataType.CARTESIAN_SHAPE);
+        allowed.add(DataType.GEOHASH);
+        allowed.add(DataType.GEOTILE);
+        allowed.add(DataType.GEOHEX);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
         }

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -40,6 +43,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -499,9 +503,10 @@ public class DesiredBalanceReconciler {
 
                 final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                 final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                if (canRemainDecision.type() != Decision.Type.NO) {
-                    // it's desired elsewhere but technically it can remain on its current node. Defer its movement until later on to give
-                    // priority to shards that _must_ move.
+                if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
+                    // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
+                    // Reconciliation treats canRemain NOT_PREFERRED answers as YES because the DesiredBalance computation already decided
+                    // how to handle the situation.
                     continue;
                 }
 
@@ -525,6 +530,8 @@ public class DesiredBalanceReconciler {
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
+            final ObjectLongMap<ShardRouting.Role> totalAllocationsByRole = new ObjectLongHashMap<>();
+            final ObjectLongMap<ShardRouting.Role> undesiredAllocationsExcludingShuttingDownNodesByRole = new ObjectLongHashMap<>();
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -533,6 +540,7 @@ public class DesiredBalanceReconciler {
                 final var shardRouting = iterator.next();
 
                 totalAllocations++;
+                totalAllocationsByRole.addTo(shardRouting.role(), 1);
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -553,6 +561,7 @@ public class DesiredBalanceReconciler {
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
                     // shard is not on a shutting down node, nor is it on a desired node per the previous check.
                     undesiredAllocationsExcludingShuttingDownNodes++;
+                    undesiredAllocationsExcludingShuttingDownNodesByRole.addTo(shardRouting.role(), 1);
                 }
 
                 if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
@@ -594,8 +603,16 @@ public class DesiredBalanceReconciler {
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
             return new DesiredBalanceMetrics.AllocationStats(
                 unassignedShards,
-                totalAllocations,
-                undesiredAllocationsExcludingShuttingDownNodes
+                StreamSupport.stream(totalAllocationsByRole.spliterator(), false)
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            lc -> lc.key,
+                            lc -> new DesiredBalanceMetrics.RoleAllocationStats(
+                                totalAllocationsByRole.get(lc.key),
+                                undesiredAllocationsExcludingShuttingDownNodesByRole.get(lc.key)
+                            )
+                        )
+                    )
             );
         }
 
@@ -634,6 +651,7 @@ public class DesiredBalanceReconciler {
             Set<String> desiredNodeIds,
             BiFunction<ShardRouting, RoutingNode, Decision> canAllocateDecider
         ) {
+            DiscoveryNode chosenNode = null;
             for (final var nodeId : desiredNodeIds) {
                 // TODO consider ignored nodes here too?
                 if (nodeId.equals(shardRouting.currentNodeId())) {
@@ -645,12 +663,24 @@ public class DesiredBalanceReconciler {
                 }
                 final var decision = canAllocateDecider.apply(shardRouting, node);
                 logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
+
+                // Assign shards to the YES nodes first. This way we might delay moving shards to NOT_PREFERRED nodes until after shards are
+                // first moved away. The DesiredBalance could be moving shards away from a hot node as well as moving shards to it, and it's
+                // better to offload shards first.
                 if (decision.type() == Decision.Type.YES) {
-                    return node.node();
+                    chosenNode = node.node();
+                    // As soon as we get any YES, we return it.
+                    break;
+                } else if (decision.type() == Decision.Type.NOT_PREFERRED && chosenNode == null) {
+                    // If the best answer is not-preferred, then the shard will still be assigned. It is okay to assign to a not-preferred
+                    // node because the desired balance computation had a reason to override it: when there aren't any better nodes to
+                    // choose and the shard cannot remain where it is, we accept not-preferred. NOT_PREFERRED is essentially a YES for
+                    // reconciliation.
+                    chosenNode = node.node();
                 }
             }
 
-            return null;
+            return chosenNode;
         }
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {

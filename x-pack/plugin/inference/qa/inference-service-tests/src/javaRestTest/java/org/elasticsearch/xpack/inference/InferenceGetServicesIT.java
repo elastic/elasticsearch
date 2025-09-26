@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -23,6 +24,23 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        // Ensure the mock EIS server has an authorized response ready before each test because each test will
+        // use the services API which makes a call to EIS
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
+
+    /**
+     * This is done before the class because I've run into issues where another class that extends {@link BaseMockEISAuthServerTest}
+     * results in an authorization response not being queued up for the new Elasticsearch Node in time. When the node starts up, it
+     * retrieves authorization. If the request isn't queued up when that happens the tests will fail. From my testing locally it seems
+     * like the base class's static functionality to queue a response is only done once and not for each subclass.
+     *
+     * My understanding is that the @Before will be run after the node starts up and wouldn't be sufficient to handle
+     * this scenario. That is why this needs to be @BeforeClass.
+     */
     @BeforeClass
     public static void init() {
         // Ensure the mock EIS server has an authorized response ready
@@ -34,6 +52,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             allProviders(),
             containsInAnyOrder(
                 List.of(
+                    "ai21",
                     "alibabacloud-ai-search",
                     "amazonbedrock",
                     "anthropic",
@@ -47,6 +66,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "hugging_face",
                     "jinaai",
+                    "llama",
                     "mistral",
                     "openai",
                     "streaming_completion_test_service",
@@ -91,6 +111,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "hugging_face",
                     "jinaai",
+                    "llama",
                     "mistral",
                     "openai",
                     "text_embedding_test_service",
@@ -111,6 +132,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
+                    "azureaistudio",
                     "cohere",
                     "elasticsearch",
                     "googlevertexai",
@@ -130,6 +152,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providersFor(TaskType.COMPLETION),
             containsInAnyOrder(
                 List.of(
+                    "ai21",
+                    "llama",
                     "alibabacloud-ai-search",
                     "amazonbedrock",
                     "anthropic",
@@ -156,6 +180,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providersFor(TaskType.CHAT_COMPLETION),
             containsInAnyOrder(
                 List.of(
+                    "ai21",
+                    "llama",
                     "deepseek",
                     "elastic",
                     "openai",

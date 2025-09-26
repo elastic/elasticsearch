@@ -203,6 +203,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

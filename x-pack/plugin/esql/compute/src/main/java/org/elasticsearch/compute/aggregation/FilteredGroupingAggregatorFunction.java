@@ -101,13 +101,18 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
         next.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override
-    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-        next.addIntermediateRowInput(groupId, ((FilteredGroupingAggregatorFunction) input).next(), position);
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override

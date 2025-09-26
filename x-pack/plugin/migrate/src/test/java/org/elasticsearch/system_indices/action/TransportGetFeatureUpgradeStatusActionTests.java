@@ -7,11 +7,10 @@
 
 package org.elasticsearch.system_indices.action;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -41,14 +40,14 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
     private static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
     // Version just before MINIMUM_COMPATIBLE in order to check that UpgradeStatus.MIGRATION_NEEDED is set correctly
     private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 1);
-    private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final String TEST_INDEX_1_NAME = ".test-index-1";
-
     private static final SystemIndices.Feature FEATURE = getFeature();
+
+    private final ProjectMetadata projectMetadata = getProjectMetadata();
 
     public void testGetFeatureStatus() {
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status = TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(
-            CLUSTER_STATE,
+            projectMetadata,
             FEATURE
         );
 
@@ -60,7 +59,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     public void testGetIndexInfos() {
         List<GetFeatureUpgradeStatusResponse.IndexInfo> versions = TransportGetFeatureUpgradeStatusAction.getIndexInfos(
-            CLUSTER_STATE,
+            projectMetadata,
             FEATURE
         );
 
@@ -85,7 +84,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     public void testGetIndexInfosWithErrors() {
         List<GetFeatureUpgradeStatusResponse.IndexInfo> versions = TransportGetFeatureUpgradeStatusAction.getIndexInfos(
-            getClusterStateWithFailedMigration(TEST_INDEX_1_NAME),
+            getProjectWithFailedMigration(TEST_INDEX_1_NAME),
             FEATURE
         );
 
@@ -113,7 +112,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     public void testGetIndexInfosWithDataStreamErrors() {
         List<GetFeatureUpgradeStatusResponse.IndexInfo> versions = TransportGetFeatureUpgradeStatusAction.getIndexInfos(
-            getClusterStateWithFailedMigration(DATA_STREAM_NAME),
+            getProjectWithFailedMigration(DATA_STREAM_NAME),
             FEATURE
         );
 
@@ -165,7 +164,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
         return feature;
     }
 
-    private static ClusterState getClusterState() {
+    private static ProjectMetadata getProjectMetadata() {
         IndexMetadata indexMetadata1 = IndexMetadata.builder(TEST_INDEX_1_NAME)
             .settings(Settings.builder().put("index.version.created", IndexVersion.current()).build())
             .numberOfShards(1)
@@ -191,21 +190,17 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             .setHidden(true)
             .build();
 
-        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(
-            new Metadata.Builder().dataStreams(Map.of(DATA_STREAM_NAME, dataStream), Collections.emptyMap())
-                .indices(Map.of(TEST_INDEX_1_NAME, indexMetadata1, ".test-index-2", indexMetadata2, BACKING_INDEX_NAME, dsIndexMetadata))
-                .build()
-        ).build();
-        return clusterState;
+        return ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(Map.of(DATA_STREAM_NAME, dataStream), Collections.emptyMap())
+            .indices(Map.of(TEST_INDEX_1_NAME, indexMetadata1, ".test-index-2", indexMetadata2, BACKING_INDEX_NAME, dsIndexMetadata))
+            .build();
     }
 
-    private static ClusterState getClusterStateWithFailedMigration(String failedIndexName) {
+    private static ProjectMetadata getProjectWithFailedMigration(String failedIndexName) {
         SingleFeatureMigrationResult migrationResult = SingleFeatureMigrationResult.failure(failedIndexName, new Exception());
         FeatureMigrationResults featureMigrationResults = new FeatureMigrationResults(Map.of(FEATURE_NAME, migrationResult));
 
-        ClusterState initialState = getClusterState();
-        return ClusterState.builder(initialState)
-            .metadata(Metadata.builder(initialState.metadata()).putCustom(FeatureMigrationResults.TYPE, featureMigrationResults).build())
-            .build();
+        ProjectMetadata initialProject = getProjectMetadata();
+        return ProjectMetadata.builder(initialProject).putCustom(FeatureMigrationResults.TYPE, featureMigrationResults).build();
     }
 }

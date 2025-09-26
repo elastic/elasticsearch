@@ -165,6 +165,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return global.contains(block);
     }
 
+    public boolean hasGlobalBlock(ProjectId projectId, ClusterBlock block) {
+        return global(projectId).contains(block);
+    }
+
     public boolean hasGlobalBlockWithId(final int blockId) {
         for (ClusterBlock clusterBlock : global) {
             if (clusterBlock.id() == blockId) {

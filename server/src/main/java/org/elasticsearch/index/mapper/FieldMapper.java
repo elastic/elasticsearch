@@ -1325,6 +1325,26 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValue)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValueSupplier) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValueSupplier)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
+        }
+
         /**
          * Defines a script parameter
          * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges

@@ -40,6 +40,19 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     @Override
     IntBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default IntBlock deepCopy(BlockFactory blockFactory) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     IntBlock keepMask(BooleanVector mask);
 
@@ -89,10 +102,10 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntArrayBlock b) {
+        } else if (this instanceof IntArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntBigArrayBlock b) {
+        } else if (this instanceof IntBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {

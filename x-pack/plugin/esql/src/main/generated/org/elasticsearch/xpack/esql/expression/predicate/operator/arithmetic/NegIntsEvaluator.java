@@ -8,6 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NegIntsEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator v;
@@ -49,6 +52,13 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += v.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, IntBlock vBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -63,8 +73,9 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
+        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(Neg.processInts(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+          result.appendInt(Neg.processInts(v));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -77,8 +88,9 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   public IntBlock eval(int positionCount, IntVector vVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        int v = vVector.getInt(p);
         try {
-          result.appendInt(Neg.processInts(vVector.getInt(p)));
+          result.appendInt(Neg.processInts(v));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

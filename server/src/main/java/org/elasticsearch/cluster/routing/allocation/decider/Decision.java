@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,6 +34,7 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
 
     Single ALWAYS = new Single(Type.YES);
     Single YES = new Single(Type.YES);
+    Single NOT_PREFERRED = new Single(Type.NOT_PREFERRED);
     Single NO = new Single(Type.NO);
     Single THROTTLE = new Single(Type.THROTTLE);
 
@@ -72,6 +74,7 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         if (label == null && explanation == null) {
             return switch (type) {
                 case YES -> YES;
+                case NOT_PREFERRED -> NOT_PREFERRED;
                 case THROTTLE -> THROTTLE;
                 case NO -> NO;
             };
@@ -103,48 +106,62 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
     List<Decision> getDecisions();
 
     /**
-     * This enumeration defines the
-     * possible types of decisions
+     * This enumeration defines the possible types of decisions
      */
     enum Type implements Writeable {
-        YES(1),
-        THROTTLE(2),
-        NO(0);
+        // ordered by positiveness; order matters for serialization and comparison
+        NO,
+        THROTTLE,
+        NOT_PREFERRED,
+        YES;
 
-        private final int id;
-
-        Type(int id) {
-            this.id = id;
-        }
+        private static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName(
+            "allocation_decision_not_preferred"
+        );
 
         public static Type readFrom(StreamInput in) throws IOException {
-            int i = in.readVInt();
-            return switch (i) {
-                case 0 -> NO;
-                case 1 -> YES;
-                case 2 -> THROTTLE;
-                default -> throw new IllegalArgumentException("No Type for integer [" + i + "]");
-            };
+            if (in.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                return in.readEnum(Type.class);
+            } else {
+                int i = in.readVInt();
+                return switch (i) {
+                    case 0 -> NO;
+                    case 1 -> YES;
+                    case 2 -> THROTTLE;
+                    default -> throw new IllegalArgumentException("No Type for integer [" + i + "]");
+                };
+            }
+        }
+
+        /**
+         * @return lowest decision by natural order
+         */
+        public static Type min(Type a, Type b) {
+            return a.compareTo(b) < 0 ? a : b;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(id);
+            if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                out.writeEnum(this);
+            } else {
+                out.writeVInt(switch (this) {
+                    case NO -> 0;
+                    case NOT_PREFERRED, YES -> 1;
+                    case THROTTLE -> 2;
+                });
+            }
         }
 
         public boolean higherThan(Type other) {
-            if (this == NO) {
-                return false;
-            } else if (other == NO) {
-                return true;
-            } else return other == THROTTLE && this == YES;
+            return this.compareTo(other) > 0;
         }
 
         /**
-         * @return lowest decision by precedence NO->THROTTLE->YES
+         * @return true if Type is one of {NOT_PREFERRED, YES}
          */
-        public static Type min(Type a, Type b) {
-            return a.higherThan(b) ? b : a;
+        public boolean allowed() {
+            return this.compareTo(NOT_PREFERRED) >= 0;
         }
 
     }
@@ -243,16 +260,8 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
 
         @Override
         public Type type() {
-            Type ret = Type.YES;
-            for (int i = 0; i < decisions.size(); i++) {
-                Type type = decisions.get(i).type();
-                if (type == Type.NO) {
-                    return type;
-                } else if (type == Type.THROTTLE) {
-                    ret = type;
-                }
-            }
-            return ret;
+            // returns most negative decision
+            return decisions.stream().map(Single::type).reduce(Type.YES, Type::min);
         }
 
         @Override

@@ -401,13 +401,20 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
 
+                // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+                var indexMetadata = project.index(shardId.getIndexName());
+                int reshardSplitShardCountSummary = 0;
+                if (indexMetadata != null) {
+                    reshardSplitShardCountSummary = indexMetadata.getReshardSplitShardCountSummaryForIndexing(shardId.getId());
+                }
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
+                    reshardSplitShardCountSummary,
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0]),
                     bulkRequest.isSimulated()
                 );
-                var indexMetadata = project.index(shardId.getIndexName());
+
                 if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
                 }
@@ -615,7 +622,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return a data stream if the write request points to a data stream, or {@code null} if it does not
      */
     private static DataStream getRedirectTargetCandidate(DocWriteRequest<?> docWriteRequest, ProjectMetadata project) {
-        // PRTODO: We could check for cluster feature here instead
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
         IndexAbstraction ia = project.getIndicesLookup().get(docWriteRequest.index());
         return DataStream.resolveDataStream(ia, project);

@@ -128,16 +128,26 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public record TopNDef(int order, boolean asc, boolean nullsFirst, int limit) {}
 
     /**
-     * @param isCategorize Whether this group is a CATEGORIZE() or not.
-     *                     May be changed in the future when more stateful grouping functions are added.
+     * Configuration for a BlockHash group spec that is doing text categorization.
      */
-    public record GroupSpec(int channel, ElementType elementType, boolean isCategorize, @Nullable TopNDef topNDef) {
+    public record CategorizeDef(String analyzer, OutputFormat outputFormat, int similarityThreshold) {
+        public enum OutputFormat {
+            REGEX,
+            TOKENS
+        }
+    }
+
+    public record GroupSpec(int channel, ElementType elementType, @Nullable CategorizeDef categorizeDef, @Nullable TopNDef topNDef) {
         public GroupSpec(int channel, ElementType elementType) {
-            this(channel, elementType, false, null);
+            this(channel, elementType, null, null);
         }
 
-        public GroupSpec(int channel, ElementType elementType, boolean isCategorize) {
-            this(channel, elementType, isCategorize, null);
+        public GroupSpec(int channel, ElementType elementType, CategorizeDef categorizeDef) {
+            this(channel, elementType, categorizeDef, null);
+        }
+
+        public boolean isCategorize() {
+            return categorizeDef != null;
         }
     }
 
@@ -207,7 +217,13 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         int emitBatchSize
     ) {
         if (groups.size() == 1) {
-            return new CategorizeBlockHash(blockFactory, groups.get(0).channel, aggregatorMode, analysisRegistry);
+            return new CategorizeBlockHash(
+                blockFactory,
+                groups.get(0).channel,
+                aggregatorMode,
+                groups.get(0).categorizeDef,
+                analysisRegistry
+            );
         } else {
             assert groups.get(0).isCategorize();
             assert groups.subList(1, groups.size()).stream().noneMatch(GroupSpec::isCategorize);

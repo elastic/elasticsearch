@@ -44,6 +44,7 @@ public class Values extends AggregateFunction implements ToAggregator {
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
@@ -55,6 +56,9 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
     );
 
@@ -68,10 +72,14 @@ public class Values extends AggregateFunction implements ToAggregator {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
@@ -107,10 +115,14 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "unsigned_long",
                 "text",
                 "version" }
         ) Expression v
@@ -153,7 +165,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isType(field(), SUPPLIERS::containsKey, sourceText(), DEFAULT, "any type except unsigned_long");
+        return TypeResolutions.isRepresentableExceptCounters(field(), sourceText(), DEFAULT);
     }
 
     @Override

@@ -18,6 +18,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 public record ExecutorNames(String threadPoolForGet, String threadPoolForSearch, String threadPoolForWrite) {
 
     /**
+     * The thread pools for typical indices and data streams.
+     */
+    public static final ExecutorNames DEFAULT_INDEX_THREAD_POOLS = new ExecutorNames(
+        ThreadPool.Names.GET,
+        ThreadPool.Names.SEARCH,
+        ThreadPool.Names.WRITE
+    );
+
+    /**
      * The thread pools for a typical system index.
      */
     public static final ExecutorNames DEFAULT_SYSTEM_INDEX_THREAD_POOLS = new ExecutorNames(

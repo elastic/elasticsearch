@@ -1,4 +1,7 @@
 
+# claude
+.claude
+
 # intellij files
 .idea/
 *.iml
@@ -69,6 +72,7 @@ testfixtures_shared/
 # Generated
 checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/
+server/src/main/resources/transport/definitions/manifest.txt
 
 # JEnv
 .java-version

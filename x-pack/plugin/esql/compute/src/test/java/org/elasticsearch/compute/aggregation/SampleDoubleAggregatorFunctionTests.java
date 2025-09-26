@@ -50,11 +50,8 @@ public class SampleDoubleAggregatorFunctionTests extends AggregatorFunctionTestC
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Set<Double> inputValues = input.stream()
-            .flatMapToDouble(AggregatorFunctionTestCase::allDoubles)
-            .boxed()
-            .collect(Collectors.toSet());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Set<Double> inputValues = input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))).boxed().collect(Collectors.toSet());
         Double[] resultValues = AggregatorFunctionTestCase.allDoubles(result).boxed().toArray(Double[]::new);
         assertThat(resultValues, arrayWithSize(Math.min(inputValues.size(), LIMIT)));
         assertThat(inputValues, hasItems(resultValues));

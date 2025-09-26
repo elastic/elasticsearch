@@ -945,6 +945,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         this.fetchSourceContext = FetchSourceContext.of(
             fetchSourceContext.fetchSource(),
             excludeVectors,
+            fetchSourceContext.excludeInferenceFields(),
             fetchSourceContext.includes(),
             fetchSourceContext.excludes()
         );
@@ -1187,9 +1188,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             )
         ));
+
         if (retrieverBuilder != null) {
             var newRetriever = retrieverBuilder.rewrite(context);
             if (newRetriever != retrieverBuilder) {
@@ -1203,6 +1206,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 retriever.extractToSearchSourceBuilder(this, false);
                 validate();
             }
+        }
+
+        RankBuilder rankBuilder = null;
+        if (this.rankBuilder != null) {
+            rankBuilder = this.rankBuilder.rewrite(context);
         }
 
         List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
@@ -1229,7 +1237,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             || aggregations != this.aggregations
             || rescoreBuilders != this.rescoreBuilders
             || sorts != this.sorts
-            || this.highlightBuilder != highlightBuilder;
+            || this.highlightBuilder != highlightBuilder
+            || this.rankBuilder != rankBuilder;
         if (rewritten) {
             return shallowCopy(
                 subSearchSourceBuilders,
@@ -1239,7 +1248,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 this.sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             );
         }
         return this;
@@ -1257,7 +1267,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             sliceBuilder,
             sorts,
             rescoreBuilders,
-            highlightBuilder
+            highlightBuilder,
+            rankBuilder
         );
     }
 
@@ -1274,7 +1285,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SliceBuilder slice,
         List<SortBuilder<?>> sorts,
         List<RescorerBuilder> rescoreBuilders,
-        HighlightBuilder highlightBuilder
+        HighlightBuilder highlightBuilder,
+        RankBuilder rankBuilder
     ) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;

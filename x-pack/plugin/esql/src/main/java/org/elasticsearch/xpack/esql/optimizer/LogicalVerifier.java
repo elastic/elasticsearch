@@ -7,37 +7,48 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-public final class LogicalVerifier {
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiConsumer;
+
+public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<LogicalPlan> {
 
     public static final LogicalVerifier INSTANCE = new LogicalVerifier();
 
     private LogicalVerifier() {}
 
-    /** Verifies the optimized logical plan. */
-    public Failures verify(LogicalPlan plan, boolean skipRemoteEnrichVerification) {
-        Failures failures = new Failures();
-        Failures dependencyFailures = new Failures();
-
+    @Override
+    boolean skipVerification(LogicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
         if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-            var enriches = plan.collectFirstChildren(Enrich.class::isInstance);
+            var enriches = optimizedPlan.collectFirstChildren(Enrich.class::isInstance);
             if (enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
-                return failures;
+                return true;
             }
         }
+        return false;
+    }
 
-        plan.forEachUp(p -> {
-            PlanConsistencyChecker.checkPlan(p, dependencyFailures);
+    @Override
+    void checkPlanConsistency(LogicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+        List<BiConsumer<LogicalPlan, Failures>> checkers = new ArrayList<>();
+
+        optimizedPlan.forEachUp(p -> {
+            PlanConsistencyChecker.checkPlan(p, depFailures);
 
             if (failures.hasFailures() == false) {
                 if (p instanceof PostOptimizationVerificationAware pova) {
                     pova.postOptimizationVerification(failures);
+                }
+                if (p instanceof PostOptimizationPlanVerificationAware popva) {
+                    checkers.add(popva.postOptimizationPlanVerification());
                 }
                 p.forEachExpression(ex -> {
                     if (ex instanceof PostOptimizationVerificationAware va) {
@@ -47,10 +58,6 @@ public final class LogicalVerifier {
             }
         });
 
-        if (dependencyFailures.hasFailures()) {
-            throw new IllegalStateException(dependencyFailures.toString());
-        }
-
-        return failures;
+        optimizedPlan.forEachUp(p -> checkers.forEach(checker -> checker.accept(p, failures)));
     }
 }

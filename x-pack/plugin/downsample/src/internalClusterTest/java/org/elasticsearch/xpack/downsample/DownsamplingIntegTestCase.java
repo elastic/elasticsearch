@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -82,7 +83,13 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, Downsample.class, AggregateMetricMapperPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            Downsample.class,
+            AggregateMetricMapperPlugin.class,
+            EsqlPlugin.class
+        );
     }
 
     /**

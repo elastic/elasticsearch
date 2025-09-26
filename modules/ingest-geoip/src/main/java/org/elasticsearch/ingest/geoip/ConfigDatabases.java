@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -34,6 +34,9 @@ import java.util.stream.Stream;
  * Keeps track of user provided databases in the ES_HOME/config/ingest-geoip directory.
  * This directory is monitored and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
+@NotMultiProjectCapable(
+    description = "Custom databases not available in serverless, we should review this class for MP again after serverless is enabled"
+)
 final class ConfigDatabases implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ConfigDatabases.class);
@@ -71,7 +74,7 @@ final class ConfigDatabases implements Closeable {
         return configDatabases;
     }
 
-    @FixForMultiProject(description = "Replace DEFAULT project")
+    @NotMultiProjectCapable(description = "Replace DEFAULT project after serverless is enabled")
     void updateDatabase(Path file, boolean update) {
         String databaseFileName = file.getFileName().toString();
         try {
@@ -93,7 +96,7 @@ final class ConfigDatabases implements Closeable {
         }
     }
 
-    @FixForMultiProject(description = "Replace DEFAULT project")
+    @NotMultiProjectCapable(description = "Replace DEFAULT project after serverless is enabled")
     Map<String, DatabaseReaderLazyLoader> initConfigDatabases() throws IOException {
         Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>();
 

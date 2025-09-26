@@ -24,17 +24,18 @@ public interface ShardRefCounted {
     }
 
     static ShardRefCounted fromShardContext(ShardContext shardContext) {
-        return single(shardContext.index(), shardContext);
+        return new Single(shardContext.index(), shardContext);
     }
 
-    static ShardRefCounted single(int index, RefCounted refCounted) {
-        return shardId -> {
+    ShardRefCounted ALWAYS_REFERENCED = shardId -> RefCounted.ALWAYS_REFERENCED;
+
+    record Single(int index, RefCounted refCounted) implements ShardRefCounted {
+        @Override
+        public RefCounted get(int shardId) {
             if (shardId != index) {
                 throw new IllegalArgumentException("Invalid shardId: " + shardId + ", expected: " + index);
             }
             return refCounted;
-        };
+        }
     }
-
-    ShardRefCounted ALWAYS_REFERENCED = shardId -> RefCounted.ALWAYS_REFERENCED;
 }

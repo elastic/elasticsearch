@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Metadata fields"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-metadata-fields.html
@@ -8,7 +11,7 @@ mapped_pages:
 
 {{esql}} can access [metadata fields](/reference/elasticsearch/mapping-reference/document-metadata-fields.md).
 
-To access these fields, use the `METADATA` directive with the [`FROM`](/reference/query-languages/esql/commands/source-commands.md#esql-from) source command. For example:
+To access these fields, use the `METADATA` directive with the [`FROM`](/reference/query-languages/esql/commands/from.md) source command. For example:
 
 ```esql
 FROM index METADATA _index, _id

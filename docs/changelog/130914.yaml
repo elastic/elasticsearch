@@ -1,6 +1,0 @@
-pr: 130914
-summary: Fix LIMIT NPE with null value
-area: ES|QL
-type: bug
-issues:
- - 130908

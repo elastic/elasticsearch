@@ -8,6 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MulDoublesEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
@@ -58,6 +61,14 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lhs.baseRamBytesUsed();
+    baseRamBytesUsed += rhs.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -83,8 +94,10 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
+        double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
+        double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Mul.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+          result.appendDouble(Mul.processDoubles(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -97,8 +110,10 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double lhs = lhsVector.getDouble(p);
+        double rhs = rhsVector.getDouble(p);
         try {
-          result.appendDouble(Mul.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+          result.appendDouble(Mul.processDoubles(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

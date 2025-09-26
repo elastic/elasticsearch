@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -137,7 +138,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 requestingClass,
                 operationDescription.get()
             ),
-            callerClass,
+            requestingClass,
             entitlements
         );
     }
@@ -249,7 +250,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
-                callerClass,
+                requestingClass,
                 entitlements
             );
         }
@@ -281,7 +282,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                     requestingClass,
                     path
                 ),
-                callerClass,
+                requestingClass,
                 entitlements
             );
         }
@@ -358,8 +359,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
         }
 
         var classEntitlements = policyManager.getEntitlements(requestingClass);
-        checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass, callerClass);
-        checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass, callerClass);
+        checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass);
+        checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass);
     }
 
     @Override
@@ -376,16 +377,15 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
         ModuleEntitlements entitlements = policyManager.getEntitlements(requestingClass);
         if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
-            entitlements.logger()
-                .debug(
-                    () -> Strings.format(
-                        "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
-                        entitlements.componentName(),
-                        entitlements.moduleName(),
-                        requestingClass,
-                        property
-                    )
-                );
+            PolicyManager.generalLogger.debug(
+                () -> Strings.format(
+                    "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
+                    entitlements.componentName(),
+                    entitlements.moduleName(),
+                    requestingClass,
+                    property
+                )
+            );
             return;
         }
         notEntitled(
@@ -396,7 +396,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 requestingClass,
                 property
             ),
-            callerClass,
+            requestingClass,
             entitlements
         );
     }
@@ -437,8 +437,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
     private void checkFlagEntitlement(
         ModuleEntitlements classEntitlements,
         Class<? extends Entitlement> entitlementClass,
-        Class<?> requestingClass,
-        Class<?> callerClass
+        Class<?> requestingClass
     ) {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
             notEntitled(
@@ -449,27 +448,26 @@ public class PolicyCheckerImpl implements PolicyChecker {
                     requestingClass,
                     PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 ),
-                callerClass,
+                requestingClass,
                 classEntitlements
             );
         }
-        classEntitlements.logger()
-            .debug(
-                () -> Strings.format(
-                    "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
-                    classEntitlements.componentName(),
-                    classEntitlements.moduleName(),
-                    requestingClass,
-                    PolicyParser.buildEntitlementNameFromClass(entitlementClass)
-                )
-            );
+        PolicyManager.generalLogger.debug(
+            () -> Strings.format(
+                "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
+                classEntitlements.componentName(),
+                classEntitlements.moduleName(),
+                requestingClass,
+                PolicyParser.buildEntitlementNameFromClass(entitlementClass)
+            )
+        );
     }
 
-    private void notEntitled(String message, Class<?> callerClass, ModuleEntitlements entitlements) {
+    private void notEntitled(String message, Class<?> requestingClass, ModuleEntitlements entitlements) {
         var exception = new NotEntitledException(message);
         // Don't emit a log for suppressed packages, e.g. packages containing self tests
-        if (suppressFailureLogPackages.contains(callerClass.getPackage()) == false) {
-            entitlements.logger().warn("Not entitled: {}", message, exception);
+        if (suppressFailureLogPackages.contains(requestingClass.getPackage()) == false) {
+            entitlements.logger(requestingClass).warn("Not entitled: {}", message, exception);
         }
         throw exception;
     }
@@ -480,7 +478,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         if (policyManager.isTriviallyAllowed(requestingClass)) {
             return;
         }
-        checkFlagEntitlement(policyManager.getEntitlements(requestingClass), entitlementClass, requestingClass, callerClass);
+        checkFlagEntitlement(policyManager.getEntitlements(requestingClass), entitlementClass, requestingClass);
     }
 
     @Override
@@ -493,6 +491,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
             if (jarFileUrl == null || handleNetworkOrFileUrlCheck(callerClass, jarFileUrl) == false) {
                 checkUnsupportedURLProtocolConnection(callerClass, "jar with unsupported inner protocol");
             }
+        } else if (isJrtUrl(url)) {
+            checkEntitlementPresent(callerClass, ReadJdkImageEntitlement.class);
         } else {
             checkUnsupportedURLProtocolConnection(callerClass, url.getProtocol());
         }
@@ -561,6 +561,10 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     private static boolean isJarUrl(java.net.URL url) {
         return "jar".equals(url.getProtocol());
+    }
+
+    private static boolean isJrtUrl(java.net.URL url) {
+        return "jrt".equals(url.getProtocol());
     }
 
     // We have to use class names for sun.net.www classes as java.base does not export them

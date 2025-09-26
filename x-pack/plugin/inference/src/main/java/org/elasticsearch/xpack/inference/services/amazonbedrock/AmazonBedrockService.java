@@ -11,15 +11,18 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -93,9 +96,19 @@ public class AmazonBedrockService extends SenderService {
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
         AmazonBedrockRequestSender.Factory amazonBedrockFactory,
-        ServiceComponents serviceComponents
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(httpSenderFactory, serviceComponents);
+        this(httpSenderFactory, amazonBedrockFactory, serviceComponents, context.clusterService());
+    }
+
+    public AmazonBedrockService(
+        HttpRequestSender.Factory httpSenderFactory,
+        AmazonBedrockRequestSender.Factory amazonBedrockFactory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService
+    ) {
+        super(httpSenderFactory, serviceComponents, clusterService);
         this.amazonBedrockSender = amazonBedrockFactory.createSender();
     }
 
@@ -136,7 +149,7 @@ public class AmazonBedrockService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -147,14 +160,14 @@ public class AmazonBedrockService extends SenderService {
             var maxBatchSize = getEmbeddingsMaxBatchSize(baseAmazonBedrockModel.provider());
 
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-                inputs.getInputs(),
+                inputs,
                 maxBatchSize,
                 baseAmazonBedrockModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
                 var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
-                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
             }
         } else {
             listener.onFailure(createInvalidModelException(model));

@@ -54,7 +54,7 @@ public class KnnScoreDocQuery extends Query {
      * @param scoreDocs an array of ScoreDocs to use for the query
      * @param reader IndexReader
      */
-    KnnScoreDocQuery(ScoreDoc[] scoreDocs, IndexReader reader) {
+    public KnnScoreDocQuery(ScoreDoc[] scoreDocs, IndexReader reader) {
         // Ensure that the docs are sorted by docId, as they are later searched using binary search
         Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
         this.docs = new int[scoreDocs.length];

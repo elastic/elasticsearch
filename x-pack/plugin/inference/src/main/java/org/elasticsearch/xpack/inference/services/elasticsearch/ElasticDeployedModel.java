@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -43,7 +42,7 @@ public class ElasticDeployedModel extends ElasticsearchInternalModel {
 
     @Override
     public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
-        Model model,
+        ElasticsearchInternalModel esModel,
         ActionListener<Boolean> listener
     ) {
         throw new IllegalStateException("cannot start model that uses an existing deployment");

@@ -11,19 +11,23 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -62,7 +66,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
-public class CustomService extends SenderService {
+public class CustomService extends SenderService implements RerankingInferenceService {
 
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
@@ -74,8 +78,16 @@ public class CustomService extends SenderService {
         TaskType.COMPLETION
     );
 
-    public CustomService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public CustomService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public CustomService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -136,7 +148,7 @@ public class CustomService extends SenderService {
             case RERANK -> RerankParameters.of(new QueryAndDocsInputs("test query", List.of("test input")));
             case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("test input"), null, null),
+                new EmbeddingsInput(List.of("test input"), null),
                 model.getServiceSettings().getInputTypeTranslator()
             );
             default -> throw new IllegalStateException(
@@ -280,7 +292,7 @@ public class CustomService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -298,14 +310,14 @@ public class CustomService extends SenderService {
         var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-            inputs.getInputs(),
+            inputs,
             customModel.getServiceSettings().getBatchSize(),
             customModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -354,6 +366,14 @@ public class CustomService extends SenderService {
     public boolean hideFromConfigurationApi() {
         // The Custom service is very configurable so we're going to hide it from being exposed in the service API.
         return true;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // The model's max input length is not known at this point,
+        // return a small default that will work with the smallest models
+        // TODO add a way to configure this setting
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     public static class Configuration {

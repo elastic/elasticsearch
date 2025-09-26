@@ -351,8 +351,8 @@ from books metadata _score
 
 book_no:keyword | c_score:double
 8875            | 3.0
+7480            | 1.0
 7350            | 1.0
-7140            | 3.0
 ;
 
 QstrScoreManipulation

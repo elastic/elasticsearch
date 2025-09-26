@@ -11,13 +11,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -83,8 +86,16 @@ public class IbmWatsonxService extends SenderService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    public IbmWatsonxService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public IbmWatsonxService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public IbmWatsonxService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -341,7 +352,7 @@ public class IbmWatsonxService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -350,13 +361,16 @@ public class IbmWatsonxService extends SenderService {
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
         var batchedRequests = new EmbeddingRequestChunker<>(
-            input.getInputs(),
+            input,
             EMBEDDING_MAX_BATCH_SIZE,
             ibmWatsonxModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
+
+        var actionCreator = getActionCreator(getSender(), getServiceComponents());
+
         for (var request : batchedRequests) {
-            var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            var action = ibmWatsonxModel.accept(actionCreator, taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 

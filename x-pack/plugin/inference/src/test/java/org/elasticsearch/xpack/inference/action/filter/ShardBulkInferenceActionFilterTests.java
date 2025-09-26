@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -49,6 +50,8 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -66,7 +69,6 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -148,7 +150,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testFilterNoop() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(),
@@ -181,7 +183,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testLicenseInvalidForInference() throws InterruptedException {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -227,7 +229,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testInferenceNotFound() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -275,7 +277,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testItemFailures() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -364,7 +366,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExplicitNull() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
         model.putResult("I am a success", randomChunkedInferenceEmbedding(model, List.of("I am a success")));
@@ -440,7 +442,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testHandleEmptyInput() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -495,7 +497,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testManyRandomDocs() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         Map<String, StaticModel> inferenceModelMap = new HashMap<>();
         int numModels = randomIntBetween(1, 3);
         for (int i = 0; i < numModels; i++) {
@@ -559,7 +561,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testIndexingPressure() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(Settings.EMPTY);
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final StaticModel denseModel = StaticModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
@@ -572,21 +574,21 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceStats
         );
 
-        XContentBuilder doc0Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
-        XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
-        XContentBuilder doc2Source = IndexRequest.getXContentBuilder(
+        XContentBuilder doc0Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
+        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
+        XContentBuilder doc2Source = IndexSource.getXContentBuilder(
             XContentType.JSON,
             "sparse_field",
             "a test value",
             "dense_field",
             "another test value"
         );
-        XContentBuilder doc3Source = IndexRequest.getXContentBuilder(
+        XContentBuilder doc3Source = IndexSource.getXContentBuilder(
             XContentType.JSON,
             "dense_field",
             List.of("value one", "  ", "value two")
         );
-        XContentBuilder doc4Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "   ");
+        XContentBuilder doc4Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "   ");
         XContentBuilder doc5Source = XContentFactory.contentBuilder(XContentType.JSON);
         {
             doc5Source.startObject();
@@ -600,8 +602,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             );
             doc5Source.endObject();
         }
-        XContentBuilder doc0UpdateSource = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "an updated value");
-        XContentBuilder doc1UpdateSource = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", null);
+        XContentBuilder doc0UpdateSource = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "an updated value");
+        XContentBuilder doc1UpdateSource = IndexSource.getXContentBuilder(XContentType.JSON, "dense_field", null);
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
@@ -677,7 +679,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexingPressureTripsOnInferenceRequestGeneration() throws Exception {
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
         );
@@ -691,7 +693,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceStats
         );
 
-        XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
@@ -709,7 +711,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
                 assertThat(
                     doc1Failure.getCause().getMessage(),
-                    containsString("Insufficient memory available to update source on document [doc_1]")
+                    containsString(
+                        "Unable to insert inference results into document [doc_1]"
+                            + " due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes."
+                    )
                 );
                 assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
@@ -757,12 +762,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexingPressureTripsOnInferenceResponseHandling() throws Exception {
-        final XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        final XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), (length(doc1Source) + 1) + "b").build()
         );
 
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         sparseModel.putResult("bar", randomChunkedInferenceEmbedding(sparseModel, List.of("bar")));
 
@@ -791,7 +796,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
                 assertThat(
                     doc1Failure.getCause().getMessage(),
-                    containsString("Insufficient memory available to insert inference results into document [doc_1]")
+                    containsString(
+                        "Unable to insert inference results into document [doc_1]"
+                            + " due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes."
+                    )
                 );
                 assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));
@@ -841,8 +849,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testIndexingPressurePartialFailure() throws Exception {
         // Use different length strings so that doc 1 and doc 2 sources are different sizes
-        final XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
-        final XContentBuilder doc2Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bazzz");
+        final XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        final XContentBuilder doc2Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bazzz");
 
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ChunkedInferenceEmbedding barEmbedding = randomChunkedInferenceEmbedding(sparseModel, List.of("bar"));
@@ -875,7 +883,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 .build()
         );
 
-        final InferenceStats inferenceStats = new InferenceStats(mock(), mock());
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel),
@@ -902,7 +910,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 BulkItemResponse.Failure doc2Failure = doc2Response.getFailure();
                 assertThat(
                     doc2Failure.getCause().getMessage(),
-                    containsString("Insufficient memory available to insert inference results into document [doc_2]")
+                    containsString(
+                        "Unable to insert inference results into document [doc_2]"
+                            + " due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes."
+                    )
                 );
                 assertThat(doc2Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertThat(doc2Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));

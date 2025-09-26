@@ -12,6 +12,7 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -242,6 +243,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public void createShard(
+            final ProjectId projectId,
             final ShardRouting shardRouting,
             final PeerRecoveryTargetService recoveryTargetService,
             final PeerRecoveryTargetService.RecoveryListener recoveryListener,

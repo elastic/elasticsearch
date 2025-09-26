@@ -95,6 +95,8 @@ import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -493,6 +495,40 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 TransportVersion.current()
             );
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
+        }
+    }
+
+    public void testSerializationCcs() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+        QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(originalQuery));
+    }
+
+    public void testSerializationCcsBwc() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                originalQuery.getMinimalSupportedVersion(),
+                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+            );
+
+            if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+                QueryBuilder deserializedQuery = copyNamedWriteable(
+                    originalQuery,
+                    namedWriteableRegistry(),
+                    QueryBuilder.class,
+                    transportVersion
+                );
+                assertThat(deserializedQuery, equalTo(originalQuery));
+            } else {
+                IllegalArgumentException e = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, transportVersion)
+                );
+                assertThat(e.getMessage(), containsString("One or more nodes does not support semantic query cross-cluster search"));
+            }
         }
     }
 

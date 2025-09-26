@@ -44,8 +44,10 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -62,6 +64,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -76,6 +79,8 @@ import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewa
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends IndexShardTestCase {
 
@@ -548,8 +553,10 @@ public class SearchServiceTests extends IndexShardTestCase {
 
             @Override
             IndexService getIndexService() {
-                // it's ok to return null because the three above methods are overridden
-                return null;
+                List<SearchOperationListener> listeners = List.of(new ShardSearchPhaseAPMMetrics(MeterRegistry.NOOP));
+                IndexService mock = mock(IndexService.class);
+                when(mock.getSearchOperationListener()).thenReturn(listeners);
+                return mock;
             }
         };
     }

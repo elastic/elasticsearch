@@ -8,8 +8,8 @@ stack: preview 9.2.0
 The `TS` source command is similar to the [`FROM`](/reference/query-languages/esql/commands/from.md)
 source command, with the following key differences:
 
- - Targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
- - Enables the use of [time-series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) inside the
+ - Targets only [time series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
+ - Enables the use of [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) inside the
    [STATS](/reference/query-languages/esql/commands/stats-by.md) command
 
 **Syntax**
@@ -29,7 +29,7 @@ TS index_pattern [METADATA fields]
 **Description**
 
 The `TS` source command enables time series semantics and adds support for
-time series aggregation functions to the `STATS` command, such as
+[time-series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) to the `STATS` command, such as
 [`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-avg_over_time),
 or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-rate).
 These functions are implicitly evaluated per time series, then aggregated by group using a secondary aggregation
@@ -92,7 +92,7 @@ TS metrics | STATS RATE(search_requests)
 **Best practices**
 
 - Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
-  For example, in STATS max(rate(foo)) + rate(bar)), if foo and bar don't share the same dimension values, the rate
+  For example, in `STATS max(rate(foo)) + rate(bar))`, if `foo` and `bar` don't share the same dimension values, the rate
   for one metric will be null for some dimension combinations. Because the + operator returns null when either input
   is null, the entire result becomes null for those dimensions. Additionally, queries that aggregate a single metric
   can filter out null values more efficiently.

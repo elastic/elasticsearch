@@ -210,19 +210,11 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         switch (elementType()) {
             case FLOAT -> assertThat(
                 query,
-                anyOf(
-                    instanceOf(ESKnnFloatVectorQuery.class),
-                    instanceOf(DenseVectorQuery.Floats.class),
-                    instanceOf(BooleanQuery.class)
-                )
+                anyOf(instanceOf(ESKnnFloatVectorQuery.class), instanceOf(DenseVectorQuery.Floats.class), instanceOf(BooleanQuery.class))
             );
             case BYTE -> assertThat(
                 query,
-                anyOf(
-                    instanceOf(ESKnnByteVectorQuery.class),
-                    instanceOf(DenseVectorQuery.Bytes.class),
-                    instanceOf(BooleanQuery.class)
-                )
+                anyOf(instanceOf(ESKnnByteVectorQuery.class), instanceOf(DenseVectorQuery.Bytes.class), instanceOf(BooleanQuery.class))
             );
         }
 

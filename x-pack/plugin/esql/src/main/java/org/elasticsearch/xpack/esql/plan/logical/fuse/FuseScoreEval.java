@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -36,7 +38,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalysisVerificationAware {
+public class FuseScoreEval extends UnaryPlan
+    implements
+        LicenseAware,
+        PostAnalysisVerificationAware,
+        ExecutesOn.Coordinator,
+        PipelineBreaker {
     private final Attribute discriminatorAttr;
     private final Attribute scoreAttr;
     private final Fuse.FuseType fuseType;

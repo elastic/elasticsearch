@@ -357,6 +357,14 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         // Since FORK, RERANK, COMPLETION and CHANGE_POINT are not supported on remote indices, we can't check them here against the remote
         // LOOKUP JOIN
+
+        assertEquals("5:3: LOOKUP JOIN with remote indices can't be executed after [FUSE GROUP BY my_key]@3:3", error("""
+            FROM test,remote:test METADATA _id, _index, _score
+            | EVAL my_key = "foo"
+            | FUSE GROUP BY my_key
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | LIMIT 2""", analyzer));
     }
 
     public void testRemoteEnrichAfterLookupJoinWithPipelineBreaker() {

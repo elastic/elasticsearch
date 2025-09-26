@@ -56,12 +56,15 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -95,6 +98,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -103,6 +108,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.hamcrest.core.IsEqual;
 import org.junit.Assert;
 
 import java.io.BufferedReader;
@@ -973,5 +979,63 @@ public final class EsqlTestUtils {
         } else {
             return e;
         }
+    }
+
+    /**
+     * Returns a matcher that matches if the examined object is logically equal to the specified
+     * operand, ignoring the {@link NameId}s of any {@link NamedExpression}s (e.g. {@link Alias} and {@link Attribute}).
+     */
+    public static <T> org.hamcrest.Matcher<T> equalToIgnoringIds(T operand) {
+        return new IsEqualIgnoringIds<T>(operand);
+    }
+
+    private static class IsEqualIgnoringIds<T> extends IsEqual<T> {
+        @SuppressWarnings("unchecked")
+        IsEqualIgnoringIds(T operand) {
+            super((T) ignoreIds(operand));
+        }
+
+        @Override
+        public boolean matches(Object actualValue) {
+            return super.matches(ignoreIds(actualValue));
+        }
+    }
+
+    private static Object ignoreIds(Object node) {
+        return switch (node) {
+            case Expression expression -> ignoreIdsInExpression(expression);
+            case LogicalPlan plan -> ignoreIdsInLogicalPlan(plan);
+            case PhysicalPlan pplan -> ignoreIdsInPhysicalPlan(pplan);
+            case List<?> list -> list.stream().map(EsqlTestUtils::ignoreIds).toList();
+            case null, default -> node;
+        };
+    }
+
+    private static final NameId DUMMY_ID = new NameId();
+
+    private static Expression ignoreIdsInExpression(Expression expression) {
+        return expression.transformDown(
+            NamedExpression.class,
+            ne -> ne instanceof Alias alias ? alias.withId(DUMMY_ID) : ne instanceof Attribute attr ? attr.withId(DUMMY_ID) : ne
+        );
+    }
+
+    private static LogicalPlan ignoreIdsInLogicalPlan(LogicalPlan plan) {
+        return plan.transformExpressionsDown(
+            NamedExpression.class,
+            ne -> ne instanceof Alias alias ? alias.withId(DUMMY_ID) : ne instanceof Attribute attr ? attr.withId(DUMMY_ID) : ne
+        );
+    }
+
+    private static PhysicalPlan ignoreIdsInPhysicalPlan(PhysicalPlan plan) {
+        PhysicalPlan ignoredInPhysicalNodes = plan.transformExpressionsDown(
+            NamedExpression.class,
+            ne -> ne instanceof Alias alias ? alias.withId(DUMMY_ID) : ne instanceof Attribute attr ? attr.withId(DUMMY_ID) : ne
+        );
+        return ignoredInPhysicalNodes.transformDown(FragmentExec.class, fragmentExec -> {
+            LogicalPlan fragment = fragmentExec.fragment();
+            LogicalPlan ignoredInFragment = ignoreIdsInLogicalPlan(fragment);
+            return fragmentExec.withFragment(ignoredInFragment);
+        });
     }
 }

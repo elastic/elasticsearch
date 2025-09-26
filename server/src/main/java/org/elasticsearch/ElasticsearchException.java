@@ -2023,6 +2023,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersions.REMOTE_EXCEPTION,
             TransportVersions.REMOTE_EXCEPTION_8_19
         );
+        // TODO register NoMatchingProjectException
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

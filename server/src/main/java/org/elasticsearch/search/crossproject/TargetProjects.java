@@ -1,0 +1,33 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.crossproject;
+
+import org.elasticsearch.core.Nullable;
+
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
+    public static final TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
+
+    public TargetProjects(ProjectRoutingInfo originProject) {
+        this(originProject, List.of());
+    }
+
+    @Nullable
+    public String originProjectAlias() {
+        return originProject != null ? originProject.projectAlias() : null;
+    }
+
+    public Set<String> linkedProjectAliases() {
+        return linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
+    }
+}

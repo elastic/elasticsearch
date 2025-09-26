@@ -10,7 +10,11 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -20,34 +24,62 @@ import java.util.Set;
 /**
  * A collection of {@link ResolvedIndexExpression}.
  */
-public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions) {
+public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions) implements Writeable {
+
+    public ResolvedIndexExpressions(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(ResolvedIndexExpression::new));
+    }
 
     public List<String> getLocalIndicesList() {
         return expressions.stream().flatMap(e -> e.localExpressions().expressions().stream()).toList();
+    }
+
+    public List<String> getRemoteIndicesList() {
+        return expressions.stream().flatMap(e -> e.remoteExpressions().stream()).toList();
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeCollection(expressions);
+    }
+
     public static final class Builder {
         private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
         /**
+         * Add a new resolved expression.
          * @param original         the original expression that was resolved -- may be blank for "access all" cases
          * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it.
          *                         May be empty.
          */
-        public void addLocalExpressions(
+        public void addExpressions(
             String original,
             HashSet<String> localExpressions,
-            ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
+            ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult,
+            HashSet<String> remoteExpressions
         ) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(localExpressions);
             Objects.requireNonNull(resolutionResult);
+            Objects.requireNonNull(remoteExpressions);
             expressions.add(
-                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), new HashSet<>())
+                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), remoteExpressions)
+            );
+        }
+
+        public void addRemoteExpressions(String original, HashSet<String> remoteExpressions) {
+            Objects.requireNonNull(original);
+            Objects.requireNonNull(remoteExpressions);
+            expressions.add(
+                new ResolvedIndexExpression(
+                    original,
+                    new LocalExpressions(new HashSet<>(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    remoteExpressions
+                )
             );
         }
 

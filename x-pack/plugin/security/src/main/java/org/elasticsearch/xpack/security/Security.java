@@ -210,6 +210,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchAuthorizationService;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1142,6 +1143,10 @@ public class Security extends Plugin
         if (authorizationDenialMessages.get() == null) {
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
+
+        final CrossProjectSearchAuthorizationService crossProjectSearchAuthorizationService = getCrossProjectSearchAuthorizationService(
+            extensionComponents
+        );
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1159,7 +1164,10 @@ public class Security extends Plugin
             restrictedIndices,
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
-            projectResolver
+            projectResolver,
+            crossProjectSearchAuthorizationService == null
+                ? new CrossProjectSearchAuthorizationService.Default()
+                : crossProjectSearchAuthorizationService
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1342,6 +1350,15 @@ public class Security extends Plugin
             }
             return customAuthenticators;
         }
+    }
+
+    private CrossProjectSearchAuthorizationService getCrossProjectSearchAuthorizationService(
+        SecurityExtension.SecurityComponents extensionComponents
+    ) {
+        return findValueFromExtensions(
+            "cross-project search authorization service",
+            extension -> extension.getCrossProjectSearchAuthorizationService(extensionComponents)
+        );
     }
 
     private ServiceAccountService createServiceAccountService(

@@ -80,6 +80,10 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
+
+        default boolean resolveCrossProject() {
+            return false;
+        }
     }
 
     /**

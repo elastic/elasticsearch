@@ -615,57 +615,9 @@ tests:
 - class: org.elasticsearch.upgrades.SearchableSnapshotsRollingUpgradeIT
   method: testBlobStoreCacheWithFullCopyInMixedVersions
   issue: https://github.com/elastic/elasticsearch/issues/135474
-- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135338
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/134407
-- class: org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT
-  method: testUsage {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135312
-- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
-  method: testUsage {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135316
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135320
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135237
-- class: org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testLogsIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135315
-- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/135324
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135327
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135238
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/135236
-- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135344
-- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135325
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/135511
-- class: org.elasticsearch.upgrades.SyntheticSourceRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/135512
-- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/135525
-- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
-  method: testUsage {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/135319
 
 # Examples:
 #

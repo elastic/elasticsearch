@@ -1,5 +1,5 @@
 pr: 130857
-summary: First attempt at improving `statsByShard` performance
+summary: Improving statsByShard performance when the number of shards is very large
 area: Stats
 type: bug
 issues: []

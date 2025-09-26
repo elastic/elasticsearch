@@ -269,7 +269,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         public String toString() {
             return "{shardId="
                 + shardId
-                + ", ramBytedUsed="
+                + ", ramBytesUsed="
                 + ramBytesUsed
                 + ", hitCount="
                 + hitCount

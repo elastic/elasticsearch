@@ -16,10 +16,12 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,6 +29,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -80,8 +85,9 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     @Override
     public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         return new SimilarityEvaluatorFactory(
-            toEvaluator.apply(left()),
-            toEvaluator.apply(right()),
+            left(),
+            right(),
+            toEvaluator::apply,
             getSimilarityFunction(),
             getClass().getSimpleName() + "Evaluator"
         );
@@ -92,19 +98,33 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
      */
     protected abstract SimilarityEvaluatorFunction getSimilarityFunction();
 
+    @SuppressWarnings("unchecked")
     private record SimilarityEvaluatorFactory(
-        EvalOperator.ExpressionEvaluator.Factory left,
-        EvalOperator.ExpressionEvaluator.Factory right,
+        Expression leftExpression,
+        Expression rightExpression,
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
         SimilarityEvaluatorFunction similarityFunction,
         String evaluatorName
     ) implements EvalOperator.ExpressionEvaluator.Factory {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            VectorValueProvider left;
+            VectorValueProvider right;
+            if (leftExpression instanceof Literal && leftExpression.dataType() == DENSE_VECTOR) {
+                left = new VectorValueProvider((ArrayList<Float>) ((Literal) leftExpression).value(), null);
+            } else {
+                left = new VectorValueProvider(null, toEvaluator.apply(leftExpression).get(context));
+            }
+            if (rightExpression instanceof Literal && rightExpression.dataType() == DENSE_VECTOR) {
+                right = new VectorValueProvider((ArrayList<Float>) ((Literal) rightExpression).value(), null);
+            } else {
+                right = new VectorValueProvider(null, toEvaluator.apply(rightExpression).get(context));
+            }
             // TODO check whether to use this custom evaluator or reuse / define an existing one
             return new SimilarityEvaluator(
-                left.get(context),
-                right.get(context),
+                left,
+                right,
                 similarityFunction,
                 evaluatorName,
                 context.blockFactory()
@@ -113,13 +133,96 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public String toString() {
-            return evaluatorName() + "[left=" + left + ", right=" + right + "]";
+            return evaluatorName() + "[left=" + "left" + ", right=" + "right" + "]";
+        }
+    }
+
+    private static class VectorValueProvider implements Releasable {
+
+        private final float[] constantVector;
+        private final EvalOperator.ExpressionEvaluator expressionEvaluator;
+        private FloatBlock block;
+        float[] scratch;
+
+        VectorValueProvider(ArrayList<Float> constantVector, EvalOperator.ExpressionEvaluator expressionEvaluator) {
+            if(constantVector != null) {
+                this.constantVector = new float[constantVector.size()];
+                for (int i = 0; i < constantVector.size(); i++) {
+                    this.constantVector[i] = constantVector.get(i);
+                }
+            }else {
+                this.constantVector = null;
+            }
+            this.expressionEvaluator = expressionEvaluator;
+        }
+
+        private void eval(Page page) {
+            if(expressionEvaluator != null) {
+               block = (FloatBlock) expressionEvaluator.eval(page);
+            }
+        }
+
+        private float[] getVector(int position) {
+            if (constantVector != null) {
+                return constantVector;
+            } else if (block != null) {
+                if (block.isNull(position)) {
+                    return null;
+                }
+                if (scratch == null) {
+                    int dims = block.getValueCount(position);
+                    if (dims > 0) {
+                        scratch = new float[dims];
+                    }
+                }
+                if (scratch != null) {
+                    readFloatArray(block, block.getFirstValueIndex(position), scratch.length, scratch);
+                }
+                return scratch;
+            } else {
+                throw new EsqlClientException("VectorValueProvider not initialized");
+            }
+        }
+
+        private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
+            for (int i = 0; i < dimensions; i++) {
+                scratch[i] = block.getFloat(position + i);
+            }
+        }
+
+        public int getDimensions(){
+            if (constantVector != null) {
+                return constantVector.length;
+            } else if (block != null) {
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    int dims = block.getValueCount(p);
+                    if (dims > 0) {
+                        return dims;
+                    }
+                }
+                return 0;
+            } else {
+                throw new EsqlClientException("VectorValueProvider not initialized");
+            }
+        }
+
+        public long baseRamBytesUsed() {
+            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector)) + (expressionEvaluator == null ? 0 : expressionEvaluator.baseRamBytesUsed());
+        }
+
+        public void close() {
+            Releasables.close(block, expressionEvaluator);
+        }
+
+        @Override
+        public String toString() {
+            return "constant_vector=" + Arrays.toString(constantVector) + ", expressionEvaluator=[" + expressionEvaluator + "]";
         }
     }
 
     private record SimilarityEvaluator(
-        EvalOperator.ExpressionEvaluator left,
-        EvalOperator.ExpressionEvaluator right,
+        VectorValueProvider left,
+        VectorValueProvider right,
         SimilarityEvaluatorFunction similarityFunction,
         String evaluatorName,
         BlockFactory blockFactory
@@ -129,26 +232,23 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public Block eval(Page page) {
-            try (FloatBlock leftBlock = (FloatBlock) left.eval(page); FloatBlock rightBlock = (FloatBlock) right.eval(page)) {
+            try {
+                left.eval(page);
+                right.eval(page);
+
+                int dimensions = left.getDimensions();
                 int positionCount = page.getPositionCount();
-                int dimensions = 0;
-                // Get the first non-empty vector to calculate the dimension
-                for (int p = 0; p < positionCount; p++) {
-                    if (leftBlock.getValueCount(p) != 0) {
-                        dimensions = leftBlock.getValueCount(p);
-                        break;
-                    }
-                }
                 if (dimensions == 0) {
                     return blockFactory.newConstantNullBlock(positionCount);
                 }
 
-                float[] leftScratch = new float[dimensions];
-                float[] rightScratch = new float[dimensions];
-                try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positionCount * dimensions)) {
+                try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positionCount)) {
                     for (int p = 0; p < positionCount; p++) {
-                        int dimsLeft = leftBlock.getValueCount(p);
-                        int dimsRight = rightBlock.getValueCount(p);
+                        float[] leftVector = left.getVector(p);
+                        float[] rightvector = right.getVector(p);
+
+                        int dimsLeft = leftVector == null ? 0 : leftVector.length;
+                        int dimsRight = rightvector == null ? 0 : rightvector.length;
 
                         if (dimsLeft == 0 || dimsRight == 0) {
                             // A null value on the left or right vector. Similarity is null
@@ -161,19 +261,13 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                                 dimsRight
                             );
                         }
-                        readFloatArray(leftBlock, leftBlock.getFirstValueIndex(p), dimensions, leftScratch);
-                        readFloatArray(rightBlock, rightBlock.getFirstValueIndex(p), dimensions, rightScratch);
-                        float result = similarityFunction.calculateSimilarity(leftScratch, rightScratch);
+                        float result = similarityFunction.calculateSimilarity(leftVector, rightvector);
                         builder.appendDouble(result);
                     }
                     return builder.build();
                 }
-            }
-        }
-
-        private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
-            for (int i = 0; i < dimensions; i++) {
-                scratch[i] = block.getFloat(position + i);
+            } finally {
+                Releasables.close(left, right);
             }
         }
 
@@ -189,7 +283,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public void close() {
-            Releasables.close(left, right);
+//            Releasables.close(left, right);
         }
     }
 }

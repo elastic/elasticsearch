@@ -309,7 +309,7 @@ public enum DataType {
     AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
 
     /**
-     * Fields with this type are dense vectors, represented as an array of double values.
+     * Fields with this type are dense vectors, represented as an array of float values.
      */
     DENSE_VECTOR(builder().esType("dense_vector").estimatedSize(4096));
 

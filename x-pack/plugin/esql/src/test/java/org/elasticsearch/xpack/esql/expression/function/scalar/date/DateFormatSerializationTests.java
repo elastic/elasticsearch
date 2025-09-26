@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class DateFormatSerializationTests extends AbstractExpressionSerializationTests<DateFormat> {
     @Override
-    protected DateFormat innerCreateTestInstance() {
+    protected DateFormat createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression format = randomBoolean() ? null : randomChild();
@@ -23,7 +23,7 @@ public class DateFormatSerializationTests extends AbstractExpressionSerializatio
     }
 
     @Override
-    protected DateFormat innerMutateInstance(DateFormat instance) throws IOException {
+    protected DateFormat mutateInstance(DateFormat instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression format = instance.format();

@@ -26,16 +26,17 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -47,36 +48,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SerializationTestUtils {
-    private static final NameId DUMMY_ID = new NameId();
-
-    // NOCOMMIT: do not use the ignoreIds methods; instead, fix ids during deserialization
-    @SuppressWarnings("unchecked")
-    public static <E extends Expression> E ignoreIds(E expression) {
-        return (E) expression.transformDown(
-            NamedExpression.class,
-            ne -> ne instanceof Alias alias ? alias.withId(DUMMY_ID) : ne instanceof Attribute attr ? attr.withId(DUMMY_ID) : ne
-        );
-    }
-
-    private static LogicalPlan ignoreIds(LogicalPlan plan) {
-        return plan.transformExpressionsDown(
-            NamedExpression.class,
-            ne -> ne instanceof Alias alias ? alias.withId(DUMMY_ID) : ne instanceof Attribute attr ? attr.withId(DUMMY_ID) : ne
-        );
-    }
-
-    private static PhysicalPlan ignoreIds(PhysicalPlan plan) {
-        PhysicalPlan ignoredInPhysicalNodes = plan.transformExpressionsDown(
-            NamedExpression.class,
-            ne -> ne instanceof Alias alias ? alias.withId(DUMMY_ID) : ne instanceof Attribute attr ? attr.withId(DUMMY_ID) : ne
-        );
-        return ignoredInPhysicalNodes.transformDown(FragmentExec.class, fragmentExec -> {
-            LogicalPlan fragment = fragmentExec.fragment();
-            LogicalPlan ignoredInFragment = ignoreIds(fragment);
-            return fragmentExec.withFragment(ignoredInFragment);
-        });
-    }
-
     public static void assertSerialization(PhysicalPlan plan) {
         assertSerialization(plan, EsqlTestUtils.TEST_CFG);
     }
@@ -88,12 +59,12 @@ public class SerializationTestUtils {
             in -> in.readNamedWriteable(PhysicalPlan.class),
             configuration
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(ignoreIds(plan), unused -> ignoreIds(deserPlan));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
     }
 
     public static void assertSerialization(LogicalPlan plan) {
         var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writeNamedWriteable, in -> in.readNamedWriteable(LogicalPlan.class));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(ignoreIds(plan), unused -> ignoreIds(deserPlan));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
     }
 
     public static void assertSerialization(Expression expression) {
@@ -107,7 +78,7 @@ public class SerializationTestUtils {
             in -> in.readNamedWriteable(Expression.class),
             configuration
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(ignoreIds(expression), unused -> ignoreIds(deserExpression));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(expression, unused -> deserExpression);
     }
 
     public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer) {
@@ -118,11 +89,16 @@ public class SerializationTestUtils {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
             serializer.write(planStreamOutput, orig);
+
+            PlanStreamInput.NameIdMapper nameIdMapper = orig instanceof Node<?> node
+                // For trees, reuse the NameIds to make equality testing easier
+                ? new TestNameIdMapper(node)
+                : new PlanStreamInput.NameIdMapper();
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config, nameIdMapper);
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -159,5 +135,53 @@ public class SerializationTestUtils {
             )
         );
         return new NamedWriteableRegistry(entries);
+    }
+
+    /**
+     * Reuses existing {@link NameId}s when deserializing a tree, rather than creating new ones all the time. This makes testing for
+     * equality easier because deserialized nodes will have the same {@link NameId} instances as the original ones.
+     */
+    public static class TestNameIdMapper extends PlanStreamInput.NameIdMapper {
+        public TestNameIdMapper() {
+            super();
+        };
+
+        @SuppressWarnings("this-escape")
+        public TestNameIdMapper(Node<?> node) {
+            super();
+            collectNameIds(node);
+        }
+
+        private void add(NameId id) {
+            seen().computeIfAbsent(id.id(), unused -> id);
+        }
+
+        public void collectNameIds(Node<?> node) {
+            if (node instanceof Expression e) {
+                e.forEachDown(NamedExpression.class, ne -> add(ne.id()));
+                return;
+            }
+
+            if (node instanceof QueryPlan<?> p) {
+                p.forEachExpressionDown(NamedExpression.class, ne -> add(ne.id()));
+            }
+
+            if (node instanceof LogicalPlan lp) {
+                lp.forEachDown(Lookup.class, lookup -> {
+                    if (lookup.localRelation() != null) {
+                        // The LocalRelation is not seen as part of the plan tree so we need to explicitly collect its NameIds.
+                        collectNameIds(lookup.localRelation());
+                    }
+                });
+            }
+
+            if (node instanceof PhysicalPlan p) {
+                p.forEachDown(FragmentExec.class, fragmentExec -> {
+                    // The fragment is not seen as part of the plan tree so we need to explicitly collect its NameIds.
+                    LogicalPlan fragment = fragmentExec.fragment();
+                    collectNameIds(fragment);
+                });
+            }
+        }
     }
 }

@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class CountDistinctSerializationTests extends AbstractExpressionSerializationTests<CountDistinct> {
     @Override
-    protected CountDistinct innerCreateTestInstance() {
+    protected CountDistinct createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression precision = randomBoolean() ? null : randomChild();
@@ -23,7 +23,7 @@ public class CountDistinctSerializationTests extends AbstractExpressionSerializa
     }
 
     @Override
-    protected CountDistinct innerMutateInstance(CountDistinct instance) throws IOException {
+    protected CountDistinct mutateInstance(CountDistinct instance) throws IOException {
         Source source = randomSource();
         Expression field = instance.field();
         Expression precision = instance.precision();

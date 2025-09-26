@@ -16,14 +16,14 @@ import java.io.IOException;
 public class MonthNameSerializationTests extends AbstractExpressionSerializationTests<MonthName> {
 
     @Override
-    protected MonthName innerCreateTestInstance() {
+    protected MonthName createTestInstance() {
         Source source = randomSource();
         Expression date = randomChild();
         return new MonthName(source, date, configuration());
     }
 
     @Override
-    protected MonthName innerMutateInstance(MonthName instance) throws IOException {
+    protected MonthName mutateInstance(MonthName instance) throws IOException {
         Source source = instance.source();
         Expression date = instance.field();
         return new MonthName(source, randomValueOtherThan(date, AbstractExpressionSerializationTests::randomChild), configuration());

@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 
-public class UnsupportedAttributeTests extends AbstractAttributeTestCase<UnsupportedAttribute> {
+public class UnsupportedAttributeTests extends AbstractExpressionSerializationTests<UnsupportedAttribute> {
     @Override
-    protected UnsupportedAttribute create() {
+    protected UnsupportedAttribute createTestInstance() {
         return randomUnsupportedAttribute();
     }
 
@@ -28,7 +29,7 @@ public class UnsupportedAttributeTests extends AbstractAttributeTestCase<Unsuppo
     }
 
     @Override
-    protected UnsupportedAttribute mutate(UnsupportedAttribute instance) {
+    protected UnsupportedAttribute mutateInstance(UnsupportedAttribute instance) {
         Source source = instance.source();
         String qualifier = instance.qualifier();
         String name = instance.name();

@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class StYSerializationTests extends AbstractExpressionSerializationTests<StY> {
     @Override
-    protected StY innerCreateTestInstance() {
+    protected StY createTestInstance() {
         return new StY(randomSource(), randomChild());
     }
 
     @Override
-    protected StY innerMutateInstance(StY instance) throws IOException {
+    protected StY mutateInstance(StY instance) throws IOException {
         return new StY(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

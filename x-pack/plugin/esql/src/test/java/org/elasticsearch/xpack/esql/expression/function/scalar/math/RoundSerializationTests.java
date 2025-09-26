@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class RoundSerializationTests extends AbstractExpressionSerializationTests<Round> {
     @Override
-    protected Round innerCreateTestInstance() {
+    protected Round createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression decimals = randomBoolean() ? null : randomChild();
@@ -23,7 +23,7 @@ public class RoundSerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected Round innerMutateInstance(Round instance) throws IOException {
+    protected Round mutateInstance(Round instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression decimals = instance.decimals();

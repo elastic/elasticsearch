@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class RepeatSerializationTests extends AbstractExpressionSerializationTests<Repeat> {
     @Override
-    protected Repeat innerCreateTestInstance() {
+    protected Repeat createTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression number = randomChild();
@@ -23,7 +23,7 @@ public class RepeatSerializationTests extends AbstractExpressionSerializationTes
     }
 
     @Override
-    protected Repeat innerMutateInstance(Repeat instance) throws IOException {
+    protected Repeat mutateInstance(Repeat instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression number = instance.number();

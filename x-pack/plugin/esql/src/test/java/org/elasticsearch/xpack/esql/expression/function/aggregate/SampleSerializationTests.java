@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class SampleSerializationTests extends AbstractExpressionSerializationTests<Sample> {
     @Override
-    protected Sample innerCreateTestInstance() {
+    protected Sample createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression limit = randomChild();
@@ -23,7 +23,7 @@ public class SampleSerializationTests extends AbstractExpressionSerializationTes
     }
 
     @Override
-    protected Sample innerMutateInstance(Sample instance) throws IOException {
+    protected Sample mutateInstance(Sample instance) throws IOException {
         Source source = randomSource();
         Expression field = instance.field();
         Expression limit = instance.limitField();

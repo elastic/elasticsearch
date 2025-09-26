@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class TauSerializationTests extends AbstractExpressionSerializationTests<Tau> {
     @Override
-    protected Tau innerCreateTestInstance() {
+    protected Tau createTestInstance() {
         return new Tau(randomSource());
     }
 
     @Override
-    protected Tau innerMutateInstance(Tau instance) throws IOException {
+    protected Tau mutateInstance(Tau instance) throws IOException {
         return null;
     }
 

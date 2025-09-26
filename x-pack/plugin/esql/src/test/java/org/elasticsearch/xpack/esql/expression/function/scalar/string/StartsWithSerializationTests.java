@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class StartsWithSerializationTests extends AbstractExpressionSerializationTests<StartsWith> {
     @Override
-    protected StartsWith innerCreateTestInstance() {
+    protected StartsWith createTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression prefix = randomChild();
@@ -23,7 +23,7 @@ public class StartsWithSerializationTests extends AbstractExpressionSerializatio
     }
 
     @Override
-    protected StartsWith innerMutateInstance(StartsWith instance) throws IOException {
+    protected StartsWith mutateInstance(StartsWith instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression prefix = instance.prefix();

@@ -14,12 +14,12 @@ import java.io.IOException;
 
 public class InsensitiveEqualsSerializationTests extends AbstractExpressionSerializationTests<InsensitiveEquals> {
     @Override
-    protected final InsensitiveEquals innerCreateTestInstance() {
+    protected final InsensitiveEquals createTestInstance() {
         return new InsensitiveEquals(randomSource(), randomChild(), randomChild());
     }
 
     @Override
-    protected final InsensitiveEquals innerMutateInstance(InsensitiveEquals instance) throws IOException {
+    protected final InsensitiveEquals mutateInstance(InsensitiveEquals instance) throws IOException {
         Expression left = instance.left();
         Expression right = instance.right();
         if (randomBoolean()) {

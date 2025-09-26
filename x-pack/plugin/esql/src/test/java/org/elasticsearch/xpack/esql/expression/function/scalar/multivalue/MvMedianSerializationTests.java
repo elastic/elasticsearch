@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MvMedianSerializationTests extends AbstractExpressionSerializationTests<MvMedian> {
     @Override
-    protected MvMedian innerCreateTestInstance() {
+    protected MvMedian createTestInstance() {
         return new MvMedian(randomSource(), randomChild());
     }
 
     @Override
-    protected MvMedian innerMutateInstance(MvMedian instance) throws IOException {
+    protected MvMedian mutateInstance(MvMedian instance) throws IOException {
         return new MvMedian(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

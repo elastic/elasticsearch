@@ -16,12 +16,12 @@ import java.io.IOException;
 
 public class NotSerializationTests extends AbstractExpressionSerializationTests<Not> {
     @Override
-    protected Not innerCreateTestInstance() {
+    protected Not createTestInstance() {
         return new Not(randomSource(), randomChild());
     }
 
     @Override
-    protected Not innerMutateInstance(Not instance) throws IOException {
+    protected Not mutateInstance(Not instance) throws IOException {
         Source source = instance.source();
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return new Not(source, child);

@@ -18,12 +18,12 @@ public abstract class AbstractArithmeticSerializationTests<T extends EsqlArithme
     protected abstract T create(Source source, Expression left, Expression right);
 
     @Override
-    protected final T innerCreateTestInstance() {
+    protected final T createTestInstance() {
         return create(randomSource(), randomChild(), randomChild());
     }
 
     @Override
-    protected final T innerMutateInstance(T instance) throws IOException {
+    protected final T mutateInstance(T instance) throws IOException {
         Expression left = instance.left();
         Expression right = instance.right();
         if (randomBoolean()) {

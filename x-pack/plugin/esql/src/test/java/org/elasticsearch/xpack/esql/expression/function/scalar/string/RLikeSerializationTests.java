@@ -17,7 +17,7 @@ import java.io.IOException;
 
 public class RLikeSerializationTests extends AbstractExpressionSerializationTests<RLike> {
     @Override
-    protected RLike innerCreateTestInstance() {
+    protected RLike createTestInstance() {
         Source source = randomSource();
         Expression child = randomChild();
         RLikePattern pattern = new RLikePattern(randomAlphaOfLength(4));
@@ -25,7 +25,7 @@ public class RLikeSerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected RLike innerMutateInstance(RLike instance) throws IOException {
+    protected RLike mutateInstance(RLike instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.field();
         RLikePattern pattern = instance.pattern();

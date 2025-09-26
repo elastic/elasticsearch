@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class DateParseSerializationTests extends AbstractExpressionSerializationTests<DateParse> {
     @Override
-    protected DateParse innerCreateTestInstance() {
+    protected DateParse createTestInstance() {
         Source source = randomSource();
         Expression first = randomChild();
         Expression second = randomBoolean() ? null : randomChild();
@@ -23,7 +23,7 @@ public class DateParseSerializationTests extends AbstractExpressionSerialization
     }
 
     @Override
-    protected DateParse innerMutateInstance(DateParse instance) throws IOException {
+    protected DateParse mutateInstance(DateParse instance) throws IOException {
         Source source = instance.source();
         Expression first = instance.children().get(0);
         Expression second = instance.children().size() == 1 ? null : instance.children().get(1);

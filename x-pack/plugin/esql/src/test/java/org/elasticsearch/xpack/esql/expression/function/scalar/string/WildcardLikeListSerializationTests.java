@@ -20,14 +20,14 @@ import java.util.List;
 
 public class WildcardLikeListSerializationTests extends AbstractExpressionSerializationTests<WildcardLikeList> {
     @Override
-    protected WildcardLikeList innerCreateTestInstance() {
+    protected WildcardLikeList createTestInstance() {
         Source source = randomSource();
         Expression child = randomChild();
         return new WildcardLikeList(source, child, generateRandomPatternList());
     }
 
     @Override
-    protected WildcardLikeList innerMutateInstance(WildcardLikeList instance) throws IOException {
+    protected WildcardLikeList mutateInstance(WildcardLikeList instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.field();
         List<WildcardPattern> patterns = new ArrayList<>(instance.pattern().patternList());

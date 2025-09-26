@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MvMaxSerializationTests extends AbstractExpressionSerializationTests<MvMax> {
     @Override
-    protected MvMax innerCreateTestInstance() {
+    protected MvMax createTestInstance() {
         return new MvMax(randomSource(), randomChild());
     }
 
     @Override
-    protected MvMax innerMutateInstance(MvMax instance) throws IOException {
+    protected MvMax mutateInstance(MvMax instance) throws IOException {
         return new MvMax(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

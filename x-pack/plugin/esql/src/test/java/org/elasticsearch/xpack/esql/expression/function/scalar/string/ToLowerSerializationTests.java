@@ -15,12 +15,12 @@ import java.io.IOException;
 
 public class ToLowerSerializationTests extends AbstractExpressionSerializationTests<ToLower> {
     @Override
-    protected ToLower innerCreateTestInstance() {
+    protected ToLower createTestInstance() {
         return new ToLower(randomSource(), randomChild(), configuration());
     }
 
     @Override
-    protected ToLower innerMutateInstance(ToLower instance) throws IOException {
+    protected ToLower mutateInstance(ToLower instance) throws IOException {
         Source source = instance.source();
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return new ToLower(source, child, configuration());

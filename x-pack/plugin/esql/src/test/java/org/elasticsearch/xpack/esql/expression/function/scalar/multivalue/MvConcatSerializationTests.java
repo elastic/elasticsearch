@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class MvConcatSerializationTests extends AbstractExpressionSerializationTests<MvConcat> {
     @Override
-    protected MvConcat innerCreateTestInstance() {
+    protected MvConcat createTestInstance() {
         Source source = randomSource();
         Expression left = randomChild();
         Expression right = randomChild();
@@ -23,7 +23,7 @@ public class MvConcatSerializationTests extends AbstractExpressionSerializationT
     }
 
     @Override
-    protected MvConcat innerMutateInstance(MvConcat instance) throws IOException {
+    protected MvConcat mutateInstance(MvConcat instance) throws IOException {
         Source source = instance.source();
         Expression left = instance.left();
         Expression right = instance.right();

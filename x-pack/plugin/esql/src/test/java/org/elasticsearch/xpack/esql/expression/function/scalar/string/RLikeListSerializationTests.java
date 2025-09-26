@@ -20,14 +20,14 @@ import java.util.List;
 
 public class RLikeListSerializationTests extends AbstractExpressionSerializationTests<RLikeList> {
     @Override
-    protected RLikeList innerCreateTestInstance() {
+    protected RLikeList createTestInstance() {
         Source source = randomSource();
         Expression child = randomChild();
         return new RLikeList(source, child, generateRandomPatternList());
     }
 
     @Override
-    protected RLikeList innerMutateInstance(RLikeList instance) throws IOException {
+    protected RLikeList mutateInstance(RLikeList instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.field();
         List<RLikePattern> patterns = new ArrayList<>(instance.pattern().patternList());

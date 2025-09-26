@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MinSerializationTests extends AbstractExpressionSerializationTests<Min> {
     @Override
-    protected Min innerCreateTestInstance() {
+    protected Min createTestInstance() {
         return new Min(randomSource(), randomChild());
     }
 
     @Override
-    protected Min innerMutateInstance(Min instance) throws IOException {
+    protected Min mutateInstance(Min instance) throws IOException {
         return new Min(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class DateExtractSerializationTests extends AbstractExpressionSerializationTests<DateExtract> {
     @Override
-    protected DateExtract innerCreateTestInstance() {
+    protected DateExtract createTestInstance() {
         Source source = randomSource();
         Expression datePart = randomChild();
         Expression field = randomChild();
@@ -23,7 +23,7 @@ public class DateExtractSerializationTests extends AbstractExpressionSerializati
     }
 
     @Override
-    protected DateExtract innerMutateInstance(DateExtract instance) throws IOException {
+    protected DateExtract mutateInstance(DateExtract instance) throws IOException {
         Source source = instance.source();
         Expression datePart = instance.datePart();
         Expression field = instance.field();

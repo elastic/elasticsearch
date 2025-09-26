@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class Atan2SerializationTests extends AbstractExpressionSerializationTests<Atan2> {
     @Override
-    protected Atan2 innerCreateTestInstance() {
+    protected Atan2 createTestInstance() {
         Source source = randomSource();
         Expression y = randomChild();
         Expression x = randomChild();
@@ -24,7 +24,7 @@ public class Atan2SerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected Atan2 innerMutateInstance(Atan2 instance) throws IOException {
+    protected Atan2 mutateInstance(Atan2 instance) throws IOException {
         Source source = instance.source();
         Expression y = instance.y();
         Expression x = instance.x();

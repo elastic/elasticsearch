@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class BucketSerializationTests extends AbstractExpressionSerializationTests<Bucket> {
     @Override
-    protected Bucket innerCreateTestInstance() {
+    protected Bucket createTestInstance() {
         return createRandomBucket();
     }
 
@@ -29,7 +29,7 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
     }
 
     @Override
-    protected Bucket innerMutateInstance(Bucket instance) throws IOException {
+    protected Bucket mutateInstance(Bucket instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression buckets = instance.buckets();

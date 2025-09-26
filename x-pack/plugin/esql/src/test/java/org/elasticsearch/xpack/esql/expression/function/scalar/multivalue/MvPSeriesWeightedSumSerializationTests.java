@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class MvPSeriesWeightedSumSerializationTests extends AbstractExpressionSerializationTests<MvPSeriesWeightedSum> {
     @Override
-    protected MvPSeriesWeightedSum innerCreateTestInstance() {
+    protected MvPSeriesWeightedSum createTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression p = randomChild();
@@ -24,7 +24,7 @@ public class MvPSeriesWeightedSumSerializationTests extends AbstractExpressionSe
     }
 
     @Override
-    protected MvPSeriesWeightedSum innerMutateInstance(MvPSeriesWeightedSum instance) throws IOException {
+    protected MvPSeriesWeightedSum mutateInstance(MvPSeriesWeightedSum instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression p = instance.p();

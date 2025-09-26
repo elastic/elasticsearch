@@ -14,12 +14,12 @@ import java.io.IOException;
 
 public class WeightedAvgSerializationTests extends AbstractExpressionSerializationTests<WeightedAvg> {
     @Override
-    protected WeightedAvg innerCreateTestInstance() {
+    protected WeightedAvg createTestInstance() {
         return new WeightedAvg(randomSource(), randomChild(), randomChild());
     }
 
     @Override
-    protected WeightedAvg innerMutateInstance(WeightedAvg instance) throws IOException {
+    protected WeightedAvg mutateInstance(WeightedAvg instance) throws IOException {
         Expression field = instance.field();
         Expression weight = instance.weight();
         if (randomBoolean()) {

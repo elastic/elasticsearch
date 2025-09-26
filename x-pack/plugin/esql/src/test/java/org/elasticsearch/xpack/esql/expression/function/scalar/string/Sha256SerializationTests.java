@@ -14,12 +14,12 @@ import java.io.IOException;
 public class Sha256SerializationTests extends AbstractExpressionSerializationTests<Sha256> {
 
     @Override
-    protected Sha256 innerCreateTestInstance() {
+    protected Sha256 createTestInstance() {
         return new Sha256(randomSource(), randomChild());
     }
 
     @Override
-    protected Sha256 innerMutateInstance(Sha256 instance) throws IOException {
+    protected Sha256 mutateInstance(Sha256 instance) throws IOException {
         return new Sha256(instance.source(), mutateExpression(instance.field()));
     }
 }

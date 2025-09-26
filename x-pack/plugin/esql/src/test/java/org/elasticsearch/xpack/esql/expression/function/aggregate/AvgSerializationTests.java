@@ -25,12 +25,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AvgSerializationTests extends AbstractExpressionSerializationTests<Avg> {
     @Override
-    protected Avg innerCreateTestInstance() {
+    protected Avg createTestInstance() {
         return new Avg(randomSource(), randomChild(), randomChild(), randomChild());
     }
 
     @Override
-    protected Avg innerMutateInstance(Avg instance) throws IOException {
+    protected Avg mutateInstance(Avg instance) throws IOException {
         Expression field = instance.field();
         Expression filter = instance.filter();
         Expression summationMode = instance.summationMode();

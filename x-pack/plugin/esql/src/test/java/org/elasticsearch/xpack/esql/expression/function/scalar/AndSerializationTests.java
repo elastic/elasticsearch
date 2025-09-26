@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class AndSerializationTests extends AbstractExpressionSerializationTests<And> {
     @Override
-    protected And innerCreateTestInstance() {
+    protected And createTestInstance() {
         Source source = randomSource();
         Expression left = randomChild();
         Expression right = randomChild();
@@ -24,7 +24,7 @@ public class AndSerializationTests extends AbstractExpressionSerializationTests<
     }
 
     @Override
-    protected And innerMutateInstance(And instance) throws IOException {
+    protected And mutateInstance(And instance) throws IOException {
         Source source = instance.source();
         Expression left = instance.left();
         Expression right = instance.right();

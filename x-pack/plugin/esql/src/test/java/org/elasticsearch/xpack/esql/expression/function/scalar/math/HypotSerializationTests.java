@@ -17,7 +17,7 @@ import java.io.IOException;
 public class HypotSerializationTests extends AbstractExpressionSerializationTests<Hypot> {
 
     @Override
-    protected Hypot innerCreateTestInstance() {
+    protected Hypot createTestInstance() {
         Source source = randomSource();
         Expression n1 = randomChild();
         Expression n2 = randomChild();
@@ -25,7 +25,7 @@ public class HypotSerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected Hypot innerMutateInstance(Hypot instance) throws IOException {
+    protected Hypot mutateInstance(Hypot instance) throws IOException {
         Source source = instance.source();
         Expression n1 = instance.n1();
         Expression n2 = instance.n2();

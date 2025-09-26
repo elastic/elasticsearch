@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class EndsWithSerializationTests extends AbstractExpressionSerializationTests<EndsWith> {
     @Override
-    protected EndsWith innerCreateTestInstance() {
+    protected EndsWith createTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression suffix = randomChild();
@@ -23,7 +23,7 @@ public class EndsWithSerializationTests extends AbstractExpressionSerializationT
     }
 
     @Override
-    protected EndsWith innerMutateInstance(EndsWith instance) throws IOException {
+    protected EndsWith mutateInstance(EndsWith instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression suffix = instance.suffix();

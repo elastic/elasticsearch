@@ -12,8 +12,9 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
-public class ReferenceAttributeTests extends AbstractAttributeTestCase<ReferenceAttribute> {
+public class ReferenceAttributeTests extends AbstractExpressionSerializationTests<ReferenceAttribute> {
     public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable) {
         Source source = Source.EMPTY;
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
@@ -27,12 +28,12 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
     }
 
     @Override
-    protected ReferenceAttribute create() {
+    protected ReferenceAttribute createTestInstance() {
         return randomReferenceAttribute(false);
     }
 
     @Override
-    protected ReferenceAttribute mutate(ReferenceAttribute instance) {
+    protected ReferenceAttribute mutateInstance(ReferenceAttribute instance) {
         Source source = instance.source();
         String qualifier = instance.qualifier();
         String name = instance.name();

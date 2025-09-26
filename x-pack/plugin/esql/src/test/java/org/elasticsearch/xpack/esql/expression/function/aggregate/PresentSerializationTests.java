@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class PresentSerializationTests extends AbstractExpressionSerializationTests<Present> {
     @Override
-    protected Present innerCreateTestInstance() {
+    protected Present createTestInstance() {
         return new Present(randomSource(), randomChild());
     }
 
     @Override
-    protected Present innerMutateInstance(Present instance) throws IOException {
+    protected Present mutateInstance(Present instance) throws IOException {
         return new Present(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

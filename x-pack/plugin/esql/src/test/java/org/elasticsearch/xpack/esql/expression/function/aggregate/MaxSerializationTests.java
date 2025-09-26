@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MaxSerializationTests extends AbstractExpressionSerializationTests<Max> {
     @Override
-    protected Max innerCreateTestInstance() {
+    protected Max createTestInstance() {
         return new Max(randomSource(), randomChild());
     }
 
     @Override
-    protected Max innerMutateInstance(Max instance) throws IOException {
+    protected Max mutateInstance(Max instance) throws IOException {
         return new Max(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

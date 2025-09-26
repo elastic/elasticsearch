@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MvAvgSerializationTests extends AbstractExpressionSerializationTests<MvAvg> {
     @Override
-    protected MvAvg innerCreateTestInstance() {
+    protected MvAvg createTestInstance() {
         return new MvAvg(randomSource(), randomChild());
     }
 
     @Override
-    protected MvAvg innerMutateInstance(MvAvg instance) throws IOException {
+    protected MvAvg mutateInstance(MvAvg instance) throws IOException {
         return new MvAvg(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

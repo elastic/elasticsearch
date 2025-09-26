@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class OrSerializationTests extends AbstractExpressionSerializationTests<Or> {
     @Override
-    protected Or innerCreateTestInstance() {
+    protected Or createTestInstance() {
         Source source = randomSource();
         Expression left = randomChild();
         Expression right = randomChild();
@@ -24,7 +24,7 @@ public class OrSerializationTests extends AbstractExpressionSerializationTests<O
     }
 
     @Override
-    protected Or innerMutateInstance(Or instance) throws IOException {
+    protected Or mutateInstance(Or instance) throws IOException {
         Source source = instance.source();
         Expression left = instance.left();
         Expression right = instance.right();

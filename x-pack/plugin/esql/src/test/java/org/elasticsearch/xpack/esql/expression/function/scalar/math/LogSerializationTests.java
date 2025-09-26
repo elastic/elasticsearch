@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class LogSerializationTests extends AbstractExpressionSerializationTests<Log> {
     @Override
-    protected Log innerCreateTestInstance() {
+    protected Log createTestInstance() {
         Source source = randomSource();
         Expression value = randomChild();
         Expression base = randomBoolean() ? null : randomChild();
@@ -23,7 +23,7 @@ public class LogSerializationTests extends AbstractExpressionSerializationTests<
     }
 
     @Override
-    protected Log innerMutateInstance(Log instance) throws IOException {
+    protected Log mutateInstance(Log instance) throws IOException {
         Source source = instance.source();
         Expression value = instance.value();
         Expression base = instance.base();

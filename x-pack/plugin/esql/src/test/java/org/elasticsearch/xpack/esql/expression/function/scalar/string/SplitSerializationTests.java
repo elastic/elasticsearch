@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class SplitSerializationTests extends AbstractExpressionSerializationTests<Split> {
     @Override
-    protected Split innerCreateTestInstance() {
+    protected Split createTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression delim = randomChild();
@@ -23,7 +23,7 @@ public class SplitSerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected Split innerMutateInstance(Split instance) throws IOException {
+    protected Split mutateInstance(Split instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression delim = instance.delim();

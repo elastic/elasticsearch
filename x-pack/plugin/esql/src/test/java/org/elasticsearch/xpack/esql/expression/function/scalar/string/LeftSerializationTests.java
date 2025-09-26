@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class LeftSerializationTests extends AbstractExpressionSerializationTests<Left> {
     @Override
-    protected Left innerCreateTestInstance() {
+    protected Left createTestInstance() {
         Source source = randomSource();
         Expression str = randomChild();
         Expression length = randomChild();
@@ -23,7 +23,7 @@ public class LeftSerializationTests extends AbstractExpressionSerializationTests
     }
 
     @Override
-    protected Left innerMutateInstance(Left instance) throws IOException {
+    protected Left mutateInstance(Left instance) throws IOException {
         Source source = instance.source();
         Expression str = instance.str();
         Expression length = instance.length();

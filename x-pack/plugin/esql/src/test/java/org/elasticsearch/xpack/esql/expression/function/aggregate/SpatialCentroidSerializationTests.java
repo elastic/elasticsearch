@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class SpatialCentroidSerializationTests extends AbstractExpressionSerializationTests<SpatialCentroid> {
     @Override
-    protected SpatialCentroid innerCreateTestInstance() {
+    protected SpatialCentroid createTestInstance() {
         return new SpatialCentroid(randomSource(), randomChild());
     }
 
     @Override
-    protected SpatialCentroid innerMutateInstance(SpatialCentroid instance) throws IOException {
+    protected SpatialCentroid mutateInstance(SpatialCentroid instance) throws IOException {
         return new SpatialCentroid(
             instance.source(),
             randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)

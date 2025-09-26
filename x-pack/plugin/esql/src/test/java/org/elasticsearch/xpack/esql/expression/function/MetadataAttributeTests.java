@@ -12,10 +12,11 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
-public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAttribute> {
+public class MetadataAttributeTests extends AbstractExpressionSerializationTests<MetadataAttribute> {
     @Override
-    protected MetadataAttribute create() {
+    protected MetadataAttribute createTestInstance() {
         return randomMetadataAttribute();
     }
 
@@ -30,20 +31,20 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
     }
 
     @Override
-    protected MetadataAttribute mutate(MetadataAttribute instance) {
+    protected MetadataAttribute mutateInstance(MetadataAttribute instance) {
         Source source = instance.source();
         String name = instance.name();
         DataType type = instance.dataType();
         Nullability nullability = instance.nullable();
-        boolean synthetic = instance.synthetic();
         NameId id = instance.id();
+        boolean synthetic = instance.synthetic();
         boolean searchable = instance.searchable();
         switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
-            case 3 -> synthetic = false == synthetic;
-            case 4 -> id = new NameId();
+            case 3 -> id = new NameId();
+            case 4 -> synthetic = false == synthetic;
             case 5 -> searchable = false == searchable;
         }
         return new MetadataAttribute(source, name, type, nullability, id, synthetic, searchable);

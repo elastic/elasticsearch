@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class ValuesSerializationTests extends AbstractExpressionSerializationTests<Values> {
     @Override
-    protected Values innerCreateTestInstance() {
+    protected Values createTestInstance() {
         return new Values(randomSource(), randomChild());
     }
 
     @Override
-    protected Values innerMutateInstance(Values instance) throws IOException {
+    protected Values mutateInstance(Values instance) throws IOException {
         return new Values(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

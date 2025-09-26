@@ -14,12 +14,12 @@ import java.io.IOException;
 
 public class LiteralSerializationTests extends AbstractExpressionSerializationTests<Literal> {
     @Override
-    protected Literal innerCreateTestInstance() {
+    protected Literal createTestInstance() {
         return LiteralTests.randomLiteral();
     }
 
     @Override
-    protected Literal innerMutateInstance(Literal instance) throws IOException {
+    protected Literal mutateInstance(Literal instance) throws IOException {
         return LiteralTests.mutateLiteral(instance);
     }
 

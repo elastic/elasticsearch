@@ -13,9 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests;
 
-public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribute> {
+public class FieldAttributeTests extends AbstractExpressionSerializationTests<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
         Source source = Source.EMPTY;
         String parentName = maxDepth == 0 || randomBoolean() ? null : randomAlphaOfLength(3);
@@ -35,12 +36,12 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
     }
 
     @Override
-    protected FieldAttribute create() {
+    protected FieldAttribute createTestInstance() {
         return createFieldAttribute(3, false);
     }
 
     @Override
-    protected FieldAttribute mutate(FieldAttribute instance) {
+    protected FieldAttribute mutateInstance(FieldAttribute instance) {
         Source source = instance.source();
         String parentName = instance.parentName();
         String name = instance.name();

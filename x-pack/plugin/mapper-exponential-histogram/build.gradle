@@ -18,6 +18,11 @@ base {
   archivesName = 'x-pack-exponential-histogram'
 }
 
+restResources {
+  restApi {
+    include '*'
+  }
+}
 dependencies {
   api project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))

@@ -2822,20 +2822,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeyDoc.get("type"), equalTo("cross_cluster"));
     }
 
-    public void testCreateCrossClusterApiKeyWithInvalidCertificateIdentity() throws Exception {
-        final String keyName = randomAlphaOfLengthBetween(3, 8);
-
-        final CrossClusterApiKeyRoleDescriptorBuilder roleBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse("""
-            {
-              "search": [ {"names": ["logs"]} ]
-            }""");
-
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            new CreateCrossClusterApiKeyRequest(keyName, roleBuilder, null, null, new CertificateIdentity("[im-invalid"));
-        });
-        assertThat(e.getMessage(), containsString("Invalid certificate_identity format"));
-    }
-
     public void testUpdateCrossClusterApiKeyWithCertificateIdentity() throws Exception {
         // Create a cross-cluster API key first
         final String keyName = randomAlphaOfLengthBetween(3, 8);

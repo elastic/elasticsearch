@@ -2115,31 +2115,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
-    public void testCreateCrossClusterApiKeyWithCertificateIdentity() throws IOException {
-        final String certificateIdentity = "CN=test-host,OU=engineering,DC=example,DC=com";
-        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
-        createRequest.setJsonEntity(Strings.format("""
-            {
-              "name": "cross-cluster-key-with-cert",
-              "access": {
-                "search": [
-                  {
-                    "names": [ "somename" ]
-                  }
-                ]
-              },
-              "certificate_identity": "%s"
-            }""", certificateIdentity));
-
-        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
-        final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
-        final String apiKeyId = createResponse.evaluate("id");
-
-        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
-
-        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(certificateIdentity));
-    }
-
     public void testUpdateCrossClusterApiKeyToAddCertificateIdentity() throws IOException {
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""

@@ -102,7 +102,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testFFOff() {
-        assumeFalse("GPU_FORMAT feature flag disabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeFalse("GPU_FORMAT feature flag disabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -112,7 +112,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingOnIndexTypeSupportedGPUSupported() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
@@ -130,7 +130,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingOnIndexTypeNotSupportedThrows() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
@@ -148,7 +148,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingOnGPUNotSupportedThrows() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         TestCuVSServiceProvider.mockedGPUInfoProvider = NO_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
@@ -169,7 +169,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingOnGPUSupportThrowsRethrows() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         // Mocks a cuvs-java UnsupportedProvider
         TestCuVSServiceProvider.mockedGPUInfoProvider = p -> { throw new UnsupportedOperationException("cuvs-java UnsupportedProvider"); };
 
@@ -191,7 +191,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingAutoIndexTypeSupportedGPUSupported() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
@@ -209,7 +209,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingAutoGPUNotSupported() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         TestCuVSServiceProvider.mockedGPUInfoProvider = NO_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
@@ -227,7 +227,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingAutoIndexTypeNotSupported() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
@@ -245,7 +245,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
     }
 
     public void testIndexSettingOff() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        assumeTrue("GPU_FORMAT feature flag enabled", IndexSettings.VECTORS_INDEXING_USE_GPU);
         TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);

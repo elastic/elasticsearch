@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.gpu;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -19,12 +18,10 @@ import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 public class GPUPlugin extends Plugin implements MapperPlugin {
 
-    public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_format");
-
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, indexOptions) -> {
-            if (GPU_FORMAT.isEnabled()) {
+            if (IndexSettings.VECTORS_INDEXING_USE_GPU) {
                 IndexSettings.GpuMode gpuMode = indexSettings.getValue(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING);
                 if (gpuMode == IndexSettings.GpuMode.TRUE) {
                     if (vectorIndexTypeSupported(indexOptions.getType()) == false) {

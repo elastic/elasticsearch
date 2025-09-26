@@ -543,7 +543,7 @@ required_capability: ts_command_v0
 required_capability: metadata_tsid_field
 
 TS k8s METADATA _tsid
-| STATS cnt = COUNT(_tsid) BY cluster, pod
+| STATS cnt = count_distinct(_tsid) BY cluster, pod
 | SORT cluster
 ;
 ignoreOrder:true

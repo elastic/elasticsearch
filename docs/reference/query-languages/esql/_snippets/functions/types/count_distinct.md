@@ -4,7 +4,6 @@
 
 | field | precision | result |
 | --- | --- | --- |
-| _tsid | | long |
 | boolean | integer | long |
 | boolean | long | long |
 | boolean | unsigned_long | long |

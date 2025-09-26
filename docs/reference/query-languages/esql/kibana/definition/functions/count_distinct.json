@@ -8,18 +8,6 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "_tsid",
-          "optional" : false,
-          "description" : "Column or literal for which to count the number of distinct values."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "long"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
           "type" : "boolean",
           "optional" : false,
           "description" : "Column or literal for which to count the number of distinct values."

@@ -23,7 +23,11 @@ import java.util.List;
 import java.util.Map;
 
 public class SimpleServiceIntegrationValidator implements ServiceIntegrationValidator {
-    private static final List<String> TEST_INPUT = List.of("how big");
+    private static final List<String> TEST_TEXT_INPUT = List.of("how big");
+    // The below data URL represents the base64 encoding of a single black pixel
+    private static final List<String> TEST_URL_INPUT = List.of(
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC"
+    );
     private static final String QUERY = "test query";
 
     @Override
@@ -33,7 +37,7 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
             model.getTaskType().equals(TaskType.RERANK) ? QUERY : null,
             null,
             null,
-            TEST_INPUT,
+            TEST_TEXT_INPUT,
             false,
             Map.of(),
             InputType.INTERNAL_INGEST,
@@ -57,7 +61,8 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
                         e
                     )
                 );
-            })
+            }),
+            TEST_URL_INPUT
         );
     }
 }

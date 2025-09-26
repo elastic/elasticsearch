@@ -1012,7 +1012,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             Runnable runnable = () -> {
                 List<ChunkedInference> results = new ArrayList<>();
                 for (ChunkInferenceInput input : inputs) {
-                    results.add(model.getResults(input.input()));
+                    results.add(model.getResults(input.getInput()));
                 }
                 listener.onResponse(results);
             };

@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -53,8 +53,8 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
@@ -1018,20 +1018,20 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(result1.chunks(), hasSize(1));
-            assertThat(result1.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
+                ((DenseEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
-            assertThat(result2.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
+                ((DenseEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
@@ -1045,7 +1045,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         service.chunkedInfer(
             model,
             null,
-            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
+            List.of(new ChunkInferenceTextInput("a"), new ChunkInferenceTextInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1117,7 +1117,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         service.chunkedInfer(
             model,
             null,
-            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
+            List.of(new ChunkInferenceTextInput("a"), new ChunkInferenceTextInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1189,7 +1189,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         service.chunkedInfer(
             model,
             null,
-            List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
+            List.of(new ChunkInferenceTextInput("a"), new ChunkInferenceTextInput("bb")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1235,7 +1235,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         service.chunkedInfer(
             model,
             null,
-            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
+            List.of(new ChunkInferenceTextInput("foo"), new ChunkInferenceTextInput("bar")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1247,7 +1247,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         service.chunkedInfer(
             model,
             null,
-            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
+            List.of(new ChunkInferenceTextInput("foo"), new ChunkInferenceTextInput("bar")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1299,7 +1299,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         service.chunkedInfer(
             model,
             null,
-            List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"), new ChunkInferenceInput("baz")),
+            List.of(new ChunkInferenceTextInput("foo"), new ChunkInferenceTextInput("bar"), new ChunkInferenceTextInput("baz")),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1325,7 +1325,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         // build a doc with enough words to make numChunks of chunks
         int wordsPerChunk = 10;
         int numWords = numChunks * wordsPerChunk;
-        var input = new ChunkInferenceInput("word ".repeat(numWords), null);
+        var input = new ChunkInferenceTextInput("word ".repeat(numWords), null);
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -2034,7 +2034,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
 
-        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, latchedListener);
+        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, latchedListener, null);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 
@@ -2078,7 +2078,19 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
 
-        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, providedTimeout, latchedListener);
+        service.infer(
+            model,
+            null,
+            null,
+            null,
+            List.of("test input"),
+            false,
+            Map.of(),
+            InputType.SEARCH,
+            providedTimeout,
+            latchedListener,
+            null
+        );
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 

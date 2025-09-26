@@ -20,30 +20,30 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingFloatResults> {
-    public static TextEmbeddingFloatResults createRandomResults() {
+public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestCase<DenseEmbeddingFloatResults> {
+    public static DenseEmbeddingFloatResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
-        List<TextEmbeddingFloatResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
+        List<DenseEmbeddingFloatResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
 
         for (int i = 0; i < embeddings; i++) {
             embeddingResults.add(createRandomEmbedding());
         }
 
-        return new TextEmbeddingFloatResults(embeddingResults);
+        return new DenseEmbeddingFloatResults(embeddingResults);
     }
 
-    private static TextEmbeddingFloatResults.Embedding createRandomEmbedding() {
+    private static DenseEmbeddingFloatResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         float[] floats = new float[columns];
         for (int i = 0; i < columns; i++) {
             floats[i] = randomFloat();
         }
 
-        return new TextEmbeddingFloatResults.Embedding(floats);
+        return new DenseEmbeddingFloatResults.Embedding(floats);
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.1F })));
+        var entity = new DenseEmbeddingFloatResults(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F })));
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
@@ -59,10 +59,10 @@ public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestC
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new TextEmbeddingFloatResults(
+        var entity = new DenseEmbeddingFloatResults(
             List.of(
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.1F }),
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.2F })
+                new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F }),
+                new DenseEmbeddingFloatResults.Embedding(new float[] { 0.2F })
             )
 
         );
@@ -86,10 +86,10 @@ public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestC
     }
 
     public void testTransformToCoordinationFormat() {
-        var results = new TextEmbeddingFloatResults(
+        var results = new DenseEmbeddingFloatResults(
             List.of(
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.2F }),
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.3F, 0.4F })
+                new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.2F }),
+                new DenseEmbeddingFloatResults.Embedding(new float[] { 0.3F, 0.4F })
             )
         ).transformToCoordinationFormat();
 
@@ -97,18 +97,18 @@ public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestC
             results,
             is(
                 List.of(
-                    new MlTextEmbeddingResults(TextEmbeddingFloatResults.TEXT_EMBEDDING, new double[] { 0.1F, 0.2F }, false),
-                    new MlTextEmbeddingResults(TextEmbeddingFloatResults.TEXT_EMBEDDING, new double[] { 0.3F, 0.4F }, false)
+                    new MlTextEmbeddingResults(DenseEmbeddingFloatResults.TEXT_EMBEDDING, new double[] { 0.1F, 0.2F }, false),
+                    new MlTextEmbeddingResults(DenseEmbeddingFloatResults.TEXT_EMBEDDING, new double[] { 0.3F, 0.4F }, false)
                 )
             )
         );
     }
 
     public void testGetFirstEmbeddingSize() {
-        var firstEmbeddingSize = new TextEmbeddingFloatResults(
+        var firstEmbeddingSize = new DenseEmbeddingFloatResults(
             List.of(
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.2F }),
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.3F, 0.4F })
+                new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.2F }),
+                new DenseEmbeddingFloatResults.Embedding(new float[] { 0.3F, 0.4F })
             )
         ).getFirstEmbeddingSize();
 
@@ -116,51 +116,54 @@ public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestC
     }
 
     public void testEmbeddingMerge() {
-        TextEmbeddingFloatResults.Embedding embedding1 = new TextEmbeddingFloatResults.Embedding(new float[] { 0.1f, 0.2f, 0.3f, 0.4f });
-        TextEmbeddingFloatResults.Embedding embedding2 = new TextEmbeddingFloatResults.Embedding(new float[] { 0.0f, 0.4f, 0.1f, 1.0f });
-        TextEmbeddingFloatResults.Embedding embedding3 = new TextEmbeddingFloatResults.Embedding(new float[] { 0.2f, 0.9f, 0.8f, 0.1f });
-        TextEmbeddingFloatResults.Embedding mergedEmbedding = embedding1.merge(embedding2);
-        assertThat(mergedEmbedding, equalTo(new TextEmbeddingFloatResults.Embedding(new float[] { 0.05f, 0.3f, 0.2f, 0.7f })));
+        DenseEmbeddingFloatResults.Embedding embedding1 = new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1f, 0.2f, 0.3f, 0.4f });
+        DenseEmbeddingFloatResults.Embedding embedding2 = new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0f, 0.4f, 0.1f, 1.0f });
+        DenseEmbeddingFloatResults.Embedding embedding3 = new DenseEmbeddingFloatResults.Embedding(new float[] { 0.2f, 0.9f, 0.8f, 0.1f });
+        DenseEmbeddingFloatResults.Embedding mergedEmbedding = embedding1.merge(embedding2);
+        assertThat(mergedEmbedding, equalTo(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.05f, 0.3f, 0.2f, 0.7f })));
         mergedEmbedding = mergedEmbedding.merge(embedding3);
-        assertThat(mergedEmbedding, equalTo(new TextEmbeddingFloatResults.Embedding(new float[] { 0.1f, 0.5f, 0.4f, 0.5f })));
+        assertThat(mergedEmbedding, equalTo(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1f, 0.5f, 0.4f, 0.5f })));
     }
 
     @Override
-    protected Writeable.Reader<TextEmbeddingFloatResults> instanceReader() {
-        return TextEmbeddingFloatResults::new;
+    protected Writeable.Reader<DenseEmbeddingFloatResults> instanceReader() {
+        return DenseEmbeddingFloatResults::new;
     }
 
     @Override
-    protected TextEmbeddingFloatResults createTestInstance() {
+    protected DenseEmbeddingFloatResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected TextEmbeddingFloatResults mutateInstance(TextEmbeddingFloatResults instance) throws IOException {
+    protected DenseEmbeddingFloatResults mutateInstance(DenseEmbeddingFloatResults instance) throws IOException {
         // if true we reduce the embeddings list by a random amount, if false we add an embedding to the list
         if (randomBoolean()) {
             // -1 to remove at least one item from the list
             int end = randomInt(instance.embeddings().size() - 1);
-            return new TextEmbeddingFloatResults(instance.embeddings().subList(0, end));
+            return new DenseEmbeddingFloatResults(instance.embeddings().subList(0, end));
         } else {
-            List<TextEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
+            List<DenseEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
             embeddings.add(createRandomEmbedding());
-            return new TextEmbeddingFloatResults(embeddings);
+            return new DenseEmbeddingFloatResults(embeddings);
         }
     }
 
     public static Map<String, Object> buildExpectationFloat(List<float[]> embeddings) {
-        return Map.of(TextEmbeddingFloatResults.TEXT_EMBEDDING, embeddings.stream().map(TextEmbeddingFloatResults.Embedding::new).toList());
+        return Map.of(
+            DenseEmbeddingFloatResults.TEXT_EMBEDDING,
+            embeddings.stream().map(DenseEmbeddingFloatResults.Embedding::new).toList()
+        );
     }
 
     public static Map<String, Object> buildExpectationByte(List<byte[]> embeddings) {
         return Map.of(
-            TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-            embeddings.stream().map(TextEmbeddingByteResults.Embedding::new).toList()
+            DenseEmbeddingByteResults.getArrayNameFromTaskName(DenseEmbeddingResults.TEXT_EMBEDDING),
+            embeddings.stream().map(DenseEmbeddingByteResults.Embedding::new).toList()
         );
     }
 
     public static Map<String, Object> buildExpectationBinary(List<byte[]> embeddings) {
-        return Map.of("text_embedding_bits", embeddings.stream().map(TextEmbeddingByteResults.Embedding::new).toList());
+        return Map.of("text_embedding_bits", embeddings.stream().map(DenseEmbeddingByteResults.Embedding::new).toList());
     }
 }

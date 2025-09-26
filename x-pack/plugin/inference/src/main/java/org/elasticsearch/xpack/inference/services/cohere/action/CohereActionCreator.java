@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere.action;
 
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -44,9 +45,21 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
  */
 public class CohereActionCreator implements CohereActionVisitor {
 
-    private static final ResponseHandler EMBEDDINGS_HANDLER = new CohereResponseHandler(
+    private static final ResponseHandler TEXT_EMBEDDINGS_HANDLER = new CohereResponseHandler(
         "cohere text embedding",
-        CohereEmbeddingsResponseEntity::fromResponse,
+        (request, response) -> CohereEmbeddingsResponseEntity.fromResponse(request, response, TaskType.TEXT_EMBEDDING),
+        false
+    );
+
+    private static final ResponseHandler IMAGE_EMBEDDINGS_HANDLER = new CohereResponseHandler(
+        "cohere image embedding",
+        (request, response) -> CohereEmbeddingsResponseEntity.fromResponse(request, response, TaskType.IMAGE_EMBEDDING),
+        false
+    );
+
+    private static final ResponseHandler MULTIMODAL_EMBEDDINGS_HANDLER = new CohereResponseHandler(
+        "cohere multimodal embedding",
+        (request, response) -> CohereEmbeddingsResponseEntity.fromResponse(request, response, TaskType.MULTIMODAL_EMBEDDING),
         false
     );
 
@@ -82,7 +95,12 @@ public class CohereActionCreator implements CohereActionVisitor {
 
             return switch (overriddenModel.getServiceSettings().getCommonSettings().apiVersion()) {
                 case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getInputs(), requestInputType, overriddenModel);
-                case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getInputs(), requestInputType, overriddenModel);
+                case V2 -> new CohereV2EmbeddingsRequest(
+                    inferenceInputs.getInputs(),
+                    requestInputType,
+                    overriddenModel,
+                    inferenceInputs.getImageUrls()
+                );
             };
         };
 
@@ -90,11 +108,20 @@ public class CohereActionCreator implements CohereActionVisitor {
         var requestManager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
-            EMBEDDINGS_HANDLER,
+            getResponseHandlerForEmbeddingTaskType(model.getTaskType()),
             requestCreator,
             EmbeddingsInput.class
         );
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
+    }
+
+    private static ResponseHandler getResponseHandlerForEmbeddingTaskType(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> TEXT_EMBEDDINGS_HANDLER;
+            case IMAGE_EMBEDDING -> IMAGE_EMBEDDINGS_HANDLER;
+            case MULTIMODAL_EMBEDDING -> MULTIMODAL_EMBEDDINGS_HANDLER;
+            default -> throw new IllegalArgumentException("Invalid TaskType for embeddings action");
+        };
     }
 
     @Override

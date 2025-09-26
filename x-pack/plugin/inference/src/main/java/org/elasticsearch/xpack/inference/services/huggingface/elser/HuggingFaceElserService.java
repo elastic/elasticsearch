@@ -28,9 +28,9 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -115,20 +115,14 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         );
 
         // TODO chunking sparse embeddings not implemented
-        doInfer(
-            model,
-            new EmbeddingsInput(inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
-            taskSettings,
-            timeout,
-            inferListener
-        );
+        doInfer(model, new EmbeddingsInput(ChunkInferenceInput.inputs(inputs), inputType), taskSettings, timeout, inferListener);
     }
 
     private static List<ChunkedInference> translateToChunkedResults(
         List<ChunkInferenceInput> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
+        if (inferenceResults instanceof DenseEmbeddingFloatResults textEmbeddingResults) {
             validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs), textEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.size());
@@ -139,7 +133,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         List.of(
                             new EmbeddingResults.Chunk(
                                 textEmbeddingResults.embeddings().get(i),
-                                new ChunkedInference.TextOffset(0, inputs.get(i).input().length())
+                                new ChunkedInference.TextOffset(0, inputs.get(i).getInput().length())
                             )
                         )
                     )
@@ -154,7 +148,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         } else {
             String expectedClasses = Strings.format(
                 "One of [%s,%s]",
-                TextEmbeddingFloatResults.class.getSimpleName(),
+                DenseEmbeddingFloatResults.class.getSimpleName(),
                 SparseEmbeddingResults.class.getSimpleName()
             );
             throw createInvalidChunkedResultException(expectedClasses, inferenceResults.getWriteableName());

@@ -14,9 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 
@@ -174,7 +174,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
     private static class FloatEmbeddings implements EmbeddingConverter {
 
-        private final List<TextEmbeddingFloatResults.Embedding> embeddings;
+        private final List<DenseEmbeddingFloatResults.Embedding> embeddings;
 
         FloatEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -182,17 +182,17 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var embeddingsAsListFloats = convertToListOfFloats(entry, fieldName);
-            embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+            embeddings.add(DenseEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
         }
 
-        public TextEmbeddingFloatResults getResults() {
-            return new TextEmbeddingFloatResults(embeddings);
+        public DenseEmbeddingFloatResults getResults() {
+            return new DenseEmbeddingFloatResults(embeddings);
         }
     }
 
     private static class ByteEmbeddings implements EmbeddingConverter {
 
-        private final List<TextEmbeddingByteResults.Embedding> embeddings;
+        private final List<DenseEmbeddingByteResults.Embedding> embeddings;
 
         ByteEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -200,17 +200,17 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var convertedEmbeddings = convertToListOfBytes(entry, fieldName);
-            this.embeddings.add(TextEmbeddingByteResults.Embedding.of(convertedEmbeddings));
+            this.embeddings.add(DenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
         }
 
-        public TextEmbeddingByteResults getResults() {
-            return new TextEmbeddingByteResults(embeddings);
+        public DenseEmbeddingByteResults getResults() {
+            return new DenseEmbeddingByteResults(embeddings);
         }
     }
 
     private static class BitEmbeddings implements EmbeddingConverter {
 
-        private final List<TextEmbeddingByteResults.Embedding> embeddings;
+        private final List<DenseEmbeddingByteResults.Embedding> embeddings;
 
         BitEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -218,11 +218,11 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var convertedEmbeddings = convertToListOfBits(entry, fieldName);
-            this.embeddings.add(TextEmbeddingByteResults.Embedding.of(convertedEmbeddings));
+            this.embeddings.add(DenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
         }
 
-        public TextEmbeddingBitResults getResults() {
-            return new TextEmbeddingBitResults(embeddings);
+        public DenseEmbeddingBitResults getResults() {
+            return new DenseEmbeddingBitResults(embeddings);
         }
     }
 }

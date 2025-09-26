@@ -71,6 +71,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(Map.of()),
                 eq(InputType.INTERNAL_INGEST),
                 eq(TIMEOUT),
+                any(),
                 any()
             );
 
@@ -114,6 +115,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(Map.of()),
                 eq(InputType.INTERNAL_INGEST),
                 eq(TIMEOUT),
+                any(),
                 any()
             );
 
@@ -132,6 +134,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             eq(Map.of()),
             eq(InputType.INTERNAL_INGEST),
             eq(TIMEOUT),
+            any(),
             any()
         );
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);

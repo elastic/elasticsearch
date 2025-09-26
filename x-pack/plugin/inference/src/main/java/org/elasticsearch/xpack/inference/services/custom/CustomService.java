@@ -317,7 +317,11 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
         for (var request : batchedRequests) {
             var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().textInputs(), inputType, request.batch().imageUrlInputs()),
+                timeout,
+                request.listener()
+            );
         }
     }
 

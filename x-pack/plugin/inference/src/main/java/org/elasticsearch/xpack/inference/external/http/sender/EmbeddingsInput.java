@@ -18,24 +18,26 @@ import java.util.function.Supplier;
 public class EmbeddingsInput extends InferenceInputs {
     private final Supplier<List<String>> inputListSupplier;
     private final InputType inputType;
+    private final List<String> imageUrls;
     private final AtomicBoolean supplierInvoked = new AtomicBoolean();
 
     public EmbeddingsInput(List<String> input, @Nullable InputType inputType) {
-        this(() -> input, inputType, false);
+        this(() -> input, inputType, false, null);
     }
 
-    public EmbeddingsInput(List<String> input, @Nullable InputType inputType, boolean stream) {
-        this(() -> input, inputType, stream);
+    public EmbeddingsInput(List<String> input, @Nullable InputType inputType, boolean stream, List<String> imageUrls) {
+        this(() -> input, inputType, stream, imageUrls);
     }
 
-    public EmbeddingsInput(Supplier<List<String>> inputSupplier, @Nullable InputType inputType) {
-        this(inputSupplier, inputType, false);
+    public EmbeddingsInput(Supplier<List<String>> inputSupplier, @Nullable InputType inputType, List<String> imageUrls) {
+        this(inputSupplier, inputType, false, imageUrls);
     }
 
-    private EmbeddingsInput(Supplier<List<String>> inputSupplier, @Nullable InputType inputType, boolean stream) {
+    private EmbeddingsInput(Supplier<List<String>> inputSupplier, @Nullable InputType inputType, boolean stream, List<String> imageUrls) {
         super(stream);
         this.inputListSupplier = Objects.requireNonNull(inputSupplier);
         this.inputType = inputType;
+        this.imageUrls = imageUrls;
     }
 
     /**
@@ -53,6 +55,10 @@ public class EmbeddingsInput extends InferenceInputs {
 
     public InputType getInputType() {
         return this.inputType;
+    }
+
+    public List<String> getImageUrls() {
+        return imageUrls;
     }
 
     @Override

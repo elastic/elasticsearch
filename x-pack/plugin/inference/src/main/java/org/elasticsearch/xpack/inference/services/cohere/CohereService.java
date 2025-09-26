@@ -72,7 +72,13 @@ public class CohereService extends SenderService implements RerankingInferenceSe
     public static final String NAME = "cohere";
 
     private static final String SERVICE_NAME = "Cohere";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.IMAGE_EMBEDDING,
+        TaskType.MULTIMODAL_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.RERANK
+    );
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -176,13 +182,14 @@ public class CohereService extends SenderService implements RerankingInferenceSe
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
+            case TEXT_EMBEDDING, IMAGE_EMBEDDING, MULTIMODAL_EMBEDDING -> new CohereEmbeddingsModel(
                 inferenceEntityId,
                 serviceSettings,
                 taskSettings,
                 chunkingSettings,
                 secretSettings,
-                context
+                context,
+                taskType
             );
             case RERANK -> new CohereRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
             case COMPLETION -> new CohereCompletionModel(inferenceEntityId, serviceSettings, secretSettings, context);
@@ -308,7 +315,11 @@ public class CohereService extends SenderService implements RerankingInferenceSe
 
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().textInputs(), inputType, request.batch().imageUrlInputs()),
+                timeout,
+                request.listener()
+            );
         }
     }
 

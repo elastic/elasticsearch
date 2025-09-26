@@ -388,7 +388,11 @@ public class ElasticInferenceService extends SenderService {
 
             for (var request : batchedRequests) {
                 var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                action.execute(
+                    new EmbeddingsInput(request.batch().textInputs(), inputType, request.batch().imageUrlInputs()),
+                    timeout,
+                    request.listener()
+                );
             }
 
             return;
@@ -405,7 +409,11 @@ public class ElasticInferenceService extends SenderService {
 
             for (var request : batchedRequests) {
                 var action = sparseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                action.execute(
+                    new EmbeddingsInput(request.batch().textInputs(), inputType, request.batch().imageUrlInputs()),
+                    timeout,
+                    request.listener()
+                );
             }
 
             return;

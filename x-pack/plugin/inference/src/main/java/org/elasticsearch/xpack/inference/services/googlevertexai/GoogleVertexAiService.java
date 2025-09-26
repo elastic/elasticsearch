@@ -293,7 +293,11 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
         for (var request : batchedRequests) {
             var action = googleVertexAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().textInputs(), inputType, request.batch().imageUrlInputs()),
+                timeout,
+                request.listener()
+            );
         }
     }
 

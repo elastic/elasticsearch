@@ -38,6 +38,12 @@ public class CohereUtils {
     public static final String STREAM_FIELD = "stream";
     public static final String TEXTS_FIELD = "texts";
     public static final String USER_FIELD = "user";
+    public static final String INPUTS_FIELD = "inputs";
+    public static final String CONTENT_FIELD = "content";
+    public static final String CONTENT_TYPE_FIELD = "type";
+    public static final String IMAGE_URL_FIELD = "image_url";
+    public static final String TEXT_FIELD = "text";
+    public static final String URL_FIELD = "url";
 
     public static Header createRequestSourceHeader() {
         return new BasicHeader(REQUEST_SOURCE_HEADER, ELASTIC_REQUEST_SOURCE);

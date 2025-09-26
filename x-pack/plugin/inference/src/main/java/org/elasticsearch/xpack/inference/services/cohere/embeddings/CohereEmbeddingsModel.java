@@ -34,14 +34,16 @@ public class CohereEmbeddingsModel extends CohereModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        TaskType taskType
     ) {
         this(
             inferenceId,
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            taskType
         );
     }
 
@@ -51,10 +53,11 @@ public class CohereEmbeddingsModel extends CohereModel {
         CohereEmbeddingsServiceSettings serviceSettings,
         CohereEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        TaskType taskType
     ) {
         super(
-            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, CohereService.NAME, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(modelId, taskType, CohereService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings()

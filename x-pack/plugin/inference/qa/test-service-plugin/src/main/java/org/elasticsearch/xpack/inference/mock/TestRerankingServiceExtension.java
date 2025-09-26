@@ -120,7 +120,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             Map<String, Object> taskSettingsMap,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<InferenceServiceResults> listener
+            ActionListener<InferenceServiceResults> listener,
+            List<String> imageUrls
         ) {
             TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
 

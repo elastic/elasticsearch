@@ -71,11 +71,16 @@ public abstract class SenderService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         @Nullable TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
+        ActionListener<InferenceServiceResults> listener,
+        @Nullable List<String> imageUrls
     ) {
         timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
         init();
-        var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
+        // TODO: combine images and text inputs into one list?
+        if (input == null) {
+            input = List.of();
+        }
+        var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream, imageUrls);
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 
@@ -87,7 +92,8 @@ public abstract class SenderService implements InferenceService {
         @Nullable String query,
         @Nullable Boolean returnDocuments,
         @Nullable Integer topN,
-        boolean stream
+        boolean stream,
+        @Nullable List<String> imageUrls
     ) {
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
@@ -99,13 +105,13 @@ public abstract class SenderService implements InferenceService {
                 }
                 yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
             }
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING, IMAGE_EMBEDDING, MULTIMODAL_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
-                yield new EmbeddingsInput(input, inputType, stream);
+                yield new EmbeddingsInput(input, inputType, stream, imageUrls);
             }
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),

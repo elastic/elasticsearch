@@ -13,13 +13,28 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 
-public record ChunkInferenceInput(String input, @Nullable ChunkingSettings chunkingSettings) {
+public abstract class ChunkInferenceInput {
+    final String input;
+    final ChunkingSettings chunkingSettings;
 
-    public ChunkInferenceInput(String input) {
+    ChunkInferenceInput(String input) {
         this(input, null);
     }
 
+    ChunkInferenceInput(String input, @Nullable ChunkingSettings chunkingSettings) {
+        this.input = input;
+        this.chunkingSettings = chunkingSettings;
+    }
+
+    public String getInput() {
+        return input;
+    }
+
+    public ChunkingSettings getChunkingSettings() {
+        return chunkingSettings;
+    }
+
     public static List<String> inputs(List<ChunkInferenceInput> chunkInferenceInputs) {
-        return chunkInferenceInputs.stream().map(ChunkInferenceInput::input).toList();
+        return chunkInferenceInputs.stream().map(ChunkInferenceInput::getInput).toList();
     }
 }

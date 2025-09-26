@@ -103,7 +103,8 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
-            ActionListener<InferenceServiceResults> listener
+            ActionListener<InferenceServiceResults> listener,
+            List<String> imageUrls
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));

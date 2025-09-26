@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -45,6 +46,7 @@ import java.util.concurrent.Flow;
 import static org.elasticsearch.core.Strings.format;
 
 public class InferenceAction extends ActionType<InferenceAction.Response> {
+    private static final TransportVersion ML_MULTIMODAL_EMBEDDINGS = TransportVersion.fromName("ml_multimodal_embeddings");
 
     public static final InferenceAction INSTANCE = new InferenceAction();
     public static final String NAME = "cluster:internal/xpack/inference";
@@ -63,6 +65,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public static final ParseField RETURN_DOCUMENTS = new ParseField("return_documents");
         public static final ParseField TOP_N = new ParseField("top_n");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField IMAGE_URL = new ParseField("image_url");
 
         public static Builder builder(String inferenceEntityId, TaskType taskType) {
             return new Builder().setInferenceEntityId(inferenceEntityId).setTaskType(taskType);
@@ -77,6 +80,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareBoolean(Request.Builder::setReturnDocuments, RETURN_DOCUMENTS);
             PARSER.declareInt(Request.Builder::setTopN, TOP_N);
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
+            PARSER.declareStringArray(Builder::setImageUrl, IMAGE_URL);
         }
 
         private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
@@ -104,6 +108,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final InputType inputType;
         private final TimeValue inferenceTimeout;
         private final boolean stream;
+        private final List<String> imageUrls;
 
         public Request(
             TaskType taskType,
@@ -128,7 +133,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 inputType,
                 inferenceTimeout,
                 stream,
-                InferenceContext.EMPTY_INSTANCE
+                InferenceContext.EMPTY_INSTANCE,
+                null
             );
         }
 
@@ -143,7 +149,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType inputType,
             TimeValue inferenceTimeout,
             boolean stream,
-            InferenceContext context
+            InferenceContext context,
+            @Nullable List<String> imageUrls
         ) {
             super(context);
             this.taskType = taskType;
@@ -156,6 +163,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
             this.stream = stream;
+            this.imageUrls = imageUrls;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -189,6 +197,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.returnDocuments = null;
                 this.topN = null;
+            }
+
+            if (in.getTransportVersion().supports(ML_MULTIMODAL_EMBEDDINGS)) {
+                imageUrls = in.readOptionalStringCollectionAsList();
+            } else {
+                imageUrls = null;
             }
 
             // streaming is not supported yet for transport traffic
@@ -235,18 +249,48 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return stream;
         }
 
+        public List<String> getImageUrls() {
+            return imageUrls;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
-            if (input == null) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [input] cannot be null");
-                return e;
-            }
+            if (taskType == TaskType.IMAGE_EMBEDDING) {
+                if (imageUrls == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("Field [image_url] cannot be null");
+                    return e;
+                }
 
-            if (input.isEmpty()) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [input] cannot be an empty array");
-                return e;
+                if (imageUrls.isEmpty()) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("Field [imageUrl] cannot be an empty array");
+                    return e;
+                }
+            } else if (taskType == TaskType.MULTIMODAL_EMBEDDING) {
+                if (input == null && imageUrls == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("Fields [input] and [image_url] cannot both be null");
+                    return e;
+                }
+
+                if (input != null && input.isEmpty() && imageUrls != null && imageUrls.isEmpty()) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("Fields [input] cannot both be empty arrays");
+                    return e;
+                }
+            } else {
+                if (input == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("Field [input] cannot be null");
+                    return e;
+                }
+
+                if (input.isEmpty()) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError("Field [input] cannot be an empty array");
+                    return e;
+                }
             }
 
             if (taskType.equals(TaskType.RERANK)) {
@@ -273,7 +317,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
-            if (taskType.equals(TaskType.TEXT_EMBEDDING) || taskType.equals(TaskType.SPARSE_EMBEDDING)) {
+            if (isNonSparseEmbedding() || taskType.equals(TaskType.SPARSE_EMBEDDING)) {
                 if (query != null) {
                     var e = new ActionRequestValidationException();
                     e.addValidationError(format("Field [query] cannot be specified for task type [%s]", taskType));
@@ -281,7 +325,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
-            if (taskType.equals(TaskType.TEXT_EMBEDDING) == false
+            if (isNonSparseEmbedding() == false
                 && taskType.equals(TaskType.ANY) == false
                 && (inputType != null && InputType.isInternalTypeOrUnspecified(inputType) == false)) {
                 var e = new ActionRequestValidationException();
@@ -290,6 +334,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             return null;
+        }
+
+        private boolean isNonSparseEmbedding() {
+            return taskType.equals(TaskType.TEXT_EMBEDDING)
+                || taskType.equals(TaskType.IMAGE_EMBEDDING)
+                || taskType.equals(TaskType.MULTIMODAL_EMBEDDING);
         }
 
         @Override
@@ -317,6 +367,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 || out.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
                 out.writeOptionalBoolean(returnDocuments);
                 out.writeOptionalInt(topN);
+            }
+
+            if (out.getTransportVersion().supports(ML_MULTIMODAL_EMBEDDINGS)) {
+                out.writeOptionalStringCollection(imageUrls);
             }
         }
 
@@ -348,7 +402,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
                 && inputType == request.inputType
-                && Objects.equals(inferenceTimeout, request.inferenceTimeout);
+                && Objects.equals(inferenceTimeout, request.inferenceTimeout)
+                && Objects.equals(imageUrls, request.imageUrls);
         }
 
         @Override
@@ -364,7 +419,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 taskSettings,
                 inputType,
                 inferenceTimeout,
-                stream
+                stream,
+                imageUrls
             );
         }
 
@@ -381,6 +437,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private TimeValue timeout = DEFAULT_TIMEOUT;
             private boolean stream = false;
             private InferenceContext context;
+            private List<String> imageUrl;
 
             private Builder() {}
 
@@ -448,6 +505,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setImageUrl(List<String> imageUrl) {
+                this.imageUrl = imageUrl;
+                return this;
+            }
+
             public Request build() {
                 return new Request(
                     taskType,
@@ -460,7 +522,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     inputType,
                     timeout,
                     stream,
-                    context
+                    context,
+                    imageUrl
                 );
             }
         }
@@ -486,6 +549,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInferenceTimeout()
                 + ", context="
                 + this.getContext()
+                + ", imageURL="
+                + this.getImageUrls()
                 + ")";
         }
     }

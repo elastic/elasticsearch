@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -39,7 +40,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -671,7 +672,8 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -711,7 +713,8 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(),
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 )
             );
             assertThat(
@@ -788,7 +791,8 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
             var result = listener.actionGet(TIMEOUT);
 
@@ -847,7 +851,8 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
             var result = listener.actionGet(TIMEOUT);
 
@@ -894,7 +899,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
     private void testChunkedInfer(String modelId, String apiKey, GoogleAiStudioEmbeddingsModel model) throws IOException {
 
-        var input = List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb"));
+        List<ChunkInferenceInput> input = List.of(new ChunkInferenceTextInput("a"), new ChunkInferenceTextInput("bb"));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -939,12 +944,12 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).getInput().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0123f, -0.0123f },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -954,12 +959,12 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).getInput().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0456f, -0.0456f },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -978,7 +983,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(0).input()))),
+                            Map.of("parts", List.of(Map.of("text", input.get(0).getInput()))),
                             "taskType",
                             "RETRIEVAL_DOCUMENT"
                         ),
@@ -986,7 +991,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(1).input()))),
+                            Map.of("parts", List.of(Map.of("text", input.get(1).getInput()))),
                             "taskType",
                             "RETRIEVAL_DOCUMENT"
                         )
@@ -1022,7 +1027,8 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

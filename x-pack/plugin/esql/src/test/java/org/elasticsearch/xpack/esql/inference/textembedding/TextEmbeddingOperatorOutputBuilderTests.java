@@ -15,8 +15,8 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 
 import java.util.List;
 
@@ -206,19 +206,19 @@ public class TextEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
     }
 
     private static InferenceAction.Response createFloatEmbeddingResponse(float[] embedding) {
-        var embeddingResult = new TextEmbeddingFloatResults.Embedding(embedding);
-        var textEmbeddingResults = new TextEmbeddingFloatResults(List.of(embeddingResult));
+        var embeddingResult = new DenseEmbeddingFloatResults.Embedding(embedding);
+        var textEmbeddingResults = new DenseEmbeddingFloatResults(List.of(embeddingResult));
         return new InferenceAction.Response(textEmbeddingResults);
     }
 
     private static InferenceAction.Response createByteEmbeddingResponse(byte[] embedding) {
-        var embeddingResult = new TextEmbeddingByteResults.Embedding(embedding);
-        var textEmbeddingResults = new TextEmbeddingByteResults(List.of(embeddingResult));
+        var embeddingResult = new DenseEmbeddingByteResults.Embedding(embedding);
+        var textEmbeddingResults = new DenseEmbeddingByteResults(List.of(embeddingResult));
         return new InferenceAction.Response(textEmbeddingResults);
     }
 
     private static InferenceAction.Response createEmptyFloatEmbeddingResponse() {
-        var textEmbeddingResults = new TextEmbeddingFloatResults(List.of());
+        var textEmbeddingResults = new DenseEmbeddingFloatResults(List.of());
         return new InferenceAction.Response(textEmbeddingResults);
     }
 

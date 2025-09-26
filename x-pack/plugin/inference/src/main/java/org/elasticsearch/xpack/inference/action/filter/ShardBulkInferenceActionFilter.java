@@ -39,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
@@ -384,7 +385,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return;
             }
             final List<ChunkInferenceInput> inputs = requests.stream()
-                .map(r -> new ChunkInferenceInput(r.input, r.chunkingSettings))
+                .map(r -> new ChunkInferenceTextInput(r.input, r.chunkingSettings))
                 .collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {

@@ -80,7 +80,8 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             request.getTaskSettings(),
             request.getInputType(),
             request.getInferenceTimeout(),
-            listener
+            listener,
+            request.getImageUrls()
         );
     }
 }

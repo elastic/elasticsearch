@@ -156,7 +156,8 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         Map<String, Object> taskSettings,
         InputType inputType,
         @Nullable TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
+        ActionListener<InferenceServiceResults> listener,
+        @Nullable List<String> imageUrls
     ) {
         if (model instanceof SageMakerModel == false) {
             listener.onFailure(createInvalidModelException(model));
@@ -287,12 +288,13 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                         query,
                         null,  // no return docs while chunking?
                         null, // no topN while chunking?
-                        request.batch().inputs().get(),
+                        request.batch().textInputs().get(),
                         false, // we never stream when chunking
                         null, // since we pass sageMakerModel as the model, we already overwrote the model with the task settings
                         inputType,
                         timeout,
-                        ActionListener.runAfter(request.listener(), () -> l.onResponse(null))
+                        ActionListener.runAfter(request.listener(), () -> l.onResponse(null)),
+                        null
                     )
                 );
             }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
@@ -33,9 +34,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -374,7 +375,8 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(),
                     InputType.CLASSIFICATION,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 )
             );
             assertThat(
@@ -418,7 +420,8 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(),
                     InputType.CLASSIFICATION,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 )
             );
             assertThat(
@@ -462,7 +465,8 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(),
                     null,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
+                    listener,
+                    null
                 )
             );
             assertThat(
@@ -492,7 +496,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     }
 
     private void testChunkedInfer(TaskType taskType, ChunkingSettings chunkingSettings) throws IOException {
-        var input = List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"));
+        List<ChunkInferenceInput> input = List.of(new ChunkInferenceTextInput("foo"), new ChunkInferenceTextInput("bar"));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -516,7 +520,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var firstResult = results.getFirst();
             assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
             Class<?> expectedClass = switch (taskType) {
-                case TEXT_EMBEDDING -> TextEmbeddingFloatResults.Chunk.class;
+                case TEXT_EMBEDDING -> DenseEmbeddingFloatResults.Chunk.class;
                 case SPARSE_EMBEDDING -> SparseEmbeddingResults.Chunk.class;
                 default -> null;
             };
@@ -650,10 +654,10 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         ) {
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
-                    TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
+                    DenseEmbeddingFloatResults results = new DenseEmbeddingFloatResults(
                         List.of(
-                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
-                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
+                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
+                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
                         )
                     );
 

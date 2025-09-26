@@ -23,7 +23,7 @@ public class EmbeddingsInputTests extends ESTestCase {
             invoked.set(true);
             return list;
         };
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, null, List.of());
         // Ensure we don't invoke the supplier until we call getInputs()
         assertThat(invoked.get(), is(false));
 
@@ -33,7 +33,7 @@ public class EmbeddingsInputTests extends ESTestCase {
 
     public void testCallingGetInputsTwice_throws() {
         Supplier<List<String>> supplier = () -> List.of("input");
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, null, List.of());
         input.getInputs();
         var exception = expectThrows(AssertionError.class, input::getInputs);
         assertThat(exception.getMessage(), is("EmbeddingsInput supplier invoked twice"));

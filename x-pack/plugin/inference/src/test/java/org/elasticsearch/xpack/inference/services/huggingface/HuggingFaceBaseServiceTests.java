@@ -73,7 +73,8 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));

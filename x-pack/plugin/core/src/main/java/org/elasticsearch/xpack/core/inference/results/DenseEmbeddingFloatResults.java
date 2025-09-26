@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
@@ -36,7 +37,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Writes a text embedding result in the follow json format
+ * Writes a dense embedding result in the follow json format. The "text_embedding" array name may change depending on the
+ * {@link TaskType} used to generate the embedding
+ * <pre>
  * {
  *     "text_embedding": [
  *         {
@@ -51,31 +54,48 @@ import java.util.stream.Collectors;
  *         }
  *     ]
  * }
+ * </pre>
  */
-public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingFloatResults.Embedding> {
+public final class DenseEmbeddingFloatResults implements DenseEmbeddingResults<DenseEmbeddingFloatResults.Embedding> {
     public static final String NAME = "text_embedding_service_results";
-    public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
+    private final List<Embedding> embeddings;
+    private final String arrayName;
 
-    public TextEmbeddingFloatResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(TextEmbeddingFloatResults.Embedding::new));
+    public DenseEmbeddingFloatResults(List<Embedding> embeddings) {
+        this(embeddings, TEXT_EMBEDDING);
+    }
+
+    public DenseEmbeddingFloatResults(List<Embedding> embeddings, String taskName) {
+        this.embeddings = embeddings;
+        this.arrayName = taskName;
+    }
+
+    public DenseEmbeddingFloatResults(StreamInput in) throws IOException {
+        embeddings = in.readCollectionAsList(Embedding::new);
+        if (in.getTransportVersion().supports(ML_MULTIMODAL_EMBEDDINGS)) {
+            arrayName = in.readString();
+        } else {
+            arrayName = TEXT_EMBEDDING;
+        }
     }
 
     @SuppressWarnings("deprecation")
-    TextEmbeddingFloatResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
+    DenseEmbeddingFloatResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
         this(
             legacyTextEmbeddingResults.embeddings()
                 .stream()
                 .map(embedding -> new Embedding(embedding.values()))
-                .collect(Collectors.toList())
+                .collect(Collectors.toList()),
+            TEXT_EMBEDDING
         );
     }
 
-    public static TextEmbeddingFloatResults of(List<? extends InferenceResults> results) {
+    public static DenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
         List<Embedding> embeddings = new ArrayList<>(results.size());
         for (InferenceResults result : results) {
             if (result instanceof MlTextEmbeddingResults embeddingResult) {
-                embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingResult));
-            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
+                embeddings.add(Embedding.of(embeddingResult));
+            } else if (result instanceof ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
                 } else {
@@ -91,7 +111,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
                 );
             }
         }
-        return new TextEmbeddingFloatResults(embeddings);
+        return new DenseEmbeddingFloatResults(embeddings);
     }
 
     @Override
@@ -104,12 +124,15 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(TEXT_EMBEDDING, embeddings.iterator());
+        return ChunkedToXContentHelper.array(arrayName, embeddings.iterator());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(embeddings);
+        if (out.getTransportVersion().supports(ML_MULTIMODAL_EMBEDDINGS)) {
+            out.writeString(arrayName);
+        }
     }
 
     @Override
@@ -119,12 +142,12 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return embeddings.stream().map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING, embedding.asDoubleArray(), false)).toList();
+        return embeddings.stream().map(embedding -> new MlTextEmbeddingResults(arrayName, embedding.asDoubleArray(), false)).toList();
     }
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING, embeddings);
+        map.put(arrayName, embeddings);
 
         return map;
     }
@@ -133,13 +156,23 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingFloatResults that = (TextEmbeddingFloatResults) o;
-        return Objects.equals(embeddings, that.embeddings);
+        DenseEmbeddingFloatResults that = (DenseEmbeddingFloatResults) o;
+        return Objects.equals(embeddings, that.embeddings) && Objects.equals(arrayName, that.arrayName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(embeddings);
+        return Objects.hash(embeddings, arrayName);
+    }
+
+    @Override
+    public List<Embedding> embeddings() {
+        return embeddings;
+    }
+
+    @Override
+    public String toString() {
+        return "TextEmbeddingFloatResults[" + "embeddings=" + embeddings + ", " + "taskName=" + arrayName + ']';
     }
 
     // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging

@@ -51,7 +51,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             randomFrom(InputType.values()),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048)),
             false,
-            new InferenceContext(randomAlphanumericOfLength(10))
+            new InferenceContext(randomAlphanumericOfLength(10)),
+            null
         );
     }
 
@@ -499,7 +500,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
                     false,
-                    instance.getContext()
+                    instance.getContext(),
+                    null
                 );
             }
             case 1 -> new InferenceAction.Request(
@@ -513,7 +515,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getInputType(),
                 instance.getInferenceTimeout(),
                 false,
-                instance.getContext()
+                instance.getContext(),
+                null
             );
             case 2 -> {
                 var changedInputs = new ArrayList<String>(instance.getInput());
@@ -529,7 +532,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
                     false,
-                    instance.getContext()
+                    instance.getContext(),
+                    null
                 );
             }
             case 3 -> {
@@ -551,7 +555,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
                     false,
-                    instance.getContext()
+                    instance.getContext(),
+                    null
                 );
             }
             case 4 -> {
@@ -567,7 +572,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     nextInputType,
                     instance.getInferenceTimeout(),
                     false,
-                    instance.getContext()
+                    instance.getContext(),
+                    null
                 );
             }
             case 5 -> new InferenceAction.Request(
@@ -581,7 +587,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getInputType(),
                 instance.getInferenceTimeout(),
                 false,
-                instance.getContext()
+                instance.getContext(),
+                null
             );
             case 6 -> {
                 var newDuration = Duration.of(
@@ -600,7 +607,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInputType(),
                     TimeValue.timeValueMillis(newDuration.plus(additionalTime).toMillis()),
                     false,
-                    instance.getContext()
+                    instance.getContext(),
+                    null
                 );
             }
             case 7 -> {
@@ -616,7 +624,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
                     instance.isStreaming(),
-                    newContext
+                    newContext,
+                    null
                 );
             }
             default -> throw new UnsupportedOperationException();
@@ -709,7 +718,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                                 instance.getInputType(),
                                 instance.getInferenceTimeout(),
                                 false,
-                                InferenceContext.EMPTY_INSTANCE
+                                InferenceContext.EMPTY_INSTANCE,
+                                null
                             );
                         } else if (version.before(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
                             && version.isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19) == false) {
@@ -724,7 +734,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                                     instance.getInputType(),
                                     instance.getInferenceTimeout(),
                                     false,
-                                    instance.getContext()
+                                    instance.getContext(),
+                                    null
                                 );
                             } else {
                                 mutated = instance;
@@ -842,7 +853,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             InputType.UNSPECIFIED,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             false,
-            new InferenceContext(randomAlphaOfLength(10))
+            new InferenceContext(randomAlphaOfLength(10)),
+            null
         );
 
         InferenceAction.Request deserializedInstance = copyWriteable(

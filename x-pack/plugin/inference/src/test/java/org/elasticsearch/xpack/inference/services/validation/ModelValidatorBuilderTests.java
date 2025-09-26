@@ -77,6 +77,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
             eq(Map.of()),
             eq(InputType.INTERNAL_INGEST),
             any(),
+            any(),
             any()
         );
         verifyNoMoreInteractions(mockService);

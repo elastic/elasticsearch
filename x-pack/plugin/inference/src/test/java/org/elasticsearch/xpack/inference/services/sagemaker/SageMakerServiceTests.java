@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkInferenceTextInput;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.ActionListener.assertOnce;
@@ -138,7 +139,8 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             null,
             INPUT_TYPE,
             THIRTY_SECONDS,
-            assertUnsupportedModel()
+            assertUnsupportedModel(),
+            null
         );
     }
 
@@ -186,7 +188,8 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 verify(schemas, only()).schemaFor(eq(model));
                 verify(schema, times(1)).request(eq(model), assertRequest());
                 verify(schema, times(1)).response(eq(model), any(), any());
-            })
+            }),
+            null
         );
         verify(client, only()).invoke(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
@@ -213,7 +216,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
-        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, null, latchedListener);
+        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, null, latchedListener, null);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
         assertEquals(configuredTimeout, capturedTimeout.get());
@@ -240,7 +243,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
-        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, providedTimeout, latchedListener);
+        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, providedTimeout, latchedListener, null);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
         assertEquals(providedTimeout, capturedTimeout.get());
@@ -284,7 +287,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             verify(schemas, only()).streamSchemaFor(eq(model));
             verify(schema, times(1)).streamRequest(eq(model), assertRequest());
             verify(schema, times(1)).streamResponse(eq(model), any());
-        }));
+        }), null);
         verify(client, only()).invokeStream(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
@@ -321,7 +324,8 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 verify(schemas, only()).schemaFor(eq(model));
                 verify(schema, times(1)).request(eq(model), assertRequest());
                 verify(schema, times(1)).error(eq(model), assertArg(e -> assertThat(e, equalTo(expectedException))));
-            })
+            }),
+            null
         );
         verify(client, only()).invoke(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
@@ -349,7 +353,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             assertThat(e, isA(ElasticsearchStatusException.class));
             assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
             assertThat(e.getMessage(), equalTo("Failed to call SageMaker for inference id [some id]."));
-        }));
+        }), null);
         verify(client, only()).invokeStream(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
@@ -437,7 +441,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         sageMakerService.chunkedInfer(
             mockUnsupportedModel(),
             QUERY,
-            INPUT.stream().map(ChunkInferenceInput::new).toList(),
+            INPUT.stream().map(ChunkInferenceTextInput::new).collect(Collectors.toList()),
             null,
             INPUT_TYPE,
             THIRTY_SECONDS,
@@ -458,7 +462,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         sageMakerService.chunkedInfer(
             model,
             QUERY,
-            expectedInput.stream().map(ChunkInferenceInput::new).toList(),
+            expectedInput.stream().map(ChunkInferenceTextInput::new).collect(Collectors.toList()),
             null,
             INPUT_TYPE,
             THIRTY_SECONDS,
@@ -508,7 +512,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         sageMakerService.chunkedInfer(
             model,
             QUERY,
-            expectedInput.stream().map(ChunkInferenceInput::new).toList(),
+            expectedInput.stream().map(ChunkInferenceTextInput::new).collect(Collectors.toList()),
             null,
             INPUT_TYPE,
             THIRTY_SECONDS,

@@ -452,7 +452,8 @@ public abstract class AbstractInferenceServiceTests extends InferenceServiceTest
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                listener,
+                null
             );
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));

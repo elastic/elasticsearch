@@ -197,6 +197,43 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         }
     }
 
+    public void testGetAuthorization_OnResponseCalledOnce() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+
+        PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+        ActionListener<ElasticInferenceServiceAuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
+        String responseJson = """
+                {
+                    "models": [
+                        {
+                          "model_name": "model-a",
+                          "task_types": ["embed/text/sparse", "chat"]
+                        }
+                    ]
+                }
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        try (var sender = senderFactory.createSender()) {
+            authHandler.getAuthorization(onlyOnceListener, sender);
+            authHandler.waitForAuthRequestCompletion(TIMEOUT);
+
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
+            assertTrue(authResponse.isAuthorized());
+
+            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+            verify(logger, times(1)).debug(loggerArgsCaptor.capture());
+
+            var message = loggerArgsCaptor.getValue();
+            assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
+        }
+    }
+
     public void testGetAuthorization_InvalidResponse() throws IOException {
         var senderMock = createMockSender();
         var senderFactory = mock(HttpRequestSender.Factory.class);

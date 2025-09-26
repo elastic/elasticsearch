@@ -36,6 +36,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -108,6 +109,47 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
             sender.startSynchronously();
             sender.startSynchronously();
+        }
+    }
+
+    public void testCreateSender_CanCallStartAsyncMultipleTimes() throws Exception {
+        var asyncCalls = 3;
+        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
+
+        try (var sender = createSender(senderFactory)) {
+            var listenerList = new ArrayList<PlainActionFuture<Void>>();
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                listenerList.add(listener);
+                sender.startAsynchronously(listener);
+            }
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = listenerList.get(i);
+                assertNull(listener.actionGet(TIMEOUT));
+            }
+        }
+    }
+
+    public void testCreateSender_CanCallStartAsyncAndSyncMultipleTimes() throws Exception {
+        var asyncCalls = 3;
+        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
+
+        try (var sender = createSender(senderFactory)) {
+            var listenerList = new ArrayList<PlainActionFuture<Void>>();
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                listenerList.add(listener);
+                sender.startAsynchronously(listener);
+                sender.startSynchronously();
+            }
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = listenerList.get(i);
+                assertNull(listener.actionGet(TIMEOUT));
+            }
         }
     }
 

@@ -99,6 +99,7 @@ public class AmazonBedrockRequestSender implements Sender {
 
     @Override
     public void startAsynchronously(ActionListener<Void> listener) {
+
         throw new UnsupportedOperationException("not implemented");
     }
 

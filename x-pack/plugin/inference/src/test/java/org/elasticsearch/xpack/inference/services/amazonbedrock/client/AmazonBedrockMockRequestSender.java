@@ -71,7 +71,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
 
     @Override
     public void startAsynchronously(ActionListener<Void> listener) {
-        listener.onResponse(null);
+        throw new UnsupportedOperationException("not supported");
     }
 
     @Override

@@ -551,7 +551,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndicesService indicesService,
         final IndexShard indexShard,
         final CommonStatsFlags flags,
-        Long precomputedSharedRam
+        final long precomputedSharedRam
     ) {
         if (indexShard.routingEntry() == null) {
             return null;

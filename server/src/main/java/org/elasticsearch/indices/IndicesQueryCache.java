@@ -95,8 +95,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         /*
-         * We have some shared ram usage that we try to distribute proportionally to the number of segment-requestss in the cache cache for
-         * each shard.
+         * We have some shared ram usage that we try to distribute proportionally to the number of segment-requests in the cache for each
+         * shard.
          */
         // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
         long totalItemsInCache = 0L;

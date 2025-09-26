@@ -92,6 +92,6 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
 
     static boolean deserializeCaseInsensitivity(StreamInput in) throws IOException {
         var transportVersion = in.getTransportVersion();
-        return (transportVersion.supports(ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)) && in.readBoolean();
+        return transportVersion.supports(ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY) && in.readBoolean();
     }
 }

@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
@@ -131,7 +132,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByVersion();
+                    this.createClientsByCapability(this::nodeSupportApiKeyRemoteIndices);
                     // succeed when remote_indices are not provided
                     final boolean includeRoles = randomBoolean();
                     final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
@@ -221,7 +222,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByCertificateIdentityCapability();
+                    this.createClientsByCapability(this::nodeSupportsCertificateIdentity);
 
                     // Test against old node - should get parsing error
                     Exception oldNodeException = expectThrows(
@@ -397,8 +398,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
-    private void createClientsByVersion() throws IOException {
-        var clientsByCapability = getRestClientByCapability();
+    private void createClientsByCapability(Function<Map<String, Object>, Boolean> capabilityChecker) throws IOException {
+        var clientsByCapability = getRestClientByCapability(capabilityChecker);
         if (clientsByCapability.size() == 2) {
             for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
                 if (client.getKey() == false) {
@@ -423,27 +424,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             newVersionClient.close();
             newVersionClient = null;
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<Boolean, RestClient> getRestClientByCapability() throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
-        assertOK(response);
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
-        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
-            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            var capabilitySupported = nodeSupportApiKeyRemoteIndices(nodeDetails);
-            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
-                .add(HttpHost.create((String) httpInfo.get("publish_address")));
-        }
-        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
-        for (var entry : hostsByCapability.entrySet()) {
-            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
-        }
-        return clientsByCapability;
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {
@@ -489,7 +469,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Boolean, RestClient> getRestClientByCertificateIdentityCapability() throws IOException {
+    private Map<Boolean, RestClient> getRestClientByCapability(Function<Map<String, Object>, Boolean> capabilityChecker)
+        throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -498,7 +479,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
         for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
             Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            var capabilitySupported = nodeSupportsCertificateIdentity(nodeDetails);
+            var capabilitySupported = capabilityChecker.apply(nodeDetails);
             Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
             hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
                 .add(HttpHost.create((String) httpInfo.get("publish_address")));
@@ -509,23 +490,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
         }
         return clientsByCapability;
-    }
-
-    private void createClientsByCertificateIdentityCapability() throws IOException {
-        var clientsByCapability = getRestClientByCertificateIdentityCapability();
-        if (clientsByCapability.size() == 2) {
-            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
-                if (client.getKey() == false) {
-                    oldVersionClient = client.getValue();
-                } else {
-                    newVersionClient = client.getValue();
-                }
-            }
-            assertThat(oldVersionClient, notNullValue());
-            assertThat(newVersionClient, notNullValue());
-        } else {
-            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
-        }
     }
 
     private Tuple<String, String> createCrossClusterApiKeyWithCertIdentity(String certificateIdentity) throws IOException {

@@ -147,12 +147,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
             if (in.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
                 this.includeResolvedExpressions = in.readBoolean();
-            } else {
-                this.includeResolvedExpressions = false;
-            }
-            if (in.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
                 this.resolveCrossProject = in.readBoolean();
             } else {
+                this.includeResolvedExpressions = false;
                 this.resolveCrossProject = false;
             }
         }
@@ -167,8 +164,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
             if (out.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
                 out.writeBoolean(includeResolvedExpressions);
-            }
-            if (out.getTransportVersion().supports(RESOLVE_INDEX_INCLUDE_RESOLVED_FLAG)) {
                 out.writeBoolean(resolveCrossProject);
             }
         }
@@ -519,10 +514,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ResolvedIndexExpressions resolvedIndexExpressions;
 
         public Response(List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
+            this(indices, aliases, dataStreams, null);
+        }
+
+        public Response(
+            List<ResolvedIndex> indices,
+            List<ResolvedAlias> aliases,
+            List<ResolvedDataStream> dataStreams,
+            ResolvedIndexExpressions resolvedIndexExpressions
+        ) {
             this.indices = indices;
             this.aliases = aliases;
             this.dataStreams = dataStreams;
-            this.resolvedIndexExpressions = null;
+            this.resolvedIndexExpressions = resolvedIndexExpressions;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -575,6 +579,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return Objects.hash(indices, aliases, dataStreams);
         }
 
+        @Nullable
         public ResolvedIndexExpressions getResolvedIndexExpressions() {
             return resolvedIndexExpressions;
         }
@@ -620,12 +625,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams, request.indexModes);
 
+            final ResolvedIndexExpressions resolvedExpressions = request.getResolvedIndexExpressions();
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
+                        if (request.resolveCrossProject) {
+                            // TODO error handling
+                        }
                         mergeResults(remoteResponses, indices, aliases, dataStreams, request.indexModes);
                         listener.onResponse(new Response(indices, aliases, dataStreams));
                     }
@@ -640,14 +649,28 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
-                    Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
+                    Request remoteRequest = new Request(
+                        originalIndices.indices(),
+                        originalIndices.indicesOptions(),
+                        EnumSet.noneOf(IndexMode.class),
+                        // not a typo - resolveCrossProject determines if the remote call should return resolved expressions
+                        request.resolveCrossProject,
+                        false
+                    );
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
                     }, failure -> terminalHandler.run()));
                 }
             } else {
-                listener.onResponse(new Response(indices, aliases, dataStreams));
+                listener.onResponse(
+                    new Response(
+                        indices,
+                        aliases,
+                        dataStreams,
+                        request.includeResolvedExpressions ? request.getResolvedIndexExpressions() : null
+                    )
+                );
             }
         }
 

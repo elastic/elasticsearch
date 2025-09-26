@@ -173,7 +173,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
         if (matchesAllDimensions == false) {
             throw new IllegalArgumentException(
-                "Cannot add dimension fields via dynamic templates or mappings for an index with "
+                "Cannot add dynamic templates that define dimension fields on an existing index with "
                     + INDEX_DIMENSIONS.getKey()
                     + ". "
                     + "Please change the index template and roll over the data stream "

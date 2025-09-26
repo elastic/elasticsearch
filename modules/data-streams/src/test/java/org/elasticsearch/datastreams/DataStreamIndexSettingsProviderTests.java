@@ -963,7 +963,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             equalTo(
-                "Cannot add dimension fields via dynamic templates or mappings for an index with index.dimensions. "
+                "Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions. "
                     + "Please change the index template and roll over the data stream "
                     + "instead of modifying the mappings of the backing indices."
             )

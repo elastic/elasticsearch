@@ -44,7 +44,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The absolute change of a gauge field in a time window.",
+        description = "Calculates the absolute change of a gauge field in a time window.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
         note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command"
     )

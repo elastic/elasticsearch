@@ -80,6 +80,8 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -136,6 +138,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexStorePlugin,
         SystemIndexPlugin,
         SearchPlugin,
+        InternalSearchPlugin,
         ShutdownAwarePlugin,
         RestServerActionPlugin {
 
@@ -296,6 +299,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<QuerySpec<?>> querySpecs = new ArrayList<>(super.getQueries());
         filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getQueries().stream()).forEach(querySpecs::add);
         return querySpecs;
+    }
+
+    @Override
+    public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
+        List<QueryRewriteInterceptor> interceptors = new ArrayList<>();
+        filterPlugins(InternalSearchPlugin.class).stream()
+            .flatMap(p -> p.getQueryRewriteInterceptors().stream())
+            .forEach(interceptors::add);
+        return interceptors;
     }
 
     @Override

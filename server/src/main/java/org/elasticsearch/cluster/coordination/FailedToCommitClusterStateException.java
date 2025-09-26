@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -21,7 +22,7 @@ import java.io.IOException;
  *
  * This is different from {@link NotMasterException} where we know for certain that a state update never took effect.
  *
- * This exception is retryable within {@link FailedToCommitClusterStateException}.
+ * This exception is retryable within {@link TransportMasterNodeAction}.
  *
  * See {@link ClusterStatePublisher} for more details.
  */

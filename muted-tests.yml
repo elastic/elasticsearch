@@ -666,9 +666,6 @@ tests:
 - class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
   method: testIndexing {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/135525
-- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testFewDifferentValues
-  issue: https://github.com/elastic/elasticsearch/issues/135538
 
 # Examples:
 #

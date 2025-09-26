@@ -652,7 +652,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     private static ServiceSettings createServiceSettings(TaskType taskType) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new TestModel.TestServiceSettings(
+            case TEXT_EMBEDDING, IMAGE_EMBEDDING, MULTIMODAL_EMBEDDING -> new TestModel.TestServiceSettings(
                 "model",
                 randomIntBetween(2, 100),
                 randomFrom(SimilarityMeasure.values()),

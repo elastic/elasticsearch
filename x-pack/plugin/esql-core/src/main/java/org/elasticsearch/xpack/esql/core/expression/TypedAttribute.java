@@ -55,7 +55,7 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
-    protected boolean nonSemanticEquals(Attribute o) {
+    public boolean nonSemanticEquals(Attribute o) {
         var other = (TypedAttribute) o;
         return super.nonSemanticEquals(other) && dataType == other.dataType;
     }

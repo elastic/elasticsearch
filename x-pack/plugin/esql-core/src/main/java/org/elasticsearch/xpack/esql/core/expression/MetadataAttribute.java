@@ -174,7 +174,7 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    protected boolean nonSemanticEquals(Attribute o) {
+    public boolean nonSemanticEquals(Attribute o) {
         var other = (MetadataAttribute) o;
         return super.nonSemanticEquals(other) && searchable == other.searchable;
     }

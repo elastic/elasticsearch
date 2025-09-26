@@ -84,7 +84,7 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    protected boolean nonSemanticEquals(Attribute o) {
+    public boolean nonSemanticEquals(Attribute o) {
         return true;
     }
 

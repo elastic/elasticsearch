@@ -183,7 +183,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    protected boolean nonSemanticEquals(Attribute o) {
+    public boolean nonSemanticEquals(Attribute o) {
         var other = (UnsupportedAttribute) o;
         return super.nonSemanticEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }

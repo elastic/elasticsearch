@@ -234,7 +234,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected boolean nonSemanticEquals(Attribute o) {
+    public boolean nonSemanticEquals(Attribute o) {
         var other = (FieldAttribute) o;
         return super.nonSemanticEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }

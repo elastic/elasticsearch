@@ -215,14 +215,14 @@ public abstract class Attribute extends NamedExpression {
      * <p>
      * Does not perform the usual instance and class equality checks, those are already done in {@link NamedExpression#equals(Object)}
      */
-    protected boolean nonSemanticEquals(Attribute other) {
+    public boolean nonSemanticEquals(Attribute other) {
         return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
     }
 
     /**
      * Hashcode that's consistent with {@link #nonSemanticEquals(Attribute)}. Hashes everything but the id.
      */
-    protected int nonSemanticHashCode() {
+    public int nonSemanticHashCode() {
         return Objects.hash(super.hashCode(), qualifier, nullability);
     }
 
@@ -232,7 +232,7 @@ public abstract class Attribute extends NamedExpression {
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), id(), nonSemanticHashCode());
+        return Objects.hash(id(), nonSemanticHashCode());
     }
 
     /**

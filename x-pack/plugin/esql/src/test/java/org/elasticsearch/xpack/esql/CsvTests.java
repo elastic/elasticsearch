@@ -98,6 +98,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.InMemoryViewService;
+import org.elasticsearch.xpack.esql.view.View;
 import org.junit.After;
 import org.junit.Before;
 
@@ -121,6 +123,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -337,10 +341,6 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
             );
             assumeFalse(
-                "CSV tests cannot currently handle VIEWS",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_V1.capabilityName())
-            );
-            assumeFalse(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );
@@ -429,21 +429,30 @@ public class CsvTests extends ESTestCase {
 
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
         var mapping = new TreeMap<>(loadMapping(dataset.mappingFileName()));
-        if (dataset.typeMapping() == null) {
-            return mapping;
+        if (dataset.typeMapping() != null) {
+            for (var entry : dataset.typeMapping().entrySet()) {
+                if (mapping.containsKey(entry.getKey())) {
+                    DataType dataType = DataType.fromTypeName(entry.getValue());
+                    EsField field = mapping.get(entry.getKey());
+                    EsField editedField = new EsField(
+                        field.getName(),
+                        dataType,
+                        field.getProperties(),
+                        field.isAggregatable(),
+                        field.getTimeSeriesFieldType()
+                    );
+                    mapping.put(entry.getKey(), editedField);
+                }
+            }
         }
-        for (var entry : dataset.typeMapping().entrySet()) {
-            if (mapping.containsKey(entry.getKey())) {
-                DataType dataType = DataType.fromTypeName(entry.getValue());
-                EsField field = mapping.get(entry.getKey());
-                EsField editedField = new EsField(
-                    field.getName(),
-                    dataType,
-                    field.getProperties(),
-                    field.isAggregatable(),
-                    field.getTimeSeriesFieldType()
-                );
-                mapping.put(entry.getKey(), editedField);
+        // Add dynamic mappings, but only if they are not already mapped
+        if (dataset.dynamicTypeMapping() != null) {
+            for (var entry : dataset.dynamicTypeMapping().entrySet()) {
+                if (mapping.containsKey(entry.getKey()) == false) {
+                    DataType dataType = DataType.fromTypeName(entry.getValue());
+                    EsField editedField = new EsField(entry.getKey(), dataType, Map.of(), false, EsField.TimeSeriesFieldType.NONE);
+                    mapping.put(entry.getKey(), editedField);
+                }
             }
         }
         return mapping;
@@ -537,7 +546,21 @@ public class CsvTests extends ESTestCase {
         return plan;
     }
 
-    private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
+    private LogicalPlan resolveViews(LogicalPlan parsed) {
+        InMemoryViewService viewService = new InMemoryViewService(functionRegistry);
+        for (var viewConfig : VIEW_CONFIGS) {
+            try {
+                String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
+                viewService.put(viewConfig.viewName(), new View(viewQuery), ActionListener.noop(), configuration);
+            } catch (IOException e) {
+                logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
+                throw new RuntimeException(e);
+            }
+        }
+        return viewService.replaceViews(parsed, new PlanTelemetry(functionRegistry), configuration);
+    }
+
+    private CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         if (preAnalysis.indexPattern() == null) {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
@@ -582,8 +605,8 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query, EsqlTestUtils.TEST_CFG);
-        var testDatasets = testDatasets(parsed);
+        LogicalPlan parsed = resolveViews(parser.createStatement(testCase.query, configuration));
+        var testDatasets = testDatasets(resolveViews(parsed));
         LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
 
         FoldContext foldCtx = FoldContext.small();

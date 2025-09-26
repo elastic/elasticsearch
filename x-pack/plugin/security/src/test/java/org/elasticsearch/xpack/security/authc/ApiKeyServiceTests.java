@@ -96,7 +96,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRespo
 import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -129,7 +128,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -178,7 +176,6 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -3211,601 +3208,121 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e2.getMessage(), containsString("owner user role descriptors must not include restriction"));
     }
 
-    public void testApiKeyDocSerializationWithCertificateIdentity() throws IOException {
-        final String certIdentity = "CN=test,OU=testing";
-        final char[] hash = getFastStoredHashAlgoForTests().hash(new SecureString(randomAlphaOfLength(16).toCharArray()));
+    public void testMaybeBuildUpdatedDocumentCertificateIdentityHandling() throws Exception {
+        final String apiKeyId = randomAlphaOfLength(12);
+        final Clock mockClock = mock(Clock.class);
+        when(mockClock.instant()).thenReturn(Instant.now());
 
-        final XContentBuilder builder = ApiKeyService.newDocument(
-            hash,
-            "test_key",
-            AuthenticationTestHelper.builder().build(),
-            Collections.emptySet(),
-            Instant.now(),
-            null,
-            Collections.emptyList(),
-            ApiKey.Type.CROSS_CLUSTER,
-            ApiKey.CURRENT_API_KEY_VERSION,
-            Collections.emptyMap(),
-            certIdentity
-        );
-
-        final BytesReference bytes = BytesReference.bytes(builder);
-
-        final ApiKeyDoc parsedDoc = ApiKeyDoc.fromXContent(
-            XContentHelper.createParser(
-                new NamedXContentRegistry(Collections.emptyList()),
-                LoggingDeprecationHandler.INSTANCE,
-                new BytesArray(bytes.toBytesRef()),
-                XContentType.JSON
-            )
-        );
-
-        assertEquals(certIdentity, parsedDoc.certificateIdentity);
-    }
-
-    public void testCreateCrossClusterApiKeyWithCertificateIdentity() throws Exception {
-        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
-
-        FeatureService mockFeatureService = mock(FeatureService.class);
-        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE))).thenReturn(true);
-
-        final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
-
-        final String apiKeyId = randomAlphaOfLength(22);
-
-        when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
-
-            BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[1];
-            String actualApiKeyId = bulkRequest.requests().getFirst().id();
-
-            final IndexResponse indexResponse = new IndexResponse(
-                new ShardId(SECURITY_MAIN_ALIAS, actualApiKeyId, 0),
-                actualApiKeyId,
-                1L,
-                1L,
-                1L,
-                true
-            );
-
-            final BulkItemResponse itemResponse = BulkItemResponse.success(0, DocWriteRequest.OpType.CREATE, indexResponse);
-
-            final BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] { itemResponse }, 100L);
-
-            listener.onResponse(bulkResponse);
-            return null;
-        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
-
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("test-user", "superuser"))
-            .realmRef(new RealmRef("file", "file", "node-1"))
-            .build(false);
-
-        final CertificateIdentity certIdentity = new CertificateIdentity("CN=host123");
-        final String accessJson = """
-                {
-                  "search": [
-                    {
-                      "names": ["logs*"]
-                    }
-                  ]
-                }
-            """;
-
-        final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(accessJson);
-
-        final CreateCrossClusterApiKeyRequest createRequest = new CreateCrossClusterApiKeyRequest(
-            apiKeyId,
-            roleDescriptorBuilder,
-            null,
-            null,
-            certIdentity
-        );
-
-        PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        service.createApiKey(authentication, createRequest, Collections.emptySet(), future);
-
-        CreateApiKeyResponse response = future.get();
-        assertNotNull(response);
-
-        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
-
-        ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), anyActionListener());
-
-        BulkRequest bulkRequest = bulkRequestCaptor.getValue();
-        IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
-        Map<String, Object> sourceMap = indexRequest.sourceAsMap();
-        assertEquals(certIdentity.value(), sourceMap.get("certificate_identity"));
-    }
-
-    public void testUpdateApiKeyWithCertificateIdentity() throws ExecutionException, InterruptedException {
-        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
-
-        FeatureService mockFeatureService = mock(FeatureService.class);
-        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE))).thenReturn(true);
-
-        final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
-
-        final String apiKeyId = randomAlphaOfLength(20);
-        final String apiKey = randomAlphaOfLength(16);
-        final String originalCertIdentity = "CN=old-host.example.com";
-        final String newCertIdentity = "CN=new-host.example.com";
-
-        // Mock existing API key document with certificate identity
-        final Map<String, Object> sourceMap = buildApiKeySourceDoc(
-            getFastStoredHashAlgoForTests().hash(new SecureString(apiKey.toCharArray()))
-        );
-        sourceMap.put("type", ApiKey.Type.CROSS_CLUSTER.value());
-        sourceMap.put("certificate_identity", originalCertIdentity);
-
-        // Mock search operation
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
-        when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareIndex(any())).thenReturn(new IndexRequestBuilder(client));
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-
-            // Create a search hit for the existing API key
-            final SearchHit searchHit = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), apiKeyId);
-            searchHit.sourceRef(BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(sourceMap)));
-            searchHit.setSeqNo(randomLongBetween(0, 100));
-            searchHit.setPrimaryTerm(randomLongBetween(1, 100));
-
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
-            );
-            return null;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
-
-        // Mock bulk update operations
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
-
-            final UpdateResponse updateResponse = new UpdateResponse(
-                mock(ShardId.class),
+        // Scenario 1: Update with a new value
+        {
+            final String originalCertIdentity = "CN=old-host,OU=engineering,DC=example,DC=com";
+            final String newCertIdentity = "CN=new-host,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(originalCertIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
                 apiKeyId,
-                randomLong(),
-                randomLong(),
-                randomLong(),
-                DocWriteResponse.Result.UPDATED
+                new CertificateIdentity(newCertIdentity),
+                null
             );
-
-            final BulkItemResponse itemResponse = BulkItemResponse.success(0, DocWriteRequest.OpType.UPDATE, updateResponse);
-
-            listener.onResponse(new BulkResponse(new BulkItemResponse[] { itemResponse }, 100L));
-            return null;
-        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<ClearSecurityCacheResponse> listener = (ActionListener<ClearSecurityCacheResponse>) invocation.getArguments()[2];
-            listener.onResponse(mock(ClearSecurityCacheResponse.class));
-            return null;
-        }).when(client).execute(eq(ClearSecurityCacheAction.INSTANCE), any(), anyActionListener());
-
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("test_user", "superuser"))
-            .realmRef(new RealmRef("file", "file", "node-1"))
-            .build(false);
-
-        BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
-            List.of(apiKeyId),
-            null,
-            null,
-            null,
-            new CertificateIdentity(newCertIdentity)
-        ) {
-            @Override
-            public ApiKey.Type getType() {
-                return ApiKey.Type.CROSS_CLUSTER;
-            }
-        };
-
-        final PlainActionFuture<BulkUpdateApiKeyResponse> future = new PlainActionFuture<>();
-        service.updateApiKeys(authentication, updateRequest, Collections.emptySet(), future);
-
-        final BulkUpdateApiKeyResponse response = future.get();
-
-        assertThat(response.getUpdated(), contains(apiKeyId));
-        assertThat(response.getNoops(), hasSize(0));
-
-    }
-
-    public void testUpdateApiKeyWithExplicitNullCertificateIdentity() throws ExecutionException, InterruptedException {
-        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        FeatureService mockFeatureService = mock(FeatureService.class);
-        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE))).thenReturn(true);
-
-        final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
-        final String apiKeyId = randomAlphaOfLength(20);
-        final String apiKey = randomAlphaOfLength(16);
-        final String originalCertIdentity = "CN=remove-me";
-
-        // Mock existing API key document that already contains a certificate_identity
-        final Map<String, Object> sourceMap = buildApiKeySourceDoc(
-            getFastStoredHashAlgoForTests().hash(new SecureString(apiKey.toCharArray()))
-        );
-        sourceMap.put("type", ApiKey.Type.CROSS_CLUSTER.value());
-        sourceMap.put("certificate_identity", originalCertIdentity);
-
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
-        when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareIndex(any())).thenReturn(new IndexRequestBuilder(client));
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-
-            final SearchHit searchHit = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), apiKeyId);
-            searchHit.sourceRef(BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(sourceMap)));
-            searchHit.setSeqNo(randomLongBetween(0, 100));
-            searchHit.setPrimaryTerm(randomLongBetween(1, 100));
-
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
-            );
-            return null;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
-
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
-
-        final AtomicReference<IndexRequest> capturedIndexRequest = new AtomicReference<>();
-
-        doAnswer(invocation -> {
-            BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
-
-            // Capture the index request for later verification
-            capturedIndexRequest.set((IndexRequest) bulkRequest.requests().getFirst());
-
-            final UpdateResponse updateResponse = new UpdateResponse(
-                mock(ShardId.class),
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
                 apiKeyId,
-                randomLong(),
-                randomLong(),
-                randomLong(),
-                DocWriteResponse.Result.UPDATED
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
             );
+            assertThat(builder, notNullValue());
+            final Map<String, Object> updatedDoc = extractDocumentContent(builder);
+            assertThat(updatedDoc.get("certificate_identity"), equalTo(newCertIdentity));
+        }
 
-            final BulkItemResponse itemResponse = BulkItemResponse.success(0, DocWriteRequest.OpType.UPDATE, updateResponse);
-            listener.onResponse(new BulkResponse(new BulkItemResponse[] { itemResponse }, 100L));
-            return null;
-        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<ClearSecurityCacheResponse> listener = (ActionListener<ClearSecurityCacheResponse>) invocation.getArguments()[2];
-            listener.onResponse(mock(ClearSecurityCacheResponse.class));
-            return null;
-        }).when(client).execute(eq(ClearSecurityCacheAction.INSTANCE), any(), anyActionListener());
-
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("test_user", "superuser"))
-            .realmRef(new RealmRef("file", "file", "node-1"))
-            .build(false);
-
-        // Create an update request with an explicit null, which indicates the user wants to remove the certificate_identity from a key.
-        BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
-            List.of(apiKeyId),
-            null,
-            null,
-            null,
-            new CertificateIdentity(null)
-        ) {
-            @Override
-            public ApiKey.Type getType() {
-                return ApiKey.Type.CROSS_CLUSTER;
-            }
-        };
-
-        final PlainActionFuture<BulkUpdateApiKeyResponse> future = new PlainActionFuture<>();
-        service.updateApiKeys(authentication, updateRequest, Collections.emptySet(), future);
-
-        final BulkUpdateApiKeyResponse response = future.get();
-
-        assertThat(response.getUpdated(), contains(apiKeyId));
-        assertThat(response.getNoops(), hasSize(0));
-
-        // Verify that the certificate_identity field was removed from the document
-        final IndexRequest indexRequest = capturedIndexRequest.get();
-        final Map<String, Object> updatedDoc = XContentHelper.convertToMap(indexRequest.source(), false, XContentType.JSON).v2();
-
-        // certificate_identity should not be present in the updated document
-        assertThat(updatedDoc.containsKey("certificate_identity"), is(false));
-    }
-
-    public void testUpdateApiKeyWithOmittedCertificateIdentityPreservesExisting() throws ExecutionException, InterruptedException {
-        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        FeatureService mockFeatureService = mock(FeatureService.class);
-        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE))).thenReturn(true);
-
-        final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
-        final String apiKeyId = randomAlphaOfLength(20);
-        final String apiKey = randomAlphaOfLength(16);
-        final String originalCertIdentity = "CN=dont-remove-me";
-
-        // Mock existing API key document that contains certificate identity
-        final Map<String, Object> sourceMap = buildApiKeySourceDoc(
-            getFastStoredHashAlgoForTests().hash(new SecureString(apiKey.toCharArray()))
-        );
-        sourceMap.put("type", ApiKey.Type.CROSS_CLUSTER.value());
-        sourceMap.put("certificate_identity", originalCertIdentity);
-
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
-        when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareIndex(any())).thenReturn(new IndexRequestBuilder(client));
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-
-            final SearchHit searchHit = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), apiKeyId);
-            searchHit.sourceRef(BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(sourceMap)));
-            searchHit.setSeqNo(randomLongBetween(0, 100));
-            searchHit.setPrimaryTerm(randomLongBetween(1, 100));
-
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
-            );
-            return null;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
-
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
-
-        // Capture the actual update request to verify certificate_identity is preserved
-        final AtomicReference<IndexRequest> capturedIndexRequest = new AtomicReference<>();
-
-        doAnswer(invocation -> {
-            BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
-
-            // Capture the index request for later verification
-            capturedIndexRequest.set((IndexRequest) bulkRequest.requests().getFirst());
-
-            final UpdateResponse updateResponse = new UpdateResponse(
-                mock(ShardId.class),
+        // Scenario 2: No-op update (same value)
+        {
+            final String certIdentity = "CN=host,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(certIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
                 apiKeyId,
-                randomLong(),
-                randomLong(),
-                randomLong(),
-                DocWriteResponse.Result.UPDATED
+                new CertificateIdentity(certIdentity),
+                null
             );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, nullValue());
+        }
 
-            final BulkItemResponse itemResponse = BulkItemResponse.success(0, DocWriteRequest.OpType.UPDATE, updateResponse);
-            listener.onResponse(new BulkResponse(new BulkItemResponse[] { itemResponse }, 100L));
-            return null;
-        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
+        // Scenario 3: Explicitly clear an existing value
+        {
+            final String existingCertIdentity = "CN=existing-host,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(existingCertIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                new CertificateIdentity(null),
+                null
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, notNullValue());
+            final Map<String, Object> updatedDoc = extractDocumentContent(builder);
+            assertThat(updatedDoc.containsKey("certificate_identity"), is(false));
+        }
 
-        // Mock cache clearing
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<ClearSecurityCacheResponse> listener = (ActionListener<ClearSecurityCacheResponse>) invocation.getArguments()[2];
-            listener.onResponse(mock(ClearSecurityCacheResponse.class));
-            return null;
-        }).when(client).execute(eq(ClearSecurityCacheAction.INSTANCE), any(), anyActionListener());
+        // Scenario 4: Omit the field, should preserve existing value
+        {
+            final String existingCertIdentity = "CN=existing,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(existingCertIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                null,
+                Map.of("updated", "value")
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, notNullValue());
+            final Map<String, Object> updatedDoc = extractDocumentContent(builder);
+            assertThat(updatedDoc.get("certificate_identity"), equalTo(existingCertIdentity));
+        }
 
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("test_user", "superuser"))
-            .realmRef(new RealmRef("file", "file", "node-1"))
-            .build(false);
-
-        // Request with omitted certificate identity (null) but updating metadata
-        BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
-            List.of(apiKeyId),
-            null,
-            Map.of("updated", "metadata"),
-            null,
-            null
-        ) {
-            @Override
-            public ApiKey.Type getType() {
-                return ApiKey.Type.CROSS_CLUSTER;
-            }
-        };
-
-        final PlainActionFuture<BulkUpdateApiKeyResponse> future = new PlainActionFuture<>();
-        service.updateApiKeys(authentication, updateRequest, Collections.emptySet(), future);
-
-        final BulkUpdateApiKeyResponse response = future.get();
-
-        assertThat(response.getUpdated(), contains(apiKeyId));
-        assertThat(response.getNoops(), hasSize(0));
-
-        // Verify that the certificate_identity field was preserved in the document
-        final IndexRequest indexRequest = capturedIndexRequest.get();
-        final Map<String, Object> updatedDoc = XContentHelper.convertToMap(indexRequest.source(), false, XContentType.JSON).v2();
-
-        assertThat(updatedDoc.get("certificate_identity"), equalTo(originalCertIdentity));
-    }
-
-    public void testMaybeBuildUpdatedDocumentWithCertificateIdentity() throws Exception {
-        final String apiKeyId = randomAlphaOfLength(12);
-        final String originalCertIdentity = "CN=old-host,OU=engineering,DC=example,DC=com";
-        final String newCertIdentity = "CN=new-host,OU=engineering,DC=example,DC=com";
-
-        final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(originalCertIdentity);
-        final Authentication authentication = createTestAuthentication();
-        final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
-            apiKeyId,
-            new CertificateIdentity(newCertIdentity),
-            null
-        );
-
-        final Clock mockClock = mock(Clock.class);
-        when(mockClock.instant()).thenReturn(Instant.now());
-
-        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
-            apiKeyId,
-            apiKeyDoc,
-            ApiKey.CURRENT_API_KEY_VERSION,
-            authentication,
-            updateRequest,
-            Set.of(),
-            mockClock
-        );
-
-        assertThat(builder, notNullValue());
-        final Map<String, Object> updatedDoc = extractDocumentContent(builder);
-        assertThat(updatedDoc.get("certificate_identity"), equalTo(newCertIdentity));
-    }
-
-    public void testMaybeBuildUpdatedDocumentWithSameCertificateIdentityIsNoop() throws Exception {
-        final String apiKeyId = randomAlphaOfLength(12);
-        final String certIdentity = "CN=host,OU=engineering,DC=example,DC=com";
-
-        final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(certIdentity);
-        final Authentication authentication = createTestAuthentication();
-        final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
-            apiKeyId,
-            new CertificateIdentity(certIdentity),
-            null
-        );
-
-        final Clock mockClock = mock(Clock.class);
-        when(mockClock.instant()).thenReturn(Instant.now());
-
-        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
-            apiKeyId,
-            apiKeyDoc,
-            ApiKey.CURRENT_API_KEY_VERSION,
-            authentication,
-            updateRequest,
-            Set.of(),
-            mockClock
-        );
-
-        assertThat(builder, nullValue());
-    }
-
-    public void testMaybeBuildUpdatedDocumentWithExplicitNullCertificateIdentity() throws Exception {
-        final String apiKeyId = randomAlphaOfLength(12);
-        final String existingCertIdentity = "CN=existing-host,OU=engineering,DC=example,DC=com";
-
-        final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(existingCertIdentity);
-        final Authentication authentication = createTestAuthentication();
-        final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
-            apiKeyId,
-            new CertificateIdentity(null),
-            null
-        );
-
-        final Clock mockClock = mock(Clock.class);
-        when(mockClock.instant()).thenReturn(Instant.now());
-
-        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
-            apiKeyId,
-            apiKeyDoc,
-            ApiKey.CURRENT_API_KEY_VERSION,
-            authentication,
-            updateRequest,
-            Set.of(),
-            mockClock
-        );
-
-        assertThat(builder, notNullValue());
-        final Map<String, Object> updatedDoc = extractDocumentContent(builder);
-        assertThat(updatedDoc.containsKey("certificate_identity"), is(false));
-    }
-
-    public void testMaybeBuildUpdatedDocumentWithOmittedCertificateIdentity() throws Exception {
-        final String apiKeyId = randomAlphaOfLength(12);
-        final String existingCertIdentity = "CN=existing,OU=engineering,DC=example,DC=com";
-
-        final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(existingCertIdentity);
-        final Authentication authentication = createTestAuthentication();
-        final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
-            apiKeyId,
-            null,
-            Map.of("updated", "value")
-        );
-
-        final Clock mockClock = mock(Clock.class);
-        when(mockClock.instant()).thenReturn(Instant.now());
-
-        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
-            apiKeyId,
-            apiKeyDoc,
-            ApiKey.CURRENT_API_KEY_VERSION,
-            authentication,
-            updateRequest,
-            Set.of(),
-            mockClock
-        );
-
-        assertThat(builder, notNullValue());
-        final Map<String, Object> updatedDoc = extractDocumentContent(builder);
-        assertThat(updatedDoc.get("certificate_identity"), equalTo(existingCertIdentity));
-    }
-
-    public void testMaybeBuildUpdatedDocumentWithNoExistingCertIdentityExplicitNull() throws Exception {
-        final String apiKeyId = randomAlphaOfLength(12);
-
-        // Create APIKeyDoc that does not contain a certificate identity
-        final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(null);
-        final Authentication authentication = createTestAuthentication();
-        final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
-            apiKeyId,
-            new CertificateIdentity(null),
-            null
-        );
-
-        final Clock mockClock = mock(Clock.class);
-        when(mockClock.instant()).thenReturn(Instant.now());
-
-        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
-            apiKeyId,
-            apiKeyDoc,
-            ApiKey.CURRENT_API_KEY_VERSION,
-            authentication,
-            updateRequest,
-            Set.of(),
-            mockClock
-        );
-
-        assertThat(builder, nullValue());
+        // Scenario 5: Explicitly clear a value that doesn't exist
+        {
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(null);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                new CertificateIdentity(null),
+                null
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, nullValue());
+        }
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemotePrivileges() {
@@ -4143,10 +3660,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         return AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef("file", "file", "node-1")).build(false);
     }
 
-    private BaseBulkUpdateApiKeyRequest createUpdateRequestWithCertificateIdentity(
-        String apiKeyId,
-        CertificateIdentity certificateIdentity,
-        Map<String, Object> metadata
+    private static BaseBulkUpdateApiKeyRequest createUpdateRequestWithCertificateIdentity(
+        final String apiKeyId,
+        final CertificateIdentity certificateIdentity,
+        final Map<String, Object> metadata
     ) {
         return new BaseBulkUpdateApiKeyRequest(List.of(apiKeyId), null, metadata, null, certificateIdentity) {
             @Override

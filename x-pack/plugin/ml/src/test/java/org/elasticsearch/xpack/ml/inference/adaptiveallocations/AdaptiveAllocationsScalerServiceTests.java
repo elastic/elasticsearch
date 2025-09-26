@@ -286,7 +286,6 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         verifyNoMoreInteractions(client, clusterService);
         reset(client, clusterService);
 
-
         // First cycle: 1 inference request, so no need for scaling.
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {

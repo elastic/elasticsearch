@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics;
 
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
@@ -23,4 +24,14 @@ public class ExponentialHistogramAggregatorsRegistrar {
             true
         );
     }
+
+    public static void registerSumAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            SumAggregationBuilder.REGISTRY_KEY,
+            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramSumAggregator::new,
+            true
+        );
+    }
+
 }

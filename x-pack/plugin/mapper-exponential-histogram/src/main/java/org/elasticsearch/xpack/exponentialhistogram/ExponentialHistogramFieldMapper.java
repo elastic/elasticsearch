@@ -928,6 +928,16 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         public long valuesCountValue() throws IOException {
             return valueCounts.longValue();
         }
+
+        @Override
+        public double sumValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+            assert valueSumsPresent;
+            return NumericUtils.sortableLongToDouble(valueSums.longValue());
+        }
     }
 
     private class ExponentialHistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

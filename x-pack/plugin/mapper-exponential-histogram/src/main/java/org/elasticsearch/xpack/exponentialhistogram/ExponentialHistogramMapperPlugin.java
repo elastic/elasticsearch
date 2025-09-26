@@ -36,7 +36,10 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         if (ExponentialHistogramFieldMapper.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
-            return List.of(ExponentialHistogramAggregatorsRegistrar::registerValueCountAggregator);
+            return List.of(
+                ExponentialHistogramAggregatorsRegistrar::registerValueCountAggregator,
+                ExponentialHistogramAggregatorsRegistrar::registerSumAggregator
+            );
         }
         return Collections.emptyList();
     }

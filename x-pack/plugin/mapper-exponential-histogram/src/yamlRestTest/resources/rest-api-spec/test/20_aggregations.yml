@@ -41,3 +41,18 @@ setup:
 
   - match: { hits.total.value: 5 }
   - match: { aggregations.value_count_agg.value: 41 }
+
+---
+"Sum aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            sum_agg:
+              sum:
+                field: histo
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.sum_agg.value: 86191 }

@@ -1,0 +1,244 @@
+---
+"Test top level _project mappings are prohibited when creating index":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            properties:
+              _project:
+                type: text
+              keyword:
+                type: keyword
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+    to avoid conflicts with project metadata tags in serverless" }
+
+
+---
+"Test top level _project.foo mappings are prohibited when creating index":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            properties:
+              _project.foo:
+                type: text
+              keyword:
+                type: keyword
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+    to avoid conflicts with project metadata tags in serverless" }
+
+
+---
+"Test top level _project/foo mappings are prohibited when creating index":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            properties:
+              _project:
+                properties:
+                  foo:
+                    type: text
+              keyword:
+                type: keyword
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+   to avoid conflicts with project metadata tags in serverless" }
+
+---
+"Test top level _project mappings as field alias are prohibited when creating index":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            properties:
+              myfield:
+                type: keyword
+              _project:
+                type: alias
+                path: myfield
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+    to avoid conflicts with project metadata tags in serverless" }
+
+
+---
+"Test top level _project as object with subfield with subobjects:false fails":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            subobjects: false
+            properties:
+              _project:
+                type: object
+                properties:
+                  myfield:
+                    type: keyword
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected: [_project.myfield]. No mappings of [_project] are
+    allowed in order to avoid conflicts with project metadata tags in serverless" }
+
+
+---
+"Test top level _project mappings of type 'object' with subobjects:false succeeds but doesn't creating the mapping":
+# this is not new behavior - this happens for any field, but want to ensure that this never works for _project
+  - do:
+      indices.create:
+        index: index_b
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            subobjects: false
+            properties:
+              myfield:
+                type: keyword
+              _project:
+                type: object
+
+  - do:
+      indices.get_mapping:
+        index: index_b
+  - is_false: "index_b.mappings.properties._project.type"
+  - is_true: "index_b.mappings.properties.myfield.type"
+
+
+---
+"Test sub level foo/_project mappings are allowed when creating index":
+  - do:
+      indices.create:
+        index: index_a
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            properties:
+              foo:
+                properties:
+                  _project:
+                    type: text
+              keyword:
+                type: keyword
+
+
+---
+"Test top level _project mappings are prohibited when adding doc to an index":
+  - do:
+      catch: bad_request
+      index:
+        index: index_a
+        id: "1"
+        body:
+          text: "term term"
+          _project: "my value"
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+    to avoid conflicts with project metadata tags in serverless" }
+
+---
+"Test top level _project.foo mappings are prohibited when adding doc to an index":
+  - do:
+      catch: bad_request
+      index:
+        index: index_a
+        id: "1"
+        body:
+          text: "term term"
+          _project.foo: "my value"
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+    to avoid conflicts with project metadata tags in serverless" }
+
+---
+"Test top level _project/foo nested mappings are prohibited when adding doc to an index":
+  - do:
+      catch: bad_request
+      index:
+        index: index_a
+        id: "1"
+        body:
+          text: "term term"
+          _project:
+            foo: "my value"
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+    to avoid conflicts with project metadata tags in serverless" }
+
+---
+"Test top level _project.foo/subfield mappings are prohibited when adding doc to an index":
+  - do:
+      catch: bad_request
+      index:
+        index: index_a
+        id: "1"
+        body:
+          text: "term term"
+          _project.foo:
+            subfield: "my value"
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in order
+    to avoid conflicts with project metadata tags in serverless" }
+
+---
+"Test top level _project_foo mappings are allowed when adding doc to an index":
+  - do:
+      index:
+        index: index_a
+        id: "1"
+        body:
+          text1: "term123"
+          _project_foo: "my value"
+
+  - do:
+      indices.get_mapping:
+        index: index_a
+  - match: { index_a.mappings.properties.text1.type: 'text' }
+  - match: { index_a.mappings.properties._project_foo.type: 'text' }

@@ -1,0 +1,135 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term term"
+          keyword: "other"
+
+# =========================== #
+# query-time runtime mappings #
+# =========================== #
+
+---
+"Top level _project field is not allowed in query-time runtime fields":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            _project:
+              type: keyword
+              script: |
+                emit('somevalue')
+          fields: [_project]
+          query: {match_all: {} }
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected. No mappings of [_project] are allowed in
+    order to avoid conflicts with project metadata tags in serverless" }
+
+---
+"Top level _project.foo field is not allowed in query-time runtime fields":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            _project.foo:
+              type: keyword
+              script: |
+                emit('somevalue')
+          fields: [_project.foo]
+          query: {match_all: {} }
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Mapping rejected: [_project.foo]. No mappings of [_project]
+    are allowed in order to avoid conflicts with project metadata tags in serverless" }
+
+# ====================== #
+# index runtime mappings #
+# ====================== #
+
+---
+"Test top level _project_foo runtime mappings is allowed when creating index":
+  - do:
+      indices.create:
+        index: index_runtime
+        body:
+          mappings:
+            runtime:
+              _project_foo:
+                type: keyword
+                script: |
+                  emit('somevalue')
+
+---
+"Test level foo._project runtime mappings is allowed when creating index":
+  - do:
+      indices.create:
+        index: index_runtime2
+        body:
+          mappings:
+            runtime:
+              foo._project:
+                type: keyword
+                script: |
+                  emit('somevalue')
+
+
+---
+"Test top level _project runtime mappings are prohibited when creating index":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: index_runtime3
+        body:
+          mappings:
+            runtime:
+              _project:
+                type: keyword
+                script: |
+                  emit('somevalue')
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.reason: "Failed to parse mapping: Mapping rejected. No mappings of [_project]
+    are allowed in order to avoid conflicts with project metadata tags in serverless" }
+
+---
+"Test top level _project.subfield runtime mappings are prohibited when creating index":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: index_runtime4
+        body:
+          mappings:
+            runtime:
+              _project.subfield:
+                type: keyword
+                script: |
+                  emit('somevalue')
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.reason: "Failed to parse mapping: Mapping rejected: [_project.subfield].
+    No mappings of [_project] are allowed in order to avoid conflicts with project metadata tags in serverless" }

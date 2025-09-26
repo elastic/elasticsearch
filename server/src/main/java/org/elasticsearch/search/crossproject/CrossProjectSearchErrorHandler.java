@@ -22,8 +22,10 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.NONE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
 /**
@@ -64,10 +66,10 @@ public class CrossProjectSearchErrorHandler {
      * The method considers both flat (unqualified) and qualified index expressions, as well as
      * local and linked project resolution results when determining whether to throw exceptions.
      *
-     * @param indicesOptions Controls error behavior for missing indices
-     * @param localResolvedExpressions Resolution results from the origin project
+     * @param indicesOptions            Controls error behavior for missing indices
+     * @param localResolvedExpressions  Resolution results from the origin project
      * @param remoteResolvedExpressions Resolution results from linked projects
-     * @throws IndexNotFoundException If indices are missing and the {@code IndicesOptions} do not allow it
+     * @throws IndexNotFoundException         If indices are missing and the {@code IndicesOptions} do not allow it
      * @throws ElasticsearchSecurityException If authorization errors occurred during index resolution
      */
     public static void crossProjectFanoutErrorHandling(
@@ -75,23 +77,22 @@ public class CrossProjectSearchErrorHandler {
         ResolvedIndexExpressions localResolvedExpressions,
         RemoteIndexExpressions remoteResolvedExpressions
     ) {
+        logger.info(
+            "Checking cross-project index resolution results with indices options [{}] for [{}] and [{}]",
+            indicesOptions,
+            localResolvedExpressions,
+            remoteResolvedExpressions
+        );
+
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
-            // nothing to do since we're in lenient mode
             logger.debug("Skipping index existence check in lenient mode");
             return;
         }
 
-        logger.info(
-            "Checking index existence for [{}] and [{}] with indices options [{}]",
-            localResolvedExpressions,
-            remoteResolvedExpressions,
-            indicesOptions
-        );
-
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
             String originalExpression = localResolvedIndices.original();
 
-            logger.info("Checking replaced expression for original expression [{}]", originalExpression);
+            logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
 
             String resource = originalExpression;
             boolean isQualifiedResource = RemoteClusterAware.isRemoteIndexName(resource);
@@ -115,7 +116,7 @@ public class CrossProjectSearchErrorHandler {
                     isQualifiedResource == false
                 );
             } else if (false == indicesOptions.ignoreUnavailable()) {
-                checkIndicesOptions(resource, localResolvedIndices, remoteResolvedExpressions, isQualifiedResource == false);
+                checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isQualifiedResource == false);
             }
         }
     }
@@ -149,10 +150,9 @@ public class CrossProjectSearchErrorHandler {
     ) {
         ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
         boolean resourceFound = false == localExpressions.expressions().isEmpty()
-            && localExpressions.localIndexResolutionResult() == SUCCESS;
+            && (localExpressions.localIndexResolutionResult() == SUCCESS || localExpressions.localIndexResolutionResult() == NONE);
 
         if (resourceFound && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
-            // a concrete index locally and either was a flat expression or was the only thing we needed to search
             logger.info(
                 "Local cluster has canonical expression for original expression [{}], skipping remote existence check",
                 originalExpression
@@ -164,52 +164,54 @@ public class CrossProjectSearchErrorHandler {
         if (localException != null) {
             exceptions.add(localException);
         }
-        int numberOfQualifiedFound = resourceFound ? 1 : 0;
-        for (var linkedProjectExpressions : remoteResolvedExpressions.expressions().values()) {
-            // for each linked project we check if the resolved expressions contains the original expression and check for resolution status
-            ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
-                .get(originalExpression);
-            assert resolvedRemoteExpression != null
-                : "we should always have resolved expressions from remote. missing resolved expressions for [" + originalExpression + "]";
 
-            Set<String> remoteExpressions = resolvedRemoteExpression.expressions();
-            assert remoteExpressions != null : "we should always have replaced expressions";
+        for (String remoteExpression : localResolvedIndices.remoteExpressions()) {
+            boolean isQualifiedResource = RemoteClusterAware.isRemoteIndexName(remoteExpression);
+            if (isQualifiedResource) {
+                // handle qualified resource eg. P1:logs*
+                String[] splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+                assert splitResource.length == 2
+                    : "Expected two strings (project and indexExpression) for a qualified resource ["
+                        + remoteExpression
+                        + "], but found ["
+                        + splitResource.length
+                        + "]";
+                String projectAlias = splitResource[0];
+                String resource = splitResource[1];
+                LinkedProjectExpressions linkedProjectExpressions = remoteResolvedExpressions.expressions().get(projectAlias);
+                assert linkedProjectExpressions != null : "we should always have linked expressions from remote";
 
-            logger.debug("Replaced indices from remote response resolved: [{}]", remoteExpressions);
-            boolean existsRemotely = false == remoteExpressions.isEmpty()
-                && resolvedRemoteExpression.localIndexResolutionResult() == SUCCESS;
-            if (existsRemotely) {
-                if (isFlatWorldResource) {
-                    logger.debug(
-                        "Remote project has resolved entries for [{}], skipping further remote existence check",
-                        originalExpression
-                    );
-                    resourceFound = true;
-                    break;
-                } else {
-                    numberOfQualifiedFound++;
+                ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
+                    .get(resource);
+                assert resolvedRemoteExpression != null : "we should always have resolved expressions from remote";
+
+                if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_NOT_VISIBLE) {
+                    throw new IndexNotFoundException(remoteExpression);
                 }
-            } else if (resolvedRemoteExpression.exception() != null) {
-                exceptions.add(resolvedRemoteExpression.exception());
-            }
-        }
-        boolean missingFlatResource = isFlatWorldResource && false == resourceFound;
-        boolean missingQualifiedResource = false == isFlatWorldResource
-            && numberOfQualifiedFound < localResolvedIndices.remoteExpressions().size();
-
-        if (missingFlatResource || missingQualifiedResource) {
-            if (false == exceptions.isEmpty()) {
-                // we only ever get exceptions if they are security related
-                // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
-                // as 403 or 404
-                ElasticsearchSecurityException e = new ElasticsearchSecurityException(
-                    "authorization errors while resolving [" + originalExpression + "]",
-                    RestStatus.FORBIDDEN
-                );
-                exceptions.forEach(e::addSuppressed);
-                throw e;
+                if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                    // we only ever get exceptions if they are security related
+                    // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
+                    // as 403 or 404
+                    ElasticsearchSecurityException e = new ElasticsearchSecurityException(
+                        "authorization errors while resolving [" + remoteExpression + "]",
+                        RestStatus.FORBIDDEN
+                    );
+                    exceptions.forEach(e::addSuppressed);
+                    throw e;
+                }
             } else {
-                throw new IndexNotFoundException(originalExpression);
+                boolean foundFlat = false;
+                for (var linkedProjectExpressions : remoteResolvedExpressions.expressions().values()) {
+                    ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
+                        .get(remoteExpression);
+                    if (resolvedRemoteExpression != null) {
+                        foundFlat = true;
+                        break;
+                    }
+                }
+                if (false == foundFlat) {
+                    throw new IndexNotFoundException(remoteExpression);
+                }
             }
         }
     }

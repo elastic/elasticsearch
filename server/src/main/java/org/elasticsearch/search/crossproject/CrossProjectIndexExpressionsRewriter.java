@@ -90,10 +90,10 @@ public class CrossProjectIndexExpressionsRewriter {
         Result result;
         if (isQualified) {
             result = rewriteQualified(resource, originProjectAlias, linkedProjectAliases);
-            logger.debug("Rewrote qualified expression [{}] to [{}]", resource, result);
+            logger.info("Rewrote qualified expression [{}] to [{}]", resource, result);
         } else {
             result = rewriteUnqualified(resource, originProjectAlias, linkedProjectAliases);
-            logger.debug("Rewrote unqualified expression [{}] to [{}]", resource, result);
+            logger.info("Rewrote unqualified expression [{}] to [{}]", resource, result);
         }
         return result;
     }

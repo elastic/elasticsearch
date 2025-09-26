@@ -94,6 +94,7 @@ public class IndexAbstractionResolver {
 
             wildcardSeen = resolveIndexAbstraction(
                 index,
+                rewritten.local(),
                 indicesOptions,
                 projectMetadata,
                 allAuthorizedAndAvailableBySelector,
@@ -119,13 +120,39 @@ public class IndexAbstractionResolver {
         ResolvedIndexExpressions.Builder resolvedExpressionsBuilder,
         HashSet<String> remoteIndices
     ) {
+        return resolveIndexAbstraction(
+            index,
+            index,
+            indicesOptions,
+            projectMetadata,
+            allAuthorizedAndAvailableBySelector,
+            isAuthorized,
+            includeDataStreams,
+            wildcardSeen,
+            resolvedExpressionsBuilder,
+            remoteIndices
+        );
+    }
+
+    private boolean resolveIndexAbstraction(
+        String originalExpression,
+        String localIndex,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        boolean includeDataStreams,
+        boolean wildcardSeen,
+        ResolvedIndexExpressions.Builder resolvedExpressionsBuilder,
+        HashSet<String> remoteIndices
+    ) {
         String indexAbstraction;
         boolean minus = false;
-        if (index.charAt(0) == '-' && wildcardSeen) {
-            indexAbstraction = index.substring(1);
+        if (localIndex.charAt(0) == '-' && wildcardSeen) {
+            indexAbstraction = localIndex.substring(1);
             minus = true;
         } else {
-            indexAbstraction = index;
+            indexAbstraction = localIndex;
         }
 
         // Always check to see if there's a selector on the index expression
@@ -162,12 +189,12 @@ public class IndexAbstractionResolver {
                 if (indicesOptions.allowNoIndices() == false) {
                     throw new IndexNotFoundException(indexAbstraction);
                 }
-                resolvedExpressionsBuilder.addExpressions(index, new HashSet<>(), SUCCESS, remoteIndices);
+                resolvedExpressionsBuilder.addExpressions(originalExpression, new HashSet<>(), SUCCESS, remoteIndices);
             } else {
                 if (minus) {
                     resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
                 } else {
-                    resolvedExpressionsBuilder.addExpressions(index, resolvedIndices, SUCCESS, remoteIndices);
+                    resolvedExpressionsBuilder.addExpressions(originalExpression, resolvedIndices, SUCCESS, remoteIndices);
                 }
             }
         } else {
@@ -189,14 +216,24 @@ public class IndexAbstractionResolver {
                             includeDataStreams
                         );
                     final LocalIndexResolutionResult result = visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE;
-                    resolvedExpressionsBuilder.addExpressions(index, resolvedIndices, result, remoteIndices);
+                    resolvedExpressionsBuilder.addExpressions(originalExpression, resolvedIndices, result, remoteIndices);
                 } else if (indicesOptions.ignoreUnavailable()) {
                     // ignoreUnavailable implies that the request should not fail if an index is not authorized
                     // so we map this expression to an empty list,
-                    resolvedExpressionsBuilder.addExpressions(index, new HashSet<>(), CONCRETE_RESOURCE_UNAUTHORIZED, remoteIndices);
+                    resolvedExpressionsBuilder.addExpressions(
+                        originalExpression,
+                        new HashSet<>(),
+                        CONCRETE_RESOURCE_UNAUTHORIZED,
+                        remoteIndices
+                    );
                 } else {
                     // store the calculated expansion as unauthorized, it will be rejected later
-                    resolvedExpressionsBuilder.addExpressions(index, resolvedIndices, CONCRETE_RESOURCE_UNAUTHORIZED, remoteIndices);
+                    resolvedExpressionsBuilder.addExpressions(
+                        originalExpression,
+                        resolvedIndices,
+                        CONCRETE_RESOURCE_UNAUTHORIZED,
+                        remoteIndices
+                    );
                 }
             }
         }

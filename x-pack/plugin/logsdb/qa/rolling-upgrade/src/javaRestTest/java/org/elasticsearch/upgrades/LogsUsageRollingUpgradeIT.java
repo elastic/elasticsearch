@@ -11,7 +11,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 
 import java.io.IOException;
@@ -32,7 +31,7 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecurit
 
     @Override
     protected void beforeUpgrade() {
-        if (Build.current().isSnapshot()) {
+        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
             assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
         }
     }

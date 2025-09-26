@@ -11,8 +11,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
-
 import java.time.Instant;
 import java.util.Map;
 
@@ -30,7 +28,7 @@ public class NoLogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecur
 
     @Override
     protected void beforeUpgrade() {
-        if (Build.current().isSnapshot()) {
+        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
             assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
         }
     }

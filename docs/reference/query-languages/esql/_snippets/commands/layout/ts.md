@@ -41,13 +41,13 @@ TS metrics
   | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
 ```
 
-This query calculates the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()` 
+This query calculates the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()`
 function is applied per time series in hourly buckets. These rates are summed for each
 host and hourly bucket (since each host can map to multiple time series).
 
 This paradigm—a pair of aggregation functions—is standard for time series
 querying. For supported inner (time series) functions per
-[metric type](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric), refer to 
+[metric type](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric), refer to
 [](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md). These functions also
 apply to downsampled data, with the same semantics as for raw data.
 
@@ -71,7 +71,8 @@ TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 ```
 ::::
 
-Use regular (non-time-series) [aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md),
+Use regular (non-time-series)
+[aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md),
 such as `SUM()`, as outer aggregation functions. Using a time series aggregation
 in combination with an inner function causes an error. For example, the
 following query is invalid:
@@ -81,8 +82,10 @@ TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
 ```
 
 ::::{note}
-A time series aggregation function must be wrapped inside a
-regular aggregation function. For instance, the following query is invalid:
+A [time series](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+aggregation function must be wrapped inside a
+[regular](/reference/query-languages/esql/functions-operators/aggregation-functions.md)
+aggregation function. For instance, the following query is invalid:
 
 ```esql
 TS metrics | STATS RATE(search_requests)

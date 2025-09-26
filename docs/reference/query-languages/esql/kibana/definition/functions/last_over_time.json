@@ -8,18 +8,6 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "_tsid",
-          "optional" : false,
-          "description" : ""
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "_tsid"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : ""

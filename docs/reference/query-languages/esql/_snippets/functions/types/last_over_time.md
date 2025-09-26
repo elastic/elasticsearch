@@ -4,7 +4,6 @@
 
 | field | result |
 | --- | --- |
-| _tsid | _tsid |
 | double | double |
 | integer | integer |
 | long | long |

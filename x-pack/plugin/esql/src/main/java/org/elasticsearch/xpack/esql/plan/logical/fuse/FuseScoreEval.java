@@ -26,7 +26,10 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -36,7 +39,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalysisVerificationAware {
+public class FuseScoreEval extends UnaryPlan
+    implements
+        LicenseAware,
+        PostAnalysisVerificationAware,
+        ExecutesOn.Coordinator,
+        PipelineBreaker {
     private final Attribute discriminatorAttr;
     private final Attribute scoreAttr;
     private final Fuse.FuseType fuseType;
@@ -122,6 +130,7 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        validateLimitedInput(failures);
         if (options == null) {
             return;
         }
@@ -129,6 +138,24 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
         switch (fuseType) {
             case LINEAR -> validateLinearOptions(failures);
             case RRF -> validateRrfOptions(failures);
+        }
+    }
+
+    private void validateLimitedInput(Failures failures) {
+        var myself = this;
+        Holder<Boolean> hasLimitedInput = new Holder<>(false);
+        this.forEachUp(LogicalPlan.class, plan -> {
+            if (plan == myself) {
+                return;
+            }
+
+            if (plan instanceof PipelineBreaker) {
+                hasLimitedInput.set(true);
+            }
+        });
+
+        if (hasLimitedInput.get() == false) {
+            failures.add(new Failure(this, "FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
         }
     }
 

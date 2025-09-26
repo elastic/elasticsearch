@@ -113,8 +113,10 @@ public class Packages {
         if (distribution.hasJdk == false) {
             return true;
         }
-        Version version = Version.fromString(distribution.version);
-        return Platforms.isUbuntu24() && (version.onOrAfter(Version.V_8_0_0) && version.onOrBefore(Version.V_8_4_3));
+        Version version = Version.fromString(distribution.baseVersion);
+        boolean requiresPatch = Platforms.isUbuntu24() && (version.onOrAfter(Version.V_8_0_0) && version.onOrBefore(Version.V_8_4_3));
+        System.out.println("requiresPatch = " + requiresPatch);
+        return requiresPatch;
     }
 
     private static String captureElasticPasswordFromOutput(Result result) {

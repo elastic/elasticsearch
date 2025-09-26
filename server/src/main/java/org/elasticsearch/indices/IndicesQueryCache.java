@@ -103,22 +103,22 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     /**
      * This computes the total cache size in bytes, and the total shard count in the cache for all shards.
      * @param indicesService
-     * @return A CacheTotals object containing the computed total cache size and shard count
+     * @return A CacheTotals object containing the computed total number of items in the cache and the number of shards seen in the cache
      */
     public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
         IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
         boolean hasQueryCache = queryCache != null;
-        long totalSize = 0L;
+        long totalItemsInCache = 0L;
         int shardCount = 0;
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
                 long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
                 shardCount++;
                 assert cacheSize >= 0 : "Unexpected cache size of " + cacheSize + " for shard " + indexShard.shardId();
-                totalSize += cacheSize;
+                totalItemsInCache += cacheSize;
             }
         }
-        return new CacheTotals(totalSize, shardCount);
+        return new CacheTotals(totalItemsInCache, shardCount);
     }
 
     /**
@@ -144,7 +144,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          * We have some shared ram usage that we try to distribute proportionally to the number of segment-requestss in the cache for each
          * shard.
          */
-        long totalItemsInCache = cacheTotals.totalSize();
+        long totalItemsInCache = cacheTotals.totalItemsInCache();
         long itemsInCacheForShard = queryCache.getCacheSizeForShard(indexShard.shardId());
         final long additionalRamBytesUsed;
         if (totalItemsInCache == 0) {
@@ -166,7 +166,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return additionalRamBytesUsed;
     }
 
-    public record CacheTotals(long totalSize, int shardCount) {}
+    public record CacheTotals(long totalItemsInCache, int shardCount) {}
 
     /** Get usage statistics for the given shard. */
     public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {

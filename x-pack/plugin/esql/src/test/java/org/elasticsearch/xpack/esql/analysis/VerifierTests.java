@@ -2681,6 +2681,11 @@ public class VerifierTests extends ESTestCase {
             error(queryPrefix + " | fuse linear KEY BY _score"),
             containsString("expected KEY BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
         );
+
+        assertThat(
+            error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
+            containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
+        );
     }
 
     public void testNoMetricInStatsByClause() {

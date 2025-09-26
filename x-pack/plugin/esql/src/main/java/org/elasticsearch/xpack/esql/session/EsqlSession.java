@@ -510,6 +510,9 @@ public class EsqlSession {
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
             false,
+            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
+            false,
+            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -725,6 +728,8 @@ public class EsqlSession {
                         default -> requestFilter;
                     },
                     preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    preAnalysis.supportsAggregateMetricDouble(),
+                    preAnalysis.supportsDenseVector(),
                     listener.delegateFailureAndWrap((l, indexResolution) -> {
                         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
                         l.onResponse(result.withIndices(indexResolution));

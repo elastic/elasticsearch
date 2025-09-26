@@ -1553,6 +1553,8 @@ public class EsqlCapabilities {
 
         INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
 
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
         /**
          * Support for requesting the "_tsid" metadata field.
          */

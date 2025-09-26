@@ -52,6 +52,7 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
+import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.lenientIndicesOptionsForFanout;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -372,8 +373,7 @@ class IndicesAndAliasesResolver {
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
-                        // TODO make lenient
-                        indicesOptions,
+                        lenientIndicesOptionsForFanout(indicesOptions),
                         projectMetadata,
                         authorizedIndices::all,
                         authorizedIndices::check,

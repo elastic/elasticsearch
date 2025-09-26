@@ -115,7 +115,7 @@ public class CrossProjectSearchErrorHandler {
                     isQualifiedResource == false
                 );
             } else if (false == indicesOptions.ignoreUnavailable()) {
-                checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isQualifiedResource == false);
+                checkIndicesOptions(resource, localResolvedIndices, remoteResolvedExpressions, isQualifiedResource == false);
             }
         }
     }
@@ -169,7 +169,8 @@ public class CrossProjectSearchErrorHandler {
             // for each linked project we check if the resolved expressions contains the original expression and check for resolution status
             ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
                 .get(originalExpression);
-            assert resolvedRemoteExpression != null : "we should always have resolved expressions from remote";
+            assert resolvedRemoteExpression != null
+                : "we should always have resolved expressions from remote. missing resolved expressions for [" + originalExpression + "]";
 
             Set<String> remoteExpressions = resolvedRemoteExpression.expressions();
             assert remoteExpressions != null : "we should always have replaced expressions";

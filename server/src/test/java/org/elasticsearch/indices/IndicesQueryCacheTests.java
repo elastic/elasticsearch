@@ -61,10 +61,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
             this(Integer.toString(id), 10);
         }
 
-        DummyQuery(String id) {
-            this(id, 10);
-        }
-
         DummyQuery(String id, long sizeInCache) {
             this.id = id;
             this.sizeInCache = sizeInCache;

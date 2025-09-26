@@ -36,7 +36,9 @@ replaced.
 ==== {api-path-parms-title}
 
 `<pipeline_id>`::
-  (Required, string) Identifier for the pipeline.
+(Required, string)
+Identifier for the pipeline.
+It must begin with a letter or underscore and can contain only letters, underscores, dashes, hyphens, and numbers.
 
 [[logstash-api-put-pipeline-request-body]]
 ==== {api-request-body-title}

@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class Utils {
@@ -41,6 +42,10 @@ public class Utils {
         // "jdk.jlink", // Do we want to include this?
         "jdk.localedata" // noise, change here are not interesting
     );
+
+    public static final Predicate<String> DEFAULT_MODULE_PREDICATE = m -> EXCLUDED_MODULES.contains(m) == false
+        && m.contains(".internal.") == false
+        && m.contains(".incubator.") == false;
 
     private static Map<String, Set<String>> findModuleExports(FileSystem fs) throws IOException {
         var modulesExports = new HashMap<String, Set<String>>();
@@ -69,20 +74,20 @@ public class Utils {
     }
 
     public static void walkJdkModules(JdkModuleConsumer c) throws IOException {
+        walkJdkModules(DEFAULT_MODULE_PREDICATE, c);
+    }
 
+    public static void walkJdkModules(Predicate<String> modulePredicate, JdkModuleConsumer c) throws IOException {
         FileSystem fs = FileSystems.getFileSystem(URI.create("jrt:/"));
 
         var moduleExports = Utils.findModuleExports(fs);
-
         try (var stream = Files.walk(fs.getPath("modules"))) {
             var modules = stream.filter(x -> x.toString().endsWith(".class"))
                 .collect(Collectors.groupingBy(x -> x.subpath(1, 2).toString()));
 
             for (var kv : modules.entrySet()) {
                 var moduleName = kv.getKey();
-                if (Utils.EXCLUDED_MODULES.contains(moduleName) == false
-                    && moduleName.contains(".internal.") == false
-                    && moduleName.contains(".incubator.") == false) {
+                if (modulePredicate.test(moduleName)) {
                     var thisModuleExports = moduleExports.get(moduleName);
                     c.accept(moduleName, kv.getValue(), thisModuleExports);
                 }

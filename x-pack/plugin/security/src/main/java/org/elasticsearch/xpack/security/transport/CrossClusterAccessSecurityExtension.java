@@ -28,7 +28,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
     private final CrossClusterAccessTransportInterceptor transportInterceptor;
 
     private final CrossClusterApiKeySigningConfigReloader crossClusterApiKeySignerReloader;
-    private final CrossClusterApiKeySigner crossClusterApiKeySigner;
+    private final CrossClusterApiKeySignatureManager crossClusterApiKeySignatureManager;
 
     private CrossClusterAccessSecurityExtension(Components components) {
         this.crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
@@ -36,8 +36,8 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             components.resourceWatcherService(),
             components.clusterService().getClusterSettings()
         );
-        this.crossClusterApiKeySigner = new CrossClusterApiKeySigner(components.environment());
-        crossClusterApiKeySignerReloader.setApiKeySigner(crossClusterApiKeySigner);
+        this.crossClusterApiKeySignatureManager = new CrossClusterApiKeySignatureManager(components.environment());
+        crossClusterApiKeySignerReloader.setSigningConfigLoader(crossClusterApiKeySignatureManager);
 
         this.authenticationService = new CrossClusterAccessAuthenticationService(
             components.clusterService(),
@@ -51,7 +51,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             components.authorizationService(),
             components.securityContext(),
             this.authenticationService,
-            this.crossClusterApiKeySigner,
+            this.crossClusterApiKeySignatureManager,
             components.licenseState()
         );
     }
@@ -81,7 +81,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
 
         @Override
         public List<Setting<?>> getSettings() {
-            return CrossClusterApiKeySignerSettings.getSettings();
+            return CrossClusterApiKeySigningSettings.getSettings();
         }
 
     }

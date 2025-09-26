@@ -12,7 +12,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -181,7 +180,7 @@ public class JsonProcessorTests extends ESTestCase {
         document.put("c", "see");
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        ingestDocument = IngestPipelineTestUtils.runWithRandomAccessPattern(ingestDocument, jsonProcessor);
+        jsonProcessor.execute(ingestDocument);
 
         Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
         assertEquals(1, sourceAndMetadata.get("a"));

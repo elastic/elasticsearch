@@ -238,9 +238,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.requestSize,
             source.mapperMetrics
         );
-        // TODO address this
-        // setRangeEventIngestedFrom(source.rangeEventIngestedFrom);
-        // setRangeTimestampFrom(source.rangeTimestampFrom);
     }
 
     private SearchExecutionContext(

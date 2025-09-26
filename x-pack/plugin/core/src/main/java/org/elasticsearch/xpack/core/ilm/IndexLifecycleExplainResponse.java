@@ -357,7 +357,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             } else {
                 previousStepInfo = null;
             }
-            if (in.getTransportVersion().onOrAfter(ILM_ADD_SKIP_SETTING)) {
+            if (in.getTransportVersion().supports(ILM_ADD_SKIP_SETTING)) {
                 skip = in.readBoolean();
             } else {
                 skip = false;

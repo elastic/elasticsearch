@@ -378,6 +378,16 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return getTargetShardState(shardNum).ordinal() >= targetShardState.ordinal();
         }
 
+        public boolean allTargetStatesAtLeast(int sourceShardId, TargetShardState targetShardState) {
+            var targets = getTargetStatesFor(sourceShardId);
+            for (TargetShardState state : targets) {
+                if (state.ordinal() < targetShardState.ordinal()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         public Stream<TargetShardState> targetStates() {
             return Arrays.stream(targetShards);
         }

@@ -120,7 +120,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
 
         expectThrows(
             IndexNotFoundException.class,
-            containsString("no such index [logs]"),
+            containsString("no such index [P1:logs]"),
             () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote)
         );
     }
@@ -158,7 +158,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
 
         expectThrows(
             ElasticsearchSecurityException.class,
-            containsString("authorization errors while resolving [logs]"),
+            containsString("authorization errors while resolving [P1:logs]"),
             () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote)
         );
     }
@@ -202,7 +202,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 "P1",
                 new LinkedProjectExpressions(
                     Map.of(
-                        "P1:logs",
+                        "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs"),
                             ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
@@ -237,7 +237,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 "P1",
                 new LinkedProjectExpressions(
                     Map.of(
-                        "P1:logs",
+                        "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
                             ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
@@ -275,7 +275,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 "P1",
                 new LinkedProjectExpressions(
                     Map.of(
-                        "P1:logs",
+                        "logs",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
                             ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
@@ -380,7 +380,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
 
         expectThrows(
             IndexNotFoundException.class,
-            containsString("no such index [logs*]"),
+            containsString("no such index [P1:logs*]"),
             () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
         );
     }
@@ -418,7 +418,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
 
         expectThrows(
             ElasticsearchSecurityException.class,
-            containsString("authorization errors while resolving [logs*]"),
+            containsString("authorization errors while resolving [P1:logs*]"),
             () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
         );
     }
@@ -462,7 +462,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 "P1",
                 new LinkedProjectExpressions(
                     Map.of(
-                        "P1:logs*",
+                        "logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("logs-es"),
                             ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
@@ -497,7 +497,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 "P1",
                 new LinkedProjectExpressions(
                     Map.of(
-                        "P1:logs*",
+                        "logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
                             ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
@@ -535,7 +535,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 "P1",
                 new LinkedProjectExpressions(
                     Map.of(
-                        "P1:logs*",
+                        "logs*",
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
                             ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,

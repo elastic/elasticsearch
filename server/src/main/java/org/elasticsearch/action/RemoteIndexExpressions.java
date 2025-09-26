@@ -19,11 +19,11 @@ import java.util.Map;
  * <pre>{@code
  * {
  *   "P1": {
- *      "P1:my-index-*": { //example qualified
+ *      "my-index-*": {
  *             "expressions": ["my-index-000001", "my-index-000002"],
  *             "localIndexResolutionResult": "SUCCESS"
  *       },
- *       "my-metrics-*": { //example flat
+ *       "my-metrics-*": {
  *             "expressions": ["my-metrics-000001", "my-metrics-000002"],
  *             "localIndexResolutionResult": "SUCCESS"
  *       }

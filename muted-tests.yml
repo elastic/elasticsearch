@@ -621,6 +621,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.stats.SearchUsageStatsTests
   method: testToXContent
   issue: https://github.com/elastic/elasticsearch/issues/135558
+- class: org.elasticsearch.search.ccs.SparseVectorQueryBuilderCrossClusterSearchIT
+  method: testSparseVectorQueryWithCcsMinimizeRoundTripsFalse
+  issue: https://github.com/elastic/elasticsearch/issues/135559
 
 # Examples:
 #

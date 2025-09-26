@@ -50,7 +50,7 @@ public class GetDataStreamOptionsAction {
 
     public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
-        private static final TransportVersion DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_PATCH = TransportVersion.fromName(
+        private static final TransportVersion DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS = TransportVersion.fromName(
             "data_stream_options_api_remove_include_defaults"
         );
 
@@ -99,7 +99,7 @@ public class GetDataStreamOptionsAction {
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             // This boolean was removed in 8.19
-            if (in.getTransportVersion().isPatchFrom(DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS_PATCH) == false) {
+            if (in.getTransportVersion().supports(DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS) == false) {
                 in.readBoolean();
             }
         }

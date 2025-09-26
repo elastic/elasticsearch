@@ -87,4 +87,13 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
         assertUpperBound("9.1", "new_tv,8012002")
         assertUpperBound("8.19", "new_tv,7123002")
     }
+
+    def "no new transport version is idempotent"() {
+        when:
+        def result = runResolveAndValidateTask().build()
+
+        then:
+        assertResolveAndValidateSuccess(result)
+        assertUpperBound("9.2", "existing_92,8123000")
+    }
 }

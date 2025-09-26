@@ -244,7 +244,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     if (type == NULL
                         || type == DOC_DATA_TYPE
                         || type == TSID_DATA_TYPE
-                        || type == AGGREGATE_METRIC_DOUBLE
+                        || type == AGGREGATE_METRIC_DOUBLE  // need special handling for loads at the moment
+                        || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == GEOHASH
                         || type == GEOTILE
                         || type == GEOHEX

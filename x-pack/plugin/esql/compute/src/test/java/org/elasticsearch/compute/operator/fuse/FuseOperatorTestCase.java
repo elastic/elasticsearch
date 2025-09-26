@@ -79,7 +79,7 @@ public abstract class FuseOperatorTestCase extends OperatorTestCase {
                         if (b == scorePosition) {
                             try (var builder = blockFactory.newDoubleBlockBuilder(length)) {
                                 for (int i = 0; i < length; i++) {
-                                    builder.appendDouble(randomDouble());
+                                    builder.appendDouble(randomDoubleBetween(-1000, 1000, true));
                                 }
                                 blocks[b] = builder.build();
                             }

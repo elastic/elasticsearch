@@ -76,7 +76,7 @@ by the values of another column.
 
 :::{note}
 The `languages` column moves to the last position in the output table because it is
-a column overriden by the `INLINE STATS` command (it's the grouping key) and it is the last column defined by it.
+a column overridden by the `INLINE STATS` command (it's the grouping key) and it is the last column defined by it.
 :::
 
 :::{include} ../examples/inlinestats.csv-spec/max-salary.md

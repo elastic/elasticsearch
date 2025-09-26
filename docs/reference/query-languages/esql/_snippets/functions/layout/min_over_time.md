@@ -2,7 +2,7 @@
 
 ## `MIN_OVER_TIME` [esql-min_over_time]
 ```{applies_to}
-stack: unavailable
+stack: preview 9.2.0
 ```
 
 **Syntax**

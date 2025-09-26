@@ -76,6 +76,11 @@ public final class TrustEverythingConfig implements SslTrustConfig {
     }
 
     @Override
+    public boolean hasExplicitConfig() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         return "trust everything";
     }

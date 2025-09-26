@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -16,7 +17,8 @@ import static org.hamcrest.Matchers.not;
 public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
     public void testDevelopmentInline() throws Exception {
-        parse("row a = 1 | inline stats b = min(a) by c, d.e", "inline");
+        LogicalPlan plan = parser().createStatement("row a = 1 | inline stats b = min(a) by c, d.e", EsqlTestUtils.TEST_CFG);
+        assertNotNull(plan);
     }
 
     public void testDevelopmentLookup() throws Exception {

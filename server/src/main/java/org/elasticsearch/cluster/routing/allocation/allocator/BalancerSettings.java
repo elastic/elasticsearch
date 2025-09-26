@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 
@@ -27,7 +26,6 @@ public class BalancerSettings {
     private volatile float writeLoadBalanceFactor;
     private volatile float diskUsageBalanceFactor;
     private volatile float threshold;
-    private final boolean completeEarlyOnShardAssignmentChange;
 
     public BalancerSettings(Settings settings) {
         this(ClusterSettings.createBuiltInClusterSettings(settings));
@@ -39,9 +37,6 @@ public class BalancerSettings {
         clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
         clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
         clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = value);
-        this.completeEarlyOnShardAssignmentChange = ClusterModule.DESIRED_BALANCE_ALLOCATOR.equals(
-            clusterSettings.get(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING)
-        );
     }
 
     /**
@@ -71,9 +66,5 @@ public class BalancerSettings {
      */
     public float getThreshold() {
         return threshold;
-    }
-
-    public boolean completeEarlyOnShardAssignmentChange() {
-        return completeEarlyOnShardAssignmentChange;
     }
 }

@@ -2,7 +2,7 @@
 
 ## `COUNT_OVER_TIME` [esql-count_over_time]
 ```{applies_to}
-stack: unavailable
+stack: preview 9.2.0
 ```
 
 **Syntax**

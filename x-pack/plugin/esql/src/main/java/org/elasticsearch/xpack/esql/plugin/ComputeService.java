@@ -61,7 +61,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -140,7 +140,7 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-    private final PhysicalSettings physicalSettings;
+    private final PlannerSettings plannerSettings;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -179,7 +179,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
-        this.physicalSettings = new PhysicalSettings(clusterService);
+        this.plannerSettings = transportActionServices.plannerSettings();
     }
 
     public void execute(
@@ -615,7 +615,7 @@ public class ComputeService {
             context.foldCtx(),
             contexts,
             searchService.getIndicesService().getAnalysis(),
-            physicalSettings
+            plannerSettings
         );
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -638,7 +638,7 @@ public class ComputeService {
             LOGGER.debug("Received physical plan:\n{}", plan);
 
             var localPlan = PlannerUtils.localPlan(
-                physicalSettings,
+                plannerSettings,
                 context.flags(),
                 context.searchExecutionContexts(),
                 context.configuration(),

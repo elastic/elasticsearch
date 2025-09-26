@@ -43,10 +43,4 @@ tasks.named("javaRestTest").configure {
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("Requires a bunch of xpack plugins")
-
-  if (buildParams.snapshotBuild == false) {
-    systemProperty 'tests.rest.blacklist', [
-      '20_ignored_source/*'
-    ].join(',')
-  }
 }

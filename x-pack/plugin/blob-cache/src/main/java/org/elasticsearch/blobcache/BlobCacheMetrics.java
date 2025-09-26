@@ -31,6 +31,7 @@ public class BlobCacheMetrics {
     public static final String LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY = "file_extension";
     public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
+    public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -43,6 +44,7 @@ public class BlobCacheMetrics {
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
     private final LongCounter epochChanges;
+    private final LongHistogram searchOriginDownloadTime;
 
     public enum CachePopulationReason {
         /**
@@ -100,7 +102,12 @@ public class BlobCacheMetrics {
                 "The time spent copying data into the cache",
                 "milliseconds"
             ),
-            meterRegistry.registerLongCounter("es.blob_cache.epoch.total", "The epoch changes of the LFU cache", "count")
+            meterRegistry.registerLongCounter("es.blob_cache.epoch.total", "The epoch changes of the LFU cache", "count"),
+            meterRegistry.registerLongHistogram(
+                SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME,
+                "The distribution of time in millis taken to download data from remote storage for search requests",
+                "milliseconds"
+            )
         );
 
         meterRegistry.registerLongGauge(
@@ -137,7 +144,8 @@ public class BlobCacheMetrics {
         DoubleHistogram cachePopulationThroughput,
         LongCounter cachePopulationBytes,
         LongCounter cachePopulationTime,
-        LongCounter epochChanges
+        LongCounter epochChanges,
+        LongHistogram searchOriginDownloadTime
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -147,6 +155,7 @@ public class BlobCacheMetrics {
         this.cachePopulationBytes = cachePopulationBytes;
         this.cachePopulationTime = cachePopulationTime;
         this.epochChanges = epochChanges;
+        this.searchOriginDownloadTime = searchOriginDownloadTime;
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -165,6 +174,10 @@ public class BlobCacheMetrics {
 
     public LongHistogram getCacheMissLoadTimes() {
         return cacheMissLoadTimes;
+    }
+
+    public LongHistogram getSearchOriginDownloadTime() {
+        return searchOriginDownloadTime;
     }
 
     /**

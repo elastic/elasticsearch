@@ -458,8 +458,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             )
             : null;
 
+        SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
+
         List<String> lateExcludes = new ArrayList<>();
         var excludes = mappingLookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+            // Keep the vector fields that are explicitly included and not explicitly excluded
+            if (filter != null && filter.isExplicitlyIncluded(f.name())) {
+                return filter.isPathFiltered(f.name(), false);
+            }
             // Exclude the field specified by the `fields` option
             if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
                 lateExcludes.add(f.name());

@@ -20,6 +20,12 @@ mapped_pages:
 :::
 ::::
 
+::::{dropdown} Time-series aggregate functions
+:open:
+:::{include} _snippets/lists/time-series-aggregation-functions.md
+:::
+::::
+
 ::::{dropdown} Grouping functions
 :open:
 :::{include} _snippets/lists/grouping-functions.md

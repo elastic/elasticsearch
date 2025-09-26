@@ -21,7 +21,7 @@ public class EmbeddingParametersTests extends ESTestCase {
 
     public void testTaskTypeParameters_UsesDefaultValue() {
         var parameters = EmbeddingParameters.of(
-            new EmbeddingsInput(List.of("input"), null, InputType.INGEST),
+            new EmbeddingsInput(List.of("input"), InputType.INGEST),
             new InputTypeTranslator(Map.of(), "default")
         );
 
@@ -30,7 +30,7 @@ public class EmbeddingParametersTests extends ESTestCase {
 
     public void testTaskTypeParameters_UsesMappedValue() {
         var parameters = EmbeddingParameters.of(
-            new EmbeddingsInput(List.of("input"), null, InputType.INGEST),
+            new EmbeddingsInput(List.of("input"), InputType.INGEST),
             new InputTypeTranslator(Map.of(InputType.INGEST, "ingest_value"), "default")
         );
 

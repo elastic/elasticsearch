@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -110,16 +109,9 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
 
     private static final Settings LOGSDB_SETTING = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
 
-    @Before
-    public void setup() {
-        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
-    }
-
     @After
     public void cleanup() {
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            assertAcked(admin().indices().prepareDelete(INDEX));
-        }
+        assertAcked(admin().indices().prepareDelete(INDEX));
     }
 
     private String getMapping(String indexOptions, boolean disableTemplating) {

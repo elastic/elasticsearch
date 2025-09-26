@@ -68,7 +68,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> SpecifiedDocument.PARSER.apply(p, null), DOCS_FIELD);
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
             RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
-            c.trackRetrieverUsage(innerRetriever.getName());
+            c.trackRetrieverUsage(innerRetriever);
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);

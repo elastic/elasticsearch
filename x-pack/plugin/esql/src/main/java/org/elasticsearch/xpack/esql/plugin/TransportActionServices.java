@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 public record TransportActionServices(
     TransportService transportService,
@@ -26,5 +27,6 @@ public record TransportActionServices(
     IndexNameExpressionResolver indexNameExpressionResolver,
     UsageService usageService,
     InferenceService inferenceService,
-    BlockFactoryProvider blockFactoryProvider
+    BlockFactoryProvider blockFactoryProvider,
+    PlannerSettings plannerSettings
 ) {}

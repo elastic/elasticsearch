@@ -40,7 +40,7 @@ public class RrfScoreEvalOperatorTests extends FuseOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config);
+        return new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config, null, 0, 0);
     }
 
     @Override

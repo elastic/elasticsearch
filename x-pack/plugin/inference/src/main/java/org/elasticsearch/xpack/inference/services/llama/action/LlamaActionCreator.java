@@ -73,7 +73,7 @@ public class LlamaActionCreator implements LlamaActionVisitor {
             EMBEDDINGS_HANDLER,
             embeddingsInput -> new LlamaEmbeddingsRequest(
                 serviceComponents.truncator(),
-                truncate(embeddingsInput.getStringInputs(), model.getServiceSettings().maxInputTokens()),
+                truncate(embeddingsInput.getInputs(), model.getServiceSettings().maxInputTokens()),
                 model
             ),
             EmbeddingsInput.class

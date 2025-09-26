@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -1552,7 +1553,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             clusterStatePublicationEvent.getNewState().term()
                         )
                     );
-                    throw new FailedToCommitClusterStateException(
+                    throw new NotMasterException(
                         "node is no longer master for term "
                             + clusterStatePublicationEvent.getNewState().term()
                             + " while handling publication"
@@ -1638,8 +1639,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     }
                 }
             }
-        } catch (FailedToCommitClusterStateException failedToCommitClusterStateException) {
-            publishListener.onFailure(failedToCommitClusterStateException);
+        } catch (FailedToCommitClusterStateException | NotMasterException e) {
+            publishListener.onFailure(e);
         } catch (Exception e) {
             assert false : e; // all exceptions should already be caught and wrapped in a FailedToCommitClusterStateException
             logger.error(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing unexpectedly failed", e);

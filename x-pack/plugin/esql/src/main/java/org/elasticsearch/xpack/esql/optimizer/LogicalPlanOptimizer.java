@@ -106,7 +106,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
     );
 
-    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
+    private final LogicalVerifier verifier = LogicalVerifier.getGeneralVerifier();
 
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
         super(optimizerContext);
@@ -115,7 +115,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public LogicalPlan optimize(LogicalPlan verified) {
         var optimized = execute(verified);
 
-        Failures failures = verifier.verify(optimized, false, verified.output());
+        Failures failures = verifier.verify(optimized, verified.output());
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

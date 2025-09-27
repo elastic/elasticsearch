@@ -8,12 +8,16 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -118,11 +122,17 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedNumerics) != null) {
+                NumericDocValues singleton = DocValues.unwrapSingleton(sortedNumerics);
+                if (singleton != null) {
                     // check for dense field
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        // Doc value fields that are truly dense will report maxDoc as docIDRunEnd.
+                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, maxDoc, DocIdSetIterator.all(maxDoc));
+                    }
+                    // TODO: check doc value skippers
                     final PointValues points = context.reader().getPointValues(fieldData.getFieldName());
                     if (points != null && points.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
+                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, maxDoc, DocIdSetIterator.all(maxDoc));
                     } else {
                         return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, sortedNumerics::advanceExact);
                     }
@@ -147,11 +157,17 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
+                SortedDocValues singleton = DocValues.unwrapSingleton(sortedSetDocValues);
+                if (singleton != null) {
                     // check for dense field
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        // Doc value fields that are truly dense will report maxDoc as docIDRunEnd.
+                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, maxDoc, DocIdSetIterator.all(maxDoc));
+                    }
+                    // TODO: check doc value skippers
                     final Terms terms = context.reader().terms(fieldData.getFieldName());
                     if (terms != null && terms.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
+                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, maxDoc, DocIdSetIterator.all(maxDoc));
                     } else {
                         return new PredicateScorerSupplier(
                             boost,
@@ -253,21 +269,18 @@ public final class SingleValueMatchQuery extends Query {
         return Objects.hash(classHash(), fieldData.getFieldName());
     }
 
-    private static class DocIdSetIteratorScorerSupplier extends ScorerSupplier {
+    private static final class DocIdSetIteratorScorerSupplier extends ConstantScoreScorerSupplier {
 
-        private final float score;
-        private final ScoreMode scoreMode;
         private final DocIdSetIterator docIdSetIterator;
 
-        private DocIdSetIteratorScorerSupplier(float score, ScoreMode scoreMode, DocIdSetIterator docIdSetIterator) {
-            this.score = score;
-            this.scoreMode = scoreMode;
+        private DocIdSetIteratorScorerSupplier(float boost, ScoreMode scoreMode, int maxDoc, DocIdSetIterator docIdSetIterator) {
+            super(boost, scoreMode, maxDoc);
             this.docIdSetIterator = docIdSetIterator;
         }
 
         @Override
-        public Scorer get(long leadCost) {
-            return new ConstantScoreScorer(score, scoreMode, docIdSetIterator);
+        public DocIdSetIterator iterator(long leadCost) throws IOException {
+            return docIdSetIterator;
         }
 
         @Override

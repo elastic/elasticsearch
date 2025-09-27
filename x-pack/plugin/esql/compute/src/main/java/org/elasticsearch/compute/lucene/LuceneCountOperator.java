@@ -214,11 +214,22 @@ public class LuceneCountOperator extends LuceneOperator {
         sb.append(", remainingDocs=").append(remainingDocs);
     }
 
-    private class PerTagsState implements LeafCollector {
+    private final class PerTagsState implements LeafCollector {
         long totalHits;
 
         @Override
         public void setScorer(Scorable scorer) {}
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            // Default collectRange(min, max) delegates to collect(DocIdStream),
+            // overwriting this saves creating a DocIdStream instance.
+            if (remainingDocs > 0) {
+                int count = Math.min(max - min, remainingDocs);
+                totalHits += count;
+                remainingDocs -= count;
+            }
+        }
 
         @Override
         public void collect(DocIdStream stream) throws IOException {

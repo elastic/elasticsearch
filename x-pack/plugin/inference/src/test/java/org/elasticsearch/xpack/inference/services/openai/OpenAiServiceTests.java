@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
@@ -83,6 +82,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
@@ -96,6 +96,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -857,7 +858,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotOpenAiModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -886,7 +887,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -895,7 +896,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -904,28 +905,28 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+
             assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -934,7 +935,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -966,7 +967,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -975,7 +976,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid_ChatCompletion() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -1009,7 +1010,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();

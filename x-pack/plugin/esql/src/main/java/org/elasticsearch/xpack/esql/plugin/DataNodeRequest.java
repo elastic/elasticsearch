@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -99,7 +100,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.runNodeLevelReduction = false;
         }
-        throw new AssertionError("NOCOMMIT Handle this after fixing the transport version and merging main");
+        if (in.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+            this.reductionLateMaterialization = in.readBoolean();
+        } else {
+            this.reductionLateMaterialization = false;
+        }
     }
 
     @Override
@@ -252,4 +257,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization
         );
     }
+
+    private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
 }

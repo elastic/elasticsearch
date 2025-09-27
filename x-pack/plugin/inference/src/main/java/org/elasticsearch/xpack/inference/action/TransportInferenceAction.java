@@ -22,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 public class TransportInferenceAction extends BaseTransportInferenceAction<InferenceAction.Request> {
@@ -36,7 +35,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     ) {
@@ -50,7 +48,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             inferenceStats,
             streamingTaskManager,
             InferenceAction.Request::new,
-            inferenceServiceNodeLocalRateLimitCalculator,
             nodeClient,
             threadPool
         );

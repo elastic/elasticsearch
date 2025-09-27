@@ -24,16 +24,19 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -94,6 +97,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -422,6 +427,13 @@ public final class EsqlTestUtils {
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
 
+    public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
+        DataPartitioning.AUTO,
+        ByteSizeValue.ofMb(1),
+        10_000,
+        ByteSizeValue.ofMb(1)
+    );
+
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
         createMockTransportService(),
         mock(SearchService.class),
@@ -430,7 +442,9 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class))
+        new InferenceService(mock(Client.class)),
+        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+        TEST_PLANNER_SETTINGS
     );
 
     private static TransportService createMockTransportService() {

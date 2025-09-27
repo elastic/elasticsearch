@@ -459,8 +459,8 @@ public class EsqlDataTypeConverter {
             return KEYWORD;
         }
         if (left.isNumeric() && right.isNumeric()) {
-            int lsize = left.estimatedSize().orElseThrow();
-            int rsize = right.estimatedSize().orElseThrow();
+            int lsize = left.estimatedSize();
+            int rsize = right.estimatedSize();
             // if one is int
             if (left.isWholeNumber()) {
                 // promote the highest int
@@ -813,22 +813,24 @@ public class EsqlDataTypeConverter {
         Double max = null;
         Double sum = null;
         Integer count = null;
+
+        s = s.replace("\\,", ",");
         String[] values = s.substring(1, s.length() - 1).split(",");
         for (String v : values) {
             var pair = v.split(":");
             String type = pair[0];
             String number = pair[1];
             switch (type) {
-                case "min":
+                case "min", "\"min\"":
                     min = Double.parseDouble(number);
                     break;
-                case "max":
+                case "max", "\"max\"":
                     max = Double.parseDouble(number);
                     break;
-                case "sum":
+                case "sum", "\"sum\"":
                     sum = Double.parseDouble(number);
                     break;
-                case "value_count":
+                case "value_count", "\"value_count\"":
                     count = Integer.parseInt(number);
                     break;
                 default:

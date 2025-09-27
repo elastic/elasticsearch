@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene90.Lucene90PostingsFormat;
@@ -22,18 +23,15 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
+import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -46,8 +44,6 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -319,6 +315,9 @@ final class IndexDiskUsageAnalyzer {
     private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
+            if (termState instanceof final Lucene103PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
             if (termState instanceof final Lucene101PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
@@ -550,7 +549,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    void analyzeKnnVectors(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+    void analyzeKnnVectors(SegmentReader reader, IndexDiskUsageStats stats) {
         KnnVectorsReader vectorReader = reader.getVectorReader();
         if (vectorReader == null) {
             return;
@@ -559,57 +558,19 @@ final class IndexDiskUsageAnalyzer {
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
             if (field.getVectorDimension() > 0) {
-                switch (field.getVectorEncoding()) {
-                    case BYTE -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getByteVectorValues(field.name).iterator(), vectors -> {
-                            cancellationChecker.logEvent();
-                            vectors.index();
-                        });
-
-                        // do a couple of randomized searches to figure out min and max offsets of index file
-                        ByteVectorValues vectorValues = vectorReader.getByteVectorValues(field.name);
-                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-                        final KnnCollector collector = new TopKnnCollector(
-                            Math.max(1, Math.min(100, vectorValues.size() - 1)),
-                            Integer.MAX_VALUE
-                        );
-                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
-                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
-                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
-                                break;
-                            }
-                            cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
-                        }
-                        stats.addKnnVectors(field.name, directory.getBytesRead());
-                    }
-                    case FLOAT32 -> {
-                        iterateDocValues(reader.maxDoc(), () -> vectorReader.getFloatVectorValues(field.name).iterator(), vectors -> {
-                            cancellationChecker.logEvent();
-                            vectors.index();
-                        });
-
-                        // do a couple of randomized searches to figure out min and max offsets of index file
-                        FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
-                        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-                        final KnnCollector collector = new TopKnnCollector(
-                            Math.max(1, Math.min(100, vectorValues.size() - 1)),
-                            Integer.MAX_VALUE
-                        );
-                        int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
-                        int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
-                        for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
-                            if ((i = iterator.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
-                                break;
-                            }
-                            cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(iterator.index()), collector, null);
-                        }
-                        stats.addKnnVectors(field.name, directory.getBytesRead());
-                    }
+                Map<String, Long> offHeap = vectorReader.getOffHeapByteSize(field);
+                long totalSize = 0;
+                for (var entry : offHeap.entrySet()) {
+                    totalSize += entry.getValue();
                 }
-
+                long vectorsSize = offHeap.getOrDefault("vec", 0L);
+                if (vectorsSize == 0L) {
+                    // This can happen if .vec file is opened with directIO
+                    // calculate the size of vectors manually
+                    vectorsSize = field.getVectorDimension() * field.getVectorEncoding().byteSize;
+                    totalSize += vectorsSize;
+                }
+                stats.addKnnVectors(field.name, totalSize);
             }
         }
     }

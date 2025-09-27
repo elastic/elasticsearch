@@ -544,6 +544,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // with its size being known before we start the computation.
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
+                computeService.plannerSettings(),
                 computeService.createFlags(),
                 configuration,
                 configuration.newFoldContext(),

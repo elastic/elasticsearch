@@ -145,17 +145,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private final IndexedByShardId<? extends ShardContext> shardContexts;
-    private final PhysicalSettings physicalSettings;
+    private final PlannerSettings plannerSettings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        PhysicalSettings physicalSettings
+        PlannerSettings plannerSettings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
-        this.physicalSettings = physicalSettings;
+        this.plannerSettings = plannerSettings;
     }
 
     @Override
@@ -175,7 +175,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             )
         );
         return source.with(
-            new ValuesSourceReaderOperator.Factory(physicalSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
+            new ValuesSourceReaderOperator.Factory(plannerSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
             layout.build()
         );
     }
@@ -280,7 +280,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
-        if ((sorts != null && sorts.isEmpty() == false)) {
+        if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {
@@ -298,7 +298,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
@@ -318,7 +318,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
-                context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.autoPartitioningStrategy().get(),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
@@ -387,7 +387,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return new LuceneCountOperator.Factory(
             shardContexts,
             querySupplier(queryBuilder),
-            context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+            context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
             List.of(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())

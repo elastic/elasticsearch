@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -140,7 +140,7 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-    private final PhysicalSettings physicalSettings;
+    private final PlannerSettings plannerSettings;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -179,7 +179,11 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
-        this.physicalSettings = new PhysicalSettings(clusterService);
+        this.plannerSettings = transportActionServices.plannerSettings();
+    }
+
+    PlannerSettings plannerSettings() {
+        return plannerSettings;
     }
 
     public void execute(
@@ -385,7 +389,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
-                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+                    execInfo.markEndQuery();
                     l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
                 })
             )
@@ -402,7 +406,7 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.tookSoFar();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                                    if (execInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
                                         // Set the local cluster status (including the final driver) to partial if the query was stopped
                                         // or encountered resolution or execution failures.
@@ -534,8 +538,8 @@ public class ComputeService {
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
-        execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-        if (execInfo.isCrossClusterSearch()) {
+        execInfo.markEndQuery();
+        if (execInfo.isCrossClusterSearch() && execInfo.isMainPlan()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
@@ -596,7 +600,7 @@ public class ComputeService {
             context.foldCtx(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
-            physicalSettings
+            plannerSettings
         );
 
         try {
@@ -619,6 +623,7 @@ public class ComputeService {
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
             var localPlan = PlannerUtils.localPlan(
+                plannerSettings,
                 context.flags(),
                 new ArrayList<>(context.searchExecutionContexts().collection()),
                 context.configuration(),
@@ -710,6 +715,7 @@ public class ComputeService {
     }
 
     static PlannerUtils.ReductionPlanHack reductionPlan(
+        PlannerSettings plannerSettings,
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
@@ -732,7 +738,7 @@ public class ComputeService {
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
-                PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, originalPlan)
+                PlannerUtils.planReduceDriverTopN(plannerSettings, flags, configuration, foldCtx, originalPlan)
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
                     .orElseGet(() -> runNodeLevelReduction ? pipelineBreakerReduction.apply(topN.plan()) : defaultResult);
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> pipelineBreakerReduction.apply(rp.plan());

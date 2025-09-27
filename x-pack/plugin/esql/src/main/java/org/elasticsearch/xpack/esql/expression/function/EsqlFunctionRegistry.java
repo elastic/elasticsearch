@@ -27,9 +27,11 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -95,6 +98,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -410,7 +414,10 @@ public class EsqlFunctionRegistry {
                 def(Substring.class, Substring::new, "substring"),
                 def(ToLower.class, ToLower::new, "to_lower"),
                 def(ToUpper.class, ToUpper::new, "to_upper"),
-                def(Trim.class, Trim::new, "trim") },
+                def(Trim.class, Trim::new, "trim"),
+                def(UrlEncode.class, UrlEncode::new, "url_encode"),
+                def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
+                def(UrlDecode.class, UrlDecode::new, "url_decode") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),
@@ -501,7 +508,24 @@ public class EsqlFunctionRegistry {
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") },
+            // time-series functions
+            new FunctionDefinition[] {
+                def(Rate.class, uni(Rate::new), "rate"),
+                def(Irate.class, uni(Irate::new), "irate"),
+                def(Idelta.class, uni(Idelta::new), "idelta"),
+                def(Delta.class, uni(Delta::new), "delta"),
+                def(Increase.class, uni(Increase::new), "increase"),
+                def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
+                def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
+                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
+                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
+                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
+                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
+                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
+                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
+                def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
+                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time") } };
 
     }
 
@@ -513,17 +537,6 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(First.class, bi(First::new), "first"),
                 def(Last.class, bi(Last::new), "last"),
-                def(Rate.class, uni(Rate::new), "rate"),
-                def(Irate.class, uni(Irate::new), "irate"),
-                def(Idelta.class, uni(Idelta::new), "idelta"),
-                def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
-                def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
-                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
-                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
-                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
-                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
-                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
                 def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
@@ -534,10 +547,7 @@ public class EsqlFunctionRegistry {
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
-                def(UrlEncode.class, UrlEncode::new, "url_encode"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode"),
-                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
-                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time") } };
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

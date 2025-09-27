@@ -66,7 +66,8 @@ public class WhereGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         return CommandGenerator.expectSameColumns(previousColumns, columns);
     }

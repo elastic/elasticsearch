@@ -15,6 +15,7 @@ import java.util.List;
 
 import javax.lang.model.element.Modifier;
 
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 
@@ -27,6 +28,11 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     @Override
     public String paramName(boolean blockStyle) {
         return name + (blockStyle ? "Block" : "Vector");
+    }
+
+    @Override
+    public String ordinalParamName() {
+        return name + "OrdinalBlock";
     }
 
     @Override
@@ -116,5 +122,10 @@ public record BlockArgument(TypeName type, String name) implements Argument {
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
         builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
+    }
+
+    @Override
+    public boolean canProcessOrdinals() {
+        return type.equals(BYTES_REF_BLOCK);
     }
 }

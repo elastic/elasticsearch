@@ -168,4 +168,9 @@ public record ArrayArgument(TypeName componentType, String name) implements Argu
         builder.addStatement("baseRamBytesUsed += e.baseRamBytesUsed()");
         builder.endControlFlow();
     }
+
+    @Override
+    public boolean canProcessOrdinals() {
+        return false;
+    }
 }

@@ -104,4 +104,9 @@ public record BuilderArgument(ClassName type, String name) implements Argument {
 
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {}
+
+    @Override
+    public boolean canProcessOrdinals() {
+        return false;
+    }
 }

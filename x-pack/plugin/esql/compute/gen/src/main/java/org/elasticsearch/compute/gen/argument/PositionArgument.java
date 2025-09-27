@@ -105,4 +105,9 @@ public record PositionArgument() implements Argument {
 
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {}
+
+    @Override
+    public boolean canProcessOrdinals() {
+        return true;
+    }
 }

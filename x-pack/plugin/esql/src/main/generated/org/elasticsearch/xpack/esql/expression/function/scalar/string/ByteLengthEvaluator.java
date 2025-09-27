@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -46,11 +47,43 @@ public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
+      var valOrdinalBlock = valBlock.asOrdinals();
+      if (valOrdinalBlock != null) {
+        return evalOrdinals(page.getPositionCount(), valOrdinalBlock);
+      }
       BytesRefVector valVector = valBlock.asVector();
       if (valVector == null) {
         return eval(page.getPositionCount(), valBlock);
       }
       return eval(page.getPositionCount(), valVector).asBlock();
+    }
+  }
+
+  public IntBlock evalOrdinals(int positionCount, OrdinalBytesRefBlock valBlock) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      var valVector = valBlock.getDictionaryVector();
+      var ordinalPositions = valBlock.getOrdinalsBlock();
+      try(var dictResult = eval(ordinalPositions.getPositionCount(), valVector)) {
+        for (int p = 0; p < positionCount; p++) {
+          if (ordinalPositions.isNull(p)) {
+            result.appendNull();
+            continue;
+          }
+          var firstValueIndex = ordinalPositions.getFirstValueIndex(p);
+          var valueCount = ordinalPositions.getValueCount(p);
+          if (valueCount == 1) {
+            result.appendInt(dictResult.getInt(ordinalPositions.getInt(firstValueIndex)));
+          } else {
+            int lastValueIndex = firstValueIndex + valueCount;
+            result.beginPositionEntry();
+            for (int v = firstValueIndex; v < lastValueIndex; v++) {
+              result.appendInt(dictResult.getInt(ordinalPositions.getInt(v)));
+            }
+            result.endPositionEntry();
+          }
+        }
+      }
+      return result.build();
     }
   }
 

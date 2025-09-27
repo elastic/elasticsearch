@@ -65,6 +65,7 @@ public class Types {
     static final ClassName BOOLEAN_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanVector");
     static final ClassName BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefVector");
     static final ClassName ORDINALS_BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "OrdinalBytesRefVector");
+    public static final ClassName ORDINALS_BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "OrdinalBytesRefBlock");
     static final ClassName INT_VECTOR = ClassName.get(DATA_PACKAGE, "IntVector");
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
@@ -173,6 +174,15 @@ public class Types {
 
     static ClassName blockType(String elementType) {
         return findRequired(elementType, "block").block;
+    }
+
+    public static boolean isBlockType(TypeName type) {
+        return type.equals(BOOLEAN_BLOCK)
+            || type.equals(INT_BLOCK)
+            || type.equals(LONG_BLOCK)
+            || type.equals(DOUBLE_BLOCK)
+            || type.equals(FLOAT_BLOCK)
+            || type.equals(BYTES_REF_BLOCK);
     }
 
     public static ClassName vectorType(TypeName elementType) {

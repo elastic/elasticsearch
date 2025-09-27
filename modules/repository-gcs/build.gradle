@@ -29,6 +29,7 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:33.4.0-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.2'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
   implementation 'com.google.api:api-common:2.46.1'
   implementation 'com.google.api:gax:2.63.1'

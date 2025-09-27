@@ -916,6 +916,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             null,
             IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
         );
+
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
             return new IngestPipelinesExecutionResult(false, true, e, index, IndexDocFailureStoreStatus.USED);
         }

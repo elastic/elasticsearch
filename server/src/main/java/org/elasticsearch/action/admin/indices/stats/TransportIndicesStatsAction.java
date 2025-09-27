@@ -27,6 +27,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
@@ -112,9 +113,20 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
+            IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            CommonStats commonStats = CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+            long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(
+                indicesService.getIndicesQueryCache(),
+                indexShard.shardId(),
+                cacheTotals
+            );
+            CommonStats commonStats = CommonStats.getShardLevelStats(
+                indicesService.getIndicesQueryCache(),
+                indexShard,
+                request.flags(),
+                sharedRam
+            );
             CommitStats commitStats;
             SeqNoStats seqNoStats;
             RetentionLeaseStats retentionLeaseStats;

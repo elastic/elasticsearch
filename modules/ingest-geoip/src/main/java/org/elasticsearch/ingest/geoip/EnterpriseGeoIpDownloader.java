@@ -55,6 +55,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -108,7 +110,18 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     protected volatile EnterpriseGeoIpTaskState state;
+    /**
+     * The currently scheduled periodic run, or null if no periodic run is currently scheduled. Note: _not_ the currently running thread!
+     */
     private volatile Scheduler.ScheduledCancellable scheduled;
+    /**
+     * Semaphore with 1 permit, used to ensure that only one run (periodic or cluster state) is running at a time.
+     */
+    private final Semaphore running = new Semaphore(1);
+    /**
+     * True if a run has been queued due to a cluster state change, false otherwise.
+     */
+    private final AtomicBoolean runOnDemandQueued = new AtomicBoolean(false);
     private final Supplier<TimeValue> pollIntervalSupplier;
     private final Function<String, char[]> tokenProvider;
 
@@ -390,22 +403,107 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     /**
-     * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
+     * Cancels the currently scheduled run (if any) and schedules a new (periodic) run to happen immediately, which will then schedule
+     * the next periodic run using the poll interval.
+     */
+    public void restartPeriodicRun() {
+        logger.trace("Restarting periodic run");
+        if (scheduled != null) {
+            final boolean cancelSuccessful = scheduled.cancel();
+            logger.trace("Cancelled scheduled run: [{}]", cancelSuccessful);
+        }
+        if (threadPool.scheduler().isShutdown() == false) {
+            threadPool.generic().submit(this::runPeriodic);
+        }
+    }
+
+    /**
+     * Tries to run the downloader now, if it isn't already currently running, and schedules the next periodic run using the poll interval.
+     */
+    private void runPeriodic() {
+        if (isCancelled() || isCompleted()) {
+            logger.debug("Not running periodic downloader because task is cancelled or completed");
+            return;
+        }
+
+        // If we are not able to acquire the semaphore immediately, it means that a run is already in progress. Periodic runs do not run
+        // concurrently, but a cluster state run could be in progress. Since the default poll interval is quite large (3d), there is no
+        // need to wait for the current run to finish and then run again, so we just skip this run and schedule the next one.
+        if (running.tryAcquire()) {
+            try {
+                logger.trace("Running periodic downloader");
+                runDownloader();
+            } finally {
+                running.release();
+            }
+        }
+        if (threadPool.scheduler().isShutdown() == false) {
+            logger.trace("Scheduling next periodic run, current scheduled run is [{}]", scheduled);
+            scheduled = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
+            logger.trace("Next periodic run scheduled: [{}]", scheduled);
+        }
+    }
+
+    /**
+     * This method requests that the downloader runs on the latest cluster state, which likely contains a change in the GeoIP metadata.
+     * If the queue was already {@code true}, then a run is already scheduled, which will process the latest cluster state when it runs,
+     * so we don't need to do anything. If the queue was {@code false}, then we set it to {@code true} and schedule a run.
+     * This method does nothing if this task is cancelled or completed.
+     */
+    public void requestRunOnDemand() {
+        if (isCancelled() || isCompleted() || threadPool.scheduler().isShutdown()) {
+            logger.debug("Not requesting downloader run on demand because task is cancelled, completed or shutting down");
+            return;
+        }
+        logger.trace("Requesting downloader run on demand");
+        if (runOnDemandQueued.compareAndSet(false, true)) {
+            logger.trace("Scheduling downloader run on demand");
+            threadPool.generic().submit(this::runOnDemand);
+        }
+    }
+
+    /**
+     * Waits for any current run to finish, then runs the downloader on the last seen cluster state.
+     */
+    private void runOnDemand() {
+        if (isCancelled() || isCompleted()) {
+            logger.debug("Not running downloader on demand because task is cancelled or completed");
+            return;
+        }
+        // Here we do want to wait for the current run (if any) to finish. Since a new cluster state might have arrived while the current
+        // run was running, we want to ensure that the new cluster state update isn't lost, so we wait and run afterwards.
+        logger.trace("Waiting to run downloader on demand");
+        boolean acquired = false;
+        try {
+            running.acquire();
+            acquired = true;
+            // We have the semaphore, so no other run is in progress. We set queued to false, so that future calls to requestRunOnDemand
+            // will schedule a new run. We do this before running the downloader, so that if a new cluster state arrives while we're
+            // running, that will schedule a new run.
+            // Technically speaking, there's a chance that a new cluster state arrives in between the following line and
+            // clusterService.state() in updateDatabases() (or deleteDatabases()), which will cause another run to be scheduled,
+            // but the only consequence of that is that we'll process that cluster state twice, which is harmless.
+            runOnDemandQueued.set(false);
+            logger.debug("Running downloader on demand");
+            runDownloader();
+        } catch (InterruptedException e) {
+            logger.warn("Interrupted while waiting to run downloader on demand", e);
+        } finally {
+            // If a new cluster state arrived in between queued.set(false) and now, then that will have scheduled a new run,
+            // so we don't need to care about that here.
+            if (acquired) {
+                running.release();
+            }
+            logger.trace("Finished running downloader on demand");
+        }
+    }
+
+    /**
+     * Downloads the geoip databases now based on the supplied cluster state.
      */
     synchronized void runDownloader() {
         // by the time we reach here, the state will never be null
         assert this.state != null : "this.setState() is null. You need to call setState() before calling runDownloader()";
-
-        // there's a race condition between here and requestReschedule. originally this scheduleNextRun call was at the end of this
-        // block, but remember that updateDatabases can take seconds to run (it's downloading bytes from the internet), and so during the
-        // very first run there would be no future run scheduled to reschedule in requestReschedule. which meant that if you went from zero
-        // to N(>=2) databases in quick succession, then all but the first database wouldn't necessarily get downloaded, because the
-        // requestReschedule call in the EnterpriseGeoIpDownloaderTaskExecutor's clusterChanged wouldn't have a scheduled future run to
-        // reschedule. scheduling the next run at the beginning of this run means that there's a much smaller window (milliseconds?, rather
-        // than seconds) in which such a race could occur. technically there's a window here, still, but i think it's _greatly_ reduced.
-        scheduleNextRun(pollIntervalSupplier.get());
-        // TODO regardless of the above comment, i like the idea of checking the lowest last-checked time and then running the math to get
-        // to the next interval from then -- maybe that's a neat future enhancement to add
 
         if (isCancelled() || isCompleted()) {
             return;
@@ -419,21 +517,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             cleanDatabases();
         } catch (Exception e) {
             logger.error("exception during databases cleanup", e);
-        }
-    }
-
-    /**
-     * This method requests that the downloader be rescheduled to run immediately (presumably because a dynamic property supplied by
-     * pollIntervalSupplier or eagerDownloadSupplier has changed, or a pipeline with a geoip processor has been added). This method does
-     * nothing if this task is cancelled, completed, or has not yet been scheduled to run for the first time. It cancels any existing
-     * scheduled run.
-     */
-    public void requestReschedule() {
-        if (isCancelled() || isCompleted()) {
-            return;
-        }
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(TimeValue.ZERO);
         }
     }
 
@@ -459,12 +542,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             scheduled.cancel();
         }
         markAsCompleted();
-    }
-
-    private void scheduleNextRun(TimeValue time) {
-        if (threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
-        }
     }
 
     private ProviderDownload downloaderFor(DatabaseConfiguration database) {

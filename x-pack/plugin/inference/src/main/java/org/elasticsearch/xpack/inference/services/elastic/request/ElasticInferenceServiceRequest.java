@@ -42,7 +42,7 @@ public abstract class ElasticInferenceServiceRequest implements Request {
         }
 
         if (Objects.nonNull(productUseCase) && productUseCase.isEmpty() == false) {
-            request.setHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, metadata.productUseCase());
+            request.addHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, metadata.productUseCase());
         }
 
         return new HttpRequest(request, getInferenceEntityId());

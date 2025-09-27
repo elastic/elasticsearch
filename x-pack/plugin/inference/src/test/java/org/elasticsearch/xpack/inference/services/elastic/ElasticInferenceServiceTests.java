@@ -93,6 +93,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
@@ -703,7 +704,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
                 // Check that the product use case header was set correctly
-                assertThat(request.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+                var productUseCaseHeaders = request.getHeaders().get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+                assertThat(productUseCaseHeaders, contains("internal_search", productUseCase));
 
                 // Verify request body
                 var requestMap = entityAsMap(request.getBody());
@@ -832,7 +834,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             // Check that the product use case header was set correctly
-            assertThat(request.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+            var productUseCaseHeaders = request.getHeaders().get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
 
         } finally {
             // Clean up the thread context

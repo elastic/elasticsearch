@@ -343,6 +343,13 @@ public final class SearchRequestAttributesExtractor {
         }
     }
 
+    public static void addTimeRangeAttribute(Long timeRangeFrom, long nowInMillis, Map<String, Object> attributes) {
+        if (timeRangeFrom != null) {
+            String timestampRangeFilter = introspectTimeRange(timeRangeFrom, nowInMillis);
+            attributes.put(TIMESTAMP_RANGE_FILTER_ATTRIBUTE, timestampRangeFilter);
+        }
+    }
+
     static String introspectTimeRange(long timeRangeFrom, long nowInMillis) {
         for (TimeRangeBucket value : TimeRangeBucket.values()) {
             if (timeRangeFrom >= nowInMillis - value.millis) {

@@ -78,6 +78,8 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
+    private Long rangeTimestampFrom;
+    private boolean trackRangeTimestampFrom = true;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -520,4 +522,32 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
+    /**
+     * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
+     */
+    public Long getRangeTimestampFrom() {
+        return rangeTimestampFrom;
+    }
+
+    /**
+     * Records the lower bound of a time range filter against the @timestamp field included in the query. For telemetry purposes.
+     */
+    public void setRangeTimestampFrom(long rangeTimestampFrom) {
+        if (trackRangeTimestampFrom) {
+            if (this.rangeTimestampFrom == null) {
+                this.rangeTimestampFrom = rangeTimestampFrom;
+            } else {
+                this.rangeTimestampFrom = Math.min(rangeTimestampFrom, this.rangeTimestampFrom);
+            }
+        }
+    }
+
+    /**
+     * Enables or disables the tracking of the lower bound for time range filters against the @timestamp field,
+     * done via {@link #setRangeTimestampFrom(long)}. Tracking is enabled by default, and explicitly disabled to ensure
+     * we don't record the bound for range queries within should and must_not clauses.
+     */
+    public void setTrackRangeTimestampFrom(boolean trackRangeTimestampFrom) {
+        this.trackRangeTimestampFrom = trackRangeTimestampFrom;
+    }
 }

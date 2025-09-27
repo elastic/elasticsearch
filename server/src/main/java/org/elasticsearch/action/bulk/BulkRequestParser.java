@@ -318,6 +318,9 @@ public final class BulkRequestParser {
                     break;
                 }
                 final int len = data.getInt(from);
+                if (len < 0) {
+                    throw new IllegalArgumentException("Documents in the bulk request must be prefixed with the length of the document");
+                }
                 if (len > data.length() - (from + Integer.BYTES)) {
                     if (lastData) {
                         throw new IllegalArgumentException(

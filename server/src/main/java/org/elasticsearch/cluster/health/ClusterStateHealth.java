@@ -86,9 +86,6 @@ public final class ClusterStateHealth implements Writeable {
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
             IndexMetadata indexMetadata = project.index(index);
-            if (indexRoutingTable == null) {
-                continue;
-            }
 
             ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
             indices.put(indexHealth.getIndex(), indexHealth);
@@ -121,7 +118,7 @@ public final class ClusterStateHealth implements Writeable {
 
         // shortcut on green
         if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
-            this.activeShardsPercent = 100;
+            this.activeShardsPercent = 100.0;
         } else {
             this.activeShardsPercent = (((double) this.activeShards) / totalShardCount) * 100;
         }

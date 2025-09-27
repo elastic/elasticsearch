@@ -624,6 +624,9 @@ tests:
 - class: org.elasticsearch.search.ccs.SparseVectorQueryBuilderCrossClusterSearchIT
   method: testSparseVectorQueryWithCcsMinimizeRoundTripsFalse
   issue: https://github.com/elastic/elasticsearch/issues/135559
+- class: org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDeciderTests
+  method: testCanAllocatePrimaryExistingInRestoreInProgress
+  issue: https://github.com/elastic/elasticsearch/issues/135566
 
 # Examples:
 #

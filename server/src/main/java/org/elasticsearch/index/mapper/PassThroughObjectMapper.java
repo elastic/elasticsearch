@@ -136,6 +136,10 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return priority;
     }
 
+    public Explicit<Boolean> timeSeriesDimensionSubFields() {
+        return timeSeriesDimensionSubFields;
+    }
+
     @Override
     public PassThroughObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
@@ -148,17 +152,34 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     @Override
     public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentBuilderContext) {
-        if (mergeWith instanceof PassThroughObjectMapper == false) {
+        if (mergeWith instanceof ObjectMapper == false) {
             MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
         }
+        ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWith;
+        if (mergeWithObjectMapper instanceof PassThroughObjectMapper mergeWithPassThrough) {
+            final var mergeResult = MergeResult.build(this, mergeWithPassThrough, parentBuilderContext);
+            final Explicit<Boolean> containsDimensions = (mergeWithPassThrough.timeSeriesDimensionSubFields.explicit())
+                ? mergeWithPassThrough.timeSeriesDimensionSubFields
+                : this.timeSeriesDimensionSubFields;
 
-        PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
-        final var mergeResult = MergeResult.build(this, mergeWithObject, parentBuilderContext);
-
-        final Explicit<Boolean> containsDimensions = (mergeWithObject.timeSeriesDimensionSubFields.explicit())
-            ? mergeWithObject.timeSeriesDimensionSubFields
-            : this.timeSeriesDimensionSubFields;
-
+            return new PassThroughObjectMapper(
+                leafName(),
+                fullPath(),
+                mergeResult.enabled(),
+                mergeResult.sourceKeepMode(),
+                mergeResult.dynamic(),
+                mergeResult.mappers(),
+                containsDimensions,
+                Math.max(priority, mergeWithPassThrough.priority)
+            );
+        }
+        if (mergeWithObjectMapper instanceof NestedObjectMapper) {
+            MapperErrors.throwNestedMappingConflictError(fullPath());
+        }
+        if (isEligibleForMerge(mergeWithObjectMapper) == false) {
+            MapperErrors.throwPassThroughMappingConflictError(fullPath());
+        }
+        MergeResult mergeResult = MergeResult.build(this, mergeWithObjectMapper, parentBuilderContext);
         return new PassThroughObjectMapper(
             leafName(),
             fullPath(),
@@ -166,9 +187,21 @@ public class PassThroughObjectMapper extends ObjectMapper {
             mergeResult.sourceKeepMode(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
-            containsDimensions,
-            Math.max(priority, mergeWithObject.priority)
+            timeSeriesDimensionSubFields,
+            priority
         );
+    }
+
+    /**
+     * An object mapper is compatible to be merged with a passthrough mapper if
+     * - It is not a root mapper
+     * - If it does not have subobjects true
+     */
+    static boolean isEligibleForMerge(ObjectMapper objectMapper) {
+        return objectMapper.isRoot() == false
+            && (objectMapper.subobjects == null
+                || objectMapper.subobjects.explicit() == false
+                || objectMapper.subobjects.value().equals(Subobjects.DISABLED));
     }
 
     @Override

@@ -246,6 +246,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper,
             bitSetProducer,
+            mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator()
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());

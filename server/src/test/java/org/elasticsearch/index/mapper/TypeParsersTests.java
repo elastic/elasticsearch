@@ -106,7 +106,8 @@ public class TypeParsersTests extends ESTestCase {
             ProvidedIdFieldMapper.NO_FIELD_DATA,
             query -> {
                 throw new UnsupportedOperationException();
-            }
+            },
+            null
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {

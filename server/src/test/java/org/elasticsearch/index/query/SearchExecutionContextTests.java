@@ -650,6 +650,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 query -> {
                     throw new UnsupportedOperationException();
                 },
+                null,
                 namespaceValidator
             )
         );

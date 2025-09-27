@@ -43,9 +43,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         String indexName = "test-index";
         var testHarness = createClusterStateAndRoutingAllocation(indexName);
 
-        // The write load decider is disabled by default.
-
-        var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
+        var writeLoadDecider = createWriteLoadConstraintDecider(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
+                )
+                .build()
+        );
 
         assertEquals(
             Decision.Type.YES,

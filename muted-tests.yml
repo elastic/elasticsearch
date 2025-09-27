@@ -630,6 +630,9 @@ tests:
 - class: org.elasticsearch.search.ccs.KnnVectorQueryBuilderCrossClusterSearchIT
   method: testKnnQueryWithCcsMinimizeRoundTripsFalse
   issue: https://github.com/elastic/elasticsearch/issues/135573
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=esql/60_usage/Basic ESQL usage output (telemetry) snapshot version}
+  issue: https://github.com/elastic/elasticsearch/issues/135579
 
 # Examples:
 #

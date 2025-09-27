@@ -2919,12 +2919,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan("""
+        var plan = physicalPlanNoSerializationCheck("""
               FROM test
             | RENAME languages AS language_code
             | SORT language_code
             | LOOKUP JOIN languages_lookup ON language_code
-            """, testData, false);
+            """);
 
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
@@ -7037,7 +7037,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialLimit.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7092,7 +7092,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
-        var plan = physicalPlan("""
+        var plan = physicalPlanNoSerializationCheck("""
             FROM test
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
@@ -7144,7 +7144,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7161,7 +7161,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
@@ -7181,7 +7181,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testEnrichAfterTopN() {
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
@@ -7217,7 +7217,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialTopN.child(), EsRelation.class);
         }
         {
-            var plan = physicalPlan("""
+            var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
                 | LIMIT 10
@@ -7227,11 +7227,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var enrich = as(fragment.fragment(), Enrich.class);
+            var dupTopN = as(fragment.fragment(), TopN.class);
+            assertThat(dupTopN.limit().toString(), equalTo("10"));
+            var enrich = as(dupTopN.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
             var partialTopN = as(evalFragment.child(), TopN.class);
+            assertThat(partialTopN.limit().toString(), equalTo("10"));
             as(partialTopN.child(), EsRelation.class);
         }
     }
@@ -7827,7 +7830,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlan(query, data, false);
+        var plan = physicalPlanOptimizer.optimize(physicalPlan(query, data, false));
 
         var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
 
@@ -8283,6 +8286,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource) {
         return physicalPlan(query, dataSource, true);
+    }
+
+    private PhysicalPlan physicalPlanNoSerializationCheck(String query) {
+        return physicalPlan(query, testData, false);
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {

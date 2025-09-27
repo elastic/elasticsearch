@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class ChangePoint extends UnaryPlan
     implements
         SurrogateLogicalPlan,
+        CardinalityPreserving,
         PostAnalysisVerificationAware,
         LicenseAware,
         ExecutesOn.Coordinator {

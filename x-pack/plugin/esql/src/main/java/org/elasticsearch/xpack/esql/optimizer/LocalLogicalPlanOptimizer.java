@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -39,7 +40,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
-    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
+    private final LogicalVerifier verifier = LogicalVerifier.LOCAL_INSTANCE;
 
     private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
         new Batch<>(
@@ -53,7 +54,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceDateTruncBucketWithRoundTo()
         ),
         localOperators(),
-        cleanup()
+        localCleanup()
     );
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
@@ -75,8 +76,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         for (var r : rules) {
             switch (r) {
                 case PropagateEmptyRelation ignoredPropagate -> newRules.add(new LocalPropagateEmptyRelation());
-                // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
-                case ReplaceStatsFilteredAggWithEval ignoredReplace -> {
+                case OptimizerRules.CoordinatorOnly ignored -> {
                 }
                 default -> newRules.add(r);
             }
@@ -88,9 +88,17 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         return operators.with(newRules.toArray(Rule[]::new));
     }
 
+    @SuppressWarnings("unchecked")
+    private static Batch<LogicalPlan> localCleanup() {
+        var cleanup = cleanup();
+        return cleanup.with(
+            Arrays.stream(cleanup.rules()).filter(r -> r instanceof OptimizerRules.CoordinatorOnly == false).toArray(Rule[]::new)
+        );
+    }
+
     public LogicalPlan localOptimize(LogicalPlan plan) {
         LogicalPlan optimized = execute(plan);
-        Failures failures = verifier.verify(optimized, true, plan.output());
+        Failures failures = verifier.verify(optimized, plan.output());
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

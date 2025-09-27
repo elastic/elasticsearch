@@ -109,12 +109,12 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
         abstract long bytesToLong(byte[] bytes);
     }
 
-    private final List<? extends RefCounted> shardRefCounters;
+    private final IndexedByShardId<? extends RefCounted> shardRefCounters;
     private final String fieldName;
     private final NumberType numberType;
 
     public LuceneMinFactory(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         int taskConcurrency,

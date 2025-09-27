@@ -25,7 +25,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
 
     public static final class Factory extends LuceneSourceOperator.Factory {
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             int taskConcurrency,
             int maxPageSize,
@@ -45,7 +45,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new TimeSeriesSourceOperator(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
+            return new TimeSeriesSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
         }
 
         @Override
@@ -55,7 +55,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
     }
 
     public TimeSeriesSourceOperator(
-        List<? extends RefCounted> shardContextCounters,
+        IndexedByShardId<? extends RefCounted> shardContextCounters,
         BlockFactory blockFactory,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,

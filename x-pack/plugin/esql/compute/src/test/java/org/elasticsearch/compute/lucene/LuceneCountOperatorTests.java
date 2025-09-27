@@ -240,7 +240,14 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
         ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
-        return new LuceneCountOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, between(1, 8), testCase.tagTypes(), limit);
+        return new LuceneCountOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            queryFunction,
+            dataPartitioning,
+            between(1, 8),
+            testCase.tagTypes(),
+            limit
+        );
     }
 
     @Override

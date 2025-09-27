@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -54,6 +56,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private String[] indices;
     private final IndicesOptions indicesOptions;
     private final boolean runNodeLevelReduction;
+    private final boolean reductionLateMaterialization;
 
     DataNodeRequest(
         String sessionId,
@@ -64,7 +67,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         PhysicalPlan plan,
         String[] indices,
         IndicesOptions indicesOptions,
-        boolean runNodeLevelReduction
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -75,6 +79,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.indices = indices;
         this.indicesOptions = indicesOptions;
         this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
@@ -95,6 +100,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.runNodeLevelReduction = false;
         }
+        if (in.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+            this.reductionLateMaterialization = in.readBoolean();
+        } else {
+            this.reductionLateMaterialization = false;
+        }
     }
 
     @Override
@@ -110,6 +120,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         indicesOptions.writeIndicesOptions(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
             out.writeBoolean(runNodeLevelReduction);
+        }
+        if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+            out.writeBoolean(reductionLateMaterialization);
         }
     }
 
@@ -187,6 +200,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return runNodeLevelReduction;
     }
 
+    boolean reductionLateMaterialization() {
+        return reductionLateMaterialization;
+    }
+
     @Override
     public String getDescription() {
         return "shards=" + shardIds + " plan=" + plan;
@@ -228,4 +245,21 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             runNodeLevelReduction
         );
     }
+
+    public DataNodeRequest withPlan(ExchangeSinkExec newPlan) {
+        return new DataNodeRequest(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shardIds,
+            aliasFilters,
+            newPlan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization
+        );
+    }
+
+    private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
 }

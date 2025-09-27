@@ -47,9 +47,9 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         return failures;
     }
 
-    abstract boolean skipVerification(P optimizedPlan, boolean skipRemoteEnrichVerification);
+    protected abstract boolean skipVerification(P optimizedPlan, boolean skipRemoteEnrichVerification);
 
-    abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
+    protected abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
 
     private static void verifyOutputNotChanged(QueryPlan<?> optimizedPlan, List<Attribute> expectedOutputAttributes, Failures failures) {
         // disable this check if there are other failures already

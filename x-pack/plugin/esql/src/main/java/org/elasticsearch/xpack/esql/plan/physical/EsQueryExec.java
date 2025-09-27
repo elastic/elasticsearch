@@ -171,7 +171,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public static boolean isSourceAttribute(Attribute attr) {
-        return DOC_ID_FIELD.getName().equals(attr.name());
+        return attr.dataType() == DataType.DOC_DATA_TYPE;
     }
 
     public boolean hasScoring() {

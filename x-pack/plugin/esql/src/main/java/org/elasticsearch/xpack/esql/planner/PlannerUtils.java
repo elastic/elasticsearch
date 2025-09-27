@@ -22,8 +22,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -37,13 +39,17 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -53,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -62,6 +69,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -115,11 +123,22 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static PhysicalPlan reductionPlan(PhysicalPlan plan) {
+    public sealed interface PlanReduction {}
+
+    public enum SimplePlanReduction implements PlanReduction {
+        NO_REDUCTION,
+    }
+
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopN. */
+    public record TopNReduction(PhysicalPlan plan) implements PlanReduction {}
+
+    public record ReducedPlan(PhysicalPlan plan) implements PlanReduction {}
+
+    public static PlanReduction reductionPlan(PhysicalPlan plan) {
         // find the logical fragment
         var fragments = plan.collectFirstChildren(p -> p instanceof FragmentExec);
         if (fragments.isEmpty()) {
-            return null;
+            return SimplePlanReduction.NO_REDUCTION;
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
@@ -127,15 +146,115 @@ public class PlannerUtils {
         // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
         final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
+            return SimplePlanReduction.NO_REDUCTION;
+        }
+        final LogicalPlan pipelineBreaker = pipelineBreakers.getFirst();
+        final LocalMapper mapper = new LocalMapper();
+        int estimatedRowSize = fragment.estimatedRowSize();
+        return switch (mapper.map(pipelineBreaker)) {
+            case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
+            case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
+        };
+    }
+
+    // FIXME(gal, NOCOMMIT)
+    public record ReductionPlanHack(PhysicalPlan reductionPlan, ExchangeSinkExec updatedDataPlan) {}
+
+    // FIXME(gal, NOCOMMIT) Redocument
+    public static Optional<ReductionPlanHack> planReduceDriverTopN(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec originalPlan
+    ) {
+        FragmentExec fragmentExec = originalPlan.child() instanceof FragmentExec fe ? fe : null;
+        if (fragmentExec == null) {
+            return Optional.empty();
+        }
+        var topLevelProject = fragmentExec.fragment() instanceof Project p ? p : null;
+        if (topLevelProject == null) {
+            return Optional.empty();
+        }
+
+        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            SEARCH_STATS_TOP_N_REPLACEMENT
+        );
+        PhysicalPlan apply = new InsertFieldExtraction().apply(
+            new ReplaceSourceAttributes().apply(new LocalMapper().map(topLevelProject.child())),
+            context
+        );
+        var attrs = apply.output();
+        var doc = attrs.stream()
+            .filter(EsQueryExec::isSourceAttribute)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Expected the source attribute to be present"));
+        var withAddedDocToRelation = topLevelProject.child().transformUp(EsRelation.class, r -> {
+            var relationOutput = new ArrayList<Attribute>(r.output().size() + 1);
+            relationOutput.add(doc);
+            relationOutput.addAll(r.output());
+            return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), relationOutput);
+        });
+        if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isSourceAttribute)) {
+            // This a special defensive check: if any projects (or other, possible future operators) removed the doc field, we just abort
+            // this optimization altogether!
+            return Optional.empty();
+        }
+        var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, attrs);
+        PhysicalPlan fragmentPhysicalPlan = new ReplaceSourceAttributes().apply(new LocalMapper().map(updatedFragment));
+
+        if (fragmentPhysicalPlan.output().stream().noneMatch(EsQueryExec::isSourceAttribute)) {
+            throw new IllegalStateException("Expected the fragment physical plan to contain the source attribute");
+        }
+
+        // FIXME(gal, NOCOMMIT) verify that the child is a topn?
+        var reductionPlan = originalPlan.replaceChild(
+            EstimatesRowSize.estimateRowSize(
+                fragmentExec.estimatedRowSize(),
+                new InsertFieldExtraction().apply(
+                    new ReplaceSourceAttributes().apply(new LocalMapper().map(fragmentExec.fragment())),
+                    context
+                )
+                    .transformUp(
+                        TopNExec.class,
+                        topN -> topN.replaceChild(new ExchangeSourceExec(topN.source(), attrs, false /* isIntermediateAgg */))
+                    )
+            )
+        );
+        var updatedDataPlan = originalPlan.replaceChild(fragmentExec.withFragment(updatedFragment));
+        return Optional.of(new ReductionPlanHack(reductionPlan, updatedDataPlan));
+    }
+
+    // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
+    private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
+        @Override
+        public boolean exists(FieldAttribute.FieldName field) {
+            return true;
+        }
+
+        @Override
+        public boolean isIndexed(FieldAttribute.FieldName field) {
+            return false;
+        }
+
+        @Override
+        public Object min(FieldAttribute.FieldName field) {
             return null;
         }
-        final var pipelineBreaker = pipelineBreakers.getFirst();
-        final LocalMapper mapper = new LocalMapper();
-        PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
-        if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
+
+        @Override
+        public Object max(FieldAttribute.FieldName field) {
+            return null;
         }
-        return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
+    };
+
+    private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
+        return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
     /**

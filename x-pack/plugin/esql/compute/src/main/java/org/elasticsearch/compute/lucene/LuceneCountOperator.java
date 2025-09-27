@@ -37,11 +37,11 @@ import java.util.function.Function;
  */
 public class LuceneCountOperator extends LuceneOperator {
     public static class Factory extends LuceneOperator.Factory {
-        private final List<? extends RefCounted> shardRefCounters;
+        private final IndexedByShardId<? extends RefCounted> shardRefCounters;
         private final List<ElementType> tagTypes;
 
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
@@ -78,7 +78,7 @@ public class LuceneCountOperator extends LuceneOperator {
     private int remainingDocs;
 
     public LuceneCountOperator(
-        List<? extends RefCounted> shardRefCounters,
+        IndexedByShardId<? extends RefCounted> shardRefCounters,
         BlockFactory blockFactory,
         LuceneSliceQueue sliceQueue,
         List<ElementType> tagTypes,

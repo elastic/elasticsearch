@@ -186,6 +186,7 @@ final class CanMatchPreFilterSearchPhase {
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
+            long startTime = System.nanoTime();
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(
                 request,
                 searchShardIterator.getOriginalIndices().indicesOptions(),

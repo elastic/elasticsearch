@@ -1,0 +1,5 @@
+pr: 135285
+summary: Can Match and DFS search phase shard search APM metrics
+area: Search
+type: enhancement
+issues: []

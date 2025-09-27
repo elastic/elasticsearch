@@ -1627,7 +1627,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
                         final Settings settings = Settings.builder().put(clusterSettings).setSecureSettings(secureSettings).build();
-                        service.updateRemoteClusterCredentials(() -> settings, listener);
+                        service.updateRemoteClusterCredentials(() -> settings, this::buildLinkedProjectConfig, listener);
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
@@ -1641,6 +1641,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         service.updateRemoteClusterCredentials(
                             // Settings without credentials constitute credentials removal
                             () -> clusterSettings,
+                            this::buildLinkedProjectConfig,
                             listener
                         );
                         listener.actionGet(10, TimeUnit.SECONDS);
@@ -1730,7 +1731,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             .put(cluster2Settings)
                             .setSecureSettings(secureSettings)
                             .build();
-                        service.updateRemoteClusterCredentials(() -> settings, listener);
+                        service.updateRemoteClusterCredentials(() -> settings, this::buildLinkedProjectConfig, listener);
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
@@ -1750,6 +1751,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         service.updateRemoteClusterCredentials(
                             // Settings without credentials constitute credentials removal
                             () -> settings,
+                            this::buildLinkedProjectConfig,
                             listener
                         );
                         listener.actionGet(10, TimeUnit.SECONDS);
@@ -1826,6 +1828,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+    private LinkedProjectConfig buildLinkedProjectConfig(String alias, Settings staticSettings, Settings newSettings) {
+        final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
+        return RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, mergedSettings);
     }
 
     private void updateRemoteCluster(

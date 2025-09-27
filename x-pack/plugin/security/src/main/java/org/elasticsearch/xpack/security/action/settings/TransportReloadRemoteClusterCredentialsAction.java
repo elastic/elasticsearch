@@ -16,14 +16,19 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.LinkedProjectConfig;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
@@ -79,7 +84,17 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
             final Settings transientSettings = clusterState.metadata().transientSettings();
             return Settings.builder().put(request.getSettings(), true).put(persistentSettings, false).put(transientSettings, false).build();
         };
-        remoteClusterService.updateRemoteClusterCredentials(settingsSupplier, listener.safeMap(ignored -> ActionResponse.Empty.INSTANCE));
+        @FixForMultiProject(description = "Supply the linked project ID when building the LinkedProjectConfig object.")
+        final TriFunction<String, Settings, Settings, LinkedProjectConfig> configBuilder = (clusterAlias, staticSettings, newSettings) -> {
+            final var projectId = remoteClusterService.getProjectResolver().getProjectId();
+            final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
+            return RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
+        };
+        remoteClusterService.updateRemoteClusterCredentials(
+            settingsSupplier,
+            configBuilder,
+            listener.safeMap(ignored -> ActionResponse.Empty.INSTANCE)
+        );
     }
 
     private ClusterBlockException checkBlock(ClusterState clusterState) {

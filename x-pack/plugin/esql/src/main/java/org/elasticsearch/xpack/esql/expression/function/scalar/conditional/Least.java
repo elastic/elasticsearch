@@ -31,10 +31,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -47,16 +43,6 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
 
     private DataType dataType;
 
-    private static final Map<DataType, Function<ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map.of(
-        DataType.BOOLEAN, factories -> new LeastBooleanEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DOUBLE, factories -> new LeastDoubleEvaluator.Factory(Source.EMPTY, factories),
-        DataType.INTEGER, factories -> new LeastIntEvaluator.Factory(Source.EMPTY, factories),
-        DataType.LONG, factories -> new LeastLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DATETIME, factories -> new LeastLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DATE_NANOS, factories -> new LeastLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.IP, factories -> new LeastBytesRefEvaluator.Factory(Source.EMPTY, factories),
-        DataType.VERSION, factories -> new LeastBytesRefEvaluator.Factory(Source.EMPTY, factories)
-    );
 
     @FunctionInfo(
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
@@ -133,7 +119,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
             }
         }
 
-        if (dataType != NULL && !EVALUATOR_MAP.containsKey(dataType) && !DataType.isString(dataType)) {
+        if (dataType != NULL && !isSupportedDataType(dataType) && !DataType.isString(dataType)) {
             return new TypeResolution("Cannot use [" + dataType.typeName() + "] with function [" + getWriteableName() + "]");
         }
 
@@ -171,12 +157,17 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
             return new LeastBytesRefEvaluator.Factory(source(), factories);
         }
 
-        var evaluatorFactory = EVALUATOR_MAP.get(dataType);
-        if (evaluatorFactory == null) {
-            throw EsqlIllegalArgumentException.illegalDataType(dataType);
-        }
-
-        return evaluatorFactory.apply(factories);
+        return switch (dataType) {
+            case BOOLEAN -> new LeastBooleanEvaluator.Factory(source(), factories);
+            case DOUBLE -> new LeastDoubleEvaluator.Factory(source(), factories);
+            case INTEGER -> new LeastIntEvaluator.Factory(source(), factories);
+            case LONG -> new LeastLongEvaluator.Factory(source(), factories);
+            case DATETIME -> new LeastLongEvaluator.Factory(source(), factories);
+            case DATE_NANOS -> new LeastLongEvaluator.Factory(source(), factories);
+            case IP -> new LeastBytesRefEvaluator.Factory(source(), factories);
+            case VERSION -> new LeastBytesRefEvaluator.Factory(source(), factories);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+        };
     }
 
     @Evaluator(extraName = "Boolean")
@@ -223,5 +214,12 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
             min = Math.min(min, values[i]);
         }
         return min;
+    }
+
+    private static boolean isSupportedDataType(DataType dataType) {
+        return switch (dataType) {
+            case BOOLEAN, DOUBLE, INTEGER, LONG, DATETIME, DATE_NANOS, IP, VERSION -> true;
+            default -> false;
+        };
     }
 }

@@ -38,9 +38,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
@@ -163,13 +161,7 @@ public class PlannerUtils {
     // FIXME(gal, NOCOMMIT)
     public record ReductionPlanHack(PhysicalPlan reductionPlan, ExchangeSinkExec updatedDataPlan) {}
 
-    /**
-     *  Returns {@code Optional.empty()} if the data driver plan is not a match for a reduce-side TopN reduction, as dictated by
-     * {@link AvoidFieldExtractionAfterTopN#dataDriverOutput(PhysicalPlan)}.
-     *
-     * Important note: do read {@link AvoidFieldExtractionAfterTopN} documentation for context on what this method does. For the
-     * reduce-driver plan, we "continue" the data-driver, i.e., we extract the field extraction using {@link InsertFieldExtraction}.
-     */
+    // FIXME(gal, NOCOMMIT) Redocument
     public static Optional<ReductionPlanHack> planReduceDriverTopN(
         EsqlFlags flags,
         Configuration configuration,
@@ -189,8 +181,7 @@ public class PlannerUtils {
             flags,
             configuration,
             foldCtx,
-            SEARCH_STATS_TOP_N_REPLACEMENT,
-            SplitPlanAfterTopN.SPLIT
+            SEARCH_STATS_TOP_N_REPLACEMENT
         );
         PhysicalPlan apply = new InsertFieldExtraction().apply(
             new ReplaceSourceAttributes().apply(new LocalMapper().map(topLevelProject.child())),
@@ -310,10 +301,9 @@ public class PlannerUtils {
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
-        SplitPlanAfterTopN splitDataDriverPlanAfterTopN,
         PhysicalPlan plan
     ) {
-        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), splitDataDriverPlanAfterTopN);
+        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
     }
 
     public static PhysicalPlan localPlan(
@@ -321,12 +311,11 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
-        SearchStats searchStats,
-        SplitPlanAfterTopN splitDataDriverPlanAfterTopN
+        SearchStats searchStats
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats, splitDataDriverPlanAfterTopN)
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);

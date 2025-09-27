@@ -26,11 +26,10 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -55,7 +54,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private List<ShardId> shardIds;
     private String[] indices;
     private final IndicesOptions indicesOptions;
-    private final ReductionPlanFeatures reductionPlanFeatures;
+    private final boolean runNodeLevelReduction;
+    private final boolean reductionLateMaterialization;
 
     DataNodeRequest(
         String sessionId,
@@ -66,7 +66,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         PhysicalPlan plan,
         String[] indices,
         IndicesOptions indicesOptions,
-        ReductionPlanFeatures reductionPlanFeatures
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -76,7 +77,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.plan = plan;
         this.indices = indices;
         this.indicesOptions = indicesOptions;
-        this.reductionPlanFeatures = reductionPlanFeatures;
+        this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
@@ -86,29 +88,18 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             // TODO make EsqlConfiguration Releasable
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.clusterAlias = in.readString();
-        } else {
-            this.clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        }
+        this.clusterAlias = in.readString();
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
         this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.indices = in.readStringArray();
-            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        this.indices = in.readStringArray();
+        this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+            this.runNodeLevelReduction = in.readBoolean();
         } else {
-            this.indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
-            this.indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+            this.runNodeLevelReduction = false;
         }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DATA_NODE_REQUEST_REDUCTION_FEATURES)) {
-            this.reductionPlanFeatures = ReductionPlanFeatures.read(in);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
-            this.reductionPlanFeatures = ReductionPlanFeatures.fromEnableNodeLevelReduction(in.readBoolean());
-        } else {
-            this.reductionPlanFeatures = ReductionPlanFeatures.DISABLED;
-        }
+        throw new AssertionError("NOCOMMIT Handle this after fixing the transport version and merging main");
     }
 
     @Override
@@ -116,22 +107,15 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         super.writeTo(out);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeString(clusterAlias);
-        }
+        out.writeString(clusterAlias);
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
-        }
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
-            reductionPlanFeatures.writeTo(out);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
-            out.writeBoolean(reductionPlanFeatures.toEnableNodeLevelReduction());
+            out.writeBoolean(runNodeLevelReduction);
         }
-
     }
 
     @Override
@@ -204,8 +188,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return plan;
     }
 
-    ReductionPlanFeatures reductionPlanFeatures() {
-        return reductionPlanFeatures;
+    boolean runNodeLevelReduction() {
+        return runNodeLevelReduction;
+    }
+
+    boolean reductionLateMaterialization() {
+        return reductionLateMaterialization;
     }
 
     @Override
@@ -232,7 +220,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && getParentTask().equals(request.getParentTask())
             && Arrays.equals(indices, request.indices)
             && indicesOptions.equals(request.indicesOptions)
-            && reductionPlanFeatures == request.reductionPlanFeatures;
+            && runNodeLevelReduction == request.runNodeLevelReduction;
     }
 
     @Override
@@ -246,11 +234,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             plan,
             Arrays.hashCode(indices),
             indicesOptions,
-            reductionPlanFeatures
+            runNodeLevelReduction
         );
     }
 
-    public DataNodeRequest withPlan(PhysicalPlan newPlan) {
+    public DataNodeRequest withPlan(ExchangeSinkExec newPlan) {
         return new DataNodeRequest(
             sessionId,
             configuration,
@@ -260,7 +248,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             newPlan,
             indices,
             indicesOptions,
-            reductionPlanFeatures
+            runNodeLevelReduction,
+            reductionLateMaterialization
         );
     }
 }

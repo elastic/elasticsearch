@@ -47,12 +47,10 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -194,7 +192,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 dataNodePlan,
                                 originalIndices.indices(),
                                 originalIndices.indicesOptions(),
-                                reductionPlanFeatures(queryPragmas.nodeLevelReduction(), sameNode)
+                                queryPragmas.nodeLevelReduction() && sameNode,
+                                queryPragmas.reductionLateMaterialization()
                             );
                             transportService.sendChildRequest(
                                 connection,
@@ -218,16 +217,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     })
                 );
-            }
-
-            private static ReductionPlanFeatures reductionPlanFeatures(boolean nodeLevelReduction, boolean sameNode) {
-                if (nodeLevelReduction == false) {
-                    return ReductionPlanFeatures.DISABLED;
-                }
-                if (sameNode) {
-                    return ReductionPlanFeatures.SAME_NODE;
-                }
-                return ReductionPlanFeatures.DIFFERENT_NODE;
             }
         }.startComputeOnDataNodes(
             concreteIndices,
@@ -342,13 +331,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     null,
                                     () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                                 );
-                                computeService.runCompute(
-                                    parentTask,
-                                    computeContext,
-                                    request.plan(),
-                                    splitPlanAfterTopN(request),
-                                    sub.acquireCompute()
-                                );
+                                computeService.runCompute(parentTask, computeContext, request.plan(), sub.acquireCompute());
                             }
                         }
                     } else {
@@ -363,7 +346,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             null,
                             () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                         );
-                        computeService.runCompute(parentTask, computeContext, request.plan(), splitPlanAfterTopN(request), batchListener);
+                        computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
                     }
                 }, batchListener::onFailure)
             );
@@ -531,7 +514,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
-                    splitPlanAfterTopN(request),
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
                         externalSink.addCompletionListener(ActionListener.running(() -> {
@@ -566,7 +548,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 configuration,
                 configuration.newFoldContext(),
                 plan,
-                request.reductionPlanFeatures()
+                request.runNodeLevelReduction(),
+                request.reductionLateMaterialization()
             );
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
@@ -582,7 +565,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.plan(),
             request.indices(),
             request.indicesOptions(),
-            request.reductionPlanFeatures()
+            request.runNodeLevelReduction(),
+            request.reductionLateMaterialization()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
@@ -596,13 +580,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             computeSearchContexts,
             ActionListener.releaseAfter(listener, computeSearchContexts)
         );
-    }
-
-    private static SplitPlanAfterTopN splitPlanAfterTopN(DataNodeRequest request) {
-        return switch (request.reductionPlanFeatures()) {
-            case SAME_NODE, DIFFERENT_NODE -> SplitPlanAfterTopN.SPLIT;
-            case REMOTE_CLUSTER, DISABLED -> SplitPlanAfterTopN.NO_SPLIT;
-        };
     }
 
     static boolean supportShardLevelRetryFailure(TransportVersion transportVersion) {

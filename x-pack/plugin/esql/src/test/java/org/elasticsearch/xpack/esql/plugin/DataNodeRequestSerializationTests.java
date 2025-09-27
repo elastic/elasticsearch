@@ -47,10 +47,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.DIFFERENT_NODE;
-import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.DISABLED;
-import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.REMOTE_CLUSTER;
-import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.SAME_NODE;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
 
@@ -98,7 +94,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             physicalPlan,
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
-            randomFrom(ComputeService.ReductionPlanFeatures.values())
+            randomBoolean(),
+            randomBoolean()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -117,7 +114,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -132,7 +130,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -148,7 +147,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -176,7 +176,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     mapAndMaybeOptimize(parse(newQuery)),
                     in.indices(),
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -197,7 +198,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -212,7 +214,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(
                     randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
@@ -231,7 +234,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -247,7 +251,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     indices,
                     in.indicesOptions(),
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -266,7 +271,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     indicesOptions,
-                    in.reductionPlanFeatures()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -281,12 +287,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    switch (in.reductionPlanFeatures()) {
-                        case DIFFERENT_NODE -> SAME_NODE;
-                        case SAME_NODE -> DISABLED;
-                        case DISABLED -> REMOTE_CLUSTER;
-                        case REMOTE_CLUSTER -> DIFFERENT_NODE;
-                    }
+                    in.runNodeLevelReduction() == false,
+                    in.reductionLateMaterialization() == false
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;

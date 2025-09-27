@@ -40,7 +40,8 @@ public class DataNodeRequestTests extends ESTestCase {
             null,
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
-            randomFrom(ComputeService.ReductionPlanFeatures.values())
+            randomBoolean(),
+            randomBoolean()
         );
 
         assertThat(request.shardIds(), equalTo(shardIds));

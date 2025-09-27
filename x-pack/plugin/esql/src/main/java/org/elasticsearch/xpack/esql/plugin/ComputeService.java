@@ -15,9 +15,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -55,7 +52,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -68,7 +64,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -195,7 +190,6 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
-        SplitPlanAfterTopN projectAfterTopN,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -210,19 +204,7 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(
-                sessionId,
-                rootTask,
-                flags,
-                physicalPlan,
-                configuration,
-                foldContext,
-                execInfo,
-                null,
-                projectAfterTopN,
-                listener,
-                null
-            );
+            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
             return;
         }
 
@@ -269,7 +251,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, projectAfterTopN, localListener.acquireCompute());
+                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -288,7 +270,6 @@ public class ComputeService {
                         foldContext,
                         execInfo,
                         "subplan-" + i,
-                        projectAfterTopN,
                         ActionListener.wrap(result -> {
                             exchangeSink.addCompletionListener(
                                 ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
@@ -314,7 +295,6 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         String profileQualifier,
-        SplitPlanAfterTopN projectAfterTopN,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
@@ -372,7 +352,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, projectAfterTopN, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
                 return;
             }
         } else {
@@ -454,7 +434,6 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
-                        projectAfterTopN,
                         localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
@@ -611,13 +590,7 @@ public class ComputeService {
         ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
-    void runCompute(
-        CancellableTask task,
-        ComputeContext context,
-        PhysicalPlan plan,
-        SplitPlanAfterTopN splitAfterTopN,
-        ActionListener<DriverCompletionInfo> listener
-    ) {
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -650,7 +623,6 @@ public class ComputeService {
                 new ArrayList<>(context.searchExecutionContexts().collection()),
                 context.configuration(),
                 context.foldCtx(),
-                splitAfterTopN,
                 plan
             );
             if (LOGGER.isDebugEnabled()) {
@@ -742,10 +714,11 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldCtx,
         ExchangeSinkExec originalPlan,
-        ReductionPlanFeatures features
+        boolean runNodeLevelReduction,
+        boolean splitTopN
     ) {
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        if (features == ReductionPlanFeatures.DISABLED) {
+        if (splitTopN == false && runNodeLevelReduction == false) {
             return new PlannerUtils.ReductionPlanHack(originalPlan.replaceChild(source), null);
         }
 
@@ -753,73 +726,18 @@ public class ComputeService {
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
             originalPlan
         );
+        PlannerUtils.ReductionPlanHack defaultResult = new PlannerUtils.ReductionPlanHack(originalPlan.replaceChild(source), originalPlan);
         return switch (PlannerUtils.reductionPlan(originalPlan)) {
-            case PlannerUtils.TopNReduction topN when features.supportsTopNSplit() ->
+            case PlannerUtils.TopNReduction topN when splitTopN ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
                 PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, originalPlan)
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> pipelineBreakerReduction.apply(topN.plan()));
-            case PlannerUtils.ReducedPlan rp when features.supportsOtherPlanReduction() -> pipelineBreakerReduction.apply(rp.plan());
-            default -> new PlannerUtils.ReductionPlanHack(originalPlan.replaceChild(source), originalPlan);
+                    .orElseGet(() -> runNodeLevelReduction ? pipelineBreakerReduction.apply(topN.plan()) : defaultResult);
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> pipelineBreakerReduction.apply(rp.plan());
+            default -> defaultResult;
         };
-    }
-
-    enum ReductionPlanFeatures implements Writeable {
-        DIFFERENT_NODE(0),
-        SAME_NODE(1),
-        DISABLED(2),
-        REMOTE_CLUSTER(3);
-
-        private final int index;
-
-        ReductionPlanFeatures(int index) {
-            this.index = index;
-        }
-
-        static ReductionPlanFeatures read(StreamInput in) throws IOException {
-            int index = in.readByte();
-            return switch (index) {
-                case 0 -> DIFFERENT_NODE;
-                case 1 -> SAME_NODE;
-                case 2 -> DISABLED;
-                case 3 -> REMOTE_CLUSTER;
-                default -> throw new IllegalArgumentException("Unknown ReductionPlanFeatures index: " + index);
-            };
-        }
-
-        /** For backward compatibility with the old transport version. */
-        public static ReductionPlanFeatures fromEnableNodeLevelReduction(boolean b) {
-            return b ? DIFFERENT_NODE : DISABLED;
-        }
-
-        /** For backward compatibility with the old transport version. */
-        public boolean toEnableNodeLevelReduction() {
-            return switch (this) {
-                case SAME_NODE, REMOTE_CLUSTER -> true;
-                case DISABLED, DIFFERENT_NODE -> false;
-            };
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte((byte) index);
-        }
-
-        public boolean supportsTopNSplit() {
-            return switch (this) {
-                case DIFFERENT_NODE, SAME_NODE -> true;
-                case REMOTE_CLUSTER, DISABLED -> false;
-            };
-        }
-
-        public boolean supportsOtherPlanReduction() {
-            return switch (this) {
-                case DIFFERENT_NODE, REMOTE_CLUSTER -> true;
-                case SAME_NODE, DISABLED -> false;
-            };
-        }
     }
 
     String newChildSession(String session) {

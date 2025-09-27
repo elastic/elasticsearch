@@ -103,7 +103,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 "memory",
                 "type=long,time_series_metric=gauge",
                 "request_count",
-                "type=integer,time_series_metric=counter"
+                "type=integer,time_series_metric=counter",
+                "description",
+                "type=text,index=true"
             )
             .get();
         Map<String, String> hostToClusters = new HashMap<>();
@@ -145,7 +147,9 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     "memory",
                     doc.memory.getBytes(),
                     "request_count",
-                    doc.requestCount
+                    doc.requestCount,
+                    "description",
+                    "host = " + doc.host
                 )
                 .get();
         }
@@ -197,6 +201,23 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 List<List<Object>> rows2 = EsqlTestUtils.getValuesList(resp2);
                 assertThat(rows2, equalTo(rows));
             }
+        }
+    }
+
+    public void testGroupByTextField() {
+        List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
+        client().admin().indices().prepareRefresh("hosts").get();
+        for (String fn : List.of("count", "count_distinct", "sum", "avg", "max", "min")) {
+            try (var resp = run("TS hosts | STATS " + fn + "(cpu) BY description | SORT description | LIMIT 1")) {
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                assertThat(rows, hasSize(1));
+                assertThat(rows.get(0).get(1), equalTo("host = " + sortedGroups.get(0)));
+            }
+        }
+        try (var resp = run("TS hosts | STATS sum(rate(request_count)) BY description | SORT description | LIMIT 1")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(1), equalTo("host = " + sortedGroups.get(0)));
         }
     }
 

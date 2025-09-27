@@ -42,6 +42,8 @@ public class TimeSeriesAggregate extends Aggregate {
 
     private final Bucket timeBucket;
 
+    private final boolean hasTopLevelOverTimeFunctions;
+
     public TimeSeriesAggregate(
         Source source,
         LogicalPlan child,
@@ -49,19 +51,37 @@ public class TimeSeriesAggregate extends Aggregate {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket
     ) {
+        this(source, child, groupings, aggregates, timeBucket, false);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        boolean hasTopLevelOverTimeFunctions
+    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.hasTopLevelOverTimeFunctions = hasTopLevelOverTimeFunctions;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        // Shouldn't need to be serialized; at least not yet
+        this.hasTopLevelOverTimeFunctions = false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+    }
+
+    public boolean hasTopLevelOverTimeFunctions() {
+        return hasTopLevelOverTimeFunctions;
     }
 
     @Override
@@ -71,17 +91,17 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, hasTopLevelOverTimeFunctions);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, hasTopLevelOverTimeFunctions);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, hasTopLevelOverTimeFunctions);
     }
 
     @Override

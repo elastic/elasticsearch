@@ -1,0 +1,5 @@
+pr: 135506
+summary: "[Draft] Introduce a bulk format that uses a prefix length"
+area: Store
+type: enhancement
+issues: []

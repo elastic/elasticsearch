@@ -150,7 +150,7 @@ public abstract class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlInteg
                         .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), maxConcurrentNodes)
                         .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), shardCount)
                         .put(QueryPragmas.TASK_CONCURRENCY.getKey(), taskConcurrency)
-                        .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true)
+                        .put(QueryPragmas.REDUCTION_LATE_MATERIALIZATION.getKey(), true)
                         .build()
                 )
             )

@@ -121,6 +121,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
             out.writeBoolean(runNodeLevelReduction);
         }
+        if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+            out.writeBoolean(reductionLateMaterialization);
+        }
     }
 
     @Override

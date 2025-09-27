@@ -2407,6 +2407,41 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testGreatestLeastWithUnsupportedDataTypes() {
+        // Test Greatest function with unsupported data types using ROW and type conversion
+        assertEquals(
+            "1:64: Cannot use [geo_point] with function [Greatest]",
+            error("row wkt = \"POINT(1 1)\" | eval geopoint = to_geopoint(wkt), x = greatest(geopoint)")
+        );
+        
+        assertEquals(
+            "1:71: Cannot use [cartesian_point] with function [Greatest]", 
+            error("row wkt = \"POINT(1 1)\" | eval cartpoint = to_cartesianpoint(wkt), x = greatest(cartpoint)")
+        );
+        
+        // Test Least function with unsupported data types
+        assertEquals(
+            "1:64: Cannot use [geo_point] with function [Least]",
+            error("row wkt = \"POINT(1 1)\" | eval geopoint = to_geopoint(wkt), x = least(geopoint)")
+        );
+        
+        assertEquals(
+            "1:71: Cannot use [cartesian_point] with function [Least]",
+            error("row wkt = \"POINT(1 1)\" | eval cartpoint = to_cartesianpoint(wkt), x = least(cartpoint)")
+        );
+        
+        // Test with mixed supported and unsupported types
+        assertEquals(
+            "1:73: second argument of [greatest(num, geopoint)] must be [integer], found value [geopoint] type [geo_point]",
+            error("row wkt = \"POINT(1 1)\", num = 1 | eval geopoint = to_geopoint(wkt), x = greatest(num, geopoint)")
+        );
+        
+        assertEquals(
+            "1:73: second argument of [least(num, geopoint)] must be [integer], found value [geopoint] type [geo_point]",
+            error("row wkt = \"POINT(1 1)\", num = 1 | eval geopoint = to_geopoint(wkt), x = least(num, geopoint)")
+        );
+    }
+
     public void testMultiMatchWithNonIndexedColumnCurrentlyUnsupported() {
         assertEquals(
             "1:78: [MultiMatch] function cannot operate on [initial], which is not a field from an index mapping",

@@ -85,6 +85,7 @@ public enum LuceneFilesExtensions {
     VEQ("veq", "Scalar Quantized Vector Data", false, true),
     VEMB("vemb", "Binarized Vector Metadata", true, false),
     VEB("veb", "Binarized Vector Data", false, true),
+    VFI("vfi", "Vector format information", true, false),
     // ivf vectors format
     MIVF("mivf", "IVF Metadata", true, false),
     CENIVF("cenivf", "IVF Centroid Data", false, true),

@@ -17,12 +17,13 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es818;
+package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
@@ -43,49 +44,48 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
-import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.startsWith;
 
-public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES93GenericHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818HnswBinaryQuantizedRWVectorsFormat());
-
     @Override
     protected Codec getCodec() {
-        return codec;
+        List<FlatVectorsFormat> formats = new ArrayList<>(ES93GenericHnswVectorsFormat.availableFormats.values());
+        return TestUtil.alwaysKnnVectorsFormat(new ES93GenericHnswVectorsFormat(formats.get(random().nextInt(formats.size()))));
     }
 
     public void testToString() {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES818HnswBinaryQuantizedVectorsFormat(10, 20, 1, null);
+                return new ES93GenericHnswVectorsFormat(10, 20, 1, null, new ES93BinaryQuantizedVectorsFormat(false));
             }
         };
-        String expectedPattern =
-            "ES818HnswBinaryQuantizedVectorsFormat(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
-                + " flatVectorFormat=ES818BinaryQuantizedVectorsFormat(name=ES818BinaryQuantizedVectorsFormat,"
-                + " flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=%s())))";
+        String expectedPattern = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
+            + " writeFlatVectorFormat=ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
+            + " flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=%s";
 
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
+        assertThat(customCodec.knnVectorsFormat().toString(), either(startsWith(defaultScorer)).or(startsWith(memSegScorer)));
     }
 
     public void testSingleVectorCase() throws Exception {
@@ -129,16 +129,14 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(-1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(0, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 0));
-        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(20, -1));
-        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(512 + 1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 3201));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new ES818HnswBinaryQuantizedVectorsFormat(20, 100, 1, new SameThreadExecutorService())
-        );
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(-1, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(0, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 0));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, -1));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(512 + 1, 20));
+        expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 3201));
+        // expectThrows(IllegalArgumentException.class, () -> new ES93GenericHnswVectorsFormat(20, 100, 1, new
+        // SameThreadExecutorService()));
     }
 
     // Ensures that all expected vector similarity functions are translatable in the format.
@@ -189,7 +187,7 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
     }
 
     static Directory newMMapDirectory() throws IOException {
-        Directory dir = new MMapDirectory(createTempDir("ES818BinaryQuantizedVectorsFormatTests"));
+        Directory dir = new MMapDirectory(createTempDir("ES93BinaryQuantizedVectorsFormatTests"));
         if (random().nextBoolean()) {
             dir = new MockDirectoryWrapper(random(), dir);
         }

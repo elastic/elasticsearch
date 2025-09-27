@@ -1,0 +1,5 @@
+pr: 135343
+summary: Use a generic HNSW format for hnsw and disk BBQ
+area: Vector Search
+type: feature
+issues: []

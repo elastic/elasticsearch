@@ -98,7 +98,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 new DenseVectorFieldMapper.BBQHnswIndexOptions(
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),
-                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                    randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                    randomBoolean()
                 ),
                 new DenseVectorFieldMapper.BBQFlatIndexOptions(
                     randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
@@ -110,7 +111,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 randomFloatBetween(0.0f, 100.0f, true),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                randomBoolean()
             )
         );
 
@@ -137,7 +139,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
                 rescoreVector
             ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), rescoreVector)
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                rescoreVector,
+                randomBoolean()
+            )
         );
     }
 

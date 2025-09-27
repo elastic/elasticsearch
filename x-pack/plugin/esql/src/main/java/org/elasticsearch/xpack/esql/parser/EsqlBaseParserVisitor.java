@@ -57,11 +57,19 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitProcessingCommand(EsqlBaseParser.ProcessingCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#whereCommand}.
+   * Visit a parse tree produced by the {@code whereMatchStringExpression}
+   * labeled alternative in {@link EsqlBaseParser#whereCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
+  T visitWhereMatchStringExpression(EsqlBaseParser.WhereMatchStringExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code whereBooleanExpression}
+   * labeled alternative in {@link EsqlBaseParser#whereCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWhereBooleanExpression(EsqlBaseParser.WhereBooleanExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.

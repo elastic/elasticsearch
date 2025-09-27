@@ -4717,6 +4717,18 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(isMultiTypeEsField(e));
     }
 
+    public void testResolveFullTextSearch() {
+        var plan = analyze("""
+            from test
+            | WHERE "query"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+
+        assertThat(filter.condition(), instanceOf(MultiMatch.class));
+    }
+
     private boolean isMultiTypeEsField(Expression e) {
         return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }

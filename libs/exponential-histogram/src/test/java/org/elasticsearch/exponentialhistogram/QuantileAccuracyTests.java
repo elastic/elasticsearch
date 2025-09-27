@@ -159,7 +159,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
     }
 
     public void testSingleValueHistogram() {
-        ExponentialHistogram histo = createAutoReleasedHistogram(1, 42.0);
+        ExponentialHistogram histo = createAutoReleasedHistogram(4, 42.0);
         for (double q : QUANTILES_TO_TEST) {
             assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), closeTo(42, 0.0000001));
         }

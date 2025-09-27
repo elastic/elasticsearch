@@ -83,8 +83,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         if (groupingAlias.size() > 0) {
             left = new Eval(plan.source(), plan.left(), groupingAlias);
         }
-
         // replace the old stub with the new out to capture the new output
-        return plan.replaceChildren(left, InlineJoin.replaceStub(new StubRelation(right.source(), left.output()), right));
+        return plan.replaceChildren(left, InlineJoin.replaceStub(new StubRelation(right, left), right));
     }
 }

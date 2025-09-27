@@ -461,6 +461,12 @@ public final class IndicesPermission {
             this.selector = selector;
         }
 
+        public List<Index> getFailureIndices(ProjectMetadata metadata) {
+            return indexAbstraction != null && IndexComponentSelector.FAILURES.equals(selector)
+                ? indexAbstraction.getFailureIndices(metadata)
+                : List.of();
+        }
+
         /**
          * @return {@code true} if-and-only-if this object is related to a data-stream, either by having a
          * {@link IndexAbstraction#getType()} of {@link IndexAbstraction.Type#DATA_STREAM} or by being the backing index for a
@@ -535,13 +541,12 @@ public final class IndicesPermission {
             }
         }
 
-        public Collection<String> resolveConcreteIndices(ProjectMetadata metadata) {
+        public Collection<String> resolveConcreteIndices(List<Index> failureIndices) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
             } else if (IndexComponentSelector.FAILURES.equals(selector)) {
-                final List<Index> failureIndices = indexAbstraction.getFailureIndices(metadata);
                 final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
                 for (var idx : failureIndices) {
                     concreteIndexNames.add(idx.getName());
@@ -604,12 +609,16 @@ public final class IndicesPermission {
 
         final boolean overallGranted = isActionGranted(action, resources.values());
         final int finalTotalResourceCount = totalResourceCount;
+        final var failureIndicesByResourceName = resources.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFailureIndices(metadata)));
+
         final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
             resources,
             finalTotalResourceCount,
             fieldPermissionsCache,
-            metadata
+            failureIndicesByResourceName
         );
 
         return new IndicesAccessControl(overallGranted, indexPermissions);
@@ -620,7 +629,7 @@ public final class IndicesPermission {
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
-        final ProjectMetadata metadata
+        final Map<String, List<Index>> failureIndicesByIndexResource
     ) {
 
         // now... every index that is associated with the request, must be granted
@@ -636,7 +645,9 @@ public final class IndicesPermission {
             boolean granted = false;
             final String resourceName = resourceEntry.getKey();
             final IndexResource resource = resourceEntry.getValue();
-            final Collection<String> concreteIndices = resource.resolveConcreteIndices(metadata);
+            final Collection<String> concreteIndices = resource.resolveConcreteIndices(
+                failureIndicesByIndexResource.get(resourceEntry.getKey())
+            );
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {

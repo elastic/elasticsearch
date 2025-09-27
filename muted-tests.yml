@@ -627,6 +627,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/135569
+- class: org.elasticsearch.search.ccs.KnnVectorQueryBuilderCrossClusterSearchIT
+  method: testKnnQueryWithCcsMinimizeRoundTripsFalse
+  issue: https://github.com/elastic/elasticsearch/issues/135573
 
 # Examples:
 #

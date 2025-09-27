@@ -7,23 +7,47 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class TransportDownsampleActionTests extends ESTestCase {
+    private static final Map<String, Object> METRIC_COUNTER_FIELD = Map.of("type", "long", "time_series_metric", "counter");
+    private static final Map<String, Object> METRIC_GAUGE_FIELD = Map.of("type", "double", "time_series_metric", "gauge");
+    private static final Map<String, Object> DIMENSION_FIELD = Map.of("type", "keyword", "time_series_dimension", true);
+    private static final Map<String, Object> FLOAT_FIELD = Map.of("type", "float", "scaling_factor", 1000.0);
+    private static final Map<String, Object> DATE_FIELD = Map.of("type", "date");
+    private static final Map<String, Object> FLATTENED_FIELD = Map.of("type", "flattened");
+    private static final Map<String, Object> PASSTHROUGH_FIELD = Map.of("type", "passthrough", "time_series_dimension", true);
+    private static final Map<String, Object> AGGREGATE_METRIC_DOUBLE_FIELD = Map.of(
+        "type",
+        "aggregate_metric_double",
+        "time_series_metric",
+        "gauge",
+        "metrics",
+        List.of("max", "min", "value_count", "sum"),
+        "default_metric",
+        "max"
+    );
+
     public void testCopyIndexMetadata() {
         // GIVEN
         final List<String> tiers = List.of(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD, DataTier.DATA_CONTENT);
@@ -131,5 +155,48 @@ public class TransportDownsampleActionTests extends ESTestCase {
         supported = TransportDownsampleAction.getSupportedMetrics(metricType, fieldProperties);
         assertThat(supported.defaultMetric(), is("max"));
         assertThat(supported.supportedMetrics(), is(List.of(metricType.supportedAggs())));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDownsampledMapping() throws IOException {
+        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(null).build("@timestamp");
+        String downsampledMappingStr = TransportDownsampleAction.createDownsampleIndexMapping(
+            helper,
+            new DownsampleConfig(new DateHistogramInterval("5m")),
+            Map.of(
+                "properties",
+                Map.of(
+                    "my-dimension",
+                    DIMENSION_FIELD,
+                    "my-passthrough",
+                    PASSTHROUGH_FIELD,
+                    "my-multi-field",
+                    Map.of("type", "keyword", "fields", Map.of("my-gauge", METRIC_GAUGE_FIELD)),
+                    "my-object",
+                    Map.of("type", "text", "properties", Map.of("my-float", FLOAT_FIELD, "my-counter", METRIC_COUNTER_FIELD)),
+                    "my-flattened",
+                    FLATTENED_FIELD,
+                    "@timestamp",
+                    DATE_FIELD
+                )
+            )
+        );
+        Map<String, Object> downsampledMapping = XContentHelper.convertToMap(JsonXContent.jsonXContent, downsampledMappingStr, false);
+        assertThat(downsampledMapping.containsKey("properties"), is(true));
+        Map<String, Object> properties = (Map<String, Object>) downsampledMapping.get("properties");
+        assertThat(properties.get("my-dimension"), equalTo(DIMENSION_FIELD));
+        assertThat(properties.get("my-passthrough"), equalTo(PASSTHROUGH_FIELD));
+        assertThat(properties.get("my-flattened"), equalTo(FLATTENED_FIELD));
+        Map<String, Object> timestamp = (Map<String, Object>) properties.get("@timestamp");
+        assertThat(timestamp.get("type"), equalTo("date"));
+        assertThat(timestamp.get("meta"), equalTo(Map.of("fixed_interval", "5m", "time_zone", "UTC")));
+        Map<String, Object> multiField = (Map<String, Object>) properties.get("my-multi-field");
+        assertThat(multiField.get("type"), equalTo("keyword"));
+        assertThat(((Map<String, Object>) multiField.get("fields")).get("my-gauge"), equalTo(AGGREGATE_METRIC_DOUBLE_FIELD));
+        Map<String, Object> objectField = (Map<String, Object>) properties.get("my-object");
+        assertThat(objectField.get("type"), equalTo("text"));
+        Map<String, Object> subObjectsProperties = (Map<String, Object>) objectField.get("properties");
+        assertThat(subObjectsProperties.get("my-float"), equalTo(FLOAT_FIELD));
+        assertThat(subObjectsProperties.get("my-counter"), equalTo(METRIC_COUNTER_FIELD));
     }
 }

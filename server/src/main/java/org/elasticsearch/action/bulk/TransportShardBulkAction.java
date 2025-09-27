@@ -33,7 +33,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -44,6 +46,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -55,6 +58,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -70,6 +74,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -161,6 +168,71 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
         primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(request, primary, l)), true);
+    }
+
+    @Override
+    protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
+        // System.out.println("I am splitting");
+        ClusterState clusterState = clusterService.state();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+        Index index = request.shardId().getIndex();
+        // IndexMetadata indexMetadata = clusterState.getMetadata().indexMetadata(index);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+        Map<ShardId, BulkShardRequest> bulkRequestsPerShard = new HashMap<>();
+
+        // Iterate through the items in the input request and split them based on the
+        // current resharding-split state.
+        BulkItemRequest[] items = request.items();
+        if (items.length == 0) {  // Nothing to split
+            return Map.of(request.shardId(), request);
+        }
+
+        for (int i = 0; i < items.length; i++) {
+            BulkItemRequest bulkItemRequest = items[i];
+            DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
+            int shardId = docWriteRequest.rerouteAtSourceDuringResharding(routing);
+            // int shardId = docWriteRequest.route(routing);
+            // System.out.println("shardId = " + shardId);
+            List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
+                new ShardId(index, shardId),
+                shardNum -> new ArrayList<>()
+            );
+            shardRequests.add(bulkItemRequest);
+        }
+
+        // System.out.println("requestsByShard = " + requestsByShard.size());
+        // All items belong to either the source shard or target shard.
+        if (requestsByShard.size() == 1) {
+            ShardId targetShard = requestsByShard.entrySet().iterator().next().getKey();
+            // Return original request if no items were split to target.
+            if (targetShard.equals(request.shardId())) {
+                return Map.of(request.shardId(), request);
+            } else {
+                // Create new bulk request that is identical to the original request except the shardId.
+                // TODO: Verify that this is alright because each BulkItemRequest also contains shardId
+                BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                    targetShard,
+                    request.getRefreshPolicy(),
+                    request.items(),
+                    request.isSimulated()
+                );
+                return Map.of(targetShard, bulkShardRequest);
+            }
+        }
+
+        for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+            final ShardId shardId = entry.getKey();
+            final List<BulkItemRequest> requests = entry.getValue();
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                shardId,
+                request.getRefreshPolicy(),
+                requests.toArray(new BulkItemRequest[0]),
+                request.isSimulated()
+            );
+            bulkRequestsPerShard.put(shardId, bulkShardRequest);
+        }
+        return (bulkRequestsPerShard);
     }
 
     @Override

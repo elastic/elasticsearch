@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import joptsimple.internal.Strings;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
@@ -30,6 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -45,6 +49,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,6 +63,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
@@ -64,6 +75,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
@@ -1027,4 +1039,166 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
+    public void testClusterConcurrentRebalanceIndependentLimits() {
+        Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
+            .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", 10)
+            .build();
+
+        AllocationService strategy = createAllocationService(
+            settings,
+            new TestGatewayAllocator(),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            Arrays.asList(new XPackPlugin(settings))
+        );
+
+        logger.info("Building initial routing table");
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(IndexVersion.current()).put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT))
+                    .numberOfShards(5)
+                    .numberOfReplicas(1)
+            )
+            .put(
+                IndexMetadata.builder("test_frozen")
+                    .settings(
+                        settings(IndexVersion.current()).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN)
+                            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                            .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, true)
+                    )
+                    .numberOfShards(5)
+                    .numberOfReplicas(1)
+            )
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index("test_frozen"))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
+
+        assertThat(clusterState.routingTable().index("test").size(), equalTo(5));
+        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
+            assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(0).state(), equalTo(UNASSIGNED));
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(1).state(), equalTo(UNASSIGNED));
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(0).currentNodeId(), nullValue());
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(1).currentNodeId(), nullValue());
+        }
+
+        assertThat(clusterState.routingTable().index("test_frozen").size(), equalTo(5));
+        for (int i = 0; i < clusterState.routingTable().index("test_frozen").size(); i++) {
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).shard(0).state(), equalTo(UNASSIGNED));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).shard(1).state(), equalTo(UNASSIGNED));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).shard(0).currentNodeId(), nullValue());
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).shard(1).currentNodeId(), nullValue());
+        }
+
+        logger.info("start two nodes and fully start the shards");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node1_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node2_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+            )
+            .build();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+
+        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
+            assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
+            assertThat(clusterState.routingTable().index("test").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+        }
+
+        for (int i = 0; i < clusterState.routingTable().index("test_frozen").size(); i++) {
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).primaryShard().state(), equalTo(INITIALIZING));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
+        }
+
+        logger.info("start all the primary shards, replicas will start initializing");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
+            assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test").shard(i).primaryShard().state(), equalTo(STARTED));
+            assertThat(clusterState.routingTable().index("test").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
+        }
+
+        for (int i = 0; i < clusterState.routingTable().index("test_frozen").size(); i++) {
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).primaryShard().state(), equalTo(STARTED));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
+        }
+
+        logger.info("now, start 8 more frozen nodes, and check that no rebalancing/relocation have happened");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder(clusterState.nodes())
+                    .add(newNode("node3_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node4_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node5_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node6_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node7_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node8_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node9_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+                    .add(newNode("node10_frozen", Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))
+            )
+            .build();
+
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+
+        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
+            assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test").shard(i).primaryShard().state(), equalTo(STARTED));
+            assertThat(clusterState.routingTable().index("test").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
+        }
+
+        for (int i = 0; i < clusterState.routingTable().index("test_frozen").size(); i++) {
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).size(), equalTo(2));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).primaryShard().state(), equalTo(STARTED));
+            assertThat(clusterState.routingTable().index("test_frozen").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
+        }
+
+        logger.info("start the replica shards, rebalancing should start, but only for frozen nodes");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test", STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test", RELOCATING).size(), equalTo(0));
+
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test_frozen", STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test_frozen", RELOCATING).size(), equalTo(8));
+
+        logger.info("now, start 8 more hot nodes");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder(clusterState.nodes())
+                    .add(newNode("node3", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node4", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node5", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node6", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node7", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node8", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node9", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+                    .add(newNode("node10", Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
+            )
+            .build();
+
+        logger.info("start the replica shards, rebalancing should start, but only for hot nodes");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test", STARTED).size(), equalTo(7));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test", RELOCATING).size(), equalTo(3));
+
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test_frozen", STARTED).size(), equalTo(10));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test_frozen", RELOCATING).size(), equalTo(0));
+    }
 }

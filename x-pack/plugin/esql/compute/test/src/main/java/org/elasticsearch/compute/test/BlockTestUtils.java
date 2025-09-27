@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DateRangeBlock;
+import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -71,6 +73,7 @@ public class BlockTestUtils {
             );
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
+            case DATE_RANGE -> throw new IllegalArgumentException("can't make random values for date range");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }
@@ -212,6 +215,11 @@ public class BlockTestUtils {
             b.count().appendInt(aggMetric.count());
             return;
         }
+        if (builder instanceof DateRangeBlockBuilder b && value instanceof DateRangeBlockBuilder.DateRangeLiteral lit) {
+            b.from().appendLong(lit.from());
+            b.to().appendLong(lit.to());
+            return;
+        }
         if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
             return;
@@ -300,6 +308,12 @@ public class BlockTestUtils {
                         i += 1;
                         yield literal;
 
+                    }
+                    case DATE_RANGE -> {
+                        var b = (DateRangeBlock) block;
+                        var lit = new DateRangeBlockBuilder.DateRangeLiteral(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                        i++;
+                        yield lit;
                     }
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });

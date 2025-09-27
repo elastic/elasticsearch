@@ -82,6 +82,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_CO
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToLongs;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
@@ -282,6 +283,11 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         floatBuilder.appendFloat(randomFloat());
                     }
                     floatBuilder.endPositionEntry();
+                }
+                case DATE_RANGE -> {
+                    var b = (BlockLoader.DateRangeBuilder) builder;
+                    b.from().appendLong(randomInstant().toEpochMilli());
+                    b.to().appendLong(randomInstant().toEpochMilli());
                 }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -1249,6 +1255,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             }
                         }
                         floatBuilder.endPositionEntry();
+                    }
+                    case DATE_RANGE -> {
+                        BlockLoader.DateRangeBuilder b = (BlockLoader.DateRangeBuilder) builder;
+                        var ll = dateRangeToLongs(value.toString());
+                        b.from().appendLong(ll.from());
+                        b.to().appendLong(ll.to());
                     }
                 }
             }

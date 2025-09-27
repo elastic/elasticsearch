@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -24,9 +25,12 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 /**
  * A block of random values.
@@ -155,6 +159,14 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             b.count().appendInt(count);
                             valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
                         }
+                        case DATE_RANGE -> {
+                            var b = (DateRangeBlockBuilder) builder;
+                            var from = randomDateTime();
+                            var to = randomDateTime();
+                            b.from().appendLong(from);
+                            b.to().appendLong(to);
+                            valuesAtPosition.add(new DateRangeBlockBuilder.DateRangeLiteral(from, to));
+                        }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }
                 }
@@ -218,5 +230,9 @@ public record RandomBlock(List<List<Object>> values, Block block) {
             }
             return new RandomBlock(mergedValues, mergedBlock.build());
         }
+    }
+
+    static long randomDateTime() {
+        return Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999)).toEpochMilli();
     }
 }

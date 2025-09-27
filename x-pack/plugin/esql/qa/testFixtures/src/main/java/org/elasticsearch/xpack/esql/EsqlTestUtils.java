@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -891,6 +892,7 @@ public final class EsqlTestUtils {
                 randomDouble(),
                 randomInt()
             );
+            case DATE_RANGE -> new DateRangeBlockBuilder.DateRangeLiteral(randomLong(), randomLong());
             case NULL -> null;
             case SOURCE -> {
                 try {

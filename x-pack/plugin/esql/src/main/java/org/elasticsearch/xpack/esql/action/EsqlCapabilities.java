@@ -21,6 +21,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG;
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DATE_RANGE_FEATURE_FLAG;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -594,6 +595,10 @@ public class EsqlCapabilities {
          * Support implicit casting of strings to date nanos
          */
         DATE_NANOS_IMPLICIT_CASTING(),
+        /**
+         * Support for the DATE_RANGE data type
+         */
+        DATE_RANGE_FIELD_TYPE(DATE_RANGE_FEATURE_FLAG),
         /**
          * Support Least and Greatest functions on Date Nanos type
          */

@@ -329,7 +329,13 @@ public enum DataType implements Writeable {
                 // Version created just *after* we committed support for dense_vector
                 ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION
             )
-    );
+    ),
+
+    /**
+     * Fields with this type are used to represent a range of dates.
+     * This is an under-construction type, and is not yet fully supported.
+     */
+    DATE_RANGE(builder().esType("date_range").typeName("DATE_RANGE").estimatedSize(2 * Long.BYTES));
 
     /**
      * Types that are actively being built. These types are

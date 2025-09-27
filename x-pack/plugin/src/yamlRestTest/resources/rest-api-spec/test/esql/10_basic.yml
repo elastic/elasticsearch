@@ -134,6 +134,26 @@ setup:
           - { "index": { } }
           - { "date_1": "31-12-1999-12-31 23:59 -0300" }
 
+  - do:
+      indices.create:
+        index:  test_date_range_type
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              date_range:
+                type: date_range
+                format: "dd-MM-yyyy-MM-dd HH:mm Z"
+  - do:
+      bulk:
+        index: "test_date_range_type"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date_range": { "gte": "12-01-1981-01-12 15:00 +0000", lt: "31-12-1999-12-31 23:59 +0300" } }
+          - { "index": { } }
+          - { "date_range": { "gte": "23-08-1989-01-12 15:00 +0000", lt: "21-10-2025-10-21 23:59 +0300" } }
 ---
 "Test From":
   - do:
@@ -661,3 +681,19 @@ version is not allowed:
   - length: {values: 2}
   - match: {values.0: ["1981-01-12T15:00:00.000Z","2000-01-01T00:00:00.000Z"]}
   - match: {values.1: ["1999-12-31T20:59:00.000Z", null]}
+
+---
+"Test date range type":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test_date_range_type | sort date_range'
+
+  - length: {columns: 1}
+  - match: {columns.0.name: "date_range"}
+  - match: {columns.0.type: "date_range"}
+  - length: {values: 2}
+  - match: {values.0: [ { "gte": "12-01-1981-01-12 15:00 +0000", lt: "31-12-1999-12-31 23:59 +0300" } ] }
+  - match: {values.1: [ { "gte": "23-08-1989-01-12 15:00 +0000", lt: "21-10-2025-10-21 23:59 +0300" } ] }

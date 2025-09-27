@@ -414,8 +414,14 @@ public class TestBlock implements BlockLoader.Block {
                 return new SortedSetOrdinalBuilder();
             }
 
+            @Override
             public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int expectedSize) {
                 return new AggregateMetricDoubleBlockBuilder(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.DateRangeBuilder dateRangeBuilder(int expectedSize) {
+                return new DateRangeBuilder(expectedSize);
             }
         };
     }
@@ -624,4 +630,68 @@ public class TestBlock implements BlockLoader.Block {
 
         }
     }
+
+    public static class DateRangeBuilder implements BlockLoader.DateRangeBuilder {
+        private final LongBuilder from;
+        private final LongBuilder to;
+
+        DateRangeBuilder(int expectedSize) {
+            from = new LongBuilder(expectedSize);
+            to = new LongBuilder(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder from() {
+            return from;
+        }
+
+        @Override
+        public BlockLoader.LongBuilder to() {
+            return to;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            var fromBlock = from.build();
+            var toBlock = to.build();
+            assert fromBlock.size() == toBlock.size();
+            var values = new ArrayList<>(fromBlock.size());
+            for (int i = 0; i < fromBlock.size(); i++) {
+                values.add(List.of(fromBlock.values.get(i), toBlock.values.get(i)));
+            }
+            return new TestBlock(values);
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        private static class LongBuilder extends TestBlock.Builder implements BlockLoader.LongBuilder {
+            private LongBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.LongBuilder appendLong(long value) {
+                add(value);
+                return this;
+            }
+        }
+    };
 }

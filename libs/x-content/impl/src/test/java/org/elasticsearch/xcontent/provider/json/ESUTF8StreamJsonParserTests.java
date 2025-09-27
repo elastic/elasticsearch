@@ -15,12 +15,17 @@ import com.fasterxml.jackson.core.JsonToken;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
@@ -272,12 +277,17 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
                     var text = parser.getValueAsText();
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
-
-                    // Retrieve it twice to ensure it works as expected
+                    // Retrieve it a second time
                     text = parser.getValueAsText();
+                    assertThat(text, Matchers.notNullValue());
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
+                    // Use getText()
+                    assertThat(parser.getText(), Matchers.equalTo(text.string()));
+                    // After retrieving it with getText() we do not use the optimised value anymore.
+                    assertThat(parser.getValueAsText(), Matchers.nullValue());
                 } else {
+                    assertThat(parser.getText(), Matchers.notNullValue());
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
                     assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
                     // Retrieve it twice to ensure it works as expected
@@ -288,4 +298,116 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         });
     }
 
+    /**
+     * This test compares the retrieval of an optimised text against the baseline.
+     */
+    public void testOptimisedParser() throws Exception {
+        for (int i = 0; i < 200; i++) {
+            String json = randomJsonInput(randomIntBetween(1, 6));
+            try (
+                XContentParser optimisedParser = TestXContentParser.create(json);
+                XContentParser baselineParser = TestXContentParser.create(json)
+            ) {
+                assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
+                parseObjectAndAssert(optimisedParser, baselineParser);
+            }
+        }
+    }
+
+    private void parseObjectAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
+        while (optimisedParser.currentToken() != XContentParser.Token.END_OBJECT) {
+            assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(optimisedParser.currentName(), Matchers.equalTo(baselineParser.currentName()));
+            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
+            if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                assertThat(optimisedParser.optimizedText().string(), Matchers.equalTo(baselineParser.text()));
+            } else if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
+                parseObjectAndAssert(optimisedParser, baselineParser);
+            } else if (optimisedParser.currentToken() == XContentParser.Token.START_ARRAY) {
+                parseArrayAndAssert(optimisedParser, baselineParser);
+            }
+            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
+        }
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.END_OBJECT));
+    }
+
+    private void parseArrayAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.START_ARRAY));
+        assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
+        while (optimisedParser.currentToken() != XContentParser.Token.END_ARRAY) {
+            if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
+                parseObjectAndAssert(optimisedParser, baselineParser);
+            } else if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                assertThat(optimisedParser.optimizedText().string(), Matchers.equalTo(baselineParser.text()));
+            }
+            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
+        }
+        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.END_ARRAY));
+    }
+
+    private String randomJsonInput(int depth) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        int numberOfFields = randomIntBetween(1, 10);
+        for (int i = 0; i < numberOfFields; i++) {
+            sb.append("\"k-").append(randomAlphanumericOfLength(10)).append("\":");
+            if (depth == 0 || randomBoolean()) {
+                if (randomIntBetween(0, 9) == 0) {
+                    sb.append(
+                        IntStream.range(0, randomIntBetween(1, 10))
+                            .mapToObj(ignored -> randomUTF8Value())
+                            .collect(Collectors.joining(",", "[", "]"))
+                    );
+                } else {
+                    sb.append(randomUTF8Value());
+                }
+            } else {
+                sb.append(randomJsonInput(depth - 1));
+            }
+            if (i < numberOfFields - 1) {
+                sb.append(',');
+            }
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String randomUTF8Value() {
+        return "\"" + buildRandomInput(randomIntBetween(10, 50)).input + "\"";
+    }
+
+    /**
+     * This XContentParser introduces a random mix of getText() and getOptimisedText()
+     * to simulate different access patterns for optimised fields.
+     */
+    private static class TestXContentParser extends FilterXContentParserWrapper {
+
+        TestXContentParser(XContentParser delegate) {
+            super(delegate);
+        }
+
+        static TestXContentParser create(String input) throws IOException {
+            JsonFactory factory = new ESJsonFactoryBuilder().build();
+            assertThat(factory, Matchers.instanceOf(ESJsonFactory.class));
+
+            JsonParser parser = factory.createParser(StandardCharsets.UTF_8.encode(input).array());
+            assertThat(parser, Matchers.instanceOf(ESUTF8StreamJsonParser.class));
+            return new TestXContentParser(new JsonXContentParser(XContentParserConfigurationImpl.EMPTY, parser));
+        }
+
+        @Override
+        public XContentString optimizedText() throws IOException {
+            int extraCalls = randomIntBetween(0, 5);
+            for (int i = 0; i < extraCalls; i++) {
+                if (randomBoolean()) {
+                    super.optimizedText();
+                } else {
+                    super.text();
+                }
+            }
+            return super.optimizedText();
+        }
+    }
 }

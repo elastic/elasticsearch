@@ -14,9 +14,27 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopDoubleDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopDoubleFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopDoubleIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopDoubleLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopFloatDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopFloatFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopFloatIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopFloatLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopIntDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopIntFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopIntIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopIntLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopLongDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopLongFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopLongIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopLongLongAggregatorFunctionSupplier;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -31,12 +49,14 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -50,7 +70,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 
-public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression, PostOptimizationVerificationAware {
+public class Top extends AggregateFunction
+    implements
+        ToAggregator,
+        SurrogateExpression,
+        PostOptimizationVerificationAware,
+        OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
 
     private static final String ORDER_ASC = "ASC";
@@ -74,27 +99,28 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
             name = "order",
             type = { "keyword" },
             description = "The order to calculate the top values. Either `asc` or `desc`."
-        ) Expression order
+        ) Expression order,
+        @Param(
+            name = "extraField",
+            type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text" },
+            description = "The extra field.",
+            optional = true
+        ) Expression extraField
     ) {
-        this(source, field, Literal.TRUE, limit, order);
+        this(source, field, Literal.TRUE, limit, order, extraField);
     }
 
-    public Top(Source source, Expression field, Expression filter, Expression limit, Expression order) {
-        super(source, field, filter, asList(limit, order));
+    public Top(Source source, Expression field, Expression filter, Expression limit, Expression order, @Nullable Expression extraField) {
+        super(source, field, filter, extraField != null ? asList(limit, order, extraField) : asList(limit, order));
     }
 
     private Top(StreamInput in) throws IOException {
-        super(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
-        );
+        super(in);
     }
 
     @Override
     public Top withFilter(Expression filter) {
-        return new Top(source(), field(), filter, limitField(), orderField());
+        return new Top(source(), field(), filter, limitField(), orderField(), extraField());
     }
 
     @Override
@@ -108,6 +134,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     Expression orderField() {
         return parameters().get(1);
+    }
+
+    @Nullable
+    Expression extraField() {
+        return parameters().size() > 2 ? parameters().get(2) : null;
     }
 
     private Integer limitValue() {
@@ -131,7 +162,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         }
 
         var typeResolution = isType(
-            field(),
+            extraField() == null ? field() : extraField(),
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
                 || dt == DataType.IP
@@ -235,7 +266,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        return field().dataType().noText();
+        return extraField() == null ? field().dataType().noText() : extraField().dataType().noText();
     }
 
     @Override
@@ -245,29 +276,71 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public Top replaceChildren(List<Expression> newChildren) {
-        return new Top(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Top(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            newChildren.size() > 4 ? newChildren.get(4) : null
+        );
     }
+
+    private static final Map<DataType, BiFunction<Integer, Boolean, AggregatorFunctionSupplier>> SUPPLIERS = Map.of(
+        DataType.LONG,
+        TopLongAggregatorFunctionSupplier::new,
+        DataType.DATETIME,
+        TopLongAggregatorFunctionSupplier::new,
+        DataType.INTEGER,
+        TopIntAggregatorFunctionSupplier::new,
+        DataType.DOUBLE,
+        TopDoubleAggregatorFunctionSupplier::new,
+        DataType.BOOLEAN,
+        TopBooleanAggregatorFunctionSupplier::new,
+        DataType.IP,
+        TopIpAggregatorFunctionSupplier::new,
+        DataType.KEYWORD,
+        TopBytesRefAggregatorFunctionSupplier::new,
+        DataType.TEXT,
+        TopBytesRefAggregatorFunctionSupplier::new
+    );
+
+    private static final Map<Tuple<DataType, DataType>, BiFunction<Integer, Boolean, AggregatorFunctionSupplier>> SUPPLIERS_WITH_EXTRA = Map
+        .ofEntries(
+            Map.entry(Tuple.tuple(DataType.LONG, DataType.INTEGER), TopLongIntAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.LONG, DataType.LONG), TopLongLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.LONG, DataType.FLOAT), TopLongFloatAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.LONG, DataType.DOUBLE), TopLongDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DATETIME, DataType.INTEGER), TopLongIntAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DATETIME, DataType.LONG), TopLongLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DATETIME, DataType.FLOAT), TopLongFloatAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DATETIME, DataType.DOUBLE), TopLongDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.INTEGER, DataType.INTEGER), TopIntIntAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.INTEGER, DataType.LONG), TopIntLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.INTEGER, DataType.FLOAT), TopIntFloatAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.INTEGER, DataType.DOUBLE), TopIntDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.FLOAT, DataType.INTEGER), TopFloatIntAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.FLOAT, DataType.LONG), TopFloatLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.FLOAT, DataType.FLOAT), TopFloatFloatAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.FLOAT, DataType.DOUBLE), TopFloatDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.INTEGER), TopDoubleIntAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.LONG), TopDoubleLongAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.FLOAT), TopDoubleFloatAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.DOUBLE), TopDoubleDoubleAggregatorFunctionSupplier::new)
+        );
 
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        if (type == DataType.LONG || type == DataType.DATETIME) {
-            return new TopLongAggregatorFunctionSupplier(limitValue(), orderValue());
+        BiFunction<Integer, Boolean, AggregatorFunctionSupplier> supplierCtor;
+        if (extraField() == null) {
+            supplierCtor = SUPPLIERS.get(type);
+        } else {
+            DataType extraFieldType = extraField().dataType();
+            supplierCtor = SUPPLIERS_WITH_EXTRA.get(Tuple.tuple(type, extraFieldType));
         }
-        if (type == DataType.INTEGER) {
-            return new TopIntAggregatorFunctionSupplier(limitValue(), orderValue());
-        }
-        if (type == DataType.DOUBLE) {
-            return new TopDoubleAggregatorFunctionSupplier(limitValue(), orderValue());
-        }
-        if (type == DataType.BOOLEAN) {
-            return new TopBooleanAggregatorFunctionSupplier(limitValue(), orderValue());
-        }
-        if (type == DataType.IP) {
-            return new TopIpAggregatorFunctionSupplier(limitValue(), orderValue());
-        }
-        if (DataType.isString(type)) {
-            return new TopBytesRefAggregatorFunctionSupplier(limitValue(), orderValue());
+        if (supplierCtor != null) {
+            return supplierCtor.apply(limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

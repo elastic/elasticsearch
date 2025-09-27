@@ -45,6 +45,10 @@ public class IrateDoubleAggregator {
         current.append(groupId, timestamp, value);
     }
 
+    public static String describe() {
+        return "instant change of doubles";
+    }
+
     public static void combineIntermediate(
         DoubleIrateGroupingState current,
         int groupId,

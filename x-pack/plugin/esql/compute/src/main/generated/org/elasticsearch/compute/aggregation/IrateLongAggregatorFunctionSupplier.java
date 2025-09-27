@@ -44,6 +44,6 @@ public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunc
 
   @Override
   public String describe() {
-    return "irate of longs";
+    return IrateLongAggregator.describe();
   }
 }

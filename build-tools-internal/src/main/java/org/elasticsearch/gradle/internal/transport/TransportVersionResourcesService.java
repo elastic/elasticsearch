@@ -265,8 +265,9 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
         String remotesOutput = gitCommand("remote").strip();
         if (remotesOutput.isEmpty()) {
-            throw new RuntimeException("No remotes found. If this is a test set gradle property " +
-                "org.elasticsearch.transport.upstreamRef");
+            throw new RuntimeException(
+                "No remotes found. If this is a test set gradle property " + "org.elasticsearch.transport.upstreamRef"
+            );
         }
         List<String> remoteNames = List.of(remotesOutput.split("\n"));
         String transportVersionRemoteName = "transport-version-resources-upstream";
@@ -275,8 +276,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             String upstreamUrl = null;
             for (String remoteName : remoteNames) {
                 String getUrlOutput = gitCommand("remote", "get-url", remoteName).strip();
-                if (getUrlOutput.startsWith("git@github.com:elastic/")
-                    || getUrlOutput.startsWith("https://github.com/elastic/")) {
+                if (getUrlOutput.startsWith("git@github.com:elastic/") || getUrlOutput.startsWith("https://github.com/elastic/")) {
                     upstreamUrl = getUrlOutput;
                 }
             }

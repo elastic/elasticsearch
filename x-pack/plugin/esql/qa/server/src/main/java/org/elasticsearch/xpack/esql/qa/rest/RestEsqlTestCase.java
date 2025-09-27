@@ -89,15 +89,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
 
+    private static final String MAPPING_FIELD;
     private static final String MAPPING_ALL_TYPES;
-
     private static final String MAPPING_ALL_TYPES_LOOKUP;
 
     static {
         String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
-        MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
-        String settings = "{\"settings\" : {\"mode\" : \"lookup\"}";
-        MAPPING_ALL_TYPES_LOOKUP = settings + ", " + "\"mappings\": " + properties + "}";
+        MAPPING_FIELD = "\"mappings\": " + properties;
+        MAPPING_ALL_TYPES = "{" + MAPPING_FIELD + "}";
+        String settings = "\"settings\" : {\"mode\" : \"lookup\"}";
+        MAPPING_ALL_TYPES_LOOKUP = "{" + settings + ", " + MAPPING_FIELD + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -1152,6 +1153,24 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         for (int i = 1; i <= 20; i++) {
             assertThat(deleteIndex("no_sort_field_idx" + i).isAcknowledged(), is(true));
         }
+    }
+
+    public void testPruneLeftJoinOnNullMatchingFieldAndShadowingAttributes() throws IOException {
+        var standardIndexName = "standard";
+        createIndex(standardIndexName, false, MAPPING_FIELD);
+        createIndex(testIndexName(), true);
+
+        var query = format(
+            null,
+            "FROM {}* | EVAL keyword = null::KEYWORD | LOOKUP JOIN {} ON keyword | KEEP keyword, integer, alias_integer | SORT keyword",
+            standardIndexName,
+            testIndexName()
+        );
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+        var values = as(result.get("values"), List.class);
+        assertThat(values.size(), is(0));
+
+        assertThat(deleteIndex(standardIndexName).isAcknowledged(), is(true));
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

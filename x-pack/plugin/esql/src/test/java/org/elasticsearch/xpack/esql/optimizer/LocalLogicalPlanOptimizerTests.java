@@ -61,6 +61,9 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -96,6 +99,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.hamcrest.Matchers.contains;
@@ -1019,6 +1023,58 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
+    /**
+     * Input:
+     * Project[[key{f}#2, int{f}#3, field1{f}#7, field2{f}#8]]
+     * \_Join[LEFT,[key{f}#2],[key{f}#6],null]
+     *   |_EsRelation[JLfQlKmn][key{f}#2, int{f}#3, field1{f}#4, field2{f}#5]
+     *   \_EsRelation[HQtEBOWq][LOOKUP][key{f}#6, field1{f}#7, field2{f}#8]
+     *
+     * Output:
+     * Project[[key{r}#2, int{f}#3, field1{r}#7, field1{r}#7 AS field2#8]]
+     * \_Eval[[null[KEYWORD] AS key#2, null[INTEGER] AS field1#7]]
+     *   \_EsRelation[JLfQlKmn][key{f}#2, int{f}#3, field1{f}#4, field2{f}#5]
+     */
+    public void testPruneLeftJoinOnNullMatchingFieldAndShadowingAttributes() {
+        var keyLeft = getFieldAttribute("key", KEYWORD);
+        var intFieldLeft = getFieldAttribute("int");
+        var fieldLeft1 = getFieldAttribute("field1");
+        var fieldLeft2 = getFieldAttribute("field2");
+        var leftRelation = EsqlTestUtils.relation(IndexMode.STANDARD)
+            .withAttributes(List.of(keyLeft, intFieldLeft, fieldLeft1, fieldLeft2));
+
+        var keyRight = getFieldAttribute("key", KEYWORD);
+        var fieldRight1 = getFieldAttribute("field1");
+        var fieldRight2 = getFieldAttribute("field2");
+        var rightRelation = EsqlTestUtils.relation(IndexMode.LOOKUP).withAttributes(List.of(keyRight, fieldRight1, fieldRight2));
+
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(keyLeft), List.of(keyRight), null);
+        var join = new Join(EMPTY, leftRelation, rightRelation, joinConfig);
+        var project = new Project(EMPTY, join, List.of(keyLeft, intFieldLeft, fieldRight1, fieldRight2));
+
+        var testStats = statsForMissingField("key");
+        var localPlan = localPlan(project, testStats);
+
+        var projectOut = as(localPlan, Project.class);
+        var projectionsOut = projectOut.projections();
+        assertThat(Expressions.names(projectionsOut), contains("key", "int", "field1", "field2"));
+        assertThat(projectionsOut.get(0).id(), is(keyLeft.id()));
+        assertThat(projectionsOut.get(1).id(), is(intFieldLeft.id()));
+        assertThat(projectionsOut.get(2).id(), is(fieldRight1.id())); // id must remain from the RHS.
+        var aliasField2 = as(projectionsOut.get(3), Alias.class); // the projection must contain an alias ...
+        assertThat(aliasField2.id(), is(fieldRight2.id())); // ... with the same id as the original field.
+
+        var eval = as(projectOut.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("key", "field1"));
+        var keyEval = as(Alias.unwrap(eval.fields().get(0)), Literal.class);
+        assertThat(keyEval.value(), is(nullValue()));
+        assertThat(keyEval.dataType(), is(KEYWORD));
+        var field1Eval = as(Alias.unwrap(eval.fields().get(1)), Literal.class);
+        assertThat(field1Eval.value(), is(nullValue()));
+        assertThat(field1Eval.dataType(), is(INTEGER));
+        var source = as(eval.child(), EsRelation.class);
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }
@@ -1078,6 +1134,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), randomFrom(IndexMode.values()));
+        return EsqlTestUtils.relation(randomFrom(IndexMode.values()));
     }
 }

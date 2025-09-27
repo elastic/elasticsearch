@@ -64,7 +64,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -200,19 +199,11 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
                     assertThat(setting.hasValue(IndexMetadata.INDEX_DIMENSIONS.getKey()), equalTo(false));
                     assertThat(setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()), containsInAnyOrder("routing_field"));
                 } else {
-                    if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
-                        assertThat(
-                            setting.getAsList(IndexMetadata.INDEX_DIMENSIONS.getKey()),
-                            containsInAnyOrder("routing_field", "dimension")
-                        );
-                        assertThat(setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()), empty());
-                    } else {
-                        assertThat(setting.getAsList(IndexMetadata.INDEX_DIMENSIONS.getKey()), empty());
-                        assertThat(
-                            setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
-                            containsInAnyOrder("routing_field", "dimension")
-                        );
-                    }
+                    assertThat(
+                        setting.getAsList(IndexMetadata.INDEX_DIMENSIONS.getKey()),
+                        containsInAnyOrder("routing_field", "dimension")
+                    );
+                    assertThat(setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()), empty());
                 }
             });
         });

@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -331,10 +330,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     new Template(
                         Settings.builder()
                             .put("index.mode", "time_series")
-                            .put(
-                                "index.routing_path",
-                                randomBoolean() && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? null : "metricset"
-                            )
+                            .put("index.routing_path", randomBoolean() ? null : "metricset")
                             .build(),
                         new CompressedXContent(mappingTemplate),
                         null
@@ -664,13 +660,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             "my-ds"
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
-        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
-        } else {
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
-        }
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
 
         // put mapping with k8s.pod.uid as another time series dimension
         var putMappingRequest = new PutMappingRequest(dataStreamName).source("""
@@ -684,13 +675,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }
             """, XContentType.JSON);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
-        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
-        } else {
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
-        }
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
 
         // put dynamic template defining time series dimensions
         // we don't support index.dimensions in that case

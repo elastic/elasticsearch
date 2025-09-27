@@ -54,7 +54,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         "_doc._source.*",
         "_doc.properties.host**",
         "_doc.properties.resource**",
-        "_doc.subobjects"
+        "_doc.subobjects",
+        "_doc.properties.message",
+        "_doc.properties.error.properties.message"
     );
 
     private final LogsdbLicenseService licenseService;
@@ -192,13 +194,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             }
         }
 
-        if (licenseService.allowPatternTextTemplating(isTemplateValidation) == false) {
+        if (licenseService.allowPatternTextTemplating(isTemplateValidation) == false && mappingHints.maybeUsesPatternText) {
             additionalSettings.put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
         }
     }
 
-    record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName, boolean addHostNameField) {
-        static MappingHints EMPTY = new MappingHints(false, false, false);
+    record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName, boolean addHostNameField, boolean maybeUsesPatternText) {
+        static MappingHints EMPTY = new MappingHints(false, false, false, false);
     }
 
     private static boolean matchesLogsPattern(final String name) {
@@ -237,12 +239,12 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 hasSyntheticSourceUsage = sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
                 if (IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexTemplateAndCreateRequestSettings).isEmpty() == false) {
                     // Custom sort config, no point for further checks on [host.name] field.
-                    return new MappingHints(hasSyntheticSourceUsage, false, false);
+                    return new MappingHints(hasSyntheticSourceUsage, false, false, true);
                 }
                 if (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
                     && IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(indexTemplateAndCreateRequestSettings)) {
                     // Settings for adding and sorting on [host.name] are already set, propagate them.
-                    return new MappingHints(hasSyntheticSourceUsage, true, true);
+                    return new MappingHints(hasSyntheticSourceUsage, true, true, true);
                 }
             }
 
@@ -277,7 +279,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     || addHostNameField
                     || (hostName instanceof NumberFieldMapper nfm && nfm.fieldType().hasDocValues())
                     || (hostName instanceof KeywordFieldMapper kfm && kfm.fieldType().hasDocValues());
-                return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField);
+                boolean usesPatternText = PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(indexTemplateAndCreateRequestSettings)
+                    || mapperService.mappingLookup().getMapper("message") instanceof PatternTextFieldMapper
+                    || mapperService.mappingLookup().getMapper("error.message") instanceof PatternTextFieldMapper;
+                return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField, usesPatternText);
             }
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.

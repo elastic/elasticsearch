@@ -28,8 +28,12 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
           "template": {
             "mappings": {
               "properties": {
-                "pattern_field": {
-                  "type": "pattern_text"
+                "error": {
+                  "properties": {
+                    "message": {
+                      "type": "pattern_text"
+                    }
+                  }
                 }
               }
             }
@@ -37,6 +41,14 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         }""";
 
     @SuppressWarnings("unchecked")
+    private Map<String, Object> resolveSubmap(Map<String, Object> map, String... keys) {
+        Map<String, Object> curr = map;
+        for (String key : keys) {
+            curr = (Map<String, Object>) curr.get(key);
+        }
+        return curr;
+    }
+
     public void testLicenseDowngrade() throws IOException {
         final String dataStreamName = "logs-test-pattern-text";
 
@@ -48,9 +60,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         {
             assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
-            Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "pattern_field"
-            );
+            Map<String, Object> patternFieldMapping = resolveSubmap(mapping, "properties", "error", "properties", "message");
             assertThat(patternFieldMapping, not(hasKey("disable_templating")));
         }
 
@@ -60,9 +70,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         {
             assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
-            Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "pattern_field"
-            );
+            Map<String, Object> patternFieldMapping = resolveSubmap(mapping, "properties", "error", "properties", "message");
             assertThat(patternFieldMapping, not(hasKey("disable_templating")));
         }
 
@@ -70,9 +78,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         {
             assertEquals("true", getSetting(client(), backingIndex1, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
-            Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "pattern_field"
-            );
+            Map<String, Object> patternFieldMapping = resolveSubmap(mapping, "properties", "error", "properties", "message");
             assertThat(patternFieldMapping, hasEntry("disable_templating", true));
         }
 

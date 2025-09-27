@@ -19,7 +19,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -77,10 +76,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             builder
         );
         var result = builder.build();
-        var expected = Settings.builder()
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED")
-            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
-            .build();
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").build();
         assertEquals(expected, result);
     }
 
@@ -101,17 +97,11 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             builder
         );
         var result = builder.build();
-        Settings expectedAdditionalSettings = Settings.builder()
-            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
-            .build();
-        assertEquals(expectedAdditionalSettings, result);
+        assertEquals(Settings.EMPTY, result);
     }
 
     public void testGetAdditionalIndexSettingsProfiling() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
-        Settings expectedAdditionalSettings = Settings.builder()
-            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
-            .build();
         for (String dataStreamName : new String[] { "profiling-metrics", "profiling-events" }) {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
             Settings.Builder builder = Settings.builder();
@@ -127,14 +117,14 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
                 builder
             );
             var result = builder.build();
-            assertEquals(expectedAdditionalSettings, result);
+            assertEquals(Settings.EMPTY, result);
         }
 
         for (String indexName : new String[] { ".profiling-sq-executables", ".profiling-sq-leafframes", ".profiling-stacktraces" }) {
             Settings.Builder builder = Settings.builder();
             provider.provideAdditionalSettings(indexName, null, null, null, null, settings, List.of(), IndexVersion.current(), builder);
             var result = builder.build();
-            assertEquals(expectedAdditionalSettings, result);
+            assertEquals(Settings.EMPTY, result);
         }
     }
 
@@ -155,10 +145,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             builder
         );
         var result = builder.build();
-        Settings expectedAdditionalSettings = Settings.builder()
-            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
-            .build();
-        assertEquals(expectedAdditionalSettings, result);
+        assertEquals(Settings.EMPTY, result);
     }
 
     public void testGetAdditionalIndexSettingsTsdbAfterCutoffDate() throws Exception {
@@ -202,10 +189,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         );
 
         var result = builder.build();
-        var expected = Settings.builder()
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED")
-            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
-            .build();
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").build();
         assertEquals(expected, result);
     }
 }

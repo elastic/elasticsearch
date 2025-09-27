@@ -173,10 +173,6 @@ public class BulkRequest extends LegacyActionRequest
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkRequest add(IndexRequest request) {
-        return internalAdd(request);
-    }
-
-    BulkRequest internalAdd(IndexRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
@@ -191,10 +187,6 @@ public class BulkRequest extends LegacyActionRequest
      * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequest add(UpdateRequest request) {
-        return internalAdd(request);
-    }
-
-    BulkRequest internalAdd(UpdateRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
 
@@ -304,8 +296,8 @@ public class BulkRequest extends LegacyActionRequest
             defaultListExecutedPipelines,
             allowExplicitIndex,
             xContentType,
-            (indexRequest, type) -> internalAdd(indexRequest),
-            this::internalAdd,
+            (indexRequest, type) -> add(indexRequest),
+            this::add,
             this::add
         );
         return this;

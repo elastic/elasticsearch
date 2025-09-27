@@ -102,7 +102,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
         // First check for any unused definitions. This later generation to not get confused by a definition that can't be used.
         removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
-        
+
         Map<Integer, List<IdAndDefinition>> idsByBase = resources.getIdsByBase();
         if (targetDefinitionName.isEmpty()) {
             getLogger().lifecycle("No transport version name detected, resetting upper bounds");

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.StandardIOBehaviorHint;
@@ -159,11 +160,16 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory {
+    @SuppressForbidden(reason = "requires Files.getFileStore for blockSize")
+    private static int getBlockSize(Path path) throws IOException {
+        return Math.toIntExact(Files.getFileStore(path).getBlockSize());
+    }
+
+    public static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
 
-        HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
+        public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
 
@@ -171,9 +177,21 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             try {
                 // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
                 directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
+                    final int blockSize = getBlockSize(delegate.getDirectory());
+
                     @Override
                     protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
                         return true;
+                    }
+
+                    @Override
+                    public IndexInput openInput(String name, IOContext context) throws IOException {
+                        ensureOpen();
+                        if (useDirectIO(name, context, OptionalLong.of(fileLength(name)))) {
+                            return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, 64);
+                        } else {
+                            return in.openInput(name, context);
+                        }
                     }
                 };
             } catch (Exception e) {

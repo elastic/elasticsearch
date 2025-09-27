@@ -102,15 +102,16 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
         // First check for any unused definitions. This later generation to not get confused by a definition that can't be used.
         removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
-
-        List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
-        Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
+        
         Map<Integer, List<IdAndDefinition>> idsByBase = resources.getIdsByBase();
-
-        getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
         if (targetDefinitionName.isEmpty()) {
+            getLogger().lifecycle("No transport version name detected, resetting upper bounds");
             resetAllUpperBounds(resources, idsByBase);
         } else {
+            getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
+            List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
+            Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
+
             List<TransportVersionId> ids = updateUpperBounds(
                 resources,
                 upstreamUpperBounds,

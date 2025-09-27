@@ -15,7 +15,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -80,16 +83,19 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
+import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 public class EsqlSession {
 
@@ -123,6 +129,8 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
+    private final BlockFactory blockFactory;
+    private final ByteSizeValue intermediateLocalRelationMaxSize;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -159,6 +167,8 @@ public class EsqlSession {
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
+        this.blockFactory = services.blockFactoryProvider().blockFactory();
+        this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
     }
 
     public String sessionId() {
@@ -241,7 +251,8 @@ public class EsqlSession {
         EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        var subPlan = firstSubPlan(optimizedPlan);
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlan = firstSubPlan(optimizedPlan, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -253,6 +264,7 @@ public class EsqlSession {
                 executionInfo,
                 runner,
                 request,
+                subPlansResults,
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
@@ -270,6 +282,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
+        Set<LocalRelation> subPlansResults,
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
@@ -279,10 +292,14 @@ public class EsqlSession {
         executionInfo.startSubPlans();
 
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
+            AtomicReference<Block[]> localRelationBlocks = new AtomicReference<>();
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
+                localRelationBlocks.set(resultWrapper.supplier().get());
+                var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationBlocks));
+                subPlansResults.add(resultWrapper);
 
                 // replace the original logical plan with the backing result
                 LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
@@ -293,35 +310,61 @@ public class EsqlSession {
                 );
                 // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
                 newLogicalPlan.setOptimized();
-                LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
+                LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
+
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newLogicalPlan);
+                var newSubPlan = firstSubPlan(newLogicalPlan, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
                     LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
-                    runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                    runner.run(newPhysicalPlan, releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                         completionInfoAccumulator.accumulate(finalResult.completionInfo());
                         finalListener.onResponse(
                             new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
                         );
                     }));
                 } else {// continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    executeSubPlan(
+                        completionInfoAccumulator,
+                        newLogicalPlan,
+                        newSubPlan,
+                        executionInfo,
+                        runner,
+                        request,
+                        subPlansResults,
+                        releasingNext
+                    );
                 }
+            } catch (Exception e) {
+                // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks off
+                // the current thread, but with the blocks still referenced
+                releaseLocalRelationBlocks(localRelationBlocks);
+                throw e;
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
     }
 
-    private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+    private LocalRelation resultToPlan(Source planSource, Result result) {
         List<Page> pages = result.pages();
+        checkPagesBelowSize(
+            pages,
+            intermediateLocalRelationMaxSize,
+            actual -> "sub-plan execution results too large [" + ByteSizeValue.ofBytes(actual) + "] > " + intermediateLocalRelationMaxSize
+        );
         List<Attribute> schema = result.schema();
-        // if (pages.size() > 1) {
-        Block[] blocks = SessionUtils.fromPages(schema, pages);
-        return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
+        Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
+        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks));
+    }
+
+    private static void releaseLocalRelationBlocks(AtomicReference<Block[]> localRelationBlocks) {
+        Block[] relationBlocks = localRelationBlocks.getAndSet(null);
+        if (relationBlocks != null) {
+            Releasables.closeExpectNoException(relationBlocks);
+        }
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
@@ -413,7 +456,7 @@ public class EsqlSession {
                 enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
             })
             .<PreAnalysisResult>andThen((l, r) -> {
-                inferenceService.inferenceResolver().resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
+                inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
             .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
             .addListener(logicalPlanListener);
@@ -452,6 +495,9 @@ public class EsqlSession {
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
+            false,
+            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
+            false,
             false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
@@ -668,6 +714,8 @@ public class EsqlSession {
                         default -> requestFilter;
                     },
                     preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    preAnalysis.supportsAggregateMetricDouble(),
+                    preAnalysis.supportsDenseVector(),
                     listener.delegateFailureAndWrap((l, indexResolution) -> {
                         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
                         l.onResponse(result.withIndices(indexResolution));

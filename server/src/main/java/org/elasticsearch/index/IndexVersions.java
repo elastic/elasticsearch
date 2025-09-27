@@ -187,6 +187,10 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_0 = def(9_038_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion IGNORED_SOURCE_COALESCED_ENTRIES = def(9_039_0_00, Version.LUCENE_10_3_0);
 
+    public static final IndexVersion REENABLED_HOSTNAME_DOC_VALUES_SPARSE_INDEX = def(9_039_0_00, Version.LUCENE_10_3_0);
+    public static final IndexVersion REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_040_0_00, Version.LUCENE_10_3_0);
+    public static final IndexVersion REENABLED_TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX = def(9_041_0_00, Version.LUCENE_10_3_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

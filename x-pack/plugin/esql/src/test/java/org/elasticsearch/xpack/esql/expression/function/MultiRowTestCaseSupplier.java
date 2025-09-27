@@ -19,6 +19,7 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -528,6 +529,21 @@ public final class MultiRowTestCaseSupplier {
                 () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(300, 1000))
             );
         }
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> tsidCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "_tsid",
+            DataType.TSID_DATA_TYPE,
+            () -> EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value()
+        );
 
         return cases;
     }

@@ -25,7 +25,8 @@ public class CountDistinctOverTimeTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return CountDistinctTests.parameters();
+        List<TestCaseSupplier> suppliers = CountDistinctTests.suppliers();
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
     @Override

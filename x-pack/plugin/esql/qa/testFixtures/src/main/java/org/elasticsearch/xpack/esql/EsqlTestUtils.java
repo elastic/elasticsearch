@@ -45,6 +45,7 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -901,8 +902,9 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
@@ -916,6 +918,22 @@ public final class EsqlTestUtils {
             case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    static BytesReference randomTsId() {
+        RoutingPathFields routingPathFields = new RoutingPathFields(null);
+
+        int numDimensions = randomIntBetween(1, 4);
+        for (int i = 0; i < numDimensions; i++) {
+            String fieldName = "dim" + i;
+            if (randomBoolean()) {
+                routingPathFields.addString(fieldName, randomAlphaOfLength(randomIntBetween(3, 10)));
+            } else {
+                routingPathFields.addLong(fieldName, randomLongBetween(1, 1000));
+            }
+        }
+
+        return routingPathFields.buildHash();
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {

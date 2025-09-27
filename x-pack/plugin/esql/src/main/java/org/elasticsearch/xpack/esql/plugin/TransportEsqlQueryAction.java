@@ -247,7 +247,20 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             services,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
-                listener.onResponse(toResponse(task, request, configuration, result));
+                var response = toResponse(task, request, configuration, result);
+                assert response.isAsync() == request.async() : "The response must be async if the request was async";
+
+                if (response.isAsync()) {
+                    if (response.asyncExecutionId().isPresent()) {
+                        String asyncExecutionId = response.asyncExecutionId().get();
+                        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                    }
+                    boolean isRunning = response.isRunning();
+                    threadPool.getThreadContext()
+                        .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
+                }
+
+                listener.onResponse(response);
             }, ex -> {
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 listener.onFailure(ex);
@@ -333,10 +346,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlQueryResponse.Profile profile = configuration.profile()
             ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
             : null;
-        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
-            threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
             return new EsqlQueryResponse(
                 columns,
                 result.pages(),

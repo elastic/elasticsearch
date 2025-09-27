@@ -319,7 +319,7 @@ public class LlamaService extends SenderService {
             serviceSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType)
         );
     }
 
@@ -358,7 +358,7 @@ public class LlamaService extends SenderService {
             serviceSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType)
         );
     }
 

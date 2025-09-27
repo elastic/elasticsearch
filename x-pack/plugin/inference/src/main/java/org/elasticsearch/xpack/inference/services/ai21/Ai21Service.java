@@ -213,7 +213,7 @@ public class Ai21Service extends SenderService {
             taskType,
             serviceSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType)
         );
     }
 
@@ -222,7 +222,13 @@ public class Ai21Service extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(modelId, NAME));
+        return createModelFromPersistent(
+            modelId,
+            taskType,
+            serviceSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType)
+        );
     }
 
     @Override

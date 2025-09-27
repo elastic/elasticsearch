@@ -76,7 +76,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     private final Path transportResourcesDir;
     private final Path rootDir;
-    private final AtomicReference<String> upstreamRefName = new AtomicReference<>();
+    private final String upstreamRefOverride;
+    private final AtomicReference<String> baseRefName = new AtomicReference<>();
     private final AtomicReference<Set<String>> upstreamResources = new AtomicReference<>(null);
     private final AtomicReference<Set<String>> changedResources = new AtomicReference<>(null);
 
@@ -84,9 +85,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     public TransportVersionResourcesService(Parameters params) {
         this.transportResourcesDir = params.getTransportResourcesDirectory().get().getAsFile().toPath();
         this.rootDir = params.getRootDirectory().get().getAsFile().toPath();
-        if (params.getUpstreamRefOverride().isPresent()) {
-            upstreamRefName.set(params.getUpstreamRefOverride().get());
-        }
+        upstreamRefOverride = params.getUpstreamRefOverride().getOrNull();
     }
 
     /**
@@ -240,52 +239,66 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return UPPER_BOUNDS_DIR.resolve(name + ".csv");
     }
 
-    private String getUpstreamRefName() {
-        if (upstreamRefName.get() == null) {
-            synchronized (upstreamRefName) {
-                String remotesOutput = gitCommand("remote").strip();
-
+    private String getBaseRefName() {
+        if (baseRefName.get() == null) {
+            synchronized (baseRefName) {
                 String refName;
-                if (remotesOutput.isEmpty()) {
-                    refName = "main"; // fallback to local main if no remotes, this happens in tests
+                // the existence of the MERGE_HEAD ref means we are in the middle of a merge, and should use that as our base
+                String gitDir = gitCommand("rev-parse", "--git-dir").strip();
+                if (Files.exists(Path.of(gitDir).resolve("MERGE_HEAD"))) {
+                    refName = gitCommand("rev-parse", "--verify", "MERGE_HEAD").strip();
                 } else {
-                    List<String> remoteNames = List.of(remotesOutput.split("\n"));
-                    String transportVersionRemoteName = "transport-version-resources-upstream";
-                    if (remoteNames.contains(transportVersionRemoteName) == false) {
-                        // our special remote doesn't exist yet, so create it
-                        String upstreamUrl = null;
-                        for (String remoteName : remoteNames) {
-                            String getUrlOutput = gitCommand("remote", "get-url", remoteName).strip();
-                            if (getUrlOutput.startsWith("git@github.com:elastic/")
-                                || getUrlOutput.startsWith("https://github.com/elastic/")) {
-                                upstreamUrl = getUrlOutput;
-                            }
-                        }
-
-                        if (upstreamUrl != null) {
-                            gitCommand("remote", "add", transportVersionRemoteName, upstreamUrl);
-                        } else {
-                            throw new RuntimeException("No elastic github remotes found to copy");
-                        }
-                    }
-
-                    // make sure the remote main ref is up to date
-                    gitCommand("fetch", transportVersionRemoteName, "main");
-
-                    refName = transportVersionRemoteName + "/main";
+                    String upstreamRef = findUpstreamRef();
+                    refName = gitCommand("merge-base", upstreamRef, "HEAD").strip();
                 }
-                upstreamRefName.set(refName);
 
+                baseRefName.set(refName);
             }
         }
-        return upstreamRefName.get();
+        return baseRefName.get();
+    }
+
+    private String findUpstreamRef() {
+        if (upstreamRefOverride != null) {
+            return upstreamRefOverride;
+        }
+
+        String remotesOutput = gitCommand("remote").strip();
+        if (remotesOutput.isEmpty()) {
+            throw new RuntimeException("No remotes found. If this is a test set gradle property " +
+                "org.elasticsearch.transport.upstreamRef");
+        }
+        List<String> remoteNames = List.of(remotesOutput.split("\n"));
+        String transportVersionRemoteName = "transport-version-resources-upstream";
+        if (remoteNames.contains(transportVersionRemoteName) == false) {
+            // our special remote doesn't exist yet, so create it
+            String upstreamUrl = null;
+            for (String remoteName : remoteNames) {
+                String getUrlOutput = gitCommand("remote", "get-url", remoteName).strip();
+                if (getUrlOutput.startsWith("git@github.com:elastic/")
+                    || getUrlOutput.startsWith("https://github.com/elastic/")) {
+                    upstreamUrl = getUrlOutput;
+                }
+            }
+
+            if (upstreamUrl != null) {
+                gitCommand("remote", "add", transportVersionRemoteName, upstreamUrl);
+            } else {
+                throw new RuntimeException("No elastic github remotes found to copy");
+            }
+        }
+
+        // make sure the remote main ref is up to date
+        gitCommand("fetch", transportVersionRemoteName, "main");
+
+        return transportVersionRemoteName + "/main";
     }
 
     // Return the transport version resources paths that exist in upstream
     private Set<String> getUpstreamResources() {
         if (upstreamResources.get() == null) {
             synchronized (upstreamResources) {
-                String output = gitCommand("ls-tree", "--name-only", "-r", getUpstreamRefName(), ".");
+                String output = gitCommand("ls-tree", "--name-only", "-r", getBaseRefName(), ".");
 
                 HashSet<String> resources = new HashSet<>();
                 Collections.addAll(resources, output.split("\n")); // git always outputs LF
@@ -301,7 +314,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             synchronized (changedResources) {
                 HashSet<String> resources = new HashSet<>();
 
-                String diffOutput = gitCommand("diff", "--name-only", "--relative", getUpstreamRefName(), ".");
+                String diffOutput = gitCommand("diff", "--name-only", "--relative", getBaseRefName(), ".");
                 if (diffOutput.strip().isEmpty() == false) {
                     Collections.addAll(resources, diffOutput.split("\n")); // git always outputs LF
                 }
@@ -324,7 +337,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             return null;
         }
 
-        String content = gitCommand("show", getUpstreamRefName() + ":./" + pathString).strip();
+        String content = gitCommand("show", getBaseRefName() + ":./" + pathString).strip();
         return parser.apply(resourcePath, content);
     }
 

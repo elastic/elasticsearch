@@ -124,11 +124,16 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         return retVal;
     }
 
-    // TODO(b/128622): this algorithm is very efficient if b has roughly as many buckets as a
-    // However, if b is much smaller we still have to iterate over all buckets of a which is very wasteful.
-    // This can be optimized by buffering multiple histograms to accumulate first,
-    // then in O(log(n)) turn them into a single, merged histogram.
-    // (n is the number of buffered buckets)
+    // This algorithm is very efficient if B has roughly as many buckets as A.
+    // However, if B is much smaller we still have to iterate over all buckets of A.
+    // This can be optimized by buffering the buckets of small histograms and only merging them when we have enough buckets.
+    // The buffered histogram buckets would first be merged with each other, and then be merged with accumulator.
+    //
+    // However, benchmarks of a PoC implementation have shown that this only brings significant improvements
+    // if the accumulator size is 500+ and the merged histograms are smaller than 50 buckets
+    // and otherwise slows down the merging.
+    // It would be possible to only enable the buffering for small histograms,
+    // but the optimization seems not worth the added complexity at this point.
 
     /**
      * Merges the given histogram into the current result.

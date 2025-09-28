@@ -302,33 +302,32 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String first = commands[0].trim();
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
-        if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("(?i)metadata");
-            assert parts.length >= 1 : parts;
-            String fromStatement = parts[0];
-            String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
-            if (Arrays.stream(localIndices).anyMatch(i -> LOOKUP_INDICES.contains(i.trim().toLowerCase(Locale.ROOT)))) {
-                // If the query contains lookup indices, use only remotes to avoid duplication
-                onlyRemotes = true;
+        String[] commandParts = first.split("\\s+", 2);
+        String command = commandParts[0].trim();
+        if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
+            String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
+            String indicesString = indexMetadataParts[0];
+            String[] indices = indicesString.split(",");
+            // This method may be called multiple times on the same testcase when using @Repeat
+            boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
+            if (alreadyConverted == false) {
+                if (Arrays.stream(indices).anyMatch(i -> LOOKUP_INDICES.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                    // If the query contains lookup indices, use only remotes to avoid duplication
+                    onlyRemotes = true;
+                }
+                final boolean onlyRemotesFinal = onlyRemotes;
+                final String remoteIndices = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
+                    .collect(Collectors.joining(","));
+                String newFirstCommand = command
+                    + " "
+                    + remoteIndices
+                    + " "
+                    + (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
+                testCase.query = newFirstCommand + query.substring(first.length());
             }
-            final boolean onlyRemotesFinal = onlyRemotes;
-            final String remoteIndices = Arrays.stream(localIndices)
-                .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
-                .collect(Collectors.joining(","));
-            var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
-            testCase.query = newFrom + query.substring(first.length());
         }
-        if (commands[0].toLowerCase(Locale.ROOT).startsWith("ts ")) {
-            String[] parts = commands[0].split("\\s+");
-            assert parts.length >= 2 : commands[0];
-            String[] indices = parts[1].split(",");
-            final boolean onlyRemotesFinal = onlyRemotes;
-            parts[1] = Arrays.stream(indices)
-                .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
-                .collect(Collectors.joining(","));
-            String newNewMetrics = String.join(" ", parts);
-            testCase.query = newNewMetrics + query.substring(first.length());
-        }
+
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
             final String pattern = "\\b1:(\\d+)\\b";

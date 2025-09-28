@@ -143,7 +143,7 @@ public final class CsvTestUtils {
                         return;
                     }
                     stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                } else if (stringValue.contains(",")) {// multi-value field
+                } else if (stringValue.contains(",") && type != Type.AGGREGATE_METRIC_DOUBLE) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
                     String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");

@@ -17,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiConsumer;
@@ -67,6 +69,7 @@ public class Cache<Key, Value> {
     private final ToLongBiFunction<Key, Value> weigher;
     private final RemovalListener<Key, Value> removalListener;
 
+    private final ExecutorService siever = Executors.newSingleThreadExecutor();
     private volatile Iterator<EntryHolder<Key, Value>> sieve;
     // positive if entries have an expiration
     private final long expireAfterAccessNanos;
@@ -124,7 +127,7 @@ public class Cache<Key, Value> {
             weight.add(-weigher.applyAsLong(oldValue.key, oldValue.value));
             removeFromQueue(oldValue, REPLACED);
         }
-        sieveUntilSpace();
+        siever.submit(this::sieveUntilSpace);
     }
 
     public Value computeIfAbsent(Key key, CacheLoader<Key, Value> loader) throws ExecutionException {
@@ -148,7 +151,7 @@ public class Cache<Key, Value> {
             });
             if(created.get()) {
                 appendToHead(result);
-                sieveUntilSpace();
+                siever.submit(this::sieveUntilSpace);
                 assert result != null;
                 return result.value;
             } else {
@@ -200,7 +203,19 @@ public class Cache<Key, Value> {
     }
 
     public void refresh() {
-        sieveUntilSpace();
+        var iterator = queue.descendingIterator();
+        while(iterator.hasNext()) {
+            var entry = iterator.next();
+            if(isExpired(entry, now())) {
+                if(cache.remove(entry.key, entry)) {
+                    size.decrement();
+                    weight.add(-weigher.applyAsLong(entry.key, entry.value));
+                    removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, EVICTED));
+                    evictions.increment();
+                }
+                iterator.remove();
+            }
+        }
     }
 
     public int count() {

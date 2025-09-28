@@ -343,7 +343,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             long offsetStart = vectorIndex.getFilePointer();
             Arrays.sort(neighbors);
             int actualSize = 0;
-            scratch[actualSize++] = neighbors[0];
+            if (maxGraphDegree > 0) {
+                scratch[0] = neighbors[0];
+                actualSize = 1;
+            }
             for (int i = 1; i < maxGraphDegree; i++) {
                 assert neighbors[i] < maxElementCount : "node too large: " + neighbors[i] + ">=" + maxElementCount;
                 if (neighbors[i - 1] == neighbors[i]) {
@@ -353,9 +356,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             }
             // Write the size after duplicates are removed
             vectorIndex.writeVInt(actualSize);
-            for (int i = 0; i < actualSize; i++) {
-                vectorIndex.writeVInt(scratch[i]);
-            }
+            vectorIndex.writeGroupVInts(scratch, actualSize);
             levelNodeOffsets[0][node] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
         }
         if (logger.isDebugEnabled()) {
@@ -387,9 +388,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
             long offsetStart = vectorIndex.getFilePointer();
             vectorIndex.writeVInt(nodeDegree);
-            for (int i = 0; i < nodeDegree; i++) {
-                vectorIndex.writeVInt(scratch[i]);
-            }
+            vectorIndex.writeGroupVInts(scratch, nodeDegree);
             levelNodeOffsets[0][node] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
         }
         return createMockGraph(elementCount, nodeDegree);

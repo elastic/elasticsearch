@@ -28,13 +28,13 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  */
 public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     public static final String NAME = "ES92GpuHnswVectorsFormat";
-    public static final int VERSION_START = 0;
+    public static final int VERSION_GROUPVARINT = 1;
 
     static final String LUCENE99_HNSW_META_CODEC_NAME = "Lucene99HnswVectorsFormatMeta";
     static final String LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME = "Lucene99HnswVectorsFormatIndex";
     static final String LUCENE99_HNSW_META_EXTENSION = "vem";
     static final String LUCENE99_HNSW_VECTOR_INDEX_EXTENSION = "vex";
-    static final int LUCENE99_VERSION_CURRENT = VERSION_START;
+    static final int LUCENE99_VERSION_CURRENT = VERSION_GROUPVARINT;
 
     static final int DEFAULT_MAX_CONN = 16; // graph degree
     public static final int DEFAULT_BEAM_WIDTH = 128; // intermediate graph degree

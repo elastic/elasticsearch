@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.crossproject;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
@@ -29,6 +30,8 @@ import java.util.stream.Collectors;
  * Provides methods that can rewrite qualified and unqualified index expressions to canonical CCS.
  */
 public class CrossProjectIndexExpressionsRewriter {
+    public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
+
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String WILDCARD = "*";

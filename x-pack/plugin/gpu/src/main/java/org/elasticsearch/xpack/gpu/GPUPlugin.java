@@ -11,12 +11,12 @@ import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
-public class GPUPlugin extends Plugin implements MapperPlugin {
+public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {

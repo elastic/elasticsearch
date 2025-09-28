@@ -79,6 +79,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -97,19 +98,23 @@ import java.util.function.Function;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    public IndicesModule(List<MapperPlugin> mapperPlugins, RootObjectMapperNamespaceValidator namespaceValidator) {
+    public IndicesModule(
+        List<MapperPlugin> mapperPlugins,
+        List<InternalVectorFormatProviderPlugin> vectorFormatProviderPlugins,
+        RootObjectMapperNamespaceValidator namespaceValidator
+    ) {
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
             getFieldFilter(mapperPlugins),
-            getVectorFormatProviders(mapperPlugins),
+            getVectorFormatProviders(vectorFormatProviderPlugins),
             namespaceValidator
         );
     }
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this(mapperPlugins, null);
+        this(mapperPlugins, Collections.emptyList(), null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -230,10 +235,12 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
-    private static List<VectorsFormatProvider> getVectorFormatProviders(List<MapperPlugin> mapperPlugins) {
+    private static List<VectorsFormatProvider> getVectorFormatProviders(
+        List<InternalVectorFormatProviderPlugin> vectorFormatProviderPlugins
+    ) {
         List<VectorsFormatProvider> vectorsFormatProviders = new ArrayList<>();
-        for (MapperPlugin mapperPlugin : mapperPlugins) {
-            VectorsFormatProvider vectorsFormatProvider = mapperPlugin.getVectorsFormatProvider();
+        for (InternalVectorFormatProviderPlugin plugin : vectorFormatProviderPlugins) {
+            VectorsFormatProvider vectorsFormatProvider = plugin.getVectorsFormatProvider();
             if (vectorsFormatProvider != null) {
                 vectorsFormatProviders.add(vectorsFormatProvider);
             }

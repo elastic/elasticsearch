@@ -61,7 +61,7 @@ public class WriteLoadConstraintSettings {
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(
         WriteLoadDeciderStatus.class,
         SETTING_PREFIX + "enabled",
-        WriteLoadDeciderStatus.ENABLED,
+        WRITE_LOAD_DECIDER_ENABLED_FF.isEnabled() ? WriteLoadDeciderStatus.ENABLED : WriteLoadDeciderStatus.DISABLED,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -115,11 +115,7 @@ public class WriteLoadConstraintSettings {
     private volatile TimeValue queueLatencyThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
-        if (WRITE_LOAD_DECIDER_ENABLED_FF.isEnabled()) {
-            clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
-        } else {
-            writeLoadDeciderStatus = WriteLoadDeciderStatus.DISABLED;
-        }
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
             timeValue -> this.minimumRerouteInterval = timeValue

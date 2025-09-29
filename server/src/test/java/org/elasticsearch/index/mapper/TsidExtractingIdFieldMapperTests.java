@@ -799,12 +799,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testProvideExpectedTsidWithIndexDimensions() throws IOException {
         assertThat(
-            parse(null, testCase.expectedTsidWithIndexDimensions, mapperService(true), testCase.source)
-                .id(),
+            parse(null, testCase.expectedTsidWithIndexDimensions, mapperService(true), testCase.source).id(),
             equalTo(testCase.expectedIdWithIndexDimensions)
         );
     }
-
 
     public void testProvideExpectedIdAndTsidWithRoutingPath() throws IOException {
         assertThat(

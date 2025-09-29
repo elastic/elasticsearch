@@ -169,7 +169,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         } else {
             timeSeriesId = context.getTsid();
             if (timeSeriesId == null) {
-                throw new IllegalStateException("tsid is missing from the context"  + context.documentDescription());
+                throw new IllegalStateException("tsid is missing from the context" + context.documentDescription());
             }
         }
 

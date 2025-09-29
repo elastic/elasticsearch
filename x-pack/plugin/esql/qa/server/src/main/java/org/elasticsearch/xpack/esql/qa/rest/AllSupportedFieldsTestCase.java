@@ -120,9 +120,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean supportsNodeAssignment() throws IOException {
         if (supportsNodeAssignment == null) {
-            for (NodeInfo i : allNodeToInfo().values()) {
-                logger.error("NOCOMMIT {}", i);
-            }
             supportsNodeAssignment = allNodeToInfo().values()
                 .stream()
                 .allMatch(i -> (i.roles.contains("index") && i.roles.contains("search")) || (i.roles.contains("data")));

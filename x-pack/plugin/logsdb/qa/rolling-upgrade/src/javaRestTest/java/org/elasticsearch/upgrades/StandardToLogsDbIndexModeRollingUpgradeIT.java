@@ -11,7 +11,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -25,7 +24,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -115,13 +113,6 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractRollingUp
             }
           }
         }""";
-
-    @Before
-    public void checkFeatures() {
-        if (Build.current().isSnapshot()) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
-    }
 
     public void testLogsIndexing() throws IOException {
         if (isOldCluster()) {

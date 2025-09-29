@@ -695,6 +695,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        filtered.add(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release. See the breaking changes documentation for the next major version."
+        );
         return filtered;
     }
 

@@ -68,4 +68,26 @@ public abstract class CollectionUtils {
         }
         return list;
     }
+
+    /**
+     * Creates a copy of the given collection with the given element prepended.
+     *
+     * @param collection collection to copy
+     * @param element    element to prepend
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> prependToCopy(T element, Collection<T> collection) {
+        T[] result = (T[]) new Object[collection.size() + 1];
+        result[0] = element;
+        if (collection instanceof ArrayList<T> arrayList && arrayList.size() <= 1_000_000) {
+            // Creating an array out of a relatively small ArrayList and copying it is faster than iterating.
+            System.arraycopy(arrayList.toArray(), 0, result, 1, result.length - 1);
+        } else {
+            var i = 1;
+            for (T t : collection) {
+                result[i++] = t;
+            }
+        }
+        return List.of(result);
+    }
 }

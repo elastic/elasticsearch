@@ -260,7 +260,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(
+        ReductionPlan reductionPlan = ComputeService.reductionPlan(
             computeService.plannerSettings(),
             computeService.createFlags(),
             configuration,
@@ -268,7 +268,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             plan,
             true,
             false
-        ).reductionPlan(); // FIXME(gal, NOCOMMIT)
+        );
+        PhysicalPlan coordinatorPlan = reductionPlan.nodeReducePlan();
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
@@ -306,7 +307,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     flags,
                     configuration,
-                    plan,
+                    reductionPlan.dataNodePlan(),
                     concreteIndices,
                     originalIndices,
                     exchangeSource,

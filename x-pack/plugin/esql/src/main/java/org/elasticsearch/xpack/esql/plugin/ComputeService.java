@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -714,7 +715,7 @@ public class ComputeService {
         });
     }
 
-    static PlannerUtils.ReductionPlanHack reductionPlan(
+    static ReductionPlan reductionPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,
         Configuration configuration,
@@ -725,22 +726,26 @@ public class ComputeService {
     ) {
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         if (splitTopN == false && runNodeLevelReduction == false) {
-            return new PlannerUtils.ReductionPlanHack(originalPlan.replaceChild(source), null);
+            return new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         }
 
-        Function<PhysicalPlan, PlannerUtils.ReductionPlanHack> pipelineBreakerReduction = p -> new PlannerUtils.ReductionPlanHack(
+        Function<PhysicalPlan, ReductionPlan> pipelineBreakerReduction = p -> new ReductionPlan(
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
             originalPlan
         );
-        PlannerUtils.ReductionPlanHack defaultResult = new PlannerUtils.ReductionPlanHack(originalPlan.replaceChild(source), originalPlan);
+        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         return switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when splitTopN ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
-                PlannerUtils.planReduceDriverTopN(plannerSettings, flags, configuration, foldCtx, originalPlan)
+                LateMaterializationPlanner.planReduceDriverTopN(
+                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
+                    originalPlan
+                )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
                     .orElseGet(() -> runNodeLevelReduction ? pipelineBreakerReduction.apply(topN.plan()) : defaultResult);
+            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> pipelineBreakerReduction.apply(topN.plan());
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> pipelineBreakerReduction.apply(rp.plan());
             default -> defaultResult;
         };

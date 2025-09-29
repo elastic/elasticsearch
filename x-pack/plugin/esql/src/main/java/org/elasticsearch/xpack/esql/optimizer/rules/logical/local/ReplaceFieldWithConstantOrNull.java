@@ -71,7 +71,8 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
-            || f.field().equals(EsQueryExec.DOC_ID_FIELD) // FIXME(gal, NOCOMMIT) document
+            // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
+            || EsQueryExec.isSourceAttribute(f)
             || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
             || lookupFields.contains(f);
 

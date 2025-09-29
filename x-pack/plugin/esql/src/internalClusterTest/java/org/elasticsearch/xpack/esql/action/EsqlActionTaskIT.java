@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -77,8 +78,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlActionTaskIT.class);
 
-    /** If null, a random value will be assigned in {@link EsqlActionTaskIT#startEsql()}, otherwise the value set will be used. */
-    private Boolean nodeLevelReduction = null;
+    private boolean nodeLevelReduction;
+    private Boolean reductionLateMaterialization = null;
 
     /**
      * Number of docs released by {@link #startEsql}.
@@ -88,6 +89,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     @Before
     public void setup() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
+        nodeLevelReduction = randomBoolean();
     }
 
     public void testTaskContents() throws Exception {
@@ -267,10 +269,19 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             // Report the status after every action
             .put("status_interval", "0ms");
 
-        if (nodeLevelReduction == null) {
-            nodeLevelReduction = randomBoolean();
+        if (nodeLevelReduction) {
+            // explicitly set the default (true) or don't
+            if (randomBoolean()) {
+                settingsBuilder.put("node_level_reduction", true);
+            }
+        } else {
+            settingsBuilder.put("node_level_reduction", false);
         }
-        settingsBuilder.put("node_level_reduction", nodeLevelReduction);
+
+        if (reductionLateMaterialization == null) {
+            reductionLateMaterialization = randomBoolean();
+        }
+        settingsBuilder.put(QueryPragmas.REDUCTION_LATE_MATERIALIZATION.getKey(), reductionLateMaterialization);
 
         var pragmas = new QueryPragmas(settingsBuilder.build());
         return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client()).query(query).pragmas(pragmas).execute();
@@ -503,46 +514,24 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     public void testTaskContentsForTopNQueryWithNoReduction() throws Exception {
-        nodeLevelReduction = false;
-        ActionFuture<EsqlQueryResponse> response = startEsql("from test | sort pause_me | keep pause_me");
-        try {
-            getTasksStarting();
-            logger.info("unblocking script");
-            scriptPermits.release(pageSize());
-            List<TaskInfo> tasks = getTasksRunning();
-            String sortStatus = """
-                [{"pause_me":{"order":"asc","missing":"_last","unmapped_type":"long"}}]""";
-            String sourceStatus = "dataPartitioning = SHARD, maxPageSize = "
-                + pageSize()
-                + ", limit = 1000, needsScore = false, sorts = "
-                + sortStatus;
-            assertThat(dataTasks(tasks).get(0).description(), equalTo("""
-                \\_LuceneTopNSourceOperator[sourceStatus]
-                \\_ValuesSourceReaderOperator[fields = [pause_me]]
-                \\_ProjectOperator[projection = [1]]
-                \\_ExchangeSinkOperator""".replace("sourceStatus", sourceStatus)));
-            assertThat(nodeReduceTasks(tasks).get(0).description(), nodeLevelReduceDescriptionMatcher(""));
-            assertThat(
-                coordinatorTasks(tasks).get(0).description(),
-                equalTo(
-                    "\\_ExchangeSourceOperator[]\n"
-                        + "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
-                        + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
-                        + "\\_ProjectOperator[projection = [0]]\n"
-                        + "\\_OutputOperator[columns = [pause_me]]"
-                )
-            );
-        } finally {
-            // each scripted field "emit" is called by LuceneTopNSourceOperator and by ValuesSourceReaderOperator
-            scriptPermits.release(2 * numberOfDocs());
-            try (EsqlQueryResponse esqlResponse = response.get()) {
-                assertThat(Iterators.flatMap(esqlResponse.values(), i -> i).next(), equalTo(1L));
-            }
-        }
+        testTaskContentsForTopNQueryWithReductionHelper(false);
     }
 
     public void testTaskContentsForTopNQueryWithReduction() throws Exception {
-        nodeLevelReduction = true;
+        testTaskContentsForTopNQueryWithReductionHelper(true);
+    }
+
+    private void testTaskContentsForTopNQueryWithReductionHelper(boolean reductionLateMaterialization) throws Exception {
+        this.reductionLateMaterialization = reductionLateMaterialization;
+        var dataNodeProjectString = reductionLateMaterialization ? "0, 1" : "1";
+        var nodeReduceString = reductionLateMaterialization
+            ? """
+                \\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], \
+                sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]]]
+                \\_ProjectOperator[projection = [1]]
+                """
+            : "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n";
         ActionFuture<EsqlQueryResponse> response = startEsql("from test | sort pause_me | keep pause_me");
         try {
             getTasksStarting();
@@ -555,29 +544,23 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 + pageSize()
                 + ", limit = 1000, needsScore = false, sorts = "
                 + sortStatus;
-            assertThat(dataTasks(tasks).get(0).description(), equalTo("""
-                \\_LuceneTopNSourceOperator[sourceStatus]
+            assertThat(dataTasks(tasks).getFirst().description(), equalTo(Strings.format("""
+                \\_LuceneTopNSourceOperator[%s]
                 \\_ValuesSourceReaderOperator[fields = [pause_me]]
-                \\_ProjectOperator[projection = [0, 1]]
-                \\_ExchangeSinkOperator""".replace("sourceStatus", sourceStatus)));
+                \\_ProjectOperator[projection = [%s]]
+                \\_ExchangeSinkOperator""", sourceStatus, dataNodeProjectString)));
             assertThat(
-                nodeReduceTasks(tasks).get(0).description(),
-                nodeLevelReduceDescriptionMatcher(
-                    "\\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], "
-                        + "sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]]]\n"
-                        + "\\_ProjectOperator[projection = [1]]\n"
-                )
+                nodeReduceTasks(tasks).getFirst().description(),
+                reductionLateMaterialization
+                    ? nodeLevelReduceDescriptionMatcher(nodeReduceString)
+                    : nodeLevelReduceDescriptionMatcher(tasks, nodeReduceString)
             );
-            assertThat(
-                coordinatorTasks(tasks).get(0).description(),
-                equalTo(
-                    "\\_ExchangeSourceOperator[]\n"
-                        + "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
-                        + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
-                        + "\\_ProjectOperator[projection = [0]]\n"
-                        + "\\_OutputOperator[columns = [pause_me]]"
-                )
-            );
+            assertThat(coordinatorTasks(tasks).getFirst().description(), equalTo("""
+                \\_ExchangeSourceOperator[]
+                \\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], \
+                sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]
+                \\_ProjectOperator[projection = [0]]
+                \\_OutputOperator[columns = [pause_me]]"""));
         } finally {
             // each scripted field "emit" is called by LuceneTopNSourceOperator and by ValuesSourceReaderOperator
             scriptPermits.release(2 * numberOfDocs());

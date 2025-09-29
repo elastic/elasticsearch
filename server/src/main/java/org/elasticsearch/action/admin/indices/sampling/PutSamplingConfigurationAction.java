@@ -37,7 +37,7 @@ import java.util.Objects;
  * settings, and conditional sampling criteria.
  * </p>
  * <p>
- * The action name is "indices:admin/sample/config/update" and it returns an {@link AcknowledgedResponse}
+ * The action name is "indices:admin/sampling/config/update" and it returns an {@link AcknowledgedResponse}
  * to indicate whether the configuration was successfully applied.
  * </p>
  */

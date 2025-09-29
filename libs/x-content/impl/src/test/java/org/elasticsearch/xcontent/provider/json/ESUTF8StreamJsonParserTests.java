@@ -374,6 +374,15 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         }
 
         @Override
+        public String text() throws IOException {
+            if (randomIntBetween(0, 9) < 8) {
+                return super.text();
+            } else {
+                return super.optimizedText().string();
+            }
+        }
+
+        @Override
         public XContentString optimizedText() throws IOException {
             int extraCalls = randomIntBetween(0, 5);
             for (int i = 0; i < extraCalls; i++) {

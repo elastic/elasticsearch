@@ -95,5 +95,34 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
 
             this.exception = exception;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (LocalExpressions) obj;
+            return Objects.equals(this.expressions, that.expressions)
+                && Objects.equals(this.localIndexResolutionResult, that.localIndexResolutionResult)
+                && Objects.equals(this.exception, that.exception);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(expressions, localIndexResolutionResult, exception);
+        }
+
+        @Override
+        public String toString() {
+            return "LocalExpressions["
+                + "expressions="
+                + expressions
+                + ", "
+                + "localIndexResolutionResult="
+                + localIndexResolutionResult
+                + ", "
+                + "exception="
+                + exception
+                + ']';
+        }
     }
 }

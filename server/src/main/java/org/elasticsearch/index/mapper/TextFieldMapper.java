@@ -1146,9 +1146,9 @@ public final class TextFieldMapper extends FieldMapper {
             };
 
             return new FallbackSyntheticSourceBlockLoader(
-                    reader,
-                    name(),
-                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                reader,
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {

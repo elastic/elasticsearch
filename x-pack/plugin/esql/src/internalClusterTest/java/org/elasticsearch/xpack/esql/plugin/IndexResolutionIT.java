@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -196,17 +195,19 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index-2"));
         indexRandom(true, "index-2", 10);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))) {
-            assertOk(response); // okay when present index is empty
-        }
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
+            VerificationException.class,
+            containsString("Unknown index [nonexisting-1]"), // fails when present index is empty
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [nonexisting-1]"), // fails when present index is non-empty
             () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
         );
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
+            VerificationException.class,
+            containsString("Unknown index [nonexisting-1]"), // only the first missing index is reported
             () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
         );
     }

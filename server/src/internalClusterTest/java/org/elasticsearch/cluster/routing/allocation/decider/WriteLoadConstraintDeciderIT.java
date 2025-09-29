@@ -662,14 +662,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         );
 
         // Wait for the DesiredBalance to be recomputed as a result of the settings change.
-        MockLog.awaitLogger(
-            () -> {
-                logger.info(
-                    "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
-                );
-                // Updating the cluster settings will trigger a reroute request.
-                updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
-            },
+        MockLog.awaitLogger(() -> {
+            logger.info(
+                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
+            );
+            // Updating the cluster settings will trigger a reroute request.
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+        },
             DesiredBalanceShardsAllocator.class,
             new MockLog.SeenEventExpectation(
                 "desired balance computation ran and completed",

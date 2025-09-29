@@ -316,8 +316,9 @@ public class EnrichPolicyResolver {
             // remote clusters
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
+                    boolean skipOnFailure = executionInfo.shouldSkipOnFailure(cluster);
                     ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
-                    getRemoteConnection(cluster, executionInfo, new ActionListener<Transport.Connection>() {
+                    getRemoteConnection(cluster, skipOnFailure == false, new ActionListener<Transport.Connection>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
                             transportService.sendRequest(
@@ -326,7 +327,7 @@ public class EnrichPolicyResolver {
                                 new LookupRequest(cluster, remotePolicies),
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(
-                                    lookupListener.delegateResponse((l, e) -> failIfSkipUnavailableFalse(e, cluster, executionInfo, l)),
+                                    lookupListener.delegateResponse((l, e) -> failIfSkipUnavailableFalse(e, skipOnFailure, l)),
                                     LookupResponse::new,
                                     threadPool.executor(ThreadPool.Names.SEARCH)
                                 )
@@ -335,7 +336,7 @@ public class EnrichPolicyResolver {
 
                         @Override
                         public void onFailure(Exception e) {
-                            failIfSkipUnavailableFalse(e, cluster, executionInfo, lookupListener);
+                            failIfSkipUnavailableFalse(e, skipOnFailure, lookupListener);
                         }
                     });
                 }
@@ -360,13 +361,8 @@ public class EnrichPolicyResolver {
         }
     }
 
-    private void failIfSkipUnavailableFalse(
-        Exception e,
-        String cluster,
-        EsqlExecutionInfo executionInfo,
-        ActionListener<LookupResponse> lookupListener
-    ) {
-        if (ExceptionsHelper.isRemoteUnavailableException(e) && executionInfo.shouldSkipOnFailure(cluster)) {
+    private void failIfSkipUnavailableFalse(Exception e, boolean skipOnFailure, ActionListener<LookupResponse> lookupListener) {
+        if (ExceptionsHelper.isRemoteUnavailableException(e) && skipOnFailure) {
             lookupListener.onResponse(new LookupResponse(e));
         } else {
             lookupListener.onFailure(e);
@@ -486,7 +482,7 @@ public class EnrichPolicyResolver {
         return projectResolver.getProjectMetadata(clusterService.state()).custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY).getPolicies();
     }
 
-    protected void getRemoteConnection(String cluster, EsqlExecutionInfo executionInfo, ActionListener<Transport.Connection> listener) {
-        remoteClusterService.maybeEnsureConnectedAndGetConnection(cluster, executionInfo.shouldSkipOnFailure(cluster) == false, listener);
+    protected void getRemoteConnection(String cluster, boolean ensureConnected, ActionListener<Transport.Connection> listener) {
+        remoteClusterService.maybeEnsureConnectedAndGetConnection(cluster, ensureConnected, listener);
     }
 }

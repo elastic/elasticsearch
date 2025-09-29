@@ -4,3 +4,8 @@
 
 Returns the approximate number of distinct values.
 
+::::{note}
+Note that [counts are approximate](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-agg-count-distinct-approximate).
+::::
+
+

@@ -1027,7 +1027,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return MoveDecision.remain(canRemain);
             }
 
-            // Investigate whether it's a better move to make than one we've discovered already
+            // Check predicate to decide whether to assess movement options
             if (canRemain.type() == Type.NOT_PREFERRED && nonPreferredPredicate.test(shardRouting) == false) {
                 return MoveDecision.NOT_TAKEN;
             }

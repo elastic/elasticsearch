@@ -20,12 +20,16 @@ import java.lang.constant.ClassDesc;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.Opcodes.ACC_DEPRECATED;
@@ -49,15 +53,24 @@ public class JdkApiExtractor {
         new AccessibleMethod("close", "()V", true, false, true)
     );
 
+    private static String DEPRECATIONS_ONLY = "--deprecations-only";
+    private static String INCLUDE_INCUBATOR = "--include-incubator";
+
+    private static Set<String> OPTIONAL_ARGS = Set.of(DEPRECATIONS_ONLY, INCLUDE_INCUBATOR);
+
     public static void main(String[] args) throws IOException {
         validateArgs(args);
-        boolean deprecationsOnly = args.length == 2 && args[1].equals("--deprecations-only");
+        boolean deprecationsOnly = optionalArgs(args).anyMatch(DEPRECATIONS_ONLY::equals);
 
         Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass = new TreeMap<>();
         Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass = new TreeMap<>();
         Map<String, Set<AccessibleMethod>> deprecationsByClass = new TreeMap<>();
 
-        Utils.walkJdkModules((moduleName, moduleClasses, moduleExports) -> {
+        Predicate<String> modulePredicate = Utils.DEFAULT_MODULE_PREDICATE.or(
+            m -> optionalArgs(args).anyMatch(INCLUDE_INCUBATOR::equals) && m.contains(".incubator.")
+        );
+
+        Utils.walkJdkModules(modulePredicate, (moduleName, moduleClasses, moduleExports) -> {
             var visitor = new AccessibleClassVisitor(
                 moduleExports,
                 accessibleImplementationsByClass,
@@ -87,13 +100,34 @@ public class JdkApiExtractor {
         return relativePath.substring(0, relativePath.length() - ".class".length());
     }
 
+    private static Stream<String> optionalArgs(String[] args) {
+        return Arrays.stream(args).skip(1);
+    }
+
     @SuppressForbidden(reason = "cli tool printing to standard err/out")
     private static void validateArgs(String[] args) {
-        boolean valid = args.length == 1 || (args.length == 2 && "--deprecations-only".equals(args[1]));
-
+        boolean valid = args.length > 0 && optionalArgs(args).allMatch(OPTIONAL_ARGS::contains);
+        if (valid && isWritableOutputPath(args[0]) == false) {
+            valid = false;
+            System.err.println("invalid output path: " + args[0]);
+        }
         if (valid == false) {
-            System.err.println("usage: <output file path> [--deprecations-only]");
+            String optionalArgs = OPTIONAL_ARGS.stream().collect(Collectors.joining("] [", " [", "]"));
+            System.err.println("usage: <output file path>" + optionalArgs);
             System.exit(1);
+        }
+    }
+
+    private static boolean isWritableOutputPath(String pathStr) {
+        try {
+            Path path = Paths.get(pathStr);
+            if (Files.exists(path) && Files.isRegularFile(path)) {
+                return Files.isWritable(path);
+            }
+            Path parent = path.toAbsolutePath().getParent();
+            return parent != null && Files.isDirectory(parent) && Files.isWritable(parent);
+        } catch (Exception e) {
+            return false;
         }
     }
 

@@ -2065,7 +2065,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     canMatchContext.request,
                     canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
                 ) == false) {
-                    recordCanMatchPhaseDuration(canMatchContext.getIndexService().getSearchOperationListener(), origShardSearchRequest, startTime);
+                    recordCanMatchPhaseDuration(
+                        canMatchContext.getIndexService().getSearchOperationListener(),
+                        origShardSearchRequest,
+                        startTime
+                    );
                     return new CanMatchShardResponse(false, null);
                 }
                 boolean needsWaitForRefresh = canMatchContext.request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
@@ -2082,10 +2086,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (canMatch || hasRefreshPending) {
                     FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
                     final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                    recordCanMatchPhaseDuration(canMatchContext.getIndexService().getSearchOperationListener(), origShardSearchRequest, startTime);
+                    recordCanMatchPhaseDuration(
+                        canMatchContext.getIndexService().getSearchOperationListener(),
+                        origShardSearchRequest,
+                        startTime
+                    );
                     return new CanMatchShardResponse(true, minMax);
                 }
-                recordCanMatchPhaseDuration(canMatchContext.getIndexService().getSearchOperationListener(), origShardSearchRequest, startTime);
+                recordCanMatchPhaseDuration(
+                    canMatchContext.getIndexService().getSearchOperationListener(),
+                    origShardSearchRequest,
+                    startTime
+                );
                 return new CanMatchShardResponse(false, null);
             }
         } catch (Exception e) {

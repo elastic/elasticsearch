@@ -154,11 +154,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     /**
-     * This is called when mappings are updated, so that the {@link IndexMetadata#getTimeSeriesDimensions()}
-     * and {@link IndexMetadata#INDEX_ROUTING_PATH} settings are updated to match the new mappings.
-     * Updates {@link IndexMetadata#getTimeSeriesDimensions} if a new dimension field is added to the mappings,
-     * or sets {@link IndexMetadata#INDEX_ROUTING_PATH} if a new dimension field is added that doesn't allow for matching all
-     * dimension fields via a wildcard pattern.
+     * This is called when mappings are updated, so that the {@link IndexMetadata#INDEX_DIMENSIONS}
+     * setting is updated if a new dimension field is added to the mappings.
+     *
+     * @throws IllegalArgumentException If a dynamic template that defines dimension fields is added to an existing index with
+     *                                  {@link IndexMetadata#getTimeSeriesDimensions()}.
+     *                                  Changing fom {@link IndexMetadata#INDEX_DIMENSIONS} to {@link IndexMetadata#INDEX_ROUTING_PATH}
+     *                                  is not allowed because it would violate the invariant that the same input document always results
+     *                                  in the same _id and _tsid.
+     *                                  Otherwise, data duplication or translog replay issues could occur.
      */
     @Override
     public void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {
@@ -172,11 +176,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         boolean hasChanges = indexDimensions.size() != newIndexDimensions.size()
             && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
         if (matchesAllDimensions == false) {
-            // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
-            // and set index.routing_path instead.
-            // This can happen if a new dynamic template with time_series_dimension: true is added to an existing index.
-            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
-            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), newIndexDimensions);
+            throw new IllegalArgumentException(
+                "Cannot add dynamic templates that define dimension fields on an existing index with "
+                    + INDEX_DIMENSIONS.getKey()
+                    + ". "
+                    + "Please change the index template and roll over the data stream "
+                    + "instead of modifying the mappings of the backing indices."
+            );
         } else if (hasChanges) {
             additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
         }

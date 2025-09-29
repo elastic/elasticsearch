@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -709,17 +711,20 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
               ]
             }
             """, XContentType.JSON);
-        assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
+        ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
         if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
             assertThat(
-                getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH),
-                containsInAnyOrder("metricset", "labels.*", "k8s.pod.name")
+                exception.getMessage(),
+                containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
             );
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
         } else {
+            assertAcked(putMappingFuture);
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), containsInAnyOrder("metricset"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
         }
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
-
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
     }
 

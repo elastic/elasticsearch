@@ -12,6 +12,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -92,6 +93,8 @@ import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUF
  * </p>
  */
 public class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
+
+    private static final TransportVersion REORDERED_TRANSLOG_OPERATIONS = TransportVersion.fromName("reordered_translog_operations");
 
     /*
      * TODO
@@ -1299,7 +1302,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
             final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? SERIALIZATION_FORMAT
+                ? out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE
                 : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
             if (format < FORMAT_REORDERED) {
@@ -1489,9 +1492,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            // TODO: Fix format version
             final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? SERIALIZATION_FORMAT
+                ? out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE
                 : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
             if (format < FORMAT_REORDERED) {

@@ -1402,6 +1402,11 @@ public abstract class DocsV3Support {
                     builder.value(loadExample(example.file(), example.tag()));
                 }
                 builder.endArray();
+            } else if (info.operator().isEmpty()) {
+                // CI will fail in Kibana if we add a function with no examples
+                throw new IllegalArgumentException(
+                    "Failed to write Kibana function definition: no examples found for function [" + name + "]."
+                );
             }
             builder.field("preview", info.preview());
             builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));

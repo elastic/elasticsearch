@@ -221,8 +221,9 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         }
 
         public long baseRamBytesUsed() {
-            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector))
-                + (expressionEvaluator == null ? 0 : expressionEvaluator.baseRamBytesUsed());
+            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector)) + (expressionEvaluator == null
+                ? 0
+                : expressionEvaluator.baseRamBytesUsed());
         }
 
         // Once we're doing processing a block, ensure that we dereference it and reset scratch so that it can be

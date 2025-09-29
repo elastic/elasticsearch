@@ -79,6 +79,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final SubscribableListener<Void> aggsContextReleased;
 
+    @Nullable
     private Long rangeTimestampFrom;
 
     public QuerySearchResult() {

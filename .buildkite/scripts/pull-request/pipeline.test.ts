@@ -8,6 +8,7 @@ describe("generatePipelines", () => {
     setBwcVersionsPath(`${import.meta.dir}/mocks/bwcVersions`);
     setSnapshotBwcVersionsPath(`${import.meta.dir}/mocks/snapshotBwcVersions`);
 
+    process.env["GITHUB_PR_TARGET_BRANCH"] = "test-branch";
     process.env["GITHUB_PR_LABELS"] = "test-label-1,test-label-2";
     process.env["GITHUB_PR_TRIGGER_COMMENT"] = "";
   });
@@ -32,6 +33,12 @@ describe("generatePipelines", () => {
 
   test("should generate correct pipelines with full BWC expansion", () => {
     process.env["GITHUB_PR_LABELS"] = "test-full-bwc";
+
+    testWithTriggerCheck(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+  });
+
+  test("should generate correct pipelines with a different branch that is not skipped", () => {
+    process.env["GITHUB_PR_TARGET_BRANCH"] = "main";
 
     testWithTriggerCheck(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
   });

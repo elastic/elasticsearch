@@ -93,6 +93,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Base class for function tests.
  */
+@ESTestCase.EntitledTestPackages({ "sun.font", "sun.awt" }) // For renderDocs
 public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
@@ -1054,6 +1055,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Should this particular signature be hidden from the docs even though we test it?
      */
     static boolean shouldHideSignature(List<DocsV3Support.Param> argTypes, DataType returnType) {
+        if (returnType == DataType.TSID_DATA_TYPE || argTypes.stream().anyMatch(p -> p.dataType() == DataType.TSID_DATA_TYPE)) {
+            // TSID is special (for internal use) and we don't document it
+            return true;
+        }
+
         for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
             if (returnType == dt || argTypes.stream().anyMatch(p -> p.dataType() == dt)) {
                 return true;

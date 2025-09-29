@@ -469,7 +469,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch814Codec,
             org.elasticsearch.index.codec.Elasticsearch816Codec,
             org.elasticsearch.index.codec.Elasticsearch900Codec,
-            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
+            org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
@@ -490,4 +491,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.inference.telemetry;
     exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
+    exports org.elasticsearch.search.crossproject;
 }

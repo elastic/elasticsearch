@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.RateDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.RateIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.RateDoubleGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateIntGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -44,9 +44,8 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The rate of a counter field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        description = "Calculates the rate of a counter field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
     public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
@@ -118,9 +117,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier();
-            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier();
-            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier();
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -137,5 +136,10 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
 
     Expression timestamp() {
         return timestamp;
+    }
+
+    @Override
+    public boolean requiredTimeSeriesSource() {
+        return true;
     }
 }

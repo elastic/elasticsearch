@@ -12,8 +12,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -33,19 +33,12 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
-
-    @Override
-    public EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("time series available in snapshot builds only", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
-        return super.run(request);
-    }
 
     public void testEmpty() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
@@ -554,32 +547,17 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.profile(true);
             request.pragmas(pragmas);
             request.acceptedPragmaRisks(true);
-            request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
+            request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster");
             try (var resp = run(request)) {
                 EsqlQueryResponse.Profile profile = resp.profile();
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 for (DriverProfile p : dataProfiles) {
-                    if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesSourceOperator.Status)) {
-                        assertThat(p.operators(), hasSize(2));
-                        TimeSeriesSourceOperator.Status status = (TimeSeriesSourceOperator.Status) p.operators().get(0).status();
-                        // If the target shard is empty or does not match the query, processedShards will be empty.
-                        // TODO: Update ComputeService to avoid creating pipelines for non-matching or empty shards.
-                        assertThat(status.processedShards(), either(hasSize(1)).or(empty()));
-                        assertThat(p.operators().get(1).operator(), equalTo("ExchangeSinkOperator"));
-                    } else if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesAggregationOperator.Status)) {
-                        assertThat(p.operators(), hasSize(3));
-                        assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                        assertThat(p.operators().get(1).operator(), containsString("TimeSeriesAggregationOperator"));
-                        assertThat(p.operators().get(2).operator(), equalTo("ExchangeSinkOperator"));
-                    } else {
-                        assertThat(p.operators(), hasSize(4));
-                        assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                        assertThat(p.operators().get(1).operator(), containsString("TimeSeriesExtractFieldOperator"));
-                        assertThat(p.operators().get(2).operator(), containsString("EvalOperator"));
-                        assertThat(p.operators().get(3).operator(), equalTo("ExchangeSinkOperator"));
+                    assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
+                    LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
+                    for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
+                        assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
                     }
                 }
-                assertThat(dataProfiles, hasSize(9));
             }
         }
         // non-rate aggregation is executed with multiple shards at a time
@@ -626,4 +604,103 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
         }
     }
+
+    public void testNullMetricsAreSkipped() {
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
+        client().admin()
+            .indices()
+            .prepareCreate("sparse-hosts")
+            .setSettings(settings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cluster",
+                "type=keyword,time_series_dimension=true",
+                "memory",
+                "type=long,time_series_metric=gauge",
+                "request_count",
+                "type=integer,time_series_metric=counter"
+            )
+            .get();
+        List<Doc> sparseDocs = new ArrayList<>();
+        // generate 100 docs, 50 will have a null metric
+        // TODO: this is all copied from populateIndex(), refactor it sensibly.
+        Map<String, String> hostToClusters = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            hostToClusters.put("p" + i, randomFrom("qa", "prod"));
+        }
+        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+        int numDocs = 100;
+        Map<String, Integer> requestCounts = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            String host = randomFrom(hostToClusters.keySet());
+            timestamp += between(1, 10) * 1000L;
+            int requestCount = requestCounts.compute(host, (k, curr) -> {
+                if (curr == null) {
+                    return randomIntBetween(0, 10);
+                } else {
+                    return curr + randomIntBetween(1, 10);
+                }
+            });
+            int cpu = randomIntBetween(0, 100);
+            ByteSizeValue memory = ByteSizeValue.ofBytes(randomIntBetween(1024, 1024 * 1024));
+            sparseDocs.add(new Doc(host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
+        }
+
+        Randomness.shuffle(sparseDocs);
+        for (int i = 0; i < numDocs; i++) {
+            Doc doc = sparseDocs.get(i);
+            if (i % 2 == 0) {
+                client().prepareIndex("sparse-hosts")
+                    .setSource("@timestamp", doc.timestamp, "host", doc.host, "cluster", doc.cluster, "request_count", doc.requestCount)
+                    .get();
+            } else {
+                client().prepareIndex("sparse-hosts")
+                    .setSource("@timestamp", doc.timestamp, "host", doc.host, "cluster", doc.cluster, "memory", doc.memory.getBytes())
+                    .get();
+            }
+        }
+        client().admin().indices().prepareRefresh("sparse-hosts").get();
+        // Control test
+        try (EsqlQueryResponse resp = run("""
+            TS sparse-hosts
+            | WHERE request_count IS NOT NULL
+            | STATS sum(rate(request_count)) BY cluster, host
+            """)) {
+            assertEquals("Control failed, data loading is broken", 50, resp.documentsFound());
+        }
+
+        try (EsqlQueryResponse resp = run("""
+            TS sparse-hosts
+            | STATS sum(max_over_time(memory)) BY cluster, host
+            """)) {
+            assertEquals("Did not filter nulls on gauge type", 50, resp.documentsFound());
+        }
+
+        try (EsqlQueryResponse resp = run("""
+            TS sparse-hosts
+            | STATS sum(rate(request_count)) BY cluster, host
+            """)) {
+            assertEquals("Did not filter nulls on counter type", 50, resp.documentsFound());
+        }
+    }
+
+    public void testTSIDMetadataAttribute() {
+        List<ColumnInfoImpl> columns = List.of(
+            new ColumnInfoImpl("_tsid", DataType.TSID_DATA_TYPE, null),
+            new ColumnInfoImpl("cluster", DataType.KEYWORD, null)
+        );
+
+        try (EsqlQueryResponse resp = run(" TS hosts METADATA _tsid | KEEP _tsid, cluster | LIMIT 1")) {
+            assertThat(resp.columns(), equalTo(columns));
+
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.getFirst().get(0), Matchers.notNullValue());
+            assertThat(values.getFirst().get(1), Matchers.notNullValue());
+        }
+    }
+
 }

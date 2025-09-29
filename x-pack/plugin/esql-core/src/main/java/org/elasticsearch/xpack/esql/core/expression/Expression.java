@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -101,7 +102,9 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     public abstract Nullability nullable();
 
-    // the references/inputs/leaves of the expression tree
+    /**
+     * {@link Set} of {@link Attribute}s referenced by this {@link Expression}.
+     */
     public AttributeSet references() {
         if (lazyReferences == null) {
             lazyReferences = Expressions.references(children());

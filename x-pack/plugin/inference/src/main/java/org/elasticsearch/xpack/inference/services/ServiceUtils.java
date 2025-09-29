@@ -314,6 +314,18 @@ public final class ServiceUtils {
         return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
+    /**
+     * Extracts an optional URI from the map. If the field is not present, null is returned. If the field is present but invalid,
+     * @param map the map to extract the URI from
+     * @param fieldName the field name to extract
+     * @param validationException the validation exception to add errors to
+     * @return the extracted URI or null if not present
+     */
+    public static URI extractOptionalUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
+        String parsedUrl = extractOptionalString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    }
+
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
             return createOptionalUri(url);
@@ -532,7 +544,6 @@ public final class ServiceUtils {
     public static Map<String, Object> extractOptionalMap(
         Map<String, Object> map,
         String settingName,
-        String scope,
         ValidationException validationException
     ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
@@ -543,6 +554,14 @@ public final class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    public static Map<String, Object> extractOptionalMapRemoveNulls(
+        Map<String, Object> map,
+        String settingName,
+        ValidationException validationException
+    ) {
+        return removeNullValues(extractOptionalMap(map, settingName, validationException));
     }
 
     public static List<Tuple<String, String>> extractOptionalListOfStringTuples(
@@ -624,6 +643,20 @@ public final class ServiceUtils {
             );
             throw validationException;
         }
+    }
+
+    public static Map<String, String> validateMapStringValues(
+        Map<String, ?> map,
+        String settingName,
+        ValidationException validationException,
+        boolean censorValue,
+        @Nullable Map<String, String> defaultValue
+    ) {
+        if (map == null) {
+            return defaultValue;
+        }
+
+        return validateMapStringValues(map, settingName, validationException, censorValue);
     }
 
     /**

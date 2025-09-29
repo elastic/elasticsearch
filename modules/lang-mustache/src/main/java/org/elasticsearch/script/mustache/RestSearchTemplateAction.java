@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -73,7 +74,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request,
             null,
             clusterSupportsFeature,
-            size -> searchRequest.source().size(size)
+            size -> searchRequest.source().size(size),
+            Optional.empty()
         );
 
         // Creates the search template request

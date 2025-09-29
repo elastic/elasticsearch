@@ -217,6 +217,7 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
+            case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }

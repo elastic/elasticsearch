@@ -401,8 +401,8 @@ public final class MergePolicyConfig {
         } else {
             try {
                 try {
-                    return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
-                } catch (NumberFormatException ex) {
+                    return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
+                } catch (RuntimeException ex) {
                     throw new IllegalArgumentException(
                         "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
                             + noCFSRatio
@@ -412,8 +412,8 @@ public final class MergePolicyConfig {
                 }
             } catch (IllegalArgumentException e) {
                 try {
-                    return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
-                } catch (RuntimeException e2) {
+                    return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
+                } catch (NumberFormatException e2) {
                     e.addSuppressed(e2);
                 }
                 throw e;

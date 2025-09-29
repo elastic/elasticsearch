@@ -46,7 +46,7 @@ public class MergePolicyConfigTests extends ESTestCase {
         assertCompoundThreshold(build("False"), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         assertCompoundThreshold(build("false"), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         assertCompoundThreshold(build(false), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        assertCompoundThreshold(build(0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        assertCompoundThreshold(build(0), 1.0, ByteSizeValue.ofBytes(0));
         assertCompoundThreshold(build(0.0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         assertCompoundThreshold(build(0.0), 0.0, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         assertCompoundThreshold(build("100MB"), 1.0, ByteSizeValue.ofMb(100));

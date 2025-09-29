@@ -105,10 +105,10 @@ public class CrossProjectIndexExpressionsRewriter {
         final LocalWithRemoteExpressions rewrittenExpression;
         if (isQualified) {
             rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
-            logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
+            logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         } else {
             rewrittenExpression = rewriteUnqualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
-            logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
+            logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         }
         return rewrittenExpression;
     }

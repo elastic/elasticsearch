@@ -49,6 +49,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -568,8 +569,28 @@ public class AuthorizationService {
                                         )
                                     );
                                 }, e -> {
-                                    logger.error("Failed to load authorized projects", e);
-                                    resolvedIndicesListener.onFailure(e);
+                                    // TODO avoid duplicating this
+                                    if (e instanceof InvalidIndexNameException
+                                        || e instanceof InvalidSelectorException
+                                        || e instanceof UnsupportedSelectorException) {
+                                        logger.info(
+                                            () -> Strings.format(
+                                                "failed [%s] action authorization for [%s] due to [%s] exception",
+                                                action,
+                                                authentication,
+                                                e.getClass().getSimpleName()
+                                            ),
+                                            e
+                                        );
+                                        listener.onFailure(e);
+                                        return;
+                                    }
+                                    auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+                                    if (e instanceof IndexNotFoundException || e instanceof NoMatchingProjectException) {
+                                        listener.onFailure(e);
+                                    } else {
+                                        listener.onFailure(actionDenied(authentication, authzInfo, action, request, e));
+                                    }
                                 }));
                             } else {
                                 resolvedIndicesListener.onResponse(
@@ -599,7 +620,7 @@ public class AuthorizationService {
                                 return;
                             }
                             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                            if (e instanceof IndexNotFoundException) {
+                            if (e instanceof IndexNotFoundException || e instanceof NoMatchingProjectException) {
                                 listener.onFailure(e);
                             } else {
                                 listener.onFailure(actionDenied(authentication, authzInfo, action, request, e));
@@ -631,7 +652,9 @@ public class AuthorizationService {
                         threadContext
                     )
                 );
-        } else {
+        } else
+
+        {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(actionDenied(authentication, authzInfo, action, request));

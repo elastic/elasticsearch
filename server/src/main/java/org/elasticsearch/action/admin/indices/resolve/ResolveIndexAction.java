@@ -631,6 +631,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams, request.indexModes);
 
             final ResolvedIndexExpressions resolvedExpressions = request.getResolvedIndexExpressions();
+            logger.info("Resolved expressions [{}] and indices [{}]", resolvedExpressions, Arrays.toString(request.indices()));
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);

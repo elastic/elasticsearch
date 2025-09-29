@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -35,6 +37,8 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
 public class IndexAbstractionResolver {
+
+    private static final Logger logger = LogManager.getLogger(IndexAbstractionResolver.class);
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
@@ -89,6 +93,14 @@ public class IndexAbstractionResolver {
                 originProjectAlias,
                 linkedProjectAliases
             );
+            logger.info(
+                "[{}] rewritten index expression [{}] to local [{}] and remote [{}]",
+                originProjectAlias,
+                index,
+                rewrittenIndexExpression.localExpression(),
+                rewrittenIndexExpression.remoteExpressions()
+            );
+
             if (rewrittenIndexExpression.localExpression() == null) {
                 resolvedExpressionsBuilder.addRemoteExpressions(index, new HashSet<>(rewrittenIndexExpression.remoteExpressions()));
                 continue;
@@ -112,14 +124,14 @@ public class IndexAbstractionResolver {
     }
 
     private boolean resolveIndexAbstraction(
-        ResolvedIndexExpressions.Builder resolvedExpressionsBuilder,
-        String originalIndexExpression,
-        String localIndexExpression,
-        IndicesOptions indicesOptions,
-        ProjectMetadata projectMetadata,
-        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
-        BiPredicate<String, IndexComponentSelector> isAuthorized,
-        boolean includeDataStreams,
+        final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder,
+        final String originalIndexExpression,
+        final String localIndexExpression,
+        final IndicesOptions indicesOptions,
+        final ProjectMetadata projectMetadata,
+        final Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        final BiPredicate<String, IndexComponentSelector> isAuthorized,
+        final boolean includeDataStreams,
         boolean wildcardSeen,
         HashSet<String> remoteExpressions
     ) {

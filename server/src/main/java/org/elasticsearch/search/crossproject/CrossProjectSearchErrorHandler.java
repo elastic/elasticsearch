@@ -78,8 +78,7 @@ public class CrossProjectSearchErrorHandler {
         RemoteIndexExpressions remoteResolvedExpressions
     ) {
         logger.info(
-            "Checking cross-project index resolution results with indices options [{}] for [{}] and [{}]",
-            indicesOptions,
+            "Checking cross-project index resolution results for [{}] and [{}]",
             localResolvedExpressions,
             remoteResolvedExpressions
         );

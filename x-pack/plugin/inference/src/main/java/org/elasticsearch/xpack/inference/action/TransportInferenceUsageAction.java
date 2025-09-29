@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
@@ -100,6 +99,10 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         return new InferenceFeatureSetUsage(endpointStats.values());
     }
 
+    /**
+     * Returns a map whose keys are the inference service and task_type and the values are maps of index names to inference fields.
+     * Inference fields in system or hidden indices are excluded.
+     */
     private static Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> mapInferenceFieldsByIndexServiceAndTask(
         Iterable<IndexMetadata> indicesMetadata,
         List<ModelConfigurations> endpoints
@@ -128,6 +131,11 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         return inferenceFieldByIndexServiceAndTask;
     }
 
+    /**
+     * Adds inference usage stats for each service and task type combination.
+     * In addition, adds aggregate usage stats per task type across all services.
+     * Those aggregate stats have "_all" as the service name.
+     */
     private static void addStatsByServiceAndTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         List<ModelConfigurations> endpoints,
@@ -187,6 +195,12 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         stat.semanticTextStats().setInferenceIdCount(inferenceIds.size());
     }
 
+    /**
+     * Adds stats for default models. In particular, default models are considered models that are
+     * associated with default inference endpoints as per the {@code ModelRegistry}. The service name
+     * for default model stats is "_{service}_{modelId}". Each of those stats contains usage for all
+     * endpoints that use that model, including non-default endpoints.
+     */
     private void addStatsForDefaultModels(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         List<ModelConfigurations> endpoints,
@@ -202,6 +216,8 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 new ServiceAndTaskType(statKey.service, statKey.taskType),
                 Map.of()
             );
+            // Now that we have all inference fields for this service and task type, we want to keep only the ones that
+            // reference the current default model.
             fieldsByIndex = filterFields(fieldsByIndex, f -> statKey.modelId.equals(endpointIdToModelId.get(f.getInferenceId())));
             ModelStats stats = new ModelStats(statKey.toString(), statKey.taskType, defaultModelStatsKeyToEndpointCount.getValue());
             addSemanticTextStats(fieldsByIndex, stats);
@@ -210,6 +226,9 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     }
 
     private Map<DefaultModelStatsKey, Long> createDefaultStatsKeysWithEndpointCounts(List<ModelConfigurations> endpoints) {
+        // We consider models to be default if they are associated with a default inference endpoint.
+        // Note that endpoints could have a null model id, in which case we don't consider them default as this
+        // may only happen for external services.
         Set<String> modelIds = endpoints.stream()
             .filter(endpoint -> modelRegistry.containsDefaultConfigId(endpoint.getInferenceEntityId()))
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
@@ -242,8 +261,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         return filtered;
     }
 
-    @Nullable
-    private static String stripLinuxSuffix(@Nullable String modelId) {
+    private static String stripLinuxSuffix(String modelId) {
         if (modelId.endsWith(MODEL_ID_LINUX_SUFFIX)) {
             return modelId.substring(0, modelId.length() - MODEL_ID_LINUX_SUFFIX.length());
         }

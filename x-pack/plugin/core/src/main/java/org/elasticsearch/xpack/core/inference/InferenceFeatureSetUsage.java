@@ -66,7 +66,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
         return Objects.hashCode(modelStats);
     }
 
-    public Collection<ModelStats> modelStats() {
+    Collection<ModelStats> modelStats() {
         return modelStats;
     }
 }

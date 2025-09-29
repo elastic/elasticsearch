@@ -59,7 +59,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
-import static org.elasticsearch.xpack.esql.planner.PhysicalSettings.LUCENE_TOPN_LIMIT;
+import static org.elasticsearch.xpack.esql.planner.PlannerSettings.LUCENE_TOPN_LIMIT;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
@@ -479,7 +479,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     @AwaitsFix(bugUrl = "disabled until JOIN infrastructrure properly lands")
     public void testInlineStatsProfile() throws IOException {
-        assumeTrue("INLINE STATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINE STATS AVG(value) | SORT value ASC");

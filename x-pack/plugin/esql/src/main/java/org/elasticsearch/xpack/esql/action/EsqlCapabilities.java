@@ -14,7 +14,6 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -269,12 +268,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS(),
 
         /**
          * Support for the expressions in grouping in {@code INLINESTATS} syntax.
          */
-        INLINESTATS_V2(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS_V2(),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -670,6 +669,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -973,6 +977,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Registering AggregateMetricDoubleLiteral as a NamedWritable.
+         */
+        AGGREGATE_METRIC_DOUBLE_LITERAL_REGISTERED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -988,12 +997,12 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS_V11,
 
         /**
          * Renamed `INLINESTATS` to `INLINE STATS`.
          */
-        INLINE_STATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINE_STATS,
 
         /**
          * Support partial_results
@@ -1201,9 +1210,10 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support for INCREASE timeseries aggregation.
+         * Support for INCREASE, DELTA timeseries aggregations.
          */
         INCREASE,
+        DELTA_TS_AGG,
 
         /**
          * Extra field types in the k8s.csv dataset
@@ -1315,6 +1325,11 @@ public class EsqlCapabilities {
         KNN_FUNCTION_V5(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
+         */
+        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the LIKE operator with a list of wildcards.
          */
         LIKE_WITH_LIST_OF_PATTERNS,
@@ -1357,7 +1372,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V4(Build.current().isSnapshot()),
+        FUSE_V6(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1458,22 +1473,22 @@ public class EsqlCapabilities {
         /**
          * URL encoding function.
          */
-        URL_ENCODE(Build.current().isSnapshot()),
+        URL_ENCODE(),
 
         /**
          * URL component encoding function.
          */
-        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
+        URL_ENCODE_COMPONENT(),
 
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot()),
+        URL_DECODE(),
 
         /**
          * Allow lookup join on boolean expressions
          */
-        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
 
         /**
          * FORK with remote indices
@@ -1532,6 +1547,18 @@ public class EsqlCapabilities {
          * Support TS command in non-snapshot builds
          */
         TS_COMMAND_V0(),
+
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
+
+        /**
+         * INLINE STATS fix incorrect prunning of null filtering
+         * https://github.com/elastic/elasticsearch/pull/135011
+         */
+        INLINE_STATS_FIX_PRUNING_NULL_FILTER(INLINESTATS_V11.enabled),
+
+        INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS
 
         ;
 

@@ -3250,13 +3250,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
-    public void testExpressionJoinNonSnapshotBuild() {
-        assumeFalse("LOOKUP JOIN is not yet in non-snapshot builds", Build.current().isSnapshot());
-        expectThrows(
-            ParsingException.class,
-            startsWith("line 1:31: JOIN ON clause only supports fields at the moment."),
-            () -> statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field")
-        );
+    /**
+     * Verify that both in snapshot and in release build the feature is enabled and the parsing works
+     * without checking for the capability
+     */
+    public void testExpressionJoinEnabled() {
+        var plan = statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field");
+        var join = as(plan, LookupJoin.class);
     }
 
     public void testValidJoinPatternExpressionJoin() {
@@ -3290,7 +3290,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
         }
 
-        // add a check that the feature is disabled on non-snaphsot build
         String query = "FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString;
         var plan = statement(query);
 
@@ -4219,7 +4218,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
@@ -4319,7 +4318,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 

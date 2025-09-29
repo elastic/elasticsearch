@@ -6,10 +6,10 @@ issues: []
 highlight:
   title: Prevent LIMIT + MV_EXPAND before remote ENRICH
   body: |-
-    Due to the distribured nature of remote `ENRICH`, using a `LIMIT` command followed by a `MV_EXPAND` command before a remote `ENRICH` command
-    can lead to incorrect results. Such queries are identified by the engine and marked as unsupported, leading to query failure. Example:
+    Queries using LIMIT followed by MV_EXPAND before a remote ENRICH can produce incorrect results due to distributed execution semantics.
+    These queries are now unsupported and produce an error. Example:
     [source,yaml]
     ----------------------------
     FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:clientip_policy ON ip
     ----------------------------
-    Such query will now produce an error. The users are advised to rewrite it (e.g. by placing `ENRICH` earlier in the query) to avoid the error.
+    To avoid this error, reorder your query, for example by moving ENRICH earlier in the pipeline.

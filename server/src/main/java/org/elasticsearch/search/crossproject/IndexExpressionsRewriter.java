@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
  * Utility class for rewriting cross-project index expressions.
  * Provides methods that can rewrite qualified and unqualified index expressions to canonical CCS.
  */
-public class CrossProjectIndexExpressionsRewriter {
+public class IndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
 
-    private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
+    private static final Logger logger = LogManager.getLogger(IndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
@@ -74,17 +74,18 @@ public class CrossProjectIndexExpressionsRewriter {
             if (canonicalExpressionsMap.containsKey(indexExpression)) {
                 continue;
             }
-            canonicalExpressionsMap.put(indexExpression, rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases));
+            canonicalExpressionsMap.put(
+                indexExpression,
+                rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases).all()
+            );
         }
         return canonicalExpressionsMap;
     }
 
     /**
      * Rewrites an index expression for cross-project search requests.
-     * Handles qualified and unqualified expressions and match-all cases will also hand exclusions in the future.
-     *
      * @param indexExpression the index expression to be rewritten to canonical CCS
-     * @param originProjectAlias the alias of the _origin project (can be null if it was excluded by project routing). It's passed
+     * @param originProjectAlias the alias of the origin project (can be null if it was excluded by project routing). It's passed
      *                           additionally to allProjectAliases because the origin project requires special handling:
      *                           it can match on its actual alias and on the special alias "_origin". Any expression matched by the origin
      *                           project also cannot be qualified with its actual alias in the final rewritten expression.
@@ -92,7 +93,7 @@ public class CrossProjectIndexExpressionsRewriter {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
-    public static List<String> rewriteIndexExpression(
+    public static LocalWithRemoteExpressions rewriteIndexExpression(
         String indexExpression,
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
@@ -100,15 +101,15 @@ public class CrossProjectIndexExpressionsRewriter {
         maybeThrowOnUnsupportedResource(indexExpression);
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
-        final List<String> canonicalExpressions;
+        final LocalWithRemoteExpressions rewrittenExpression;
         if (isQualified) {
-            canonicalExpressions = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
-            logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
+            rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
+            logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         } else {
-            canonicalExpressions = rewriteUnqualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
-            logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
+            rewrittenExpression = rewriteUnqualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
+            logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         }
-        return canonicalExpressions;
+        return rewrittenExpression;
     }
 
     private static Set<String> getAllProjectAliases(@Nullable String originProjectAlias, List<ProjectRoutingInfo> linkedProjects) {
@@ -119,24 +120,25 @@ public class CrossProjectIndexExpressionsRewriter {
         return Collections.unmodifiableSet(allProjectAliases);
     }
 
-    private static List<String> rewriteUnqualifiedExpression(
+    private static LocalWithRemoteExpressions rewriteUnqualifiedExpression(
         String indexExpression,
         @Nullable String originAlias,
         Set<String> allProjectAliases
     ) {
-        final List<String> canonicalExpressions = new ArrayList<>();
+        String localExpression = null;
+        final List<String> rewrittenExpressions = new ArrayList<>();
         if (originAlias != null) {
-            canonicalExpressions.add(indexExpression); // adding the original indexExpression for the _origin cluster.
+            localExpression = indexExpression; // adding the original indexExpression for the _origin cluster.
         }
         for (String targetProjectAlias : allProjectAliases) {
             if (false == targetProjectAlias.equals(originAlias)) {
-                canonicalExpressions.add(RemoteClusterAware.buildRemoteIndexName(targetProjectAlias, indexExpression));
+                rewrittenExpressions.add(RemoteClusterAware.buildRemoteIndexName(targetProjectAlias, indexExpression));
             }
         }
-        return canonicalExpressions;
+        return new LocalWithRemoteExpressions(localExpression, rewrittenExpressions);
     }
 
-    private static List<String> rewriteQualifiedExpression(
+    private static LocalWithRemoteExpressions rewriteQualifiedExpression(
         String resource,
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
@@ -155,7 +157,7 @@ public class CrossProjectIndexExpressionsRewriter {
 
         if (originProjectAlias != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
-            return List.of(indexExpression);
+            return new LocalWithRemoteExpressions(indexExpression);
         }
 
         if (originProjectAlias == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
@@ -164,7 +166,6 @@ public class CrossProjectIndexExpressionsRewriter {
         }
 
         try {
-            List<String> resourcesMatchingAliases = new ArrayList<>();
             List<String> allProjectsMatchingAlias = ClusterNameExpressionResolver.resolveClusterNames(
                 allProjectAliases,
                 requestedProjectAlias
@@ -174,15 +175,17 @@ public class CrossProjectIndexExpressionsRewriter {
                 throw new NoMatchingProjectException(requestedProjectAlias);
             }
 
+            String localExpression = null;
+            final List<String> resourcesMatchingLinkedProjectAliases = new ArrayList<>();
             for (String project : allProjectsMatchingAlias) {
                 if (project.equals(originProjectAlias)) {
-                    resourcesMatchingAliases.add(indexExpression);
+                    localExpression = indexExpression;
                 } else {
-                    resourcesMatchingAliases.add(RemoteClusterAware.buildRemoteIndexName(project, indexExpression));
+                    resourcesMatchingLinkedProjectAliases.add(RemoteClusterAware.buildRemoteIndexName(project, indexExpression));
                 }
             }
 
-            return resourcesMatchingAliases;
+            return new LocalWithRemoteExpressions(localExpression, resourcesMatchingLinkedProjectAliases);
         } catch (NoSuchRemoteClusterException ex) {
             logger.debug(ex.getMessage(), ex);
             throw new NoMatchingProjectException(requestedProjectAlias);

@@ -106,7 +106,7 @@ public class IndexResolver {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {
-            return IndexResolution.notFound(indexPattern);
+            return IndexResolution.empty(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index

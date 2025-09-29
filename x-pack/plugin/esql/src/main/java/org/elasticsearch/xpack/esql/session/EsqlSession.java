@@ -696,9 +696,7 @@ public class EsqlSession {
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(
-                    result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
-                );
+                listener.onResponse(result.withIndices(IndexResolution.empty(preAnalysis.indexPattern().indexPattern())));
             } else {
                 indexResolver.resolveAsMergedMapping(
                     indexExpressionToResolve,

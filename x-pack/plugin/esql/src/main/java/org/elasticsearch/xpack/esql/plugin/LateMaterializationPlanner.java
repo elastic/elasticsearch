@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -95,10 +97,11 @@ class LateMaterializationPlanner {
 
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
         List<Attribute> expectedDataOutput = toPhysical(topN, context).output();
-        Attribute doc = expectedDataOutput.stream()
-            .filter(EsQueryExec::isSourceAttribute)
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("Expected the source attribute to be present"));
+        Attribute doc = expectedDataOutput.stream().filter(EsQueryExec::isSourceAttribute).findFirst().orElse(null);
+        if (doc == null) {
+            return Optional.empty();
+        }
+
         LogicalPlan withAddedDocToRelation = topN.transformUp(EsRelation.class, r -> {
             List<Attribute> attributes = CollectionUtils.prependToCopy(doc, r.output());
             return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), attributes);
@@ -124,8 +127,15 @@ class LateMaterializationPlanner {
                 )
             )
         );
+        LOGGER.warn(
+            "Late materialization optimization applied. Data driver plan: {}, Reduce driver plan: {}",
+            updatedDataPlan,
+            reductionPlan
+        );
         return Optional.of(new ReductionPlan(reductionPlan, updatedDataPlan));
     }
+
+    private static final Logger LOGGER = LogManager.getLogger(LateMaterializationPlanner.class);
 
     private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
         return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(new LocalMapper().map(plan)), context);

@@ -149,7 +149,7 @@ public class PutSamplingConfigurationActionTests extends AbstractWireSerializing
     }
 
     public void testActionName() {
-        assertThat(PutSamplingConfigurationAction.NAME, equalTo("indices:admin/sample/config/update"));
+        assertThat(PutSamplingConfigurationAction.NAME, equalTo("indices:admin/sampling/config/update"));
         assertThat(PutSamplingConfigurationAction.INSTANCE.name(), equalTo(PutSamplingConfigurationAction.NAME));
     }
 

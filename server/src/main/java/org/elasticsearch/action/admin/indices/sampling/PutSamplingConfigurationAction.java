@@ -45,7 +45,7 @@ public class PutSamplingConfigurationAction extends ActionType<AcknowledgedRespo
     /**
      * The action name used to identify this action in the transport layer.
      */
-    public static final String NAME = "indices:admin/sample/config/update";
+    public static final String NAME = "indices:admin/sampling/config/update";
 
     /**
      * Singleton instance of this action type.

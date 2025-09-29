@@ -41,23 +41,19 @@ public class StubRelation extends LeafPlan {
 
     private final List<Attribute> output;
 
-    public StubRelation(LogicalPlan source, LogicalPlan target) {
-        this(source.source(), computeOutput(source, target));
+    public StubRelation(Source source, List<Attribute> output) {
+        super(source);
+        this.output = output;
     }
 
     /*
      * The output of a StubRelation must also include any synthetic attributes referenced by the source plan (union types is a great
      * example of those attributes that has some special treatment throughout the planning phases, especially in the EsRelation).
      */
-    private static List<Attribute> computeOutput(LogicalPlan source, LogicalPlan target) {
+    public static List<Attribute> computeOutput(LogicalPlan source, LogicalPlan target) {
         Set<Attribute> stubRelationOutput = new LinkedHashSet<>(target.output());
         stubRelationOutput.addAll(source.references().stream().filter(Attribute::synthetic).toList());
         return new ArrayList<>(stubRelationOutput);
-    }
-
-    private StubRelation(Source source, List<Attribute> output) {
-        super(source);
-        this.output = output;
     }
 
     public StubRelation(StreamInput in) throws IOException {

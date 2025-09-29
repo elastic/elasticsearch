@@ -69,18 +69,19 @@ public class ModelStatsTests extends AbstractBWCWireSerializationTestCase<ModelS
     }
 
     public static ModelStats createRandomInstance() {
+        TaskType taskType = randomValueOtherThan(TaskType.ANY, () -> randomFrom(TaskType.values()));
         return new ModelStats(
             randomIdentifier(),
-            randomFrom(TaskType.values()),
+            taskType,
             randomLong(),
-            SemanticTextStatsTests.createRandomInstance()
+            taskType.isCompatibleWithSemanticText() ? SemanticTextStatsTests.createRandomInstance() : null
         );
     }
 
     @Override
     protected ModelStats mutateInstanceForVersion(ModelStats instance, TransportVersion version) {
         if (version.supports(ModelStats.INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS) == false) {
-            return new ModelStats(instance.service(), instance.taskType(), instance.count(), new SemanticTextStats());
+            return new ModelStats(instance.service(), instance.taskType(), instance.count(), null);
         }
         return instance;
     }

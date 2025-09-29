@@ -21,8 +21,8 @@ import java.util.Locale;
 import java.util.Objects;
 
 public enum TaskType implements Writeable {
-    TEXT_EMBEDDING,
-    SPARSE_EMBEDDING,
+    TEXT_EMBEDDING(true),
+    SPARSE_EMBEDDING(true),
     RERANK,
     COMPLETION,
     ANY {
@@ -52,6 +52,16 @@ public enum TaskType implements Writeable {
         }
     }
 
+    private final boolean isCompatibleWithSemanticText;
+
+    TaskType(boolean isCompatibleWithSemanticText) {
+        this.isCompatibleWithSemanticText = isCompatibleWithSemanticText;
+    }
+
+    TaskType() {
+        this(false);
+    }
+
     /**
      * Return true if the {@code other} is the {@link #ANY} type
      * or the same as this.
@@ -60,6 +70,14 @@ public enum TaskType implements Writeable {
      */
     public boolean isAnyOrSame(TaskType other) {
         return other == TaskType.ANY || other == this;
+    }
+
+    /**
+     * Returns true if this task type is compatible with semantic text.
+     * @return True if this task type is compatible with semantic text.
+     */
+    public boolean isCompatibleWithSemanticText() {
+        return isCompatibleWithSemanticText;
     }
 
     @Override

@@ -95,7 +95,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             mapInferenceFieldsByIndexServiceAndTask(indicesMetadata, endpoints);
         Map<String, ModelStats> endpointStats = new TreeMap<>();
         addStatsByServiceAndTask(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
-        addStatsForDefaultModels(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
+        addStatsForDefaultModelsCompatibleWithSemanticText(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
         return new InferenceFeatureSetUsage(endpointStats.values());
     }
 
@@ -159,10 +159,10 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 endpointStats.get(serviceAndTaskType.toString())
             )
         );
-        addTopLevelSemanticTextStatsByTask(inferenceFieldsByIndexServiceAndTask, endpointStats);
+        addTopLevelStatsByTask(inferenceFieldsByIndexServiceAndTask, endpointStats);
     }
 
-    private static void addTopLevelSemanticTextStatsByTask(
+    private static void addTopLevelStatsByTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         Map<String, ModelStats> endpointStats
     ) {
@@ -174,14 +174,20 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 new ServiceAndTaskType(Metadata.ALL, taskType).toString(),
                 key -> new ModelStats(Metadata.ALL, taskType)
             );
-            Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex = inferenceFieldsByIndexServiceAndTask.entrySet()
-                .stream()
-                .filter(e -> e.getKey().taskType == taskType)
-                .flatMap(m -> m.getValue().entrySet().stream())
-                .collect(
-                    Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (l1, l2) -> Stream.concat(l1.stream(), l2.stream()).toList())
-                );
-            addSemanticTextStats(inferenceFieldsByIndex, allStatsForTaskType);
+            if (taskType.isCompatibleWithSemanticText()) {
+                Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex = inferenceFieldsByIndexServiceAndTask.entrySet()
+                    .stream()
+                    .filter(e -> e.getKey().taskType == taskType)
+                    .flatMap(m -> m.getValue().entrySet().stream())
+                    .collect(
+                        Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (l1, l2) -> Stream.concat(l1.stream(), l2.stream()).toList()
+                        )
+                    );
+                addSemanticTextStats(inferenceFieldsByIndex, allStatsForTaskType);
+            }
         }
     }
 
@@ -196,12 +202,12 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     }
 
     /**
-     * Adds stats for default models. In particular, default models are considered models that are
-     * associated with default inference endpoints as per the {@code ModelRegistry}. The service name
-     * for default model stats is "_{service}_{modelId}". Each of those stats contains usage for all
-     * endpoints that use that model, including non-default endpoints.
+     * Adds stats for default models that are compatible with semantic_text.
+     * In particular, default models are considered models that are associated with default inference
+     * endpoints as per the {@code ModelRegistry}. The service name for default model stats is "_{service}_{modelId}".
+     * Each of those stats contains usage for all endpoints that use that model, including non-default endpoints.
      */
-    private void addStatsForDefaultModels(
+    private void addStatsForDefaultModelsCompatibleWithSemanticText(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         List<ModelConfigurations> endpoints,
         Map<String, ModelStats> endpointStats
@@ -209,7 +215,8 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         Map<String, String> endpointIdToModelId = endpoints.stream()
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
             .collect(Collectors.toMap(ModelConfigurations::getInferenceEntityId, e -> stripLinuxSuffix(e.getServiceSettings().modelId())));
-        Map<DefaultModelStatsKey, Long> defaultModelsToEndpointCount = createDefaultStatsKeysWithEndpointCounts(endpoints);
+        Map<DefaultModelStatsKey, Long> defaultModelsToEndpointCount =
+            createStatsKeysWithEndpointCountsForDefaultModelsCompatibleWithSemanticText(endpoints);
         for (Map.Entry<DefaultModelStatsKey, Long> defaultModelStatsKeyToEndpointCount : defaultModelsToEndpointCount.entrySet()) {
             DefaultModelStatsKey statKey = defaultModelStatsKeyToEndpointCount.getKey();
             Map<String, List<InferenceFieldMetadata>> fieldsByIndex = inferenceFieldsByIndexServiceAndTask.getOrDefault(
@@ -225,11 +232,14 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         }
     }
 
-    private Map<DefaultModelStatsKey, Long> createDefaultStatsKeysWithEndpointCounts(List<ModelConfigurations> endpoints) {
+    private Map<DefaultModelStatsKey, Long> createStatsKeysWithEndpointCountsForDefaultModelsCompatibleWithSemanticText(
+        List<ModelConfigurations> endpoints
+    ) {
         // We consider models to be default if they are associated with a default inference endpoint.
         // Note that endpoints could have a null model id, in which case we don't consider them default as this
         // may only happen for external services.
         Set<String> modelIds = endpoints.stream()
+            .filter(endpoint -> endpoint.getTaskType().isCompatibleWithSemanticText())
             .filter(endpoint -> modelRegistry.containsDefaultConfigId(endpoint.getInferenceEntityId()))
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
             .map(endpoint -> stripLinuxSuffix(endpoint.getServiceSettings().modelId()))

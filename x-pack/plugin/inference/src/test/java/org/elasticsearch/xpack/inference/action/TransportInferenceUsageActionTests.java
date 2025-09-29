@@ -57,6 +57,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETT
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -112,9 +113,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(8));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 5, new ModelStats("hugging_face_elser", TaskType.SPARSE_EMBEDDING, 2, EMPTY_SEMANTIC_TEXT_STATS));
@@ -129,9 +130,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(5));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
     }
@@ -177,9 +178,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(8));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 5, new SemanticTextStats(9, 3, 4)));
         assertStats(response, 5, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(3, 3, 2)));
@@ -222,9 +223,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(12));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(4, 2, 2)));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(6, 2, 2)));
         assertStats(response, 5, new ModelStats("_eis__model-id-001", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
@@ -264,9 +265,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(7));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
         assertStats(response, 5, new ModelStats("_eis__model-id-001", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
@@ -301,9 +302,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(7));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
         assertStats(response, 5, new ModelStats("_eis__model-id-001", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
@@ -317,9 +318,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(6));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
         assertStats(response, 5, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
@@ -349,9 +350,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(6));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
         assertStats(response, 5, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
@@ -383,9 +384,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(7));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
         assertStats(response, 5, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
@@ -418,9 +419,9 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         XContentSource response = executeAction();
 
         assertThat(response.getValue("models"), hasSize(7));
-        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
         assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
         assertStats(response, 5, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
@@ -516,17 +517,21 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertThat(source.getValue("models." + index + ".service"), is(stats.service()));
         assertThat(source.getValue("models." + index + ".task_type"), is(stats.taskType().name()));
         assertThat(((Integer) source.getValue("models." + index + ".count")).longValue(), equalTo(stats.count()));
-        assertThat(
-            ((Integer) source.getValue("models." + index + ".semantic_text.field_count")).longValue(),
-            equalTo(stats.semanticTextStats().getFieldCount())
-        );
-        assertThat(
-            ((Integer) source.getValue("models." + index + ".semantic_text.indices_count")).longValue(),
-            equalTo(stats.semanticTextStats().getIndicesCount())
-        );
-        assertThat(
-            ((Integer) source.getValue("models." + index + ".semantic_text.inference_id_count")).longValue(),
-            equalTo(stats.semanticTextStats().getInferenceIdCount())
-        );
+        if (stats.semanticTextStats() == null) {
+            assertThat(source.getValue("models." + index + ".semantic_text"), is(nullValue()));
+        } else {
+            assertThat(
+                ((Integer) source.getValue("models." + index + ".semantic_text.field_count")).longValue(),
+                equalTo(stats.semanticTextStats().getFieldCount())
+            );
+            assertThat(
+                ((Integer) source.getValue("models." + index + ".semantic_text.indices_count")).longValue(),
+                equalTo(stats.semanticTextStats().getIndicesCount())
+            );
+            assertThat(
+                ((Integer) source.getValue("models." + index + ".semantic_text.inference_id_count")).longValue(),
+                equalTo(stats.semanticTextStats().getInferenceIdCount())
+            );
+        }
     }
 }

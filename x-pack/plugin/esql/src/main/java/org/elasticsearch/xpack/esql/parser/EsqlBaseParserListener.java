@@ -80,15 +80,29 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitProcessingCommand(EsqlBaseParser.ProcessingCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#whereCommand}.
+   * Enter a parse tree produced by the {@code whereMatchStringExpression}
+   * labeled alternative in {@link EsqlBaseParser#whereCommand}.
    * @param ctx the parse tree
    */
-  void enterWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
+  void enterWhereMatchStringExpression(EsqlBaseParser.WhereMatchStringExpressionContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#whereCommand}.
+   * Exit a parse tree produced by the {@code whereMatchStringExpression}
+   * labeled alternative in {@link EsqlBaseParser#whereCommand}.
    * @param ctx the parse tree
    */
-  void exitWhereCommand(EsqlBaseParser.WhereCommandContext ctx);
+  void exitWhereMatchStringExpression(EsqlBaseParser.WhereMatchStringExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code whereBooleanExpression}
+   * labeled alternative in {@link EsqlBaseParser#whereCommand}.
+   * @param ctx the parse tree
+   */
+  void enterWhereBooleanExpression(EsqlBaseParser.WhereBooleanExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code whereBooleanExpression}
+   * labeled alternative in {@link EsqlBaseParser#whereCommand}.
+   * @param ctx the parse tree
+   */
+  void exitWhereBooleanExpression(EsqlBaseParser.WhereBooleanExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.

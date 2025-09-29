@@ -134,7 +134,7 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 `TransportService`.
 
 > [!NOTE]
-> TransportActions' [ActionType] naming conventions encode semantic information about the role, scope, plugins, modules and behaviours.
+> `TransportAction` `ActionType` naming conventions encode semantic information about the role, scope, plugins, modules and behaviours.
 > [ActionType] instances are mapped to permission privileges via the [ClusterPrivilegeResolver]. Security interceptors enforce access
 > control by invoking RBACEngine.checkPrivileges().
 > Indices-level [ActionType] strings generally follows the pattern: `indices:[data|admin|monitor]/[read|write|get]/[index|bulk|update]`.

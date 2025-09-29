@@ -22,6 +22,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -670,7 +671,9 @@ public class CompositeRolesStore {
     }
 
     public Map<String, Object> usageStatsWithJustDls() {
-        return Map.of("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
+        final Map<String, Object> usageStats = Maps.newLinkedHashMapWithExpectedSize(1);
+        usageStats.put("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
+        return usageStats; // return LinkedHashMap for deterministic order in transport
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {

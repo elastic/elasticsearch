@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -74,6 +76,7 @@ import java.util.function.Function;
 *  plan. See #134363 for a way to optimize this little problem.
 */
 class LateMaterializationPlanner {
+    // TODO add a proper unit test. Right now this is tested vicariously through the integration test EsqlTopNFetchPhaseOptimizationIT.
     public static Optional<ReductionPlan> planReduceDriverTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalPlan
@@ -90,6 +93,10 @@ class LateMaterializationPlanner {
 
         TopN topN = topLevelProject.child() instanceof TopN tn ? tn : null;
         if (topN == null) { // I'm getting go déjà vu
+            return Optional.empty();
+        }
+
+        if (isTopNIncompatible(topN)) {
             return Optional.empty();
         }
 
@@ -155,4 +162,15 @@ class LateMaterializationPlanner {
             return null;
         }
     };
+
+    /**
+     * We don't support this optimization for multi-index queries at the moment, since the reduce coordinator doesn't actually have access
+     * to each individual table's schema, and thus cannot determine the correct output of the data node's physical plan. Similarly, we don't
+     * handle enrich or join yet.
+     */
+    private static boolean isTopNIncompatible(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof EsRelation eqe && eqe.indexNameWithModes().size() > 1)
+            && plan.anyMatch(p -> p instanceof Enrich)
+            && plan.anyMatch(p -> p instanceof BinaryPlan);
+    }
 }

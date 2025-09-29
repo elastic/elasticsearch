@@ -64,7 +64,7 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import java.util.zip.CRC32C;
+import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import static org.elasticsearch.core.Strings.format;
@@ -614,7 +614,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final Operation operation) throws IOException {
         try (TranslogStreamOutput out = new TranslogStreamOutput(bigArrays.bytesRefRecycler())) {
-            CRC32C checksum = new CRC32C();
+            CRC32 checksum = new CRC32();
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
             int size = header.length();
@@ -648,10 +648,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             + "]"
                     );
                 }
-                return current.add(
-                    new WriteOp(header.iterator(), source != null ? source.iterator() : null, size + 4, (int) checksum.getValue()),
-                    operation.seqNo()
-                );
+                return current.add(new Serialized(header, source, size + 4, (int) checksum.getValue()), operation.seqNo());
             } finally {
                 readLock.unlock();
             }
@@ -664,14 +661,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public record WriteOp(BytesRefIterator header, @Nullable BytesRefIterator source, int length, int checksum)
-        implements
-            BytesRefIterator {
+    public record Serialized(BytesReference header, @Nullable BytesReference source, int length, int checksum) {
 
-        @Override
-        public BytesRef next() throws IOException {
-            BytesRef headerNext = header.next();
-            return headerNext != null ? headerNext : source != null ? source.next() : null;
+        public BytesRefIterator iterator() {
+            final BytesRefIterator headerIterator = this.header.iterator();
+            final BytesRefIterator sourceIterator = this.source != null ? this.source.iterator() : null;
+
+            return () -> {
+                BytesRef headerNext = headerIterator.next();
+                return headerNext != null ? headerNext : sourceIterator != null ? sourceIterator.next() : null;
+            };
         }
     }
 
@@ -900,7 +899,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 );
             }
             // we assume that the current translog generation doesn't have trimmable ops. Verify that.
-            // assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
+            assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
@@ -1727,16 +1726,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private static void updateChecksum(BytesReference bytes, Checksum checksum, final int offset) throws IOException {
+    private static void updateChecksum(BytesReference bytes, Checksum checksum, final int bytesToSkip) throws IOException {
         if (bytes.hasArray()) {
-            checksum.update(bytes.array(), bytes.arrayOffset() + offset, bytes.length() - offset);
+            checksum.update(bytes.array(), bytes.arrayOffset() + bytesToSkip, bytes.length() - bytesToSkip);
         } else {
-            int remainingOffset = offset;
+            int offset = bytesToSkip;
             BytesRefIterator iterator = bytes.iterator();
             BytesRef slice;
             while ((slice = iterator.next()) != null) {
-                checksum.update(slice.bytes, slice.offset + remainingOffset, slice.length - remainingOffset);
-                remainingOffset = 0;
+                checksum.update(slice.bytes, slice.offset + offset, slice.length - offset);
+                offset = 0;
             }
         }
     }

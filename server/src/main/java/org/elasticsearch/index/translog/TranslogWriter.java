@@ -9,11 +9,15 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
@@ -227,57 +231,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to.
+     * Add the serialized operation to the translog with the specified sequence number; returns the location the operation was written to.
      *
-     * @param data  the bytes to write
+     * @param operation  the serialized operation to write
      * @param seqNo the sequence number associated with the operation
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
+    public Translog.Location add(final Translog.Serialized operation, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
         }
 
-        final Translog.Location location;
-        synchronized (this) {
-            ensureOpen();
-            if (buffer == null) {
-                buffer = new TranslogStreamOutput(bigArrays.bytesRefRecycler());
-            }
-            assert bufferedBytes == buffer.size();
-            final long offset = totalOffset;
-            totalOffset += data.length();
-            data.writeTo(buffer);
-
-            assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
-            assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
-
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-
-            nonFsyncedSequenceNumbers.add(seqNo);
-
-            operationCounter++;
-
-            // assert assertNoSeqNumberConflict(seqNo, data);
-
-            location = new Translog.Location(generation, offset, data.length());
-            operationListener.operationAdded(data, seqNo, location);
-            bufferedBytes = buffer.size();
-        }
-
-        return location;
-    }
-
-    public Translog.Location add(final Translog.WriteOp data, final long seqNo) throws IOException {
-        long bufferedBytesBeforeAdd = this.bufferedBytes;
-        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
-            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
-        }
-
-        int bytesToAdd = data.length();
+        int bytesToAdd = operation.length();
         final Translog.Location location;
         synchronized (this) {
             ensureOpen();
@@ -287,7 +254,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += bytesToAdd;
-            buffer.writeFullOperation(data);
+            buffer.writeSerializedOperation(operation);
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
@@ -299,20 +266,30 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
-            // assert assertNoSeqNumberConflict(seqNo, header);
+            assert assertNoSeqNumberConflict(seqNo, operation);
 
             location = new Translog.Location(generation, offset, bytesToAdd);
-            operationListener.operationAdded(BytesArray.EMPTY, seqNo, location);
+            operationListener.operationAdded(operation, seqNo, location);
             bufferedBytes = buffer.size();
         }
 
         return location;
     }
 
-    private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
+    private synchronized boolean assertNoSeqNumberConflict(long seqNo, Translog.Serialized serialized) throws IOException {
         if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             // nothing to do
-        } else if (seenSequenceNumbers.containsKey(seqNo)) {
+            return true;
+        }
+
+        byte[] checksumBytes = new byte[4];
+        DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(checksumBytes));
+        out.writeInt(serialized.checksum());
+        BytesArray checksum = new BytesArray(checksumBytes);
+        BytesReference data = serialized.source() == null
+            ? CompositeBytesReference.of(serialized.header(), checksum)
+            : CompositeBytesReference.of(serialized.header(), serialized.source(), checksum);
+        if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput(), "assertion"));

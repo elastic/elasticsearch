@@ -10,6 +10,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 
@@ -25,25 +26,26 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
         super(recycler);
     }
 
-    public void writeFullOperation(Translog.WriteOp writeOperation) throws IOException {
+    public void writeSerializedOperation(Translog.Serialized serialized) throws IOException {
         final int preWritePageOffset = this.currentPageOffset;
-        if (writeOperation.length() <= (pageSize - preWritePageOffset)) {
+        final BytesRefIterator refIterator = serialized.iterator();
+        if (serialized.length() <= (pageSize - preWritePageOffset)) {
             BytesRef currentPage = currentBytesRef;
             int offset = currentPage.offset + preWritePageOffset;
             byte[] pageBytes = currentPage.bytes;
             BytesRef ref;
-            while ((ref = writeOperation.next()) != null) {
+            while ((ref = refIterator.next()) != null) {
                 System.arraycopy(ref.bytes, ref.offset, pageBytes, offset, ref.length);
                 offset += ref.length;
             }
-            VH_BE_INT.set(pageBytes, offset, writeOperation.checksum());
-            this.currentPageOffset = preWritePageOffset + writeOperation.length();
+            VH_BE_INT.set(pageBytes, offset, serialized.checksum());
+            this.currentPageOffset = preWritePageOffset + serialized.length();
         } else {
             BytesRef next;
-            while ((next = writeOperation.next()) != null) {
+            while ((next = refIterator.next()) != null) {
                 writeBytes(next.bytes, next.offset, next.length);
             }
-            writeInt(writeOperation.checksum());
+            writeInt(serialized.checksum());
         }
     }
 

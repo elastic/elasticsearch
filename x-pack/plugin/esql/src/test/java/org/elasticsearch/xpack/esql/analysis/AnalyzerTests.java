@@ -135,7 +135,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithD
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -3339,7 +3338,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
-            assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR_FEATURE_FLAG.isEnabled() ? DENSE_VECTOR : UNSUPPORTED));
+            assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
             IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
@@ -4149,9 +4148,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldsInvalidTypes() {
-        List<String> invalidFieldNames = DENSE_VECTOR_FEATURE_FLAG.isEnabled()
-            ? List.of("date", "date_nanos", "ip", "version", "dense_vector")
-            : List.of("date", "date_nanos", "ip", "version");
+        List<String> invalidFieldNames = List.of("date", "date_nanos", "ip", "version", "dense_vector");
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);

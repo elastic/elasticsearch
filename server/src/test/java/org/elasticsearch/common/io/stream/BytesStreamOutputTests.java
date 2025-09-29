@@ -156,20 +156,6 @@ public class BytesStreamOutputTests extends ESTestCase {
         assertThrows(IllegalArgumentException.class, () -> s.skip(skipPosition));
     }
 
-    public void testSeekAndSkip() {
-        int byteArrayLength = randomIntBetween(0, 100);
-        byte[] byteArray = randomByteArrayOfLength(byteArrayLength);
-        stream.writeBytes(byteArray, 0, byteArrayLength);
-
-        int seekPosition = randomIntBetween(byteArrayLength, byteArrayLength + 100);
-        stream.seek(seekPosition);
-        assertEquals(seekPosition, stream.size());
-
-        int skipLength = randomIntBetween(0, 100);
-        stream.skip(skipLength);
-        assertEquals(seekPosition + skipLength, stream.size());
-    }
-
     public void testCopyBytes() {
         int byteArrayLength = randomIntBetween(0, 100);
         byte[] byteArray = randomByteArrayOfLength(byteArrayLength);

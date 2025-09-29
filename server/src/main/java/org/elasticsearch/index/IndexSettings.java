@@ -857,8 +857,6 @@ public final class IndexSettings {
         AUTO
     }
 
-    public static final boolean VECTORS_INDEXING_USE_GPU = new FeatureFlag("vectors_indexing_use_gpu").isEnabled();
-
     /**
      * Setting to control whether to use GPU for vectors indexing.
      * Currently only applicable for index_options.type: hnsw.

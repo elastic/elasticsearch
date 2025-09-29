@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.Iterators;
@@ -61,6 +62,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField DETAILS_FIELD = new ParseField("details");
     public static final ParseField TOOK = new ParseField("took");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
+
+    private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
 
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
@@ -119,8 +122,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.isPartial = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL) ? in.readBoolean() : false;
         this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
             this.planningTimeSpan = in.readOptional(TimeSpan::readFrom);
         }
@@ -138,8 +140,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
             out.writeBoolean(isPartial);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             out.writeOptionalWriteable(overallTimeSpan);
             out.writeOptionalWriteable(planningTimeSpan);
         }

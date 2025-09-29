@@ -39,7 +39,6 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirs
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,8 +60,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         indexVersion = randomBoolean()
             ? IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.TSID_CREATED_DURING_ROUTING)
             : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
-        indexDimensionsTsidOptimizationEnabled = INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG
-            && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
+        indexDimensionsTsidOptimizationEnabled = indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {
@@ -956,10 +954,18 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         // we don't support index.dimensions with dynamic templates so we'll unset index.dimensions
-        Settings result = onUpdateMappings(null, "labels.*", mapping);
-        assertThat(result.size(), equalTo(2));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("labels.*"));
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> onUpdateMappings(null, "labels.*", mapping)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions. "
+                    + "Please change the index template and roll over the data stream "
+                    + "instead of modifying the mappings of the backing indices."
+            )
+        );
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {

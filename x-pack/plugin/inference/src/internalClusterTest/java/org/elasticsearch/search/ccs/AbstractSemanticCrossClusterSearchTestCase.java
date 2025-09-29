@@ -54,13 +54,13 @@ import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtensio
 import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -147,27 +147,16 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         assertThat(refreshResponse.getStatus(), is(RestStatus.OK));
     }
 
-    protected void waitUntilRemoteClusterConnected(String clusterAlias) throws InterruptedException {
+    protected void waitUntilRemoteClusterConnected(String clusterAlias) throws Exception {
         RemoteInfoRequest request = new RemoteInfoRequest();
-        boolean connected;
-        int attempts = 0;
-        int delayInSeconds = 0;
-        do {
-            if (delayInSeconds > 0) {
-                // Delay between retries so that we don't use up all our attempts in a tight loop
-                Thread.sleep(Duration.ofSeconds(delayInSeconds));
-            }
+        assertBusy(() -> {
             RemoteInfoResponse response = client().execute(TransportRemoteInfoAction.TYPE, request).actionGet(TEST_REQUEST_TIMEOUT);
-            connected = response.getInfos()
+            boolean connected = response.getInfos()
                 .stream()
                 .filter(i -> i.getClusterAlias().equals(clusterAlias))
                 .anyMatch(RemoteConnectionInfo::isConnected);
-            delayInSeconds += 5;
-        } while (connected == false && attempts++ < 5);
-
-        if (connected == false) {
-            throw new AssertionError("Cannot connect to remote cluster [" + clusterAlias + "]");
-        }
+            assertThat(connected, is(true));
+        }, 30, TimeUnit.SECONDS);
     }
 
     protected BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {

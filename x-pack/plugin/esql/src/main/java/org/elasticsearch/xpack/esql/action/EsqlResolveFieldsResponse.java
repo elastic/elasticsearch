@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -53,7 +54,12 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
     /**
      * The minimum {@link TransportVersion} of all clusters against which we resolved
      * indices.
+     * <p>
+     *     If this is {@code null} then one of the nodes is before {@link #CREATED} but
+     *     we have no idea how early it is. Could be back in {@code 8.19.0}.
+     * </p>
      */
+    @Nullable
     public TransportVersion minTransportVersion() {
         return minTransportVersion;
     }

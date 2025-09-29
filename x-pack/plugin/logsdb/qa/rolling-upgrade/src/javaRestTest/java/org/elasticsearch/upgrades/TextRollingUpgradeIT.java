@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,13 +85,6 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
 
     public TextRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
-    }
-
-    @Before
-    public void checkFeatures() {
-        if (Build.current().isSnapshot()) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
     }
 
     public void testIndexing() throws Exception {

@@ -216,6 +216,21 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             error.getMessage(),
             equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
         );
+
+        var rootObjectMapper = new RootObjectMapper.Builder("metrics").add(
+            new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+
+        error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PassThroughObjectMapper.Builder("metrics").setPriority(10)
+                .build(MapperBuilderContext.root(isSourceSynthetic, true))
+                .merge(rootObjectMapper, MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE))
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
+        );
     }
 
     private PassThroughObjectMapper create(String name, int priority) {

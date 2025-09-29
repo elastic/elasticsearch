@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -52,7 +53,12 @@ public final class BlockUtils {
         }
 
         public void accept(Object object) {
-            append.accept(object);
+            try {
+                append.accept(object);
+            } catch (CircuitBreakingException e) {
+                close();
+                throw e;
+            }
         }
 
         @Override

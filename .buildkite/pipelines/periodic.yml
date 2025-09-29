@@ -768,6 +768,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
+              - adoptopenjdk17
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -791,6 +792,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
+              - adoptopenjdk17
             BWC_VERSION: ["7.17.30", "8.18.8", "8.19.5"]
         agents:
           provider: gcp
@@ -810,6 +812,7 @@ steps:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
               - openjdk17
+              - adoptopenjdk17
               - openjdk21
               - openjdk22
               - openjdk23
@@ -837,6 +840,7 @@ steps:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
               - openjdk17
+              - adoptopenjdk17
               - openjdk21
               - openjdk22
               - openjdk23

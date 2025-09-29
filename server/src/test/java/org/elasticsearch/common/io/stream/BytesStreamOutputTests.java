@@ -122,7 +122,10 @@ public class BytesStreamOutputTests extends ESTestCase {
         int byteArrayLength = randomIntBetween(0, 100);
         byte[] byteArray = randomByteArrayOfLength(byteArrayLength);
         s.writeBytes(byteArray, 0, byteArrayLength);
-        assertThrows(IllegalArgumentException.class, () -> s.seek(randomLongBetween((long) Integer.MAX_VALUE + 1, (long) Integer.MAX_VALUE + 100)));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> s.seek(randomLongBetween((long) Integer.MAX_VALUE + 1, (long) Integer.MAX_VALUE + 100))
+        );
     }
 
     public void testSkip() {

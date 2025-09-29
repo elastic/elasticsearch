@@ -12,9 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -98,7 +96,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -131,6 +128,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -2475,10 +2473,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     private LocalPhysicalPlanOptimizer getCustomRulesLocalPhysicalPlanOptimizer(List<RuleExecutor.Batch<PhysicalPlan>> batches) {
-        var physicalSettings = new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000);
         var flags = new EsqlFlags(true);
         LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
-            physicalSettings,
+            TEST_PLANNER_SETTINGS,
             flags,
             config,
             FoldContext.small(),

@@ -186,22 +186,12 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 var id = parseStringField(jsonParser, ID_FIELD);
                 var name = parseStringField(jsonParser, NAME_FIELD);
                 var input = parseFieldValue(jsonParser, INPUT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    List.of(
-                        new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                            0,
-                            id,
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                                input != null ? input.toString() : null,
-                                name
-                            ),
-                            null
-                        )
-                    )
+                var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
+                    input != null ? input.toString() : null,
+                    name
                 );
+                var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, id, function, null);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
             } else {
                 logger.debug("Unknown content block start type [{}] for line [{}].", type, data);
                 return Stream.empty();
@@ -232,19 +222,12 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
             } else if (type.equals(INPUT_JSON_DELTA_TYPE)) {
                 var partialJson = parseStringField(jsonParser, PARTIAL_JSON_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    List.of(
-                        new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                            0,
-                            null,
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(partialJson, null),
-                            null
-                        )
-                    )
+                var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
+                    partialJson,
+                    null
                 );
+                var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, null, function, null);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
             } else {
                 logger.debug("Unknown content block delta type [{}] for line [{}].", type, data);
                 return Stream.empty();

@@ -51,7 +51,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
         thinkingConfig = new ThinkingConfig(in);
         TransportVersion version = in.getTransportVersion();
         if (GoogleVertexAiUtils.supportsModelGarden(version)) {
-            maxTokens = in.readOptionalInt();
+            maxTokens = in.readOptionalVInt();
         } else {
             maxTokens = null;
         }
@@ -125,7 +125,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     public void writeTo(StreamOutput out) throws IOException {
         thinkingConfig.writeTo(out);
         if (GoogleVertexAiUtils.supportsModelGarden(out.getTransportVersion())) {
-            out.writeOptionalInt(maxTokens);
+            out.writeOptionalVInt(maxTokens);
         }
     }
 

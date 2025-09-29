@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -109,6 +110,50 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
             sender.startSynchronously();
             sender.startSynchronously();
+        }
+    }
+
+    public void testStart_ThrowsException_WhenAnErrorOccurs() throws IOException {
+        var mockManager = mock(HttpClientManager.class);
+        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+        doThrow(new Error("failed")).when(mockManager).start();
+
+        var senderFactory = new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mockManager,
+            mockClusterServiceEmpty()
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            // Checking for both exception types because there's a race condition between the Error being thrown on a separate thread
+            // and the startCompleted latch timing out waiting for the start to complete
+            var exception = expectThrowsAnyOf(List.of(Error.class, IllegalStateException.class), sender::startSynchronously);
+
+            if (exception instanceof Error) {
+                assertThat(exception.getMessage(), is("failed"));
+            } else {
+                // IllegalStateException can be thrown if the startCompleted latch times out waiting for the start to complete
+                assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
+            }
+        }
+    }
+
+    public void testStart_ThrowsExceptionWaitingForStartToComplete() throws IOException {
+        var mockManager = mock(HttpClientManager.class);
+        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+        // This won't get rethrown because it is not an Error
+        doThrow(new IllegalArgumentException("failed")).when(mockManager).start();
+
+        var senderFactory = new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mockManager,
+            mockClusterServiceEmpty()
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var exception = expectThrows(IllegalStateException.class, sender::startSynchronously);
+
+            assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
         }
     }
 

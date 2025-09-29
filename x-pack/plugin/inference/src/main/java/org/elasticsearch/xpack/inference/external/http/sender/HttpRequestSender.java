@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -77,6 +79,7 @@ public class HttpRequestSender implements Sender {
         }
     }
 
+    private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
     private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
     private final ThreadPool threadPool;
@@ -133,8 +136,17 @@ public class HttpRequestSender implements Sender {
     @Override
     public void startSynchronously() {
         if (started.compareAndSet(false, true)) {
-            startInternal(ActionListener.noop());
+            ActionListener<Void> listener = ActionListener.wrap(
+                unused -> {},
+                exception -> {
+                    logger.error("Http sender failed to start", exception);
+                    ExceptionsHelper.maybeDieOnAnotherThread(exception);
+                }
+            );
+            startInternal(listener);
         }
+        // Handle the case where start*() was already called and this would return immediately because the started flag is already true
+        waitForStartToComplete();
     }
 
     private void waitForStartToComplete() {

@@ -32,21 +32,15 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> {
-            /*
-             * In general ToString should support all signatures. While building a
-             * new type you may we to temporarily remove this.
-             */
-            throw new UnsupportedOperationException("all signatures should be supported");
-        }));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> TYPE_ERROR));
     }
+
+    private static final String TYPE_ERROR =
+        "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime or geo_point or geo_shape "
+            + "or geohash or geohex or geotile or ip or numeric or string or version";
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        /*
-         * In general ToString should support all signatures. While building a
-         * new type you may we to temporarily relax this.
-         */
-        assertThat("all signatures should be supported", checked, equalTo(0));
+        assertThat(checked, equalTo(1));
     }
 }

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +45,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
+    private static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM = TransportVersion.fromName(
+        "search_source_exclude_vectors_param"
+    );
     private static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM = TransportVersion.fromName(
         "search_source_exclude_inference_fields_param"
     );
@@ -157,8 +159,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     private static boolean isVersionCompatibleWithExcludeVectors(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19)
-            || version.onOrAfter(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM);
+        return version.supports(SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM);
     }
 
     public boolean fetchSource() {

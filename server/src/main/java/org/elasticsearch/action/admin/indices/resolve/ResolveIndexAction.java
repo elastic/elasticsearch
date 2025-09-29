@@ -207,7 +207,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
-        public boolean resolveCrossProject() {
+        public boolean allowCrossProjectResolution() {
             return resolveCrossProject;
         }
 

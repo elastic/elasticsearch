@@ -367,9 +367,11 @@ class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-                if (replaceable.resolveCrossProject() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT) {
+                if (replaceable.allowCrossProjectResolution() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
                     assert recordResolvedIndexExpressions : "cross-project requests must record resolved index expressions";
+                    assert false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())
+                        : "expression list is *,-* which effectively means a request that requests no indices";
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),

@@ -11,6 +11,7 @@ package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,7 +28,11 @@ public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<Pr
         return originProject != null ? originProject.projectAlias() : null;
     }
 
-    public Set<String> linkedProjectAliases() {
-        return linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
+    public Set<String> allProjectAliases() {
+        final Set<String> allProjectAliases = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
+        if (originProject != null) {
+            allProjectAliases.add(originProject.projectAlias());
+        }
+        return Collections.unmodifiableSet(allProjectAliases);
     }
 }

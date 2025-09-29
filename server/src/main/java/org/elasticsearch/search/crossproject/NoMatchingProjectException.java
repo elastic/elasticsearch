@@ -10,6 +10,9 @@
 package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * An exception that a project is missing
@@ -20,4 +23,7 @@ public final class NoMatchingProjectException extends ResourceNotFoundException 
         super("No such project: [" + projectName + "]");
     }
 
+    public NoMatchingProjectException(StreamInput in) throws IOException {
+        super(in);
+    }
 }

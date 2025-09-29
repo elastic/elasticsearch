@@ -27,8 +27,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
 
     private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = TransportVersion.fromName("idp_custom_saml_attributes");
-    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_PATCH = TransportVersion.fromName("idp_custom_saml_attributes")
-        .nextPatchVersion();
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_PATCH = IDP_CUSTOM_SAML_ATTRIBUTES.nextPatchVersion();
 
     public void testSerializationCurrentVersion() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();

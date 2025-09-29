@@ -1070,6 +1070,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // prefer any known write-load over any unknown write-load
                 final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
                 final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
+                if (rhsIsMissing && lhsIsMissing) {
+                    return 0;
+                }
                 if (rhsIsMissing ^ lhsIsMissing) {
                     return lhsIsMissing ? -1 : 1;
                 }

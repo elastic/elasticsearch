@@ -12,8 +12,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import static org.hamcrest.core.Is.is;
-
 public class TaskTypeTests extends ESTestCase {
 
     public void testFromStringOrStatusException() {
@@ -26,12 +24,4 @@ public class TaskTypeTests extends ESTestCase {
         assertThat(TaskType.fromStringOrStatusException("any"), Matchers.is(TaskType.ANY));
     }
 
-    public void testIsCompatibleWithSemanticText() {
-        assertThat(TaskType.ANY.isCompatibleWithSemanticText(), is(false));
-        assertThat(TaskType.CHAT_COMPLETION.isCompatibleWithSemanticText(), is(false));
-        assertThat(TaskType.COMPLETION.isCompatibleWithSemanticText(), is(false));
-        assertThat(TaskType.RERANK.isCompatibleWithSemanticText(), is(false));
-        assertThat(TaskType.TEXT_EMBEDDING.isCompatibleWithSemanticText(), is(true));
-        assertThat(TaskType.SPARSE_EMBEDDING.isCompatibleWithSemanticText(), is(true));
-    }
 }

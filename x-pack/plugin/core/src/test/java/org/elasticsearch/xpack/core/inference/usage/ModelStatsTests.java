@@ -55,7 +55,7 @@ public class ModelStatsTests extends AbstractBWCWireSerializationTestCase<ModelS
     }
 
     public void testAdd() {
-        ModelStats stats = new ModelStats("test_service", randomFrom(TaskType.values()));
+        ModelStats stats = new ModelStats("test_service", randomFrom(TaskType.values()), 0, null);
         assertThat(stats.count(), equalTo(0L));
 
         stats.add();
@@ -74,7 +74,7 @@ public class ModelStatsTests extends AbstractBWCWireSerializationTestCase<ModelS
             randomIdentifier(),
             taskType,
             randomLong(),
-            taskType.isCompatibleWithSemanticText() ? SemanticTextStatsTests.createRandomInstance() : null
+            randomBoolean() ? SemanticTextStatsTests.createRandomInstance() : null
         );
     }
 

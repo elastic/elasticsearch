@@ -34,14 +34,6 @@ public class ModelStats implements ToXContentObject, Writeable {
     @Nullable
     private final SemanticTextStats semanticTextStats;
 
-    public ModelStats(String service, TaskType taskType) {
-        this(service, taskType, 0L);
-    }
-
-    public ModelStats(String service, TaskType taskType, long count) {
-        this(service, taskType, count, taskType.isCompatibleWithSemanticText() ? new SemanticTextStats() : null);
-    }
-
     public ModelStats(String service, TaskType taskType, long count, @Nullable SemanticTextStats semanticTextStats) {
         this.service = service;
         this.taskType = taskType;

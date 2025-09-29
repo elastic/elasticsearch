@@ -32,9 +32,11 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.usage.ModelStats;
+import org.elasticsearch.xpack.core.inference.usage.SemanticTextStats;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -54,6 +56,11 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
 
     // Some of the default models have optimized variants for linux that will have the following suffix.
     private static final String MODEL_ID_LINUX_SUFFIX = "_linux-x86_64";
+
+    private static final EnumSet<TaskType> TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.SPARSE_EMBEDDING
+    );
 
     private final ModelRegistry modelRegistry;
     private final Client client;
@@ -144,12 +151,12 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         for (ModelConfigurations model : endpoints) {
             endpointStats.computeIfAbsent(
                 new ServiceAndTaskType(model.getService(), model.getTaskType()).toString(),
-                key -> new ModelStats(model.getService(), model.getTaskType())
+                key -> createEmptyStats(model)
             ).add();
 
             endpointStats.computeIfAbsent(
                 new ServiceAndTaskType(Metadata.ALL, model.getTaskType()).toString(),
-                key -> new ModelStats(Metadata.ALL, model.getTaskType())
+                key -> createEmptyStats(Metadata.ALL, model.getTaskType())
             ).add();
         }
 
@@ -162,6 +169,19 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         addTopLevelStatsByTask(inferenceFieldsByIndexServiceAndTask, endpointStats);
     }
 
+    private static ModelStats createEmptyStats(ModelConfigurations model) {
+        return createEmptyStats(model.getService(), model.getTaskType());
+    }
+
+    private static ModelStats createEmptyStats(String service, TaskType taskType) {
+        return new ModelStats(
+            service,
+            taskType,
+            0,
+            TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT.contains(taskType) ? new SemanticTextStats() : null
+        );
+    }
+
     private static void addTopLevelStatsByTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         Map<String, ModelStats> endpointStats
@@ -172,9 +192,9 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             }
             ModelStats allStatsForTaskType = endpointStats.computeIfAbsent(
                 new ServiceAndTaskType(Metadata.ALL, taskType).toString(),
-                key -> new ModelStats(Metadata.ALL, taskType)
+                key -> createEmptyStats(Metadata.ALL, taskType)
             );
-            if (taskType.isCompatibleWithSemanticText()) {
+            if (TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT.contains(taskType)) {
                 Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex = inferenceFieldsByIndexServiceAndTask.entrySet()
                     .stream()
                     .filter(e -> e.getKey().taskType == taskType)
@@ -226,7 +246,12 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             // Now that we have all inference fields for this service and task type, we want to keep only the ones that
             // reference the current default model.
             fieldsByIndex = filterFields(fieldsByIndex, f -> statKey.modelId.equals(endpointIdToModelId.get(f.getInferenceId())));
-            ModelStats stats = new ModelStats(statKey.toString(), statKey.taskType, defaultModelStatsKeyToEndpointCount.getValue());
+            ModelStats stats = new ModelStats(
+                statKey.toString(),
+                statKey.taskType,
+                defaultModelStatsKeyToEndpointCount.getValue(),
+                new SemanticTextStats()
+            );
             addSemanticTextStats(fieldsByIndex, stats);
             endpointStats.put(statKey.toString(), stats);
         }
@@ -239,7 +264,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         // Note that endpoints could have a null model id, in which case we don't consider them default as this
         // may only happen for external services.
         Set<String> modelIds = endpoints.stream()
-            .filter(endpoint -> endpoint.getTaskType().isCompatibleWithSemanticText())
+            .filter(endpoint -> TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT.contains(endpoint.getTaskType()))
             .filter(endpoint -> modelRegistry.containsDefaultConfigId(endpoint.getInferenceEntityId()))
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
             .map(endpoint -> stripLinuxSuffix(endpoint.getServiceSettings().modelId()))

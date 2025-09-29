@@ -71,7 +71,7 @@ public final class AppendProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument document) throws Exception {
         String path = document.renderTemplate(field);
         if (copyFrom != null) {
-            Object fieldValue = document.getFieldValue(copyFrom, Object.class);
+            Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValues);
             document.appendFieldValue(path, IngestDocument.deepCopy(fieldValue), allowDuplicates, ignoreEmptyValues);
         } else {
             document.appendFieldValue(path, value, allowDuplicates, ignoreEmptyValues);

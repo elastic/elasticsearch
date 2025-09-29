@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -32,6 +34,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING;
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -140,7 +144,7 @@ import static java.util.stream.Collectors.toMap;
  *         unsupported types.</li>
  * </ul>
  */
-public enum DataType {
+public enum DataType implements Writeable {
     /**
      * Fields of this type are unsupported by any functions and are always
      * rendered as {@code null} in the response.
@@ -306,12 +310,26 @@ public enum DataType {
      */
     PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024)),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+    AGGREGATE_METRIC_DOUBLE(
+        builder().esType("aggregate_metric_double")
+            .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
+            .createdVersion(
+                // Version created just *after* we committed support for aggregate_metric_double
+                INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING
+            )
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of double values.
      */
-    DENSE_VECTOR(builder().esType("dense_vector").estimatedSize(4096));
+    DENSE_VECTOR(
+        builder().esType("dense_vector")
+            .estimatedSize(4096)
+            .createdVersion(
+                // Version created just *after* we committed support for dense_vector
+                ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION
+            )
+    );
 
     /**
      * Types that are actively being built. These types are
@@ -375,6 +393,11 @@ public enum DataType {
      */
     private final DataType counter;
 
+    /**
+     * Version that first created this data type.
+     */
+    private final CreatedVersion createdVersion;
+
     DataType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
@@ -387,10 +410,11 @@ public enum DataType {
         this.isCounter = builder.isCounter;
         this.widenSmallNumeric = builder.widenSmallNumeric;
         this.counter = builder.counter;
+        this.createdVersion = builder.createdVersion;
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
-        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .filter(d -> d != DOC_DATA_TYPE)
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
@@ -727,7 +751,20 @@ public enum DataType {
         return counter;
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (createdVersion.supports(out.getTransportVersion()) == false) {
+            /*
+             * TODO when we implement version aware planning flip this to an IllegalStateException
+             * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
+             * tried to do something like `KNN(dense_vector_field, [1, 2])` against an old node.
+             * Like, during the rolling upgrade that enables KNN or to a remote cluster that has
+             * not yet been upgraded.
+             */
+            throw new IllegalArgumentException(
+                "remote node at version [" + out.getTransportVersion() + "] doesn't understand data type [" + this + "]"
+            );
+        }
         ((PlanStreamOutput) out).writeCachedString(typeName);
     }
 
@@ -777,6 +814,10 @@ public enum DataType {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    public CreatedVersion createdVersion() {
+        return createdVersion;
     }
 
     public static DataType suggestedCast(Set<DataType> originalTypes) {
@@ -846,6 +887,13 @@ public enum DataType {
          */
         private DataType counter;
 
+        /**
+         * The version when this data type was created. We default to the first
+         * version for which we maintain wire compatibility, which is pretty
+         * much {@code 8.18.0}.
+         */
+        private CreatedVersion createdVersion = CreatedVersion.SUPPORTED_ON_ALL_NODES;
+
         Builder() {}
 
         Builder esType(String esType) {
@@ -899,6 +947,11 @@ public enum DataType {
         Builder counter(DataType counter) {
             assert counter.isCounter;
             this.counter = counter;
+            return this;
+        }
+
+        Builder createdVersion(TransportVersion createdVersion) {
+            this.createdVersion = CreatedVersion.supportedOn(createdVersion);
             return this;
         }
     }

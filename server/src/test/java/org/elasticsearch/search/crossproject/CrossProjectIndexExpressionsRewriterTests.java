@@ -18,7 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class IndexExpressionsRewriterTests extends ESTestCase {
+public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
     public void testFlatOnlyRewrite() {
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
@@ -29,7 +29,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "logs*", "metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("logs*", "metrics*"));
         assertThat(canonical.get("logs*"), containsInAnyOrder("logs*", "P1:logs*", "P2:logs*", "P3:logs*"));
@@ -45,7 +49,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "P1:logs*", "metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("P1:logs*", "metrics*"));
         assertThat(canonical.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -61,7 +69,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "P1:logs*", "P2:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("P1:logs*", "P2:metrics*"));
         assertThat(canonical.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -77,7 +89,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "_origin:logs*", "_origin:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("_origin:logs*", "_origin:metrics*"));
         assertThat(canonical.get("_origin:logs*"), containsInAnyOrder("logs*"));
@@ -89,7 +105,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of();
         String[] requestedResources = new String[] { "_origin:logs*", "_origin:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("_origin:logs*", "_origin:metrics*"));
         assertThat(canonical.get("_origin:logs*"), containsInAnyOrder("logs*"));
@@ -110,7 +130,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         String metricResource = aliasForOrigin + ":" + metricsIndexAlias;
         String[] requestedResources = new String[] { logResource, metricResource };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder(logResource, metricResource));
         assertThat(canonical.get(logResource), containsInAnyOrder(logIndexAlias));
@@ -126,7 +150,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "P1:logs*", "_origin:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("P1:logs*", "_origin:metrics*"));
         assertThat(canonical.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -143,7 +171,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "Q*:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("Q*:metrics*"));
         assertThat(canonical.get("Q*:metrics*"), containsInAnyOrder("Q1:metrics*", "Q2:metrics*"));
@@ -159,7 +191,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "*1:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("*1:metrics*"));
         assertThat(canonical.get("*1:metrics*"), containsInAnyOrder("P1:metrics*", "Q1:metrics*"));
@@ -170,7 +206,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
         String[] requestedResources = new String[] { "P0:metrics*", "_origin:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("P0:metrics*", "_origin:metrics*"));
         assertThat(canonical.get("P0:metrics*"), containsInAnyOrder("metrics*"));
@@ -182,7 +222,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("_P1"), createRandomProjectWithAlias("_P2"));
         String[] requestedResources = new String[] { "_*:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("_*:metrics*"));
         assertThat(canonical.get("_*:metrics*"), containsInAnyOrder("_P1:metrics*", "_P2:metrics*"));
@@ -199,7 +243,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         String indexPattern = "Q*:metrics*";
         String[] requestedResources = new String[] { indexPattern, indexPattern };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder(indexPattern));
         assertThat(canonical.get(indexPattern), containsInAnyOrder("Q1:metrics*", "Q2:metrics*"));
@@ -217,7 +265,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             ResourceNotFoundException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 
@@ -234,7 +282,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 
@@ -251,7 +299,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 
@@ -265,7 +313,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "*:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("*:metrics*"));
         assertThat(canonical.get("*:metrics*"), containsInAnyOrder("P1:metrics*", "P2:metrics*", "Q1:metrics*", "Q2:metrics*", "metrics*"));
@@ -281,7 +333,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "alias*:metrics*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("alias*:metrics*"));
         assertThat(canonical.get("alias*:metrics*"), containsInAnyOrder("metrics*"));
@@ -292,7 +348,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
         String[] requestedResources = new String[] {};
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("_all"));
         assertThat(canonical.get("_all"), containsInAnyOrder("P1:_all", "P2:_all", "_all"));
@@ -302,7 +362,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, null);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, null);
 
         assertThat(canonical.keySet(), containsInAnyOrder("_all"));
         assertThat(canonical.get("_all"), containsInAnyOrder("P1:_all", "P2:_all", "_all"));
@@ -313,7 +373,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
         String[] requestedResources = new String[] { "*" };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder("*"));
         assertThat(canonical.get("*"), containsInAnyOrder("P1:*", "P2:*", "*"));
@@ -325,7 +389,11 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         String all = randomBoolean() ? "_ALL" : "_all";
         String[] requestedResources = new String[] { all };
 
-        Map<String, List<String>> canonical = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(
+            origin,
+            linked,
+            requestedResources
+        );
 
         assertThat(canonical.keySet(), containsInAnyOrder(all));
         assertThat(canonical.get(all), containsInAnyOrder("P1:" + all, "P2:" + all, all));
@@ -343,7 +411,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             NoMatchingProjectException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 

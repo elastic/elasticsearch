@@ -386,7 +386,7 @@ class IndicesAndAliasesResolver {
                         authorizedProjects,
                         indicesRequest.includeDataStreams()
                     );
-                    replaceable.setResolvedIndexExpressions(resolved);
+                    setResolvedIfNull(action, replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else {
@@ -404,13 +404,11 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::check,
                         indicesRequest.includeDataStreams()
                     );
-                    logger.debug("resolved indices for request [{}]: [{}]", action, resolved);
                     // only store resolved expressions if configured, to avoid unnecessary memory usage
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them
                     if (recordResolvedIndexExpressions) {
-                        logger.debug("setting resolved expressions [{}]: [{}]", action, resolved);
-                        replaceable.setResolvedIndexExpressions(resolved);
+                        setResolvedIfNull(action, replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(split.getRemote());
@@ -480,6 +478,19 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    private static void setResolvedIfNull(String action, IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
+        if (replaceable.getResolvedIndexExpressions() == null) {
+            replaceable.setResolvedIndexExpressions(resolved);
+        } else {
+            logger.info(
+                "resolved index expressions {} already set on request [{}], not overwriting with {}",
+                replaceable.getResolvedIndexExpressions(),
+                action,
+                resolved
+            );
+        }
     }
 
     /**

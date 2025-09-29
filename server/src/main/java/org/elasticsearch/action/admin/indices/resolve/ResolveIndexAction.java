@@ -217,10 +217,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
-            // TODO this is obviously not right
-            if (resolvedIndexExpressions == null) {
-                this.resolvedIndexExpressions = expressions;
-            }
+            this.resolvedIndexExpressions = expressions;
         }
 
         @Override
@@ -701,6 +698,18 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     }));
                 }
             } else {
+                if (request.resolveCrossProject) {
+                    try {
+                        CrossProjectSearchErrorHandler.crossProjectFanoutErrorHandling(
+                            request.indicesOptions,
+                            resolvedExpressions,
+                            new RemoteIndexExpressions(Map.of())
+                        );
+                    } catch (Exception ex) {
+                        listener.onFailure(ex);
+                        return;
+                    }
+                }
                 listener.onResponse(
                     new Response(indices, aliases, dataStreams, request.includeResolvedExpressions ? resolvedExpressions : null)
                 );

@@ -13,11 +13,15 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.hamcrest.Matchers;
 
@@ -305,46 +309,18 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         for (int i = 0; i < 200; i++) {
             String json = randomJsonInput(randomIntBetween(1, 6));
             try (
-                XContentParser optimisedParser = TestXContentParser.create(json);
-                XContentParser baselineParser = TestXContentParser.create(json)
+                var baselineParser = XContentHelper.createParser(
+                    XContentParserConfiguration.EMPTY,
+                    new BytesArray(json),
+                    XContentType.JSON
+                );
+                var optimisedParser = TestXContentParser.create(json)
             ) {
-                assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
-                parseObjectAndAssert(optimisedParser, baselineParser);
+                var expected = baselineParser.mapOrdered();
+                var actual = optimisedParser.mapOrdered();
+                assertThat(expected, Matchers.equalTo(actual));
             }
         }
-    }
-
-    private void parseObjectAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
-        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.START_OBJECT));
-        assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
-        while (optimisedParser.currentToken() != XContentParser.Token.END_OBJECT) {
-            assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(optimisedParser.currentName(), Matchers.equalTo(baselineParser.currentName()));
-            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
-            if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                assertThat(optimisedParser.optimizedText().string(), Matchers.equalTo(baselineParser.text()));
-            } else if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
-                parseObjectAndAssert(optimisedParser, baselineParser);
-            } else if (optimisedParser.currentToken() == XContentParser.Token.START_ARRAY) {
-                parseArrayAndAssert(optimisedParser, baselineParser);
-            }
-            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
-        }
-        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.END_OBJECT));
-    }
-
-    private void parseArrayAndAssert(XContentParser optimisedParser, XContentParser baselineParser) throws IOException {
-        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.START_ARRAY));
-        assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
-        while (optimisedParser.currentToken() != XContentParser.Token.END_ARRAY) {
-            if (optimisedParser.currentToken() == XContentParser.Token.START_OBJECT) {
-                parseObjectAndAssert(optimisedParser, baselineParser);
-            } else if (optimisedParser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                assertThat(optimisedParser.optimizedText().string(), Matchers.equalTo(baselineParser.text()));
-            }
-            assertThat(optimisedParser.nextToken(), Matchers.equalTo(baselineParser.nextToken()));
-        }
-        assertThat(optimisedParser.currentToken(), Matchers.equalTo(XContentParser.Token.END_ARRAY));
     }
 
     private String randomJsonInput(int depth) {

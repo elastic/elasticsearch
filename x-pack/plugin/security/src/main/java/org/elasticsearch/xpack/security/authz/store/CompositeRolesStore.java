@@ -669,6 +669,10 @@ public class CompositeRolesStore {
         return this.roleCache.keys();
     }
 
+    public Map<String, Object> usageStatsWithJustDls() {
+        return Map.of("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
+    }
+
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         final Map<String, Object> usage = new HashMap<>();
         usage.put("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));

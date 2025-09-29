@@ -19,7 +19,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 /**
  * Values for cluster level settings used in physical planning.
  */
-public class PhysicalSettings {
+public class PlannerSettings {
     public static final Setting<DataPartitioning> DEFAULT_DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,
         "esql.default_data_partitioning",
@@ -45,26 +45,42 @@ public class PhysicalSettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<ByteSizeValue> INTERMEDIATE_LOCAL_RELATION_MAX_SIZE = Setting.memorySizeSetting(
+        "esql.intermediate_local_relation_max_size",
+        "0.1%",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
     private volatile int luceneTopNLimit;
+    private volatile ByteSizeValue intermediateLocalRelationMaxSize;
 
     /**
      * Ctor for prod that listens for updates from the {@link ClusterService}.
      */
-    public PhysicalSettings(ClusterService clusterService) {
-        clusterService.getClusterSettings().initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
-        clusterService.getClusterSettings().initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
-        clusterService.getClusterSettings().initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
+    public PlannerSettings(ClusterService clusterService) {
+        var clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
+        clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
+        clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
+        clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
     }
 
     /**
      * Ctor for testing.
      */
-    public PhysicalSettings(DataPartitioning defaultDataPartitioning, ByteSizeValue valuesLoadingJumboSize, int luceneTopNLimit) {
+    public PlannerSettings(
+        DataPartitioning defaultDataPartitioning,
+        ByteSizeValue valuesLoadingJumboSize,
+        int luceneTopNLimit,
+        ByteSizeValue intermediateLocalRelationMaxSize
+    ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
         this.luceneTopNLimit = luceneTopNLimit;
+        this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
     }
 
     public DataPartitioning defaultDataPartitioning() {
@@ -91,5 +107,9 @@ public class PhysicalSettings {
      */
     public int luceneTopNLimit() {
         return luceneTopNLimit;
+    }
+
+    public ByteSizeValue intermediateLocalRelationMaxSize() {
+        return intermediateLocalRelationMaxSize;
     }
 }

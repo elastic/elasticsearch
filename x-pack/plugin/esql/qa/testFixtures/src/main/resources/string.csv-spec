@@ -2583,13 +2583,13 @@ url_encode sample for docs
 required_capability: url_encode
 
 // tag::url_encode[]
-ROW u = "https://www.example.com/papers?q=information+retrieval&year=2024&citations=high" | EVAL u = URL_ENCODE(u)
+ROW u = "https://example.com/?x=foo bar&y=baz" | EVAL u = URL_ENCODE(u)
 // end::url_encode[]
 ;
 
 // tag::url_encode-result[]
 u:keyword
-https%3A%2F%2Fwww.example.com%2Fpapers%3Fq%3Dinformation%2Bretrieval%26year%3D2024%26citations%3Dhigh
+https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo+bar%26y%3Dbaz
 // end::url_encode-result[]
 ;
 
@@ -2608,24 +2608,26 @@ Georgi    | georgi
 
 url_encode mixed input tests
 required_capability: url_encode
+required_capability: url_encode_component
 
-ROW u = ["hello elastic!", "a+b-c%d", "", "!#$&'()*+,/:;=?@[]"] | EVAL u = URL_ENCODE(u);
+ROW u = ["hello elastic!", "a+b-c%d", "", ".-_~", "!#$&'()*+,/:;=?@[]", "🔥💧"] | EVAL u = URL_ENCODE(u);
 
 u:keyword
-["hello+elastic%21", "a%2Bb-c%25d", "", "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"]
+["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D", "%F0%9F%94%A5%F0%9F%92%A7"]
 ;
 
 url_decode sample for docs
 required_capability: url_decode
 
 // tag::url_decode[]
-ROW u = "https%3A%2F%2Fwww.example.com%2Fpapers%3Fq%3Dinformation%2Bretrieval%26year%3D2024%26citations%3Dhigh" | EVAL u = URL_DECODE(u)
+ROW u = "https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz" 
+| EVAL u = URL_DECODE(u)
 // end::url_decode[]
 ;
 
 // tag::url_decode-result[]
 u:keyword
-https://www.example.com/papers?q=information+retrieval&year=2024&citations=high
+https://example.com/?x=foo bar&y=baz
 // end::url_decode-result[]
 ;
 
@@ -2636,6 +2638,7 @@ FROM employees
 | WHERE emp_no == 10001 
 | EVAL a = TRIM(URL_DECODE(first_name))
 | EVAL b = URL_DECODE(TO_LOWER(first_name))
+| EVAL c = URL_DECODE(TO_LOWER(first_name))
 | KEEP a,b;
 
 a:keyword | b:keyword
@@ -2649,6 +2652,19 @@ ROW u = "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D" | EVAL u = URL_DE
 
 u:keyword
 "!#$&'()*+,/:;=?@[]"
+;
+
+url_decode bad input tests
+required_capability: url_decode
+required_capability: url_encode_component
+
+ROW u = "%#" | EVAL u = URL_DECODE(u);
+
+warning:Line 1:25: evaluation of [URL_DECODE(u)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%25) pattern
+
+u:keyword
+null
 ;
 
 combined url encode decode tests with table reads
@@ -2684,3 +2700,48 @@ ROW u = ["https://www.example.com/papers?q=information+retrieval&year=2024&citat
 u:keyword
 ["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"]
 ;
+
+url_encode_component sample for docs
+required_capability: url_encode_component
+
+// tag::url_encode_component[]
+ROW u = "https://example.com/?x=foo bar&y=baz" 
+| EVAL u = URL_ENCODE_COMPONENT(u)
+// end::url_encode_component[]
+;
+
+// tag::url_encode_component-result[]
+u:keyword
+https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz
+// end::url_encode_component-result[]
+;
+
+url_encode_component special input tests
+required_capability: url_encode_component
+required_capability: url_decode
+
+ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", b = ".-_~", c = "❗🐶🐱"
+| EVAL a = URL_ENCODE_COMPONENT(a)
+| EVAL b = URL_ENCODE_COMPONENT(b)
+| EVAL c = URL_DECODE(URL_ENCODE_COMPONENT(c));
+
+a:keyword                                                                                                                                                   | b:keyword | c:keyword
+"%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ".-_~"    |❗🐶🐱
+;
+
+url_encode_component tests with table reads
+required_capability: url_encode_component
+
+FROM books 
+| EVAL author_encoded = URL_ENCODE_COMPONENT(author), 
+        title_encoded = URL_ENCODE_COMPONENT(title)
+| KEEP book_no, author_encoded, title_encoded
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+;
+
+book_no:keyword | author_encoded:keyword | title_encoded:keyword
+1211            | Fyodor%20Dostoevsky    | The%20brothers%20Karamazov
+1463            | J.%20R.%20R.%20Tolkien | Realms%20of%20Tolkien%3A%20Images%20of%20Middle-earth
+;
+

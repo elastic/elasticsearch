@@ -706,16 +706,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
-   * @param ctx the parse tree
-   */
-  void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
-   * @param ctx the parse tree
-   */
-  void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
    * @param ctx the parse tree
    */
@@ -725,6 +715,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#insistCommand}.
    * @param ctx the parse tree
@@ -745,6 +745,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuseConfiguration}.
+   * @param ctx the parse tree
+   */
+  void enterFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuseConfiguration}.
+   * @param ctx the parse tree
+   */
+  void exitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree

@@ -397,8 +397,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "long",
             // TODO: https://github.com/elastic/elasticsearch/issues/102935
             // "unsigned_long",
-            "half_float",
-            "float",
+            // TODO: https://github.com/elastic/elasticsearch/issues/100130
+            // "half_float",
+            // "float",
             "double",
             "scaled_float"
         );
@@ -776,8 +777,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
-            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
-            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sort'"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
         }
     }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -83,11 +82,23 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+        VectorValueProvider.Builder leftVectorProviderBuilder = new VectorValueProvider.Builder();
+        VectorValueProvider.Builder rightVectorProviderBuilder = new VectorValueProvider.Builder();
+        if (left() instanceof Literal && left().dataType() == DENSE_VECTOR) {
+            leftVectorProviderBuilder.constantVector((ArrayList<Float>) ((Literal) left()).value());
+        } else {
+            leftVectorProviderBuilder.expressionEvaluatorFactory(toEvaluator.apply(left()));
+        }
+        if (right() instanceof Literal && right().dataType() == DENSE_VECTOR) {
+            rightVectorProviderBuilder.constantVector((ArrayList<Float>) ((Literal) right()).value());
+        } else {
+            rightVectorProviderBuilder.expressionEvaluatorFactory(toEvaluator.apply(right()));
+        }
         return new SimilarityEvaluatorFactory(
-            left(),
-            right(),
-            toEvaluator::apply,
+            leftVectorProviderBuilder,
+            rightVectorProviderBuilder,
             getSimilarityFunction(),
             getClass().getSimpleName() + "Evaluator"
         );
@@ -98,36 +109,28 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
      */
     protected abstract SimilarityEvaluatorFunction getSimilarityFunction();
 
-    @SuppressWarnings("unchecked")
     private record SimilarityEvaluatorFactory(
-        Expression leftExpression,
-        Expression rightExpression,
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        VectorValueProvider.Builder leftVectorProviderBuilder,
+        VectorValueProvider.Builder rightVectorProviderBuilder,
         SimilarityEvaluatorFunction similarityFunction,
         String evaluatorName
     ) implements EvalOperator.ExpressionEvaluator.Factory {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            VectorValueProvider.Builder left = new VectorValueProvider.Builder();
-            VectorValueProvider.Builder right = new VectorValueProvider.Builder();
-            if (leftExpression instanceof Literal && leftExpression.dataType() == DENSE_VECTOR) {
-                left.constantVector((ArrayList<Float>) ((Literal) leftExpression).value());
-            } else {
-                left.expressionEvaluator(toEvaluator.apply(leftExpression).get(context));
-            }
-            if (rightExpression instanceof Literal && rightExpression.dataType() == DENSE_VECTOR) {
-                right.constantVector((ArrayList<Float>) ((Literal) rightExpression).value());
-            } else {
-                right.expressionEvaluator(toEvaluator.apply(rightExpression).get(context));
-            }
             // TODO check whether to use this custom evaluator or reuse / define an existing one
-            return new SimilarityEvaluator(left.build(), right.build(), similarityFunction, evaluatorName, context.blockFactory());
+            return new SimilarityEvaluator(
+                leftVectorProviderBuilder.build(context),
+                rightVectorProviderBuilder.build(context),
+                similarityFunction,
+                evaluatorName,
+                context.blockFactory()
+            );
         }
 
         @Override
         public String toString() {
-            return evaluatorName() + "[left=" + leftExpression + ", right=" + rightExpression + "]";
+            return evaluatorName() + "[left=" + leftVectorProviderBuilder + ", right=" + rightVectorProviderBuilder + "]";
         }
     }
 
@@ -135,21 +138,35 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         private static final class Builder {
             private ArrayList<Float> constantVector;
-            private EvalOperator.ExpressionEvaluator expressionEvaluator;
+            private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory;
 
             void constantVector(ArrayList<Float> constantVector) {
                 this.constantVector = constantVector;
             }
 
-            void expressionEvaluator(EvalOperator.ExpressionEvaluator expressionEvaluator) {
-                this.expressionEvaluator = expressionEvaluator;
+            void expressionEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory) {
+                this.expressionEvaluatorFactory = expressionEvaluatorFactory;
             }
 
-            VectorValueProvider build() {
-                if (false == (constantVector == null ^ expressionEvaluator == null)) {
-                    throw new IllegalArgumentException("One of [constantVector] or [expressionEvaluator] must be set, but not both.");
+            VectorValueProvider build(DriverContext context) {
+                if (false == (constantVector == null ^ expressionEvaluatorFactory == null)) {
+                    throw new IllegalArgumentException(
+                        "One of [constantVector] or [expressionEvaluatorFactory] must be set, but not both."
+                    );
                 }
-                return new VectorValueProvider(constantVector, expressionEvaluator);
+                return new VectorValueProvider(
+                    constantVector,
+                    expressionEvaluatorFactory == null ? null : expressionEvaluatorFactory.get(context)
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "constantVector="
+                    + (constantVector == null ? "[null]" : constantVector)
+                    + ", expressionEvaluator=["
+                    + expressionEvaluatorFactory
+                    + "]";
             }
         }
 
@@ -194,7 +211,9 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                 }
                 return scratch;
             } else {
-                throw new EsqlClientException("[" + getClass() + "] not properly initialized. Both [constantVector] and [block] are null.");
+                throw new EsqlClientException(
+                    "[" + getClass().getSimpleName() + "] not properly initialized. Both [constantVector] and [block] are null."
+                );
             }
         }
 
@@ -216,13 +235,16 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                 }
                 return 0;
             } else {
-                throw new EsqlClientException("[VectorValueProvider] not initialized");
+                throw new EsqlClientException(
+                    "[" + getClass().getSimpleName() + "] not properly initialized. Both [constantVector] and [block] are null."
+                );
             }
         }
 
         public long baseRamBytesUsed() {
-            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector))
-                + (expressionEvaluator == null ? 0 : expressionEvaluator.baseRamBytesUsed());
+            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector)) + (expressionEvaluator == null
+                ? 0
+                : expressionEvaluator.baseRamBytesUsed());
         }
 
         // Once we're doing processing a block, ensure that we dereference it and reset scratch so that it can be
@@ -241,7 +263,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public String toString() {
-            return "constant_vector=" + Arrays.toString(constantVector) + ", expressionEvaluator=[" + expressionEvaluator + "]";
+            return "constantVector=[" + Arrays.toString(constantVector) + "], expressionEvaluator=[" + expressionEvaluator + "]";
         }
     }
 

@@ -109,34 +109,54 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            VectorValueProvider left;
-            VectorValueProvider right;
+            VectorValueProvider.Builder left = new VectorValueProvider.Builder();
+            VectorValueProvider.Builder right = new VectorValueProvider.Builder();
             if (leftExpression instanceof Literal && leftExpression.dataType() == DENSE_VECTOR) {
-                left = new VectorValueProvider((ArrayList<Float>) ((Literal) leftExpression).value(), null);
+                left.constantVector((ArrayList<Float>) ((Literal) leftExpression).value());
             } else {
-                left = new VectorValueProvider(null, toEvaluator.apply(leftExpression).get(context));
+                left.expressionEvaluator(toEvaluator.apply(leftExpression).get(context));
             }
             if (rightExpression instanceof Literal && rightExpression.dataType() == DENSE_VECTOR) {
-                right = new VectorValueProvider((ArrayList<Float>) ((Literal) rightExpression).value(), null);
+                right.constantVector((ArrayList<Float>) ((Literal) rightExpression).value());
             } else {
-                right = new VectorValueProvider(null, toEvaluator.apply(rightExpression).get(context));
+                right.expressionEvaluator(toEvaluator.apply(rightExpression).get(context));
             }
             // TODO check whether to use this custom evaluator or reuse / define an existing one
-            return new SimilarityEvaluator(left, right, similarityFunction, evaluatorName, context.blockFactory());
+            return new SimilarityEvaluator(left.build(), right.build(), similarityFunction, evaluatorName, context.blockFactory());
         }
 
         @Override
         public String toString() {
-            return evaluatorName() + "[left=" + "left" + ", right=" + "right" + "]";
+            return evaluatorName() + "[left=" + leftExpression + ", right=" + rightExpression + "]";
         }
     }
 
     private static class VectorValueProvider implements Releasable {
 
+        private static final class Builder {
+            private ArrayList<Float> constantVector;
+            private EvalOperator.ExpressionEvaluator expressionEvaluator;
+
+            void constantVector(ArrayList<Float> constantVector) {
+                this.constantVector = constantVector;
+            }
+
+            void expressionEvaluator(EvalOperator.ExpressionEvaluator expressionEvaluator) {
+                this.expressionEvaluator = expressionEvaluator;
+            }
+
+            VectorValueProvider build() {
+                if (false == (constantVector == null ^ expressionEvaluator == null)) {
+                    throw new IllegalArgumentException("One of [constantVector] or [expressionEvaluator] must be set, but not both.");
+                }
+                return new VectorValueProvider(constantVector, expressionEvaluator);
+            }
+        }
+
         private final float[] constantVector;
         private final EvalOperator.ExpressionEvaluator expressionEvaluator;
         private FloatBlock block;
-        float[] scratch;
+        private float[] scratch;
 
         VectorValueProvider(ArrayList<Float> constantVector, EvalOperator.ExpressionEvaluator expressionEvaluator) {
             if (constantVector != null) {
@@ -174,7 +194,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                 }
                 return scratch;
             } else {
-                throw new EsqlClientException("VectorValueProvider not properly initialized. Both [constantVector] and [block] are null.");
+                throw new EsqlClientException("[" + getClass() + "] not properly initialized. Both [constantVector] and [block] are null.");
             }
         }
 
@@ -201,12 +221,13 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         }
 
         public long baseRamBytesUsed() {
-            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector)) + (expressionEvaluator == null
-                ? 0
-                : expressionEvaluator.baseRamBytesUsed());
+            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector))
+                + (expressionEvaluator == null ? 0 : expressionEvaluator.baseRamBytesUsed());
         }
 
-        public void finishBlock() {
+        // Once we're doing processing a block, ensure that we dereference it and reset scratch so that it can be
+        // filled by the next page through `eval`
+        void finishBlock() {
             if (block != null) {
                 block.close();
                 block = null;

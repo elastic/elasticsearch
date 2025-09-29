@@ -106,6 +106,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
     protected void setupCluster(String clusterAlias, TestIndexInfo indexInfo) throws IOException {
         final Client client = client(clusterAlias);
         final String indexName = indexInfo.name();
+        final int dataNodeCount = cluster(clusterAlias).numDataNodes();
 
         for (var entry : indexInfo.inferenceEndpoints().entrySet()) {
             String inferenceId = entry.getKey();
@@ -123,13 +124,13 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             createInferenceEndpoint(client, minimalServiceSettings.taskType(), inferenceId, serviceSettings);
         }
 
-        Settings indexSettings = indexSettings(randomIntBetween(2, 5), randomIntBetween(0, 1)).build();
+        Settings indexSettings = indexSettings(randomIntBetween(1, dataNodeCount), 0).build();
         assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(indexSettings).setMapping(indexInfo.mappings()));
         assertFalse(
             client.admin()
                 .cluster()
                 .prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
-                .setWaitForYellowStatus()
+                .setWaitForGreenStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
                 .isTimedOut()

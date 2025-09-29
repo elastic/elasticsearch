@@ -17,7 +17,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

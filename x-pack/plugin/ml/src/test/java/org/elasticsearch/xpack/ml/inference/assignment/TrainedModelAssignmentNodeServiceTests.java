@@ -612,7 +612,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        assertBusy(() -> verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any()));
+        assertBusy(() -> verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any(), any()));
         // This still shouldn't trigger a cluster state update because the routing entry wasn't in the table so we won't add a new routing
         // entry for stopping
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
@@ -776,7 +776,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
             // deployment-2 was originally started on node NODE_ID but in the latest cluster event it is no longer on that node so we will
             // gracefully stop it
-            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stoppedTaskCapture.capture());
+            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stoppedTaskCapture.capture(), any());
             assertThat(stoppedTaskCapture.getAllValues().get(0).getDeploymentId(), equalTo(deploymentTwo));
         });
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);

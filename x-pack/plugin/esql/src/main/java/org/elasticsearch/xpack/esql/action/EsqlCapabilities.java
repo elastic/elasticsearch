@@ -1563,9 +1563,12 @@ public class EsqlCapabilities {
         /**
          * FUSE L2_NORM score normalization support
          */
-        FUSE_L2_NORM(Build.current().isSnapshot())
+        FUSE_L2_NORM(Build.current().isSnapshot()),
 
-        ;
+        /**
+         * Support for requesting the "_tsid" metadata field.
+         */
+        METADATA_TSID_FIELD;
 
         private final boolean enabled;
 

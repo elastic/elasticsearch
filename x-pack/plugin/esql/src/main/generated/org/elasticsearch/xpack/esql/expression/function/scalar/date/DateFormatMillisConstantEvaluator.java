@@ -78,7 +78,8 @@ public final class DateFormatMillisConstantEvaluator implements EvalOperator.Exp
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(DateFormat.processMillis(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.formatter));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendBytesRef(DateFormat.processMillis(val, this.formatter));
       }
       return result.build();
     }
@@ -87,7 +88,8 @@ public final class DateFormatMillisConstantEvaluator implements EvalOperator.Exp
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DateFormat.processMillis(valVector.getLong(p), this.formatter));
+        long val = valVector.getLong(p);
+        result.appendBytesRef(DateFormat.processMillis(val, this.formatter));
       }
       return result.build();
     }

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -120,6 +123,12 @@ public class ExpressionWritables {
         entries.addAll(fullText());
         entries.addAll(unaryScalars());
         entries.addAll(vector());
+        return entries;
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        List<SearchPlugin.GenericNamedWriteableSpec> entries = new ArrayList<>();
+        entries.addAll(literals());
         return entries;
     }
 
@@ -231,6 +240,7 @@ public class ExpressionWritables {
         entries.add(WildcardLikeList.ENTRY);
         entries.add(Delay.ENTRY);
         entries.add(UrlEncode.ENTRY);
+        entries.add(UrlEncodeComponent.ENTRY);
         entries.add(UrlDecode.ENTRY);
         // mv functions
         entries.addAll(MvFunctionWritables.getNamedWriteables());
@@ -264,5 +274,14 @@ public class ExpressionWritables {
 
     private static List<NamedWriteableRegistry.Entry> vector() {
         return VectorWritables.getNamedWritables();
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> literals() {
+        return List.of(
+            new SearchPlugin.GenericNamedWriteableSpec(
+                "AggregateMetricDoubleLiteral",
+                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
+            )
+        );
     }
 }

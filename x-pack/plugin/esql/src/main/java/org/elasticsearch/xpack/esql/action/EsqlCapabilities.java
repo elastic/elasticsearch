@@ -1286,7 +1286,7 @@ public class EsqlCapabilities {
         /**
          * Dense vector field type support
          */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE,
 
         /**
          * Enable support for index aliases in lookup joins
@@ -1516,7 +1516,7 @@ public class EsqlCapabilities {
         /**
          * TO_DENSE_VECTOR function.
          */
-        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+        TO_DENSE_VECTOR_FUNCTION,
 
         /**
          * Support present_over_time aggregation that gets evaluated per time-series

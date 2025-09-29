@@ -1026,9 +1026,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *
          * e.g., for any two <code>ShardRouting</code>s, <code>r1</code> and <code>r2</code>,
          * <ul>
-         *     <li><code>compare(r1, r2) > 0</code> when <code>r1</code> is most desirable to move</li>
+         *     <li><code>compare(r1, r2) &gt; 0</code> when <code>r1</code> is most desirable to move</li>
          *     <li><code>compare(r1, r2) == 0</code> when the two shards are equally desirable to move</li>
-         *     <li><code>compare(r1, r2) < 0</code> when <code>r2</code> is most desirable to move</li>
+         *     <li><code>compare(r1, r2) &lt; 0</code> when <code>r2</code> is most desirable to move</li>
          * </ul>
          */
         // Visible for testing

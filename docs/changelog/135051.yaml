@@ -4,7 +4,7 @@ area: ES|QL
 type: bug
 issues: []
 highlight:
-  title: Mark Limit + MvExpand before remote Enrich as unsupported
+  title: Prevent LIMIT + MV_EXPAND before remote ENRICH
   body: |-
     Due to the distribured nature of remote `ENRICH`, using a `LIMIT` command followed by a `MV_EXPAND` command before a remote `ENRICH` command
     can lead to incorrect results. Such queries are identified by the engine and marked as unsupported, leading to query failure. Example:

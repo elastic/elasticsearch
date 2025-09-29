@@ -94,7 +94,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, false, true, Collections.emptyMap());
         }
 
         @Override

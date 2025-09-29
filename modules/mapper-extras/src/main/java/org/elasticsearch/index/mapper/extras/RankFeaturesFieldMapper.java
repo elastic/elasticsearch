@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -80,7 +79,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, true, false, false, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 

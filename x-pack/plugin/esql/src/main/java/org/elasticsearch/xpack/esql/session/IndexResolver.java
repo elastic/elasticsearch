@@ -89,7 +89,7 @@ public class IndexResolver {
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
-                LogManager.getLogger(IndexResolver.class).error("SADFADF {}", response.minTransportVersion());
+                LogManager.getLogger(IndexResolver.class).error("NOCOMMIT SADFADF {}", response.minTransportVersion());
                 l.onResponse(mergedMappings(indexWildcard, response.caps()));
             })
         );

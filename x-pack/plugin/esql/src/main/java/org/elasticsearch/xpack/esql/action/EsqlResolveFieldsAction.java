@@ -228,7 +228,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                mergeIndexResponses(
+                finishHim(
                     request,
                     fieldCapTask,
                     indexResponses,
@@ -309,7 +309,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                         (responseListener, conn) -> transportService.sendRequest(
                             conn,
                             RESOLVE_REMOTE_TYPE.name(),
-                            request,
+                            remoteRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(responseListener, EsqlResolveFieldsResponse::new, singleThreadedExecutor)
                         )
@@ -324,7 +324,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         }
     }
 
-    private static void mergeIndexResponses(
+    private static void finishHim(
         FieldCapabilitiesRequest request,
         CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,

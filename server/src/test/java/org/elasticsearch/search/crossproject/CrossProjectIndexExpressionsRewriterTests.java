@@ -354,8 +354,8 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             requestedResources
         );
 
-        assertThat(canonical.keySet(), containsInAnyOrder("*"));
-        assertThat(canonical.get("*"), containsInAnyOrder("P1:*", "P2:*", "*"));
+        assertThat(canonical.keySet(), containsInAnyOrder("_all"));
+        assertThat(canonical.get("_all"), containsInAnyOrder("P1:_all", "P2:_all", "_all"));
     }
 
     public void testNullExpressionShouldMatchAll() {
@@ -364,8 +364,8 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
         Map<String, List<String>> canonical = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, null);
 
-        assertThat(canonical.keySet(), containsInAnyOrder("*"));
-        assertThat(canonical.get("*"), containsInAnyOrder("P1:*", "P2:*", "*"));
+        assertThat(canonical.keySet(), containsInAnyOrder("_all"));
+        assertThat(canonical.get("_all"), containsInAnyOrder("P1:_all", "P2:_all", "_all"));
     }
 
     public void testWildcardExpressionShouldMatchAll() {

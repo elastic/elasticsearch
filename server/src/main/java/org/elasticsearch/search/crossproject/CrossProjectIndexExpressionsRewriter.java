@@ -12,6 +12,7 @@ package org.elasticsearch.search.crossproject;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -35,8 +36,7 @@ public class CrossProjectIndexExpressionsRewriter {
 
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
-    private static final String WILDCARD = "*";
-    private static final String[] MATCH_ALL = new String[] { WILDCARD };
+    private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
     private static final String DATE_MATH = "<";
 
@@ -79,7 +79,20 @@ public class CrossProjectIndexExpressionsRewriter {
         return canonicalExpressionsMap;
     }
 
-    private static List<String> rewriteIndexExpression(
+    /**
+     * Rewrites an index expression for cross-project search requests.
+     * Handles qualified and unqualified expressions and match-all cases will also hand exclusions in the future.
+     *
+     * @param indexExpression the index expression to be rewritten to canonical CCS
+     * @param originProjectAlias the alias of the _origin project (can be null if it was excluded by project routing). It's passed
+     *                           additionally to allProjectAliases because the origin project requires special handling:
+     *                           it can match on its actual alias and on the special alias "_origin". Any expression matched by the origin
+     *                           project also cannot be qualified with its actual alias in the final rewritten expression.
+     * @param allProjectAliases the list of all project aliases (linked and origin) consider for a request
+     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
+     * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
+     */
+    public static List<String> rewriteIndexExpression(
         String indexExpression,
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases

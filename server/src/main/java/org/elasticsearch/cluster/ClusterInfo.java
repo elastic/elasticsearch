@@ -100,6 +100,34 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<ShardId, Double> shardWriteLoads,
         Map<String, ByteSizeValue> maxHeapSizePerNode
     ) {
+        this(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            estimatedHeapUsages,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            computeShardToNodeIds(dataPath)
+        );
+    }
+
+    private ClusterInfo(
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizes,
+        Map<NodeAndShard, String> dataPath,
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
+        Map<ShardId, Double> shardWriteLoads,
+        Map<String, ByteSizeValue> maxHeapSizePerNode,
+        Map<ShardId, Set<String>> shardToNodeIds
+    ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
@@ -110,7 +138,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
         this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
-        this.shardToNodeIds = computeShardToNodeIds(dataPath);
+        this.shardToNodeIds = shardToNodeIds;
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -143,6 +171,29 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
     }
 
+    ClusterInfo updateWith(
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, Long> shardSizes,
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools
+    ) {
+        return new ClusterInfo(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            estimatedHeapUsages,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            shardToNodeIds
+        );
+    }
+
     private static Map<ShardId, Set<String>> computeShardToNodeIds(Map<NodeAndShard, String> dataPath) {
         if (dataPath.isEmpty()) {
             return Map.of();
@@ -151,11 +202,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         for (NodeAndShard nodeAndShard : dataPath.keySet()) {
             shardToNodeIds.computeIfAbsent(nodeAndShard.shardId, ignore -> new HashSet<>()).add(nodeAndShard.nodeId);
         }
-        Maps.transformValues(shardToNodeIds, nodeIds -> Collections.unmodifiableSet(nodeIds));
-        return shardToNodeIds;
+        return Collections.unmodifiableMap(Maps.transformValues(shardToNodeIds, Collections::unmodifiableSet));
     }
 
     public Set<String> getNodeIdsForShard(ShardId shardId) {
+        assert shardToNodeIds != null : "shardToNodeIds not computed for simulations, make sure this ClusterInfo is from polling";
         return shardToNodeIds.getOrDefault(shardId, Set.of());
     }
 

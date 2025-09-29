@@ -301,7 +301,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
         try {
-            //disable tracking of the @timestamp range for must_not and should clauses
+            // disable tracking of the @timestamp range for must_not and should clauses
             context.setTrackRangeTimestampFrom(false);
             addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
             addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
@@ -356,7 +356,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         changed |= rewriteClauses(queryRewriteContext, mustClauses, newBuilder::must);
 
         try {
-            //disable tracking of the @timestamp range for must_not clauses
+            // disable tracking of the @timestamp range for must_not clauses
             queryRewriteContext.setTrackRangeTimestampFrom(false);
             changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
         } finally {
@@ -364,7 +364,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
         try {
-            //disable tracking of the @timestamp range for should clauses
+            // disable tracking of the @timestamp range for should clauses
             queryRewriteContext.setTrackRangeTimestampFrom(false);
             changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
         } finally {

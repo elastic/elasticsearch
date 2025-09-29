@@ -1349,7 +1349,6 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
-            b.bind(ShardSearchPhaseAPMMetrics.class).toInstance(shardSearchPhaseAPMMetrics);
         });
 
         if (ReadinessService.enabled(environment)) {

@@ -444,10 +444,10 @@ public class IndexModuleTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> module.addSearchOperationListener(null));
 
         IndexService indexService = newIndexService(module);
-        assertEquals(2, indexService.getSearchOperationListener().size());
-        assertEquals(SearchSlowLog.class, indexService.getSearchOperationListener().get(0).getClass());
-        assertSame(listener, indexService.getSearchOperationListener().get(1));
-        for (SearchOperationListener l : indexService.getSearchOperationListener()) {
+        assertEquals(2, indexService.getSearchOperationListeners().size());
+        assertEquals(SearchSlowLog.class, indexService.getSearchOperationListeners().get(0).getClass());
+        assertSame(listener, indexService.getSearchOperationListeners().get(1));
+        for (SearchOperationListener l : indexService.getSearchOperationListeners()) {
             l.onNewReaderContext(mock(ReaderContext.class));
         }
         assertTrue(executed.get());

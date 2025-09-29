@@ -555,7 +555,7 @@ public class SearchServiceTests extends IndexShardTestCase {
             IndexService getIndexService() {
                 List<SearchOperationListener> listeners = List.of(new ShardSearchPhaseAPMMetrics(MeterRegistry.NOOP));
                 IndexService mock = mock(IndexService.class);
-                when(mock.getSearchOperationListener()).thenReturn(listeners);
+                when(mock.getSearchOperationListeners()).thenReturn(listeners);
                 return mock;
             }
         };

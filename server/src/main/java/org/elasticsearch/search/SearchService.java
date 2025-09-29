@@ -2037,7 +2037,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     indexService = readerContext.indexService();
                     QueryRewriteContext queryRewriteContext = canMatchContext.getQueryRewriteContext(indexService);
                     if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
-                        recordCanMatchPhaseDuration(indexService.getSearchOperationListener(), origShardSearchRequest, startTime);
+                        recordCanMatchPhaseDuration(indexService.getSearchOperationListeners(), origShardSearchRequest, startTime);
                         return new CanMatchShardResponse(false, null);
                     }
                     searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
@@ -2066,7 +2066,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
                 ) == false) {
                     recordCanMatchPhaseDuration(
-                        canMatchContext.getIndexService().getSearchOperationListener(),
+                        canMatchContext.getIndexService().getSearchOperationListeners(),
                         origShardSearchRequest,
                         startTime
                     );
@@ -2087,14 +2087,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
                     final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
                     recordCanMatchPhaseDuration(
-                        canMatchContext.getIndexService().getSearchOperationListener(),
+                        canMatchContext.getIndexService().getSearchOperationListeners(),
                         origShardSearchRequest,
                         startTime
                     );
                     return new CanMatchShardResponse(true, minMax);
                 }
                 recordCanMatchPhaseDuration(
-                    canMatchContext.getIndexService().getSearchOperationListener(),
+                    canMatchContext.getIndexService().getSearchOperationListeners(),
                     origShardSearchRequest,
                     startTime
                 );

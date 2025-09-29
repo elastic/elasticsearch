@@ -208,14 +208,21 @@ public class ReshardIndexService {
 
         indexShard.ensureMutable(listener.delegateFailureAndWrap((l, ignored) -> indexShard.withEngine(engine -> {
             ActionListener.run(l, runListener -> {
-                assert engine instanceof IndexEngine : engine.getClass().getSimpleName();
-
-                ((IndexEngine) engine).deleteUnownedDocuments(unownedQuery);
-                // Ensure that the deletion is flushed to the object store before returning, so that the caller knows that it
-                // will not need to retry this and can move a splitting shard to DONE.
-                // It would also be fine to just wait for the next flush after delete completes, but assuming we don't split often
-                // the cost of this flush should amortize well.
-                engine.flush(/* force */ true, /* waitIfOngoing */ true, runListener.map(r -> null));
+                if (engine instanceof IndexEngine indexEngine) {
+                    indexEngine.deleteUnownedDocuments(unownedQuery);
+                    // Ensure that the deletion is flushed to the object store before returning, so that the caller knows that it
+                    // will not need to retry this and can move a splitting shard to DONE.
+                    // It would also be fine to just wait for the next flush after delete completes, but assuming we don't split often
+                    // the cost of this flush should amortize well.
+                    engine.flush(/* force */ true, /* waitIfOngoing */ true, runListener.map(r -> null));
+                } else {
+                    // Even though we called `ensureMutable()` it is still possible that ongoing relocation
+                    // hollows the engine underneath us.
+                    // In this case we simply fail and retry.
+                    throw new UnsupportedOperationException(
+                        "Expected an IndexEngine but got " + engine.getClass().getSimpleName() + " instead"
+                    );
+                }
             });
             return null;
         })), false);

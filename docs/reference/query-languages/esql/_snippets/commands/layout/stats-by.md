@@ -51,16 +51,13 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 :::{include} ../../lists/aggregation-functions.md
 :::
 
+When nested under [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
+[time series aggregate functions] (/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+are also supported.
+
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 
 :::{include} ../../lists/grouping-functions.md
-:::
-
-When nested under [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
-[time series aggregate functions] (/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-are also supported:
-
-:::{include} ../../lists/time-series-aggregation-functions.md
 :::
 
 ::::{note}

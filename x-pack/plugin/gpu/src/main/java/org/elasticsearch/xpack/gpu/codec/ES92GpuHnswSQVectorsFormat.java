@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT
  * HNSW graph is built on GPU, while scalar quantization and search is performed on CPU.
  */
 public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
-    public static final String NAME = "ES92GPUHnswScalarQuantizedVectorsFormat";
+    public static final String NAME = "Lucene99HnswVectorsFormat";
     static final int MAXIMUM_MAX_CONN = 512;
     static final int MAXIMUM_BEAM_WIDTH = 3200;
     private final int maxConn;

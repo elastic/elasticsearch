@@ -27,7 +27,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  * leverage GPU processing capabilities for vector search operations.
  */
 public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
-    public static final String NAME = "ES92GpuHnswVectorsFormat";
+    public static final String NAME = "Lucene99HnswVectorsFormat";
     public static final int VERSION_GROUPVARINT = 1;
 
     static final String LUCENE99_HNSW_META_CODEC_NAME = "Lucene99HnswVectorsFormatMeta";

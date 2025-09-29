@@ -104,22 +104,6 @@ public class IndexResolver {
                     }
                 }
             )
-            // new ActionListener<FieldCapabilitiesResponse>() {
-            // @Override
-            // public void onResponse(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
-            //
-            // }
-            //
-            // @Override
-            // public void onFailure(Exception e) {
-            //
-            // }
-            // }
-            // listener.delegateFailureAndWrap(
-            // (l, response) -> l.onResponse(
-            // mergedMappings(indexWildcard, new FieldsInfo(response, supportsAggregateMetricDouble, supportsDenseVector))
-            // )
-            // )
         );
     }
 

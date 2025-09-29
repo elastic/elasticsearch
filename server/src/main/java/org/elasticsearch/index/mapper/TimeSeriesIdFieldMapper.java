@@ -135,6 +135,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return TimeSeriesIdFieldMapper.encodeTsid(binaryValue);
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
         }

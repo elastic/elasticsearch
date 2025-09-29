@@ -850,8 +850,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardMoved;
         }
 
-        private record MoveNotPreferredDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
-
         private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, String reason) {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
@@ -1000,7 +998,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private class MostDesirableMovementsTracker implements Predicate<ShardRouting> {
 
-            private final Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode = new HashMap<>();
+            public record StoredMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
+
+            private final Map<String, StoredMoveDecision> bestNonPreferredShardsByNode = new HashMap<>();
             private final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
 
             @Override
@@ -1018,10 +1018,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             public void putCurrentMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {
-                bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), new MoveNotPreferredDecision(shardRouting, moveDecision));
+                bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), new StoredMoveDecision(shardRouting, moveDecision));
             }
 
-            public Iterable<MoveNotPreferredDecision> getPreferredShardMovements() {
+            public Iterable<StoredMoveDecision> getPreferredShardMovements() {
                 return bestNonPreferredShardsByNode.values();
             }
         }

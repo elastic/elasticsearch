@@ -64,11 +64,9 @@ public class CrossProjectIndexExpressionsRewriter {
         }
         assert false == IndexNameExpressionResolver.isNoneExpression(indices)
             : "expression list is *,-* which effectively means a request that requests no indices";
-        assert originProject != null || linkedProjects.isEmpty() == false
-            : "either origin project or linked projects must be in project target set";
 
+        final Set<String> allProjectAliases = getAllProjectAliases(originProject, linkedProjects);
         final String originProjectAlias = originProject != null ? originProject.projectAlias() : null;
-        final Set<String> allProjectAliases = getAllProjectAliases(originProjectAlias, linkedProjects);
         final Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
         for (String indexExpression : indices) {
             if (canonicalExpressionsMap.containsKey(indexExpression)) {
@@ -98,6 +96,9 @@ public class CrossProjectIndexExpressionsRewriter {
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
     ) {
+        assert originProjectAlias != null || allProjectAliases.isEmpty() == false
+            : "either origin project or linked projects must be in project target set";
+
         maybeThrowOnUnsupportedResource(indexExpression);
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
@@ -112,10 +113,13 @@ public class CrossProjectIndexExpressionsRewriter {
         return rewrittenExpression;
     }
 
-    private static Set<String> getAllProjectAliases(@Nullable String originProjectAlias, List<ProjectRoutingInfo> linkedProjects) {
+    private static Set<String> getAllProjectAliases(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
+        assert originProject != null || linkedProjects.isEmpty() == false
+            : "either origin project or linked projects must be in project target set";
+
         final Set<String> allProjectAliases = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
-        if (originProjectAlias != null) {
-            allProjectAliases.add(originProjectAlias);
+        if (originProject != null) {
+            allProjectAliases.add(originProject.projectAlias());
         }
         return Collections.unmodifiableSet(allProjectAliases);
     }

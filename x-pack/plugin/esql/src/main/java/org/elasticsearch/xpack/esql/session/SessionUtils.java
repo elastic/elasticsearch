@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -43,9 +44,9 @@ public class SessionUtils {
         return blocks;
     }
 
-    public static long checkPagesBelowSize(List<Page> pages, long maxSize, LongFunction<String> exceptionMessage) {
+    public static long checkPagesBelowSize(List<Page> pages, ByteSizeValue maxSize, LongFunction<String> exceptionMessage) {
         long currentSize = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
-        if (currentSize > maxSize) {
+        if (currentSize > maxSize.getBytes()) {
             throw new IllegalArgumentException(exceptionMessage.apply(currentSize));
         }
         return currentSize;

@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,7 +61,7 @@ public class KnnTests extends AbstractFunctionTestCase {
 
         suppliers.add(
             new TestCaseSupplier(
-                List.of(DENSE_VECTOR, DENSE_VECTOR, DataType.INTEGER),
+                List.of(DENSE_VECTOR, DENSE_VECTOR),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(
@@ -72,8 +73,29 @@ public class KnnTests extends AbstractFunctionTestCase {
                             DENSE_VECTOR,
                             "dense_vector field"
                         ),
-                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query"),
-                        new TestCaseSupplier.TypedData(randomIntBetween(1, 1000), DataType.INTEGER, "k")
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
+                    ),
+                    equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
+                    BOOLEAN,
+                    equalTo(true)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(TEXT, DENSE_VECTOR),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            new FieldAttribute(
+                                Source.EMPTY,
+                                randomIdentifier(),
+                                new EsField(randomIdentifier(), TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                            ),
+                            TEXT,
+                            "text field"
+                        ),
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
                     ),
                     equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
                     BOOLEAN,

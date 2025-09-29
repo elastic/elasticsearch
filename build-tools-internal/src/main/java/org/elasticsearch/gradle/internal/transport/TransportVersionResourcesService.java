@@ -56,6 +56,7 @@ import javax.inject.Inject;
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
 
     private static final Logger logger = Logging.getLogger(TransportVersionResourcesService.class);
+    private static final String UPSTREAM_REMOTE_NAME = "transport-version-resources-upstream";
 
     public interface Parameters extends BuildServiceParameters {
         DirectoryProperty getTransportResourcesDirectory();
@@ -270,8 +271,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             );
         }
         List<String> remoteNames = List.of(remotesOutput.split("\n"));
-        String transportVersionRemoteName = "transport-version-resources-upstream";
-        if (remoteNames.contains(transportVersionRemoteName) == false) {
+        if (remoteNames.contains(UPSTREAM_REMOTE_NAME) == false) {
             // our special remote doesn't exist yet, so create it
             String upstreamUrl = null;
             for (String remoteName : remoteNames) {
@@ -282,16 +282,16 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             }
 
             if (upstreamUrl != null) {
-                gitCommand("remote", "add", transportVersionRemoteName, upstreamUrl);
+                gitCommand("remote", "add", UPSTREAM_REMOTE_NAME, upstreamUrl);
             } else {
                 throw new RuntimeException("No elastic github remotes found to copy");
             }
         }
 
         // make sure the remote main ref is up to date
-        gitCommand("fetch", transportVersionRemoteName, "main");
+        gitCommand("fetch", UPSTREAM_REMOTE_NAME, "main");
 
-        return transportVersionRemoteName + "/main";
+        return UPSTREAM_REMOTE_NAME + "/main";
     }
 
     // Return the transport version resources paths that exist in upstream

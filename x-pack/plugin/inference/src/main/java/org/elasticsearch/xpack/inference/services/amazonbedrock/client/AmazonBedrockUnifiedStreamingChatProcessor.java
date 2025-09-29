@@ -124,11 +124,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             }
             case ConverseStreamOutput.EventType.CONTENT_BLOCK_STOP -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(
-                    ConverseStreamResponseHandler.Visitor.builder()
-                        .onContentBlockStop(event -> Stream.empty())
-                        .build()
-                );
+                item.accept(ConverseStreamResponseHandler.Visitor.builder().onContentBlockStop(event -> Stream.empty()).build());
                 return;
             }
             default -> {

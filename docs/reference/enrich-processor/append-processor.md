@@ -29,7 +29,7 @@ $$$append-options$$$
 
 ### Simple example [append-processor-simple-example]
 
-Here is an that adds the string "production" as well as the values of the "app" and "owner" fields to the "tags" field:
+Here is an that adds the string `"production"` as well as the values of the `app` and `owner` fields to the `tags` field:
 
 ```js
 {

@@ -911,7 +911,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-            if (canRemain.type() != Decision.Type.NO && canRemain.type() != Type.NOT_PREFERRED) {
+            if (canRemain.type() != Decision.Type.NO && canRemain.type() != Decision.Type.NOT_PREFERRED) {
                 return MoveDecision.remain(canRemain);
             }
 

@@ -132,6 +132,8 @@ To get started, log into [Google Cloud Platform](https://cloud.google.com) and g
     You need to grant the following **OAuth Scopes** to your service account:
 
     * `https://www.googleapis.com/auth/admin.directory.user.readonly`
+    * `https://www.googleapis.com/auth/admin.directory.group.readonly`
+    * `https://www.googleapis.com/auth/gmail.readonly`
 
     This step allows the connector to access user data and their group memberships in your Google Workspace organization.
 

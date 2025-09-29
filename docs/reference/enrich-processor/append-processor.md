@@ -15,9 +15,9 @@ $$$append-options$$$
 | --- | --- | --- | --- |
 | `field` | yes | - | The field to be appended to. Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). |
 | `value` | yes* | - | The value to be appended. Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). May specify only one of `value` or `copy_from`. |
-| `copy_from` {applies_to}`stack: ga 9.2.0` | no | - | The origin field which will be appended to `field`, cannot set `value` simultaneously. |
+| `copy_from` {applies_to}`stack: ga 9.2` | no | - | The origin field which will be appended to `field`, cannot set `value` simultaneously. |
 | `allow_duplicates` | no | true | If `false`, the processor does not appendvalues already present in the field. |
-| `ignore_empty_values` {applies_to}`stack: ga 9.2.0` | no | false | If `true`, the processor does not append values that resolve `null` or an empty strings.
+| `ignore_empty_values` {applies_to}`stack: ga 9.2` | no | false | If `true`, the processor does not append values that resolve `null` or an empty strings.
 | `Media_type` | no | `application/json` | The media type for encoding `value`. Applies only when `value` is a [template snippet](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). Must be one of `application/json`, `text/plain`, or`application/x-www-form-urlencoded`. |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
 | `if` | no | - | Conditionally execute the processor. See [Conditionally run a processor](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#conditionally-run-processor). |

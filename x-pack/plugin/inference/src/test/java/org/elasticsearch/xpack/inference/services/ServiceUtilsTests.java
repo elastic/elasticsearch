@@ -384,6 +384,35 @@ public class ServiceUtilsTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> createUri(null));
     }
 
+    public void testExtractOptionalUri_ReturnsUri_WhenFieldIsValid() {
+        var validation = new ValidationException();
+        Map<String, Object> map = Map.of("url", "www.elastic.co");
+        var uri = ServiceUtils.extractOptionalUri(new HashMap<>(map), "url", validation);
+
+        assertNotNull(uri);
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(uri.toString(), is("www.elastic.co"));
+    }
+
+    public void testExtractOptionalUri_ReturnsNull_WhenFieldIsMissing() {
+        var validation = new ValidationException();
+        Map<String, Object> map = Map.of("other", "www.elastic.co");
+        var uri = ServiceUtils.extractOptionalUri(new HashMap<>(map), "url", validation);
+
+        assertNull(uri);
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testExtractOptionalUri_ReturnsNullAndAddsValidationError_WhenFieldIsInvalid() {
+        var validation = new ValidationException();
+        Map<String, Object> map = Map.of("url", "^^");
+        var uri = ServiceUtils.extractOptionalUri(new HashMap<>(map), "url", validation);
+
+        assertNull(uri);
+        assertThat(validation.validationErrors().size(), is(1));
+        assertThat(validation.validationErrors().get(0), containsString("[service_settings] Invalid url [^^] received for field [url]"));
+    }
+
     public void testExtractRequiredSecureString_CreatesSecureString() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));

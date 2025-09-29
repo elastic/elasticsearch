@@ -16,6 +16,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -104,6 +106,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
@@ -526,7 +529,9 @@ public class AuthorizationService {
                                 if (e instanceof IndexNotFoundException) {
                                     listener.onFailure(e);
                                 } else {
-                                    listener.onFailure(actionDenied(authentication, authzInfo, action, request, e));
+                                    final var denial = actionDenied(authentication, authzInfo, action, request, e);
+                                    setResolvedIndexException(request, denial);
+                                    listener.onFailure(denial);
                                 }
                             }
                         )
@@ -974,6 +979,19 @@ public class AuthorizationService {
         );
     }
 
+    private void setResolvedIndexException(TransportRequest request, ElasticsearchSecurityException exception) {
+        if (request instanceof IndicesRequest.Replaceable replaceable) {
+            var indexExpressions = replaceable.getResolvedIndexExpressions();
+            if (indexExpressions != null) {
+                indexExpressions.expressions().forEach(resolved -> {
+                    if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                        resolved.localExpressions().setException(exception);
+                    }
+                });
+            }
+        }
+    }
+
     ElasticsearchSecurityException actionDenied(
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,
@@ -1079,8 +1097,10 @@ public class AuthorizationService {
             Authentication authentication = requestInfo.getAuthentication();
             String action = requestInfo.getAction();
             TransportRequest request = requestInfo.getRequest();
+            final var denial = actionDenied(authentication, authzInfo, action, request, context, e);
+            setResolvedIndexException(request, denial);
             auditTrailService.get().accessDenied(requestId, authentication, action, request, authzInfo);
-            failureConsumer.accept(actionDenied(authentication, authzInfo, action, request, context, e));
+            failureConsumer.accept(denial);
         }
     }
 

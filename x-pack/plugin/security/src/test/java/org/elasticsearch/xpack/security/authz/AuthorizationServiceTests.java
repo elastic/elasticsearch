@@ -14,6 +14,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -215,6 +217,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ActionListenerUtils.anyCollection;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
@@ -234,6 +238,7 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -830,6 +835,11 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testUserWithNoRolesCannotPerformLocalSearch() {
         SearchRequest request = new SearchRequest();
         request.indices("no_such_cluster:index");
+        request.setResolvedIndexExpressions(
+            new ResolvedIndexExpressions(
+                List.of(resolvedIndexExpression("_all", Set.of("no_such_cluster:index"), CONCRETE_RESOURCE_UNAUTHORIZED))
+            )
+        );
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -846,6 +856,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(Role.EMPTY.names())
         );
         verifyNoMoreInteractions(auditTrail);
+
+        final var authorizationException = request.getResolvedIndexExpressions().expressions().getFirst().localExpressions().exception();
+        assertThat(authorizationException, is(notNullValue()));
+        assertThat(authorizationException, instanceOf(ElasticsearchSecurityException.class));
     }
 
     /**
@@ -855,6 +869,14 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testUserWithNoRolesCanPerformMultiClusterSearch() {
         SearchRequest request = new SearchRequest();
         request.indices("local_index", "wildcard_*", "other_cluster:remote_index", "*:foo?");
+        request.setResolvedIndexExpressions(
+            new ResolvedIndexExpressions(
+                List.of(
+                    resolvedIndexExpression("local_index", Set.of("local_index"), CONCRETE_RESOURCE_UNAUTHORIZED),
+                    resolvedIndexExpression("wildcard_*", Set.of("wildcard_*"), CONCRETE_RESOURCE_UNAUTHORIZED)
+                )
+            )
+        );
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -871,6 +893,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(Role.EMPTY.names())
         );
         verifyNoMoreInteractions(auditTrail);
+
+        request.getResolvedIndexExpressions().expressions().forEach(expression -> {
+            final var authorizationException = expression.localExpressions().exception();
+            assertThat(authorizationException, is(notNullValue()));
+            assertThat(authorizationException, instanceOf(ElasticsearchSecurityException.class));
+        });
     }
 
     public void testUserWithNoRolesCannotSql() {
@@ -1535,7 +1563,17 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        TransportRequest request = new SearchRequest("all-1", "read-2", "write-3", "other-4");
+        SearchRequest request = new SearchRequest("all-1", "read-2", "write-3", "other-4");
+        request.setResolvedIndexExpressions(
+            new ResolvedIndexExpressions(
+                List.of(
+                    resolvedIndexExpression("all-1", Set.of("all-1"), SUCCESS),
+                    resolvedIndexExpression("read-2", Set.of("read-2"), SUCCESS),
+                    resolvedIndexExpression("write-3", Set.of("write-3"), CONCRETE_RESOURCE_UNAUTHORIZED),
+                    resolvedIndexExpression("other-4", Set.of("other-4"), CONCRETE_RESOURCE_UNAUTHORIZED)
+                )
+            )
+        );
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -1565,6 +1603,21 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(not(containsString("all-1"))));
         assertThat(securityException, throwableWithMessage(not(containsString("read-2"))));
         assertThat(securityException, throwableWithMessage(containsString(", this action is granted by the index privileges [read,all]")));
+
+        final var expressions = request.getResolvedIndexExpressions().expressions();
+        var authorizationException = expressions.getFirst().localExpressions().exception();
+        assertThat(authorizationException, is(nullValue()));
+
+        authorizationException = expressions.get(1).localExpressions().exception();
+        assertThat(authorizationException, is(nullValue()));
+
+        authorizationException = expressions.get(2).localExpressions().exception();
+        assertThat(authorizationException, is(notNullValue()));
+        assertThat(authorizationException, instanceOf(ElasticsearchSecurityException.class));
+
+        authorizationException = expressions.get(3).localExpressions().exception();
+        assertThat(authorizationException, is(notNullValue()));
+        assertThat(authorizationException, instanceOf(ElasticsearchSecurityException.class));
     }
 
     public void testDenialErrorMessagesForBulkIngest() throws Exception {
@@ -3245,7 +3298,10 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestAuthenticationDenied() {
-        final TransportRequest proxiedRequest = new SearchRequest();
+        final SearchRequest proxiedRequest = new SearchRequest();
+        proxiedRequest.setResolvedIndexExpressions(
+            new ResolvedIndexExpressions(List.of(resolvedIndexExpression("_all", Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED)))
+        );
         final DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         final TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, proxiedRequest);
         final String action = TransportActionProxy.getProxyAction(SearchTransportService.QUERY_ACTION_NAME);
@@ -3263,6 +3319,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
+
+        final var authorizationException = proxiedRequest.getResolvedIndexExpressions()
+            .expressions()
+            .getFirst()
+            .localExpressions()
+            .exception();
+        assertThat(authorizationException, is(notNullValue()));
+        assertThat(authorizationException, instanceOf(ElasticsearchSecurityException.class));
     }
 
     public void testProxyRequestAuthenticationGrantedWithAllPrivileges() {
@@ -3741,5 +3805,17 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
+    }
+
+    private static ResolvedIndexExpression resolvedIndexExpression(
+        String original,
+        Set<String> localExpressions,
+        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult
+    ) {
+        return new ResolvedIndexExpression(
+            original,
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            Set.of()
+        );
     }
 }

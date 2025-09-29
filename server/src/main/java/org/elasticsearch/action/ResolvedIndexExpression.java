@@ -12,6 +12,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -56,14 +57,43 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
     /**
      * Represents local (non-remote) resolution results, including expanded indices, and a {@link LocalIndexResolutionResult}.
      */
-    public record LocalExpressions(
-        Set<String> expressions,
-        LocalIndexResolutionResult localIndexResolutionResult,
-        @Nullable ElasticsearchException exception
-    ) {
-        public LocalExpressions {
+    public static final class LocalExpressions {
+        private final Set<String> expressions;
+        private final LocalIndexResolutionResult localIndexResolutionResult;
+        @Nullable
+        private ElasticsearchException exception;
+
+        public LocalExpressions(
+            Set<String> expressions,
+            LocalIndexResolutionResult localIndexResolutionResult,
+            @Nullable ElasticsearchException exception
+        ) {
             assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
                 : "If the local resolution result is SUCCESS, exception must be null";
+            this.expressions = expressions;
+            this.localIndexResolutionResult = localIndexResolutionResult;
+            this.exception = exception;
+        }
+
+        public Set<String> expressions() {
+            return expressions;
+        }
+
+        public LocalIndexResolutionResult localIndexResolutionResult() {
+            return localIndexResolutionResult;
+        }
+
+        @Nullable
+        public ElasticsearchException exception() {
+            return exception;
+        }
+
+        public void setException(ElasticsearchException exception) {
+            assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS
+                : "If the local resolution result is SUCCESS, exception must be null";
+            Objects.requireNonNull(exception);
+
+            this.exception = exception;
         }
     }
 }

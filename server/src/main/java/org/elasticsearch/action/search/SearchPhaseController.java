@@ -531,7 +531,8 @@ public final class SearchPhaseController {
                 // we simply take the first one: we should get the same value from all shards anyway
                 rangeTimestampFrom = result.getRangeTimestampFrom();
             }
-            assert rangeTimestampFrom == null || rangeTimestampFrom.equals(result.getRangeTimestampFrom());
+            assert rangeTimestampFrom == null || rangeTimestampFrom.equals(result.getRangeTimestampFrom()) :
+                rangeTimestampFrom + " != " + result.getRangeTimestampFrom();
 
             if (hasSuggest) {
                 assert result.suggest() != null;

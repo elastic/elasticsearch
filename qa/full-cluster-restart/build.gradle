@@ -23,12 +23,14 @@ buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
 }
 
 tasks.register("luceneBwcTest", StandaloneRestIntegTestTask) {
-  doFirst {
-    if (System.getProperty("tests.bwc.refspec.main") == null) {
-      throw new GradleException("You must set the `tests.bwc.refspec.main` system property to run luceneBwcTest")
-    }
-    if (System.getProperty("tests.bwc.main.version") == null) {
-      throw new GradleException("You must set the `tests.bwc.main.version` system property to run luceneBwcTest")
+  project.gradle.taskGraph.whenReady { allTasks ->
+    if (allTasks.hasTask(getPath())) {
+      if (System.getProperty("tests.bwc.refspec.main") == null) {
+        throw new GradleException("You must set the `tests.bwc.refspec.main` system property to run luceneBwcTest")
+      }
+      if (System.getProperty("tests.bwc.main.version") == null) {
+        throw new GradleException("You must set the `tests.bwc.main.version` system property to run luceneBwcTest")
+      }
     }
   }
   if (System.getProperty("tests.bwc.refspec.main") != null && System.getProperty("tests.bwc.main.version") != null) {

@@ -136,13 +136,10 @@ public class HttpRequestSender implements Sender {
     @Override
     public void startSynchronously() {
         if (started.compareAndSet(false, true)) {
-            ActionListener<Void> listener = ActionListener.wrap(
-                unused -> {},
-                exception -> {
-                    logger.error("Http sender failed to start", exception);
-                    ExceptionsHelper.maybeDieOnAnotherThread(exception);
-                }
-            );
+            ActionListener<Void> listener = ActionListener.wrap(unused -> {}, exception -> {
+                logger.error("Http sender failed to start", exception);
+                ExceptionsHelper.maybeDieOnAnotherThread(exception);
+            });
             startInternal(listener);
         }
         // Handle the case where start*() was already called and this would return immediately because the started flag is already true

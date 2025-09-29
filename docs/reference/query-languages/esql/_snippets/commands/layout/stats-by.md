@@ -57,7 +57,7 @@ The following [grouping functions](/reference/query-languages/esql/functions-ope
 :::
 
 When nested under [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
-time-series aggregate functions are also supported:
+time series aggregate functions are also supported:
 
 :::{include} ../../lists/ts-aggregation-functions.md
 :::

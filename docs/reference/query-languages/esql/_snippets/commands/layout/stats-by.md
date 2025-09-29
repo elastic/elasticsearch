@@ -56,6 +56,12 @@ The following [grouping functions](/reference/query-languages/esql/functions-ope
 :::{include} ../../lists/grouping-functions.md
 :::
 
+When nested under [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
+time-series aggregate functions are also supported:
+
+:::{include} ../../lists/ts-aggregation-functions.md
+:::
+
 ::::{note}
 `STATS` without any groups is much much faster than adding a group.
 ::::

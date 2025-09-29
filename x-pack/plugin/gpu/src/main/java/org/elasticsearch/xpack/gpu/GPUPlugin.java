@@ -54,7 +54,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         if (GPU_FORMAT.isEnabled()) {
             return List.of(VECTORS_INDEXING_USE_GPU_SETTING);
         } else {
-            return List.of(VECTORS_INDEXING_USE_GPU_SETTING);
+            return List.of();
         }
     }
 

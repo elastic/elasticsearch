@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -109,6 +110,33 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
         var format = vectorsFormatProvider.getKnnVectorsFormat(null, null);
+        assertNull(format);
+    }
+
+    public void testFFOffIndexSettingNotSupported() {
+        assumeFalse("GPU_FORMAT feature flag disabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                "index1",
+                Settings.builder().put(GPUPlugin.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), GPUPlugin.GpuMode.TRUE).build()
+            )
+        );
+        assertThat(exception.getMessage(), containsString("unknown setting [index.vectors.indexing.use_gpu]"));
+    }
+
+    public void testFFOffGPUFormatNull() {
+        assumeFalse("GPU_FORMAT feature flag disabled", GPUPlugin.GPU_FORMAT.isEnabled());
+        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
+
+        GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
+        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
+
+        createIndex("index1", Settings.EMPTY);
+        IndexSettings settings = getIndexSettings();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
+
+        var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
         assertNull(format);
     }
 

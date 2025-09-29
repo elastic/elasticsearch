@@ -1018,11 +1018,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /**
          * Sorts shards by desirability to move, ranking goes (in descending priority order)
          * <ol>
-         *     <li>Shards with write-load in {threshold} -> maximum write-load (exclusive)</li>
-         *     <li>Shards with write-load in {threshold} -> 0</li>
+         *     <li>Shards with write-load in <i>{threshold}</i> -> maximum write-load (exclusive)</li>
+         *     <li>Shards with write-load in <i>{threshold}</i> -> 0</li>
          *     <li>Shards with maximum write-load</li>
          *     <li>Shards with missing write-load</li>
          * </ol>
+         *
+         * e.g., for any two <code>ShardRouting</code>s, <code>r1</code> and <code>r2</code>,
+         * <ul>
+         *     <li><code>compare(r1, r2) > 0</code> when <code>r1</code> is most desirable to move</li>
+         *     <li><code>compare(r1, r2) == 0</code> when the two shards are equally desirable to move</li>
+         *     <li><code>compare(r1, r2) < 0</code> when <code>r2</code> is most desirable to move</li>
+         * </ul>
          */
         // Visible for testing
         static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {

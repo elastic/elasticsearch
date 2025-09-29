@@ -21,6 +21,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -2545,21 +2546,34 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean forceMergeIsNoOp(int maxNumSegments) throws IOException {
-        // TODO: is there a way for us to determine no-op with no max num segments?
-        if (maxNumSegments <= 0) {
-            return false;
+    public boolean forceMergeIsNoOp(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException {
+        if (onlyExpungeDeletes && maxNumSegments >= 0) {
+            throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
         }
         try (var reader = DirectoryReader.open(indexWriter)) {
             final var segmentCommitInfos = SegmentInfos.readCommit(reader.directory(), reader.getIndexCommit().getSegmentsFileName());
             final var segmentsToMerge = new HashMap<SegmentCommitInfo, Boolean>();
             for (int i = 0; i < segmentCommitInfos.size(); i++) {
-                segmentsToMerge.put(segmentCommitInfos.info(i), Boolean.TRUE);
+                final var segmentInfo = segmentCommitInfos.info(i);
+                if (onlyExpungeDeletes && segmentInfo.hasDeletions()) {
+                    return false;
+                }
+                segmentsToMerge.put(segmentInfo, Boolean.TRUE);
+            }
+            if (onlyExpungeDeletes) {
+                return true;
             }
 
-            final var mergeSpecification = indexWriter.getConfig()
-                .getMergePolicy()
-                .findForcedMerges(segmentCommitInfos, maxNumSegments, segmentsToMerge, indexWriter);
+            final MergePolicy.MergeSpecification mergeSpecification;
+            if (maxNumSegments < 0) {
+                mergeSpecification = indexWriter.getConfig()
+                    .getMergePolicy()
+                    .findMerges(MergeTrigger.EXPLICIT, segmentCommitInfos, indexWriter);
+            } else {
+                mergeSpecification = indexWriter.getConfig()
+                    .getMergePolicy()
+                    .findForcedMerges(segmentCommitInfos, maxNumSegments, segmentsToMerge, indexWriter);
+            }
             return mergeSpecification == null || mergeSpecification.merges.isEmpty();
         }
     }

@@ -479,7 +479,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean forceMergeIsNoOp(int maxNumSegments) throws IOException {
+    public boolean forceMergeIsNoOp(int maxNumSegments, boolean onlyExpungeDeletes) {
         throw new UnsupportedOperationException(
             "force merge is not supported on a read-only engine, "
                 + "target max number of segments["

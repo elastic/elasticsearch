@@ -111,7 +111,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             threadPool.generic().execute(ActionRunnable.supply(l, () -> {
                 boolean forceMergeIsNoOp = indexShard.withEngineException(engine -> {
                     engine.flush();
-                    return engine.forceMergeIsNoOp(request.maxNumSegments());
+                    return engine.forceMergeIsNoOp(request.maxNumSegments(), request.onlyExpungeDeletes());
                 });
                 return Tuple.tuple(forceMergeIsNoOp, indexShard);
             }));

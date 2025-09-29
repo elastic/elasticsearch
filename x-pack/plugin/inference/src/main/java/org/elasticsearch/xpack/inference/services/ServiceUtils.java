@@ -1079,18 +1079,6 @@ public final class ServiceUtils {
         E apply(String name) throws IllegalArgumentException;
     }
 
-    /**
-     * @deprecated use {@link #parsePersistedConfigErrorMsg(String, String, TaskType)} instead
-     */
-    @Deprecated
-    public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {
-        return format(
-            "Failed to parse stored model [%s] for [%s] service, please delete and add the service again",
-            inferenceEntityId,
-            serviceName
-        );
-    }
-
     public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName, TaskType taskType) {
         return format(
             "Failed to parse stored model [%s] for [%s] service, error: [%s]. Please delete and add the service again",

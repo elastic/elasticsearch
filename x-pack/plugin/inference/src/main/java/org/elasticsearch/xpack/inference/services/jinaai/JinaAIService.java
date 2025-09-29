@@ -204,7 +204,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 
@@ -225,7 +225,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 

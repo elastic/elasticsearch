@@ -256,7 +256,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 
@@ -277,7 +277,7 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 

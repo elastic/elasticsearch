@@ -744,7 +744,11 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [mistral] service, please delete and add the service again")
+                containsString("Failed to parse stored model [id] for [mistral] service")
+            );
+            assertThat(
+                thrownException.getMessage(),
+                containsString("The [mistral] service does not support task type [sparse_embedding]")
             );
         }
     }

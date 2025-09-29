@@ -450,9 +450,13 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 )
             );
 
-            MatcherAssert.assertThat(
+            assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
+                containsString("Failed to parse stored model [id] for [cohere] service")
+            );
+            assertThat(
+                thrownException.getMessage(),
+                containsString("The [cohere] service does not support task type [sparse_embedding]")
             );
         }
     }
@@ -687,9 +691,13 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
-            MatcherAssert.assertThat(
+            assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
+                containsString("Failed to parse stored model [id] for [cohere] service")
+            );
+            assertThat(
+                thrownException.getMessage(),
+                containsString("The [cohere] service does not support task type [sparse_embedding]")
             );
         }
     }

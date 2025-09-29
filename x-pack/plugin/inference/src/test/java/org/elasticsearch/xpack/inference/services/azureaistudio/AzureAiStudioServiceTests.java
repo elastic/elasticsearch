@@ -809,7 +809,11 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
 
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [azureaistudio] service, please delete and add the service again")
+                containsString("Failed to parse stored model [id] for [azureaistudio] service")
+            );
+            assertThat(
+                thrownException.getMessage(),
+                containsString("The [azureaistudio] service does not support task type [sparse_embedding]")
             );
         }
     }

@@ -250,7 +250,7 @@ public class MistralService extends SenderService {
             serviceSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType)
         );
     }
 
@@ -270,7 +270,7 @@ public class MistralService extends SenderService {
             serviceSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(modelId, NAME)
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType)
         );
     }
 

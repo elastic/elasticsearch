@@ -144,7 +144,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType),
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -160,7 +160,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
             serviceSettingsMap,
             taskSettingsMap,
             null,
-            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType),
             ConfigurationParseContext.PERSISTENT
         );
     }

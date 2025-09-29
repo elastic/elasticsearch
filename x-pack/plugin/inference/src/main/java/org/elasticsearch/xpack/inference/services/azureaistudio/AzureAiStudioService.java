@@ -222,7 +222,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 
@@ -243,7 +243,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 

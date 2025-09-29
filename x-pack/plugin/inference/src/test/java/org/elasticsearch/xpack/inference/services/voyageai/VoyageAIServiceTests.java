@@ -409,9 +409,13 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 )
             );
 
-            MatcherAssert.assertThat(
+            assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [voyageai] service, please delete and add the service again")
+                containsString("Failed to parse stored model [id] for [voyageai] service")
+            );
+            assertThat(
+                thrownException.getMessage(),
+                containsString("The [voyageai] service does not support task type [sparse_embedding]")
             );
         }
     }
@@ -624,9 +628,13 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
-            MatcherAssert.assertThat(
+            assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [voyageai] service, please delete and add the service again")
+                containsString("Failed to parse stored model [id] for [voyageai] service")
+            );
+            assertThat(
+                thrownException.getMessage(),
+                containsString("The [voyageai] service does not support task type [sparse_embedding]")
             );
         }
     }

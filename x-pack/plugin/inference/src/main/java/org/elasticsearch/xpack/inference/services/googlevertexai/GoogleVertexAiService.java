@@ -186,7 +186,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 
@@ -207,7 +207,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME, taskType)
         );
     }
 

@@ -123,7 +123,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 secretSettingsMap,
-                parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+                parsePersistedConfigErrorMsg(inferenceEntityId, name(), taskType),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -147,7 +147,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 null,
-                parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+                parsePersistedConfigErrorMsg(inferenceEntityId, name(), taskType),
                 ConfigurationParseContext.PERSISTENT
             )
         );

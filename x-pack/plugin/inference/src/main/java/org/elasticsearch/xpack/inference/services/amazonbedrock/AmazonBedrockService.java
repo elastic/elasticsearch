@@ -241,7 +241,7 @@ public class AmazonBedrockService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME),
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType),
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -263,7 +263,7 @@ public class AmazonBedrockService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(modelId, NAME),
+            parsePersistedConfigErrorMsg(modelId, NAME, taskType),
             ConfigurationParseContext.PERSISTENT
         );
     }

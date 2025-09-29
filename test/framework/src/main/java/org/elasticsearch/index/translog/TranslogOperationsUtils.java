@@ -39,7 +39,8 @@ public class TranslogOperationsUtils {
             Versions.MATCH_ANY,
             new BytesArray(Objects.requireNonNull(source).getBytes(StandardCharsets.UTF_8)),
             null,
-            -1L
+            -1L,
+            null
         );
     }
 }

@@ -153,21 +153,24 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         final BytesRef timeSeriesId;
         final RoutingPathFields routingPathFields;
+        if (context.getRoutingFields() instanceof RoutingPathFields routingPathFieldsFromContext) {
+            routingPathFields = routingPathFieldsFromContext;
+        } else {
+            routingPathFields = null;
+        }
         if (getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)) {
-            routingPathFields = (RoutingPathFields) context.getRoutingFields();
+            assert routingPathFields != null : "routing path fields are required for legacy indices";
             long limit = context.indexSettings().getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
             int size = routingPathFields.routingValues().size();
             if (size > limit) {
                 throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
             }
             timeSeriesId = buildLegacyTsid(routingPathFields).toBytesRef();
-        } else if (context.getRoutingFields() instanceof RoutingPathFields routingPathFieldsFromContext) {
-            routingPathFields = routingPathFieldsFromContext;
-            timeSeriesId = routingPathFields.buildHash().toBytesRef();
         } else {
-            routingPathFields = null;
-            assert context.getTsid() != null;
             timeSeriesId = context.getTsid();
+            if (timeSeriesId == null) {
+                throw new IllegalStateException("tsid is missing from the context"  + context.documentDescription());
+            }
         }
 
         if (this.useDocValuesSkipper) {

@@ -121,7 +121,8 @@ public final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             dynamicUpdate,
-            meteringParserDecorator.meteredDocumentSize()
+            meteringParserDecorator.meteredDocumentSize(),
+            context.getTsid()
         ) {
             @Override
             public String documentDescription() {
@@ -1072,7 +1073,7 @@ public final class DocumentParser {
         private final long maxAllowedNumNestedDocs;
         private long numNestedDocs;
         private boolean docsReversed = false;
-        private final BytesRef tsid;
+        private BytesRef tsid;
 
         RootDocumentParserContext(
             MappingLookup mappingLookup,
@@ -1092,8 +1093,9 @@ public final class DocumentParser {
             if (tsid == null
                 && indexSettings.getMode() == IndexMode.TIME_SERIES
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
-                // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
-                // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
+                // The tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request.
+                // When applying a translog operation from an older version that didn't include the tsid in the translog, yet,
+                // we have to re-create the tsid from source.
                 tsid = forIndexDimensions.buildTsid(source.getXContentType(), source.source());
             }
             this.tsid = tsid;
@@ -1158,6 +1160,9 @@ public final class DocumentParser {
 
         @Override
         public BytesRef getTsid() {
+            if (tsid == null && getRoutingFields() instanceof RoutingPathFields routingPathFields) {
+                tsid = routingPathFields.buildHash().toBytesRef();
+            }
             return this.tsid;
         }
 

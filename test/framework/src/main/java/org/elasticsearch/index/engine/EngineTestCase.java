@@ -486,7 +486,8 @@ public abstract class EngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             mappingUpdate,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            null
         );
     }
 

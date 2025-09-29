@@ -422,7 +422,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             1,
             new BytesArray(org.elasticsearch.common.Strings.toString(builder)),
             null,
-            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            null
         );
     }
 }

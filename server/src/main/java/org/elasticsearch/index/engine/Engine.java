@@ -1905,6 +1905,11 @@ public abstract class Engine implements Closeable {
             return this.doc.id();
         }
 
+        @Nullable
+        public BytesRef tsid() {
+            return this.doc.tsid();
+        }
+
         @Override
         public TYPE operationType() {
             return TYPE.INDEX;

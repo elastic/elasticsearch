@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
@@ -28,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -775,16 +778,64 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testProvideExpectedIdWithRoutingPath() throws IOException {
         assertThat(
-            parse(testCase.expectedIdWithRoutingPath, mapperService(false), testCase.source).id(),
+            parse(testCase.expectedIdWithRoutingPath, null, mapperService(false), testCase.source).id(),
             equalTo(testCase.expectedIdWithRoutingPath)
         );
     }
 
     public void testProvideExpectedIdWithIndexDimensions() throws IOException {
         assertThat(
-            parse(testCase.expectedIdWithIndexDimensions, mapperService(true), testCase.source).id(),
+            parse(testCase.expectedIdWithIndexDimensions, null, mapperService(true), testCase.source).id(),
             equalTo(testCase.expectedIdWithIndexDimensions)
         );
+    }
+
+    public void testProvideExpectedTsidWithRoutingPath() throws IOException {
+        assertThat(
+            parse(null, testCase.expectedTsidWithRoutingPath, mapperService(false), testCase.source).id(),
+            equalTo(testCase.expectedIdWithRoutingPath)
+        );
+    }
+
+    public void testProvideExpectedTsidWithIndexDimensions() throws IOException {
+        assertThat(
+            parse(null, testCase.expectedTsidWithIndexDimensions, mapperService(true), testCase.source)
+                .id(),
+            equalTo(testCase.expectedIdWithIndexDimensions)
+        );
+    }
+
+
+    public void testProvideExpectedIdAndTsidWithRoutingPath() throws IOException {
+        assertThat(
+            parse(testCase.expectedIdWithRoutingPath, testCase.expectedTsidWithRoutingPath, mapperService(false), testCase.source).id(),
+            equalTo(testCase.expectedIdWithRoutingPath)
+        );
+    }
+
+    public void testProvideExpectedIdAndTsidWithIndexDimensions() throws IOException {
+        assertThat(
+            parse(testCase.expectedIdWithIndexDimensions, testCase.expectedTsidWithIndexDimensions, mapperService(true), testCase.source)
+                .id(),
+            equalTo(testCase.expectedIdWithIndexDimensions)
+        );
+    }
+
+    public void testProvideExternalTsid() throws IOException {
+        // When replaying translog operations, both the id and tsid are provided from the translog entry.
+        // We must not recompute the id and the tsid from the document source and instead use the provided ones.
+        // Here we generate a random tsid that is different from the expected one and verify that the provided id is returned unchanged
+        byte[] tsidBytes = randomByteArrayOfLength(between(16, 32));
+        String tsid = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(tsidBytes);
+        String id = TsidExtractingIdFieldMapper.createId(
+            ROUTING_HASH,
+            new BytesRef(tsidBytes),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(testCase.expectedTimestamp)
+        );
+
+        // we test with both tsid creation strategies - index.dimensions and index.routing_path
+        assertThat(parse(id, tsid, mapperService(true), testCase.source).id(), equalTo(id));
+        assertThat(parse(id, tsid, mapperService(false), testCase.source).id(), equalTo(id));
     }
 
     public void testEquivalentSourcesWithRoutingPath() throws IOException {
@@ -795,11 +846,15 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private ParsedDocument parse(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source) throws IOException {
-        return parse(null, mapperService, source);
+        return parse(null, null, mapperService, source);
     }
 
-    private ParsedDocument parse(@Nullable String id, MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source)
-        throws IOException {
+    private ParsedDocument parse(
+        @Nullable String id,
+        String tsid,
+        MapperService mapperService,
+        CheckedConsumer<XContentBuilder, IOException> source
+    ) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             builder.startObject();
             source.accept(builder);
@@ -808,7 +863,9 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
                 id,
                 BytesReference.bytes(builder),
                 builder.contentType(),
-                TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH)
+                TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH),
+                Map.of(),
+                tsid != null ? new BytesRef(Base64.getUrlDecoder().decode(tsid)) : null
             );
             return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }

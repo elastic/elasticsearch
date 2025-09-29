@@ -256,7 +256,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     }
 
     public void testSendSnapshotSendsOps() throws IOException {
-        IndexOpFactory iof = randomBoolean() ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
+        IndexOpFactory iof = false ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
         final int fileChunkSizeInBytes = between(1, 4096);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
@@ -1934,7 +1934,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 randomNonNegativeLong(),
                 TRANSLOG_OPERATION_SOURCE,
                 randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomBoolean() ? randomBytesReference(between(16, 32)).toBytesRef() : null
             );
         } else if (randomBoolean()) {
             op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());

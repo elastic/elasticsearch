@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -66,6 +68,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -77,6 +80,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -130,6 +134,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
@@ -3147,7 +3152,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         1,
                         new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
                         null,
-                        -1
+                        -1,
+                        null
                     )
                 );
             } else {
@@ -3160,7 +3166,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         1,
                         new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)),
                         null,
-                        -1
+                        -1,
+                        null
                     )
                 );
                 numCorruptEntries++;
@@ -3185,6 +3192,160 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
 
         closeShards(primary);
+    }
+
+    public void testRecoverFromTranslogWhenDimensionsChange() throws IOException {
+        // Prepare an index with a single time series dimension and a non-dynamic mapping.
+        boolean indexDimensions = randomBoolean();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "time_series")
+            .put("index.time_series.start_time", "2025-01-01T00:00:00")
+            .put("index.time_series.end_time", "2025-01-02T00:00:00")
+            .put(indexDimensions ? "index.dimensions" : "index.routing_path", "dim1")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            {
+              "_data_stream_timestamp": {
+                "enabled": true
+              },
+              "dynamic": false,
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "dim1": {
+                  "type": "keyword",
+                  "time_series_dimension": "true"
+                }
+              }
+            }
+            """).settings(settings).primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE)).build();
+
+        // Index a document that has a field for the single dimension and another field that is not in the mappings (yet).
+        // As the mappings are non-dynamic this field will be ignored.
+        // We'll test how the recovery behaves when this field is later added as a second dimension.
+        IndexRequest indexRequest = new IndexRequest().source(Map.of("@timestamp", "2025", "dim1", "foo", "dim2", "bar"));
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(metadata);
+        indexRouting.indexShard(indexRequest);
+        indexRouting.postProcess(indexRequest);
+
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        Engine.Index index = prepareIndex(primary, indexRequest);
+        assertThat(index.id(), not(nullValue()));
+        assertThat(index.tsid(), not(nullValue()));
+
+        // Simulate a mappings change where a second dimension is added that matches the ignored field in the original index request.
+        if (indexDimensions) {
+            settings = Settings.builder().put(settings).put("index.dimensions", "dim1,dim2").build();
+        }
+        IndexMetadata withAdditionalDimension = IndexMetadata.builder(metadata).settings(settings).putMapping("""
+            {
+              "_data_stream_timestamp": {
+                "enabled": true
+              },
+              "dynamic": false,
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "dim1": {
+                  "type": "keyword",
+                  "time_series_dimension": "true"
+                },
+                "dim2": {
+                  "type": "keyword",
+                  "time_series_dimension": "true"
+                }
+              }
+            }
+            """).build();
+
+        // Creates a replica shard with the updated mappings and recovers the translog index operation on it.
+        IndexShard replica = newShard(new ShardId(withAdditionalDimension.getIndex(), 0), false, "n1", withAdditionalDimension, null);
+        Engine.IndexResult indexResult = new Engine.IndexResult(1, index.primaryTerm(), index.seqNo(), true, index.id());
+        Translog.Index translogIndex = copy(new Translog.Index(index, indexResult));
+        Engine.Index recoveryIndex = prepareIndex(replica, translogIndex);
+
+        // The index operation that is recovered from translog should have the same id and tsid as the original index operation,
+        // despite the mappings having changed in the meantime.
+        // Otherwise, the primary and replica would diverge.
+        assertThat(recoveryIndex, not(sameInstance(index)));
+        assertThat(recoveryIndex.id(), equalTo(index.id()));
+        assertThat(recoveryIndex.tsid(), equalTo(index.tsid()));
+
+        closeShards(primary);
+        closeShards(replica);
+    }
+
+    private static Translog.Index copy(Translog.Index index) throws IOException {
+        TransportVersion wireVersion = TransportVersionUtils.randomVersion();
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(wireVersion);
+        index.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(wireVersion);
+        Translog.Index copy = (Translog.Index) Translog.Operation.readOperation(in);
+        assertThat(index, equalTo(copy));
+        assertThat(Translog.Index.equalsWithoutAutoGeneratedTimestamp(index, copy, true), equalTo(true));
+        assertThat(index.hashCode(), equalTo(copy.hashCode()));
+        assertThat(index.estimateSize(), equalTo(copy.estimateSize()));
+        assertThat(index.toString(), equalTo(copy.toString()));
+        return copy;
+    }
+
+    private static Engine.Index prepareIndex(IndexShard primary, Translog.Index index) {
+        return IndexShard.prepareIndex(
+            primary.mapperService(),
+            createSourceToParse(index),
+            randomNonNegativeLong(),
+            primary.getPendingPrimaryTerm(),
+            index.version(),
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            index.getAutoGeneratedIdTimestamp(),
+            true,
+            UNASSIGNED_SEQ_NO,
+            0,
+            primary.getRelativeTimeInNanos()
+        );
+    }
+
+    private static Engine.Index prepareIndex(IndexShard primary, IndexRequest indexRequest) {
+        return IndexShard.prepareIndex(
+            primary.mapperService(),
+            createSourceToParse(indexRequest),
+            randomNonNegativeLong(),
+            primary.getPendingPrimaryTerm(),
+            indexRequest.version(),
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            indexRequest.getAutoGeneratedTimestamp(),
+            indexRequest.isRetry(),
+            indexRequest.ifSeqNo(),
+            indexRequest.ifPrimaryTerm(),
+            primary.getRelativeTimeInNanos()
+        );
+    }
+
+    private static SourceToParse createSourceToParse(IndexRequest indexRequest) {
+        return new SourceToParse(
+            indexRequest.id(),
+            indexRequest.source(),
+            indexRequest.getContentType(),
+            indexRequest.routing(),
+            indexRequest.getDynamicTemplates(),
+            indexRequest.tsid()
+        );
+    }
+
+    private static SourceToParse createSourceToParse(Translog.Index index) {
+        return new SourceToParse(
+            index.id(),
+            index.source(),
+            XContentHelper.xContentType(index.source()),
+            index.routing(),
+            Map.of(),
+            index.tsid()
+        );
     }
 
     public void testShardActiveDuringInternalRecovery() throws IOException {
@@ -4828,7 +4989,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         1,
                         new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
                         null,
-                        -1
+                        -1,
+                        null
                     )
                 ),
             // entries with corrupted source
@@ -4841,7 +5003,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         1,
                         new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)),
                         null,
-                        -1
+                        -1,
+                        null
                     )
                 )
         ).collect(Collectors.toCollection(ArrayList::new));

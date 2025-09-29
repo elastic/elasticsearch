@@ -14,6 +14,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,6 +37,8 @@ public class ParsedDocument {
     private final List<LuceneDocument> documents;
 
     private final long normalizedSize;
+    @Nullable
+    private final BytesRef tsid;
 
     private BytesReference source;
     private XContentType xContentType;
@@ -63,7 +66,8 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            null
         );
     }
 
@@ -88,7 +92,8 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            null
         );
     }
 
@@ -101,7 +106,8 @@ public class ParsedDocument {
         BytesReference source,
         XContentType xContentType,
         Mapping dynamicMappingsUpdate,
-        long normalizedSize
+        long normalizedSize,
+        @Nullable BytesRef tsid
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -112,6 +118,7 @@ public class ParsedDocument {
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
         this.normalizedSize = normalizedSize;
+        this.tsid = tsid;
     }
 
     public String id() {
@@ -148,6 +155,10 @@ public class ParsedDocument {
 
     public XContentType getXContentType() {
         return this.xContentType;
+    }
+
+    public @Nullable BytesRef tsid() {
+        return tsid;
     }
 
     public void setSource(BytesReference source, XContentType xContentType) {

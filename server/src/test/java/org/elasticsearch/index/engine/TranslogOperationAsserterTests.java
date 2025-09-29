@@ -47,8 +47,8 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             1,
             new BytesArray(Strings.toString(builder)),
             null,
-            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP
-        );
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            null);
     }
 
     EngineConfig engineConfig(boolean useSyntheticSource) {

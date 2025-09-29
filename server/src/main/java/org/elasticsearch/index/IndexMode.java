@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -112,7 +113,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -216,10 +217,19 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
             IndexRouting indexRouting = settings.getIndexRouting();
             if (indexRouting instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
-                return new RoutingPathFields(forRoutingPath.builder());
+                if (source.tsid() != null) {
+                    // If we already have a tsid, do not extract it from the source again.
+                    // This happens during translog operation replay where we get the tsid value from the translog.
+                    // We don't want to re-create the tsid to avoid that it's different from the original one.
+                    // That could happen, for example, if a new dimension field was added to a non-dynamic mapping
+                    // after the translog operation was created.
+                    return RoutingFields.Noop.INSTANCE;
+                } else {
+                    return new RoutingPathFields(forRoutingPath.builder());
+                }
             } else if (indexRouting instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
                 return RoutingFields.Noop.INSTANCE;
             } else {
@@ -303,7 +313,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -384,7 +394,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -540,7 +550,7 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract RoutingFields buildRoutingFields(IndexSettings settings);
+    public abstract RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

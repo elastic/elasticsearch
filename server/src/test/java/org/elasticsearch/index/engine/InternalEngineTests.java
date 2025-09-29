@@ -5537,7 +5537,8 @@ public class InternalEngineTests extends EngineTestCase {
                 source,
                 XContentType.JSON,
                 null,
-                XContentMeteringParserDecorator.UNKNOWN_SIZE
+                XContentMeteringParserDecorator.UNKNOWN_SIZE,
+                randomBoolean() ? randomBytesReference(between(16, 32)).toBytesRef() : null
             );
 
             final Engine.Index index = new Engine.Index(

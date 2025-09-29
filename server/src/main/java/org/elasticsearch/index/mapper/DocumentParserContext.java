@@ -271,7 +271,7 @@ public abstract class DocumentParserContext {
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
-            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings(), source),
             parent,
             dynamic,
             new HashSet<>(),
@@ -871,6 +871,10 @@ public abstract class DocumentParserContext {
 
     protected abstract void addDoc(LuceneDocument doc);
 
+    /**
+     * Gets or creates the time series id for this document, or null if the index is not a time series index.
+     * This method must only be called after document parsing has completed, so that all dimension fields have been extracted.
+     */
     @Nullable
     public abstract BytesRef getTsid();
 

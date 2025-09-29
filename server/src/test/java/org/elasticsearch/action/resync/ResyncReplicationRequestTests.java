@@ -33,7 +33,8 @@ public class ResyncReplicationRequestTests extends ESTestCase {
             randomNonNegativeLong(),
             new BytesArray(bytes),
             randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomBoolean() ? randomBytesReference(between(16, 32)).toBytesRef() : null
         );
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
         final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, 42L, 100, new Translog.Operation[] { index });

@@ -203,7 +203,7 @@ public abstract class StreamInput extends InputStream {
         return readBytesRef(length);
     }
 
-    public @Nullable BytesRef readBytesRefOrNullIfEmpty() throws IOException {
+    public @Nullable BytesRef readOptionalBytesRef() throws IOException {
         int length = readArraySize();
         if (length == 0) {
             return null;

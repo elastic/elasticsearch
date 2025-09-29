@@ -3433,6 +3433,7 @@ public class TranslogTests extends ESTestCase {
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);
+        BytesRef tsid = randomBoolean() ? null : new BytesRef(randomByteArrayOfLength(between(16, 32)));
         ParsedDocument doc = new ParsedDocument(
             versionField,
             seqID,
@@ -3442,7 +3443,8 @@ public class TranslogTests extends ESTestCase {
             B_1,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            tsid
         );
 
         Engine.Index eIndex = new Engine.Index(
@@ -3474,6 +3476,7 @@ public class TranslogTests extends ESTestCase {
         in.setTransportVersion(wireVersion);
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
+        assertEquals(index.tsid(), tsid);
 
         Engine.Delete eDelete = new Engine.Delete(
             doc.id(),

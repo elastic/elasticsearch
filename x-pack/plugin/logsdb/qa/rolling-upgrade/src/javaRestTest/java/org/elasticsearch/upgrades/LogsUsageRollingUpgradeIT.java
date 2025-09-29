@@ -11,9 +11,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,13 +27,6 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeWithSecurit
 
     public LogsUsageRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
-    }
-
-    @Before
-    public void checkFeatures() {
-        if (Build.current().isSnapshot()) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
     }
 
     public void testUsage() throws Exception {

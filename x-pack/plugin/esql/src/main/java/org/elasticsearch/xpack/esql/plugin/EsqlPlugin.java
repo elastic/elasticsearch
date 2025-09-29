@@ -42,6 +42,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -76,7 +77,7 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -90,7 +91,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -275,9 +276,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
             ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-            PhysicalSettings.DEFAULT_DATA_PARTITIONING,
-            PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
-            PhysicalSettings.LUCENE_TOPN_LIMIT,
+            PlannerSettings.DEFAULT_DATA_PARTITIONING,
+            PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
+            PlannerSettings.LUCENE_TOPN_LIMIT,
+            PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
@@ -372,5 +374,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
+    }
+
+    @Override
+    public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return ExpressionWritables.getGenericNamedWriteables();
     }
 }

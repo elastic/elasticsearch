@@ -2031,7 +2031,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             185,
             NO_MATCHING_PROJECT_EXCEPTION_VERSION
         );
-        // TODO register NoMatchingProjectException
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

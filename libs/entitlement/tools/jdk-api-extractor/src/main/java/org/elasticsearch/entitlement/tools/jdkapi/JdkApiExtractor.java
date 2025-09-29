@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -62,21 +63,34 @@ public class JdkApiExtractor {
         validateArgs(args);
         boolean deprecationsOnly = optionalArgs(args).anyMatch(DEPRECATIONS_ONLY::equals);
 
-        Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass = new TreeMap<>();
-        Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass = new TreeMap<>();
-        Map<String, Set<AccessibleMethod>> deprecationsByClass = new TreeMap<>();
+        final Map<String, String> moduleNameByClass = new HashMap<>();
+        final Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass = new TreeMap<>();
+        final Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass = new TreeMap<>();
+        final Map<String, Set<AccessibleMethod>> deprecationsByClass = new TreeMap<>();
 
+        final Map<String, Set<String>> exportsByModule = Utils.findModuleExports();
+        // 1st: map class names to module names (including later excluded modules) for lookup in 2nd step
+        Utils.walkJdkModules(m -> true, exportsByModule, (moduleName, moduleClasses, moduleExports) -> {
+            for (var classFile : moduleClasses) {
+                String prev = moduleNameByClass.put(internalClassName(classFile, moduleName), moduleName);
+                if (prev != null) {
+                    throw new IllegalStateException("Class " + classFile + " is in both modules " + prev + " and " + moduleName);
+                }
+            }
+        });
+
+        var visitor = new AccessibleClassVisitor(
+            moduleNameByClass,
+            exportsByModule,
+            accessibleImplementationsByClass,
+            accessibleForOverridesByClass,
+            deprecationsByClass
+        );
         Predicate<String> modulePredicate = Utils.DEFAULT_MODULE_PREDICATE.or(
             m -> optionalArgs(args).anyMatch(INCLUDE_INCUBATOR::equals) && m.contains(".incubator.")
         );
-
-        Utils.walkJdkModules(modulePredicate, (moduleName, moduleClasses, moduleExports) -> {
-            var visitor = new AccessibleClassVisitor(
-                moduleExports,
-                accessibleImplementationsByClass,
-                accessibleForOverridesByClass,
-                deprecationsByClass
-            );
+        // 2nd: calculate accessible implementations of classes in included modules
+        Utils.walkJdkModules(modulePredicate, exportsByModule, (moduleName, moduleClasses, moduleExports) -> {
             for (var classFile : moduleClasses) {
                 // skip if class was already visited earlier due to a dependency on it
                 if (accessibleImplementationsByClass.containsKey(internalClassName(classFile, moduleName))) {
@@ -91,7 +105,18 @@ public class JdkApiExtractor {
             }
         });
 
-        writeFile(Path.of(args[0]), deprecationsOnly ? deprecationsByClass : accessibleImplementationsByClass);
+        // finally, skip some implementations we're not interested in
+        Predicate<Map.Entry<String, Set<AccessibleMethod>>> predicate = entry -> {
+            if (entry.getKey().startsWith("com/sun/") && entry.getKey().contains("/internal/")) {
+                // skip com.sun.*.internal classes as they are not part of the supported JDK API
+                // even if methods override some publicly visible API
+                return false;
+            }
+            // skip classes that are not part of included modules, but checked due to dependencies
+            String moduleName = moduleNameByClass.get(entry.getKey());
+            return modulePredicate.test(moduleName);
+        };
+        writeFile(Path.of(args[0]), deprecationsOnly ? deprecationsByClass : accessibleImplementationsByClass, predicate);
     }
 
     private static String internalClassName(Path clazz, String moduleName) {
@@ -132,9 +157,17 @@ public class JdkApiExtractor {
     }
 
     @SuppressForbidden(reason = "cli tool printing to standard err/out")
-    private static void writeFile(Path path, Map<String, Set<AccessibleMethod>> methods) throws IOException {
+    private static void writeFile(
+        Path path,
+        Map<String, Set<AccessibleMethod>> methods,
+        Predicate<Map.Entry<String, Set<AccessibleMethod>>> predicate
+    ) throws IOException {
         System.out.println("Writing result for " + Runtime.version() + " to " + path.toAbsolutePath());
-        Files.write(path, () -> methods.entrySet().stream().flatMap(AccessibleMethod::toLines).iterator(), StandardCharsets.UTF_8);
+        Files.write(
+            path,
+            () -> methods.entrySet().stream().filter(predicate).flatMap(AccessibleMethod::toLines).iterator(),
+            StandardCharsets.UTF_8
+        );
     }
 
     record AccessibleMethod(String method, String descriptor, boolean isPublic, boolean isFinal, boolean isStatic) {
@@ -163,7 +196,8 @@ public class JdkApiExtractor {
     }
 
     static class AccessibleClassVisitor extends ClassVisitor {
-        private final Set<String> moduleExports;
+        private final Map<String, String> moduleNameByClass;
+        private final Map<String, Set<String>> exportsByModule;
         private final Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass;
         private final Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass;
         private final Map<String, Set<AccessibleMethod>> deprecationsByClass;
@@ -179,13 +213,15 @@ public class JdkApiExtractor {
         private boolean isExported;
 
         AccessibleClassVisitor(
-            Set<String> moduleExports,
+            Map<String, String> moduleNameByClass,
+            Map<String, Set<String>> exportsByModule,
             Map<String, Set<AccessibleMethod>> accessibleImplementationsByClass,
             Map<String, Set<AccessibleMethod>> accessibleForOverridesByClass,
             Map<String, Set<AccessibleMethod>> deprecationsByClass
         ) {
             super(ASM9);
-            this.moduleExports = moduleExports;
+            this.moduleNameByClass = moduleNameByClass;
+            this.exportsByModule = exportsByModule;
             this.accessibleImplementationsByClass = accessibleImplementationsByClass;
             this.accessibleForOverridesByClass = accessibleForOverridesByClass;
             this.deprecationsByClass = deprecationsByClass;
@@ -214,7 +250,7 @@ public class JdkApiExtractor {
             }
             // only initialize local state AFTER visiting all dependencies above!
             super.visit(version, access, name, signature, superName, interfaces);
-            this.isExported = moduleExports.contains(getPackageName(name));
+            this.isExported = getModuleExports(getModuleName(name)).contains(getPackageName(name));
             this.className = name;
             this.isPublicClass = (access & ACC_PUBLIC) != 0;
             this.isFinalClass = (access & ACC_FINAL) != 0;
@@ -222,6 +258,22 @@ public class JdkApiExtractor {
             this.accessibleForOverrides = currentAccessibleForOverrides;
             this.accessibleImplementations = newSortedSet();
             this.deprecations = newSortedSet();
+        }
+
+        private String getModuleName(String name) {
+            String module = moduleNameByClass.get(name);
+            if (module == null) {
+                throw new IllegalStateException("Unknown module for class: " + name);
+            }
+            return module;
+        }
+
+        private Set<String> getModuleExports(String module) {
+            Set<String> exports = exportsByModule.get(module);
+            if (exports == null) {
+                throw new IllegalStateException("Unknown exports for module: " + module);
+            }
+            return exports;
         }
 
         @Override

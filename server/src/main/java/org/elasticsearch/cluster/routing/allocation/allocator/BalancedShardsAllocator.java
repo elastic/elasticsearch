@@ -847,38 +847,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardMoved;
         }
 
-        /**
-         * Stores the most desirable shard seen so far and compares proposed shards against it using
-         * the {@link ShardMovementPriorityComparator}.
-         */
-        private class MostDesirableMovementsTracker implements Predicate<ShardRouting> {
-
-            private final Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode = new HashMap<>();
-            private final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
-
-            @Override
-            public boolean test(ShardRouting shardRouting) {
-                final var currentShardForNode = bestNonPreferredShardsByNode.get(shardRouting.currentNodeId());
-                if (currentShardForNode == null) {
-                    return true;
-                }
-                int comparison = comparatorCache.computeIfAbsent(
-                    shardRouting.currentNodeId(),
-                    nodeId -> new ShardMovementPriorityComparator(allocation, allocation.routingNodes().node(nodeId))
-                ).compare(shardRouting, currentShardForNode.shardRouting());
-                // Ignore inferior non-preferred moves
-                return comparison > 0;
-            }
-
-            public void putCurrentMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {
-                bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), new MoveNotPreferredDecision(shardRouting, moveDecision));
-            }
-
-            public Iterable<MoveNotPreferredDecision> getPreferredShardMovements() {
-                return bestNonPreferredShardsByNode.values();
-            }
-        }
-
         private record MoveNotPreferredDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
 
         private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, String reason) {
@@ -896,87 +864,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             targetNode.addShard(projectIndex(shard), shard);
             if (logger.isTraceEnabled()) {
                 logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
-            }
-        }
-
-        /**
-         * Sorts shards by desirability to move, ranking goes (in descending priority order)
-         * <ol>
-         *     <li>Shards with write-load in {threshold} -> maximum write-load (exclusive)</li>
-         *     <li>Shards with write-load in {threshold} -> 0</li>
-         *     <li>Shards with maximum write-load</li>
-         *     <li>Shards with missing write-load</li>
-         * </ol>
-         */
-        // Visible for testing
-        static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
-
-            private static final double THRESHOLD_RATIO = 0.5;
-            private static final double MISSING_WRITE_LOAD = -1;
-            private final Map<ShardId, Double> shardWriteLoads;
-            private final double maxWriteLoadOnNode;
-            private final double threshold;
-            private final String nodeId;
-
-            ShardMovementPriorityComparator(RoutingAllocation allocation, RoutingNode routingNode) {
-                shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-                double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
-                for (ShardRouting shardRouting : routingNode) {
-                    maxWriteLoadOnNode = Math.max(
-                        maxWriteLoadOnNode,
-                        shardWriteLoads.getOrDefault(shardRouting.shardId(), MISSING_WRITE_LOAD)
-                    );
-                }
-                this.maxWriteLoadOnNode = maxWriteLoadOnNode;
-                threshold = maxWriteLoadOnNode * THRESHOLD_RATIO;
-                nodeId = routingNode.nodeId();
-            }
-
-            @Override
-            public int compare(ShardRouting lhs, ShardRouting rhs) {
-                assert nodeId.equals(lhs.currentNodeId()) && nodeId.equals(rhs.currentNodeId())
-                    : this.getClass().getSimpleName()
-                        + " is node-specific. comparator="
-                        + nodeId
-                        + ", lhs="
-                        + lhs.currentNodeId()
-                        + ", rhs="
-                        + rhs.currentNodeId();
-
-                // If we have no shard write-load data, shortcut
-                if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
-                    return 0;
-                }
-
-                final double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
-                final double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
-
-                // prefer any known write-load over any unknown write-load
-                final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
-                final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
-                if (rhsIsMissing ^ lhsIsMissing) {
-                    return lhsIsMissing ? -1 : 1;
-                }
-
-                if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
-                    final var lhsOverThreshold = lhsWriteLoad >= threshold;
-                    final var rhsOverThreshold = rhsWriteLoad >= threshold;
-                    if (lhsOverThreshold && rhsOverThreshold) {
-                        // Both values between threshold and maximum, prefer lowest
-                        return Double.compare(rhsWriteLoad, lhsWriteLoad);
-                    } else if (lhsOverThreshold) {
-                        // lhs between threshold and maximum, rhs below threshold, prefer lhs
-                        return 1;
-                    } else if (rhsOverThreshold) {
-                        // lhs below threshold, rhs between threshold and maximum, prefer rhs
-                        return -1;
-                    }
-                    // Both values below the threshold, prefer highest
-                    return Double.compare(lhsWriteLoad, rhsWriteLoad);
-                }
-
-                // prefer the non-max write load if there is one
-                return Double.compare(rhsWriteLoad, lhsWriteLoad);
             }
         }
 
@@ -1094,6 +981,119 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 targetNode != null ? targetNode.node() : null,
                 nodeResults
             );
+        }
+
+        /**
+         * Stores the most desirable shard seen so far and compares proposed shards against it using
+         * the {@link ShardMovementPriorityComparator}.
+         */
+        private class MostDesirableMovementsTracker implements Predicate<ShardRouting> {
+
+            private final Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode = new HashMap<>();
+            private final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
+
+            @Override
+            public boolean test(ShardRouting shardRouting) {
+                final var currentShardForNode = bestNonPreferredShardsByNode.get(shardRouting.currentNodeId());
+                if (currentShardForNode == null) {
+                    return true;
+                }
+                int comparison = comparatorCache.computeIfAbsent(
+                    shardRouting.currentNodeId(),
+                    nodeId -> new ShardMovementPriorityComparator(allocation, allocation.routingNodes().node(nodeId))
+                ).compare(shardRouting, currentShardForNode.shardRouting());
+                // Ignore inferior non-preferred moves
+                return comparison > 0;
+            }
+
+            public void putCurrentMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {
+                bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), new MoveNotPreferredDecision(shardRouting, moveDecision));
+            }
+
+            public Iterable<MoveNotPreferredDecision> getPreferredShardMovements() {
+                return bestNonPreferredShardsByNode.values();
+            }
+        }
+
+        /**
+         * Sorts shards by desirability to move, ranking goes (in descending priority order)
+         * <ol>
+         *     <li>Shards with write-load in {threshold} -> maximum write-load (exclusive)</li>
+         *     <li>Shards with write-load in {threshold} -> 0</li>
+         *     <li>Shards with maximum write-load</li>
+         *     <li>Shards with missing write-load</li>
+         * </ol>
+         */
+        // Visible for testing
+        static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
+
+            private static final double THRESHOLD_RATIO = 0.5;
+            private static final double MISSING_WRITE_LOAD = -1;
+            private final Map<ShardId, Double> shardWriteLoads;
+            private final double maxWriteLoadOnNode;
+            private final double threshold;
+            private final String nodeId;
+
+            ShardMovementPriorityComparator(RoutingAllocation allocation, RoutingNode routingNode) {
+                shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
+                double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
+                for (ShardRouting shardRouting : routingNode) {
+                    maxWriteLoadOnNode = Math.max(
+                        maxWriteLoadOnNode,
+                        shardWriteLoads.getOrDefault(shardRouting.shardId(), MISSING_WRITE_LOAD)
+                    );
+                }
+                this.maxWriteLoadOnNode = maxWriteLoadOnNode;
+                threshold = maxWriteLoadOnNode * THRESHOLD_RATIO;
+                nodeId = routingNode.nodeId();
+            }
+
+            @Override
+            public int compare(ShardRouting lhs, ShardRouting rhs) {
+                assert nodeId.equals(lhs.currentNodeId()) && nodeId.equals(rhs.currentNodeId())
+                    : this.getClass().getSimpleName()
+                        + " is node-specific. comparator="
+                        + nodeId
+                        + ", lhs="
+                        + lhs.currentNodeId()
+                        + ", rhs="
+                        + rhs.currentNodeId();
+
+                // If we have no shard write-load data, shortcut
+                if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
+                    return 0;
+                }
+
+                final double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
+                final double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
+
+                // prefer any known write-load over any unknown write-load
+                final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
+                final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
+                if (rhsIsMissing ^ lhsIsMissing) {
+                    return lhsIsMissing ? -1 : 1;
+                }
+
+                if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
+                    final var lhsOverThreshold = lhsWriteLoad >= threshold;
+                    final var rhsOverThreshold = rhsWriteLoad >= threshold;
+                    if (lhsOverThreshold && rhsOverThreshold) {
+                        // Both values between threshold and maximum, prefer lowest
+                        return Double.compare(rhsWriteLoad, lhsWriteLoad);
+                    } else if (lhsOverThreshold) {
+                        // lhs between threshold and maximum, rhs below threshold, prefer lhs
+                        return 1;
+                    } else if (rhsOverThreshold) {
+                        // lhs below threshold, rhs between threshold and maximum, prefer rhs
+                        return -1;
+                    }
+                    // Both values below the threshold, prefer highest
+                    return Double.compare(lhsWriteLoad, rhsWriteLoad);
+                }
+
+                // prefer the non-max write load if there is one
+                return Double.compare(rhsWriteLoad, lhsWriteLoad);
+            }
         }
 
         private Decision decideCanAllocatePreferredOnly(ShardRouting shardRouting, RoutingNode target) {

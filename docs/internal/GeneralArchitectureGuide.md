@@ -110,7 +110,7 @@ are coordinated.
 >
 > [TransportAction] can also be initiated through peer-to-peer communication between nodes. In such cases, the [InboundHandler]
 > locates the appropriate [TransportAction] by consulting the [NamedRegistry], then invokes the [TransportAction]'s handleExecution() method. When a [TransportAction]
-> is registered, it can specify an executor to control how the action is run. One option is the DIRECT_EXECUTOR_SERVICE, which executes the
+> is registered, it can specify an executor to control how the action is run. One option is the `DIRECT_EXECUTOR_SERVICE`, which executes the
 > action on the calling thread. However, this should be used with caution—it's only appropriate when the action is lightweight.
 > Otherwise, it risks blocking the peer-to-peer I/O thread, potentially degrading responsiveness and causing the node to become unresponsive.
 > If [TransportAction] elects a separate executor, [InboundHandler] performs message deserialization before delegating execution to the executor,

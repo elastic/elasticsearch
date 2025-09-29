@@ -123,7 +123,7 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
             }
         };
         ClassReader classReader = new ClassReader(classBytes);
-        classReader.accept(classVisitor, 0);
+        classReader.accept(classVisitor, ClassReader.SKIP_DEBUG);
     }
 
     private static String classname(String filename) {

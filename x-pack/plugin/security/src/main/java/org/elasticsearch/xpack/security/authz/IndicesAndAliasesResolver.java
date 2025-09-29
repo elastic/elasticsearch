@@ -485,7 +485,7 @@ class IndicesAndAliasesResolver {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
             logger.info(
-                "resolved index expressions {} already set on request [{}], not overwriting with {}",
+                "resolved index expressions [{}] already set on request [{}], not overwriting with [{}]",
                 replaceable.getResolvedIndexExpressions(),
                 action,
                 resolved

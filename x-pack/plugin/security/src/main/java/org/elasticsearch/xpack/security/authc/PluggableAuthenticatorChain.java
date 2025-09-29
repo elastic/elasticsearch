@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -17,8 +19,13 @@ import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+
+import static org.elasticsearch.common.Strings.format;
 
 public class PluggableAuthenticatorChain implements Authenticator {
+
+    private static final Logger logger = LogManager.getLogger(PluggableAuthenticatorChain.class);
 
     private final List<CustomAuthenticator> customAuthenticators;
 

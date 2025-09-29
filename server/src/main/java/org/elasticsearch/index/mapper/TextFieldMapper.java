@@ -76,6 +76,7 @@ import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1063,7 +1064,7 @@ public final class TextFieldMapper extends FieldMapper {
             return syntheticSourceDelegate.get().ignoreAbove().isIgnored(str) == false;
         }
 
-        public boolean shouldStoreFieldForSyntheticSource(final IndexVersion indexCreatedVersion) {
+        public boolean storeFieldForSyntheticSource(final IndexVersion indexCreatedVersion) {
             if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                 // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the
                 // parent
@@ -1106,8 +1107,54 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
+            // if there is no field to delegate to and this field isn't stored, then fallback to ignored source
+            if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
+                return fallbackSyntheticSourceBlockLoader(blContext);
+            }
+
+            // otherwise, load values from _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {
+            var reader = new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(null) {
+                @Override
+                public void convertValue(Object value, List<BytesRef> accumulator) {
+                    if (value != null) {
+                        accumulator.add(new BytesRef(value.toString()));
+                    }
+                }
+
+                @Override
+                protected void parseNonNullValue(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                    var text = parser.textOrNull();
+
+                    if (text != null) {
+                        accumulator.add(new BytesRef(text));
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                    var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        bytesRefBuilder.appendBytesRef(value);
+                    }
+                }
+            };
+
+            return new FallbackSyntheticSourceBlockLoader(
+                    reader,
+                    name(),
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+            ) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
         }
 
         /**
@@ -1420,7 +1467,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         // store the field if isn't stored yet, and we need it to be stored for synthetic source
-        if (fieldType.stored() == false && fieldType().shouldStoreFieldForSyntheticSource(indexCreatedVersion)) {
+        if (fieldType.stored() == false && fieldType().storeFieldForSyntheticSource(indexCreatedVersion)) {
             // if we can rely on the synthetic source delegate for synthetic source, then exit as there is nothing to do
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;

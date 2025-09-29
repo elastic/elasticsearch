@@ -585,7 +585,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (isSyntheticSourceEnabled()) {
                 // if there is no synthetic source delegate, then this match only text field would've created StoredFields for us to use
-                if (textFieldType.syntheticSourceDelegate().isPresent() == false) {
+                if (textFieldType.syntheticSourceDelegate().isEmpty()) {
                     if (storedFieldInBinaryFormat) {
                         return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(syntheticSourceFallbackFieldName());
                     } else {
@@ -701,7 +701,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.addToFieldNames(fieldType().name());
 
         // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
-        if (fieldType().textFieldType.shouldStoreFieldForSyntheticSource(indexCreatedVersion)) {
+        if (fieldType().textFieldType.storeFieldForSyntheticSource(indexCreatedVersion)) {
             // check if we can use the delegate
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;

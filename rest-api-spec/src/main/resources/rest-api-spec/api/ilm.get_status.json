@@ -1,24 +1,26 @@
 {
-  "ilm.get_status":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ilm-get-status.html",
-      "description":"Get the ILM status"
+  "ilm.get_status": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/ilm-get-status.html",
+      "description": "Get the ILM status"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ilm/status",
-          "methods":[
+          "path": "/_ilm/status",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{}
+    "params": {}
   }
 }

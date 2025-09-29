@@ -1,20 +1,24 @@
 {
-  "security.enroll_node":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-node-enrollment.html",
-      "description":"Enroll a node"
+  "security.enroll_node": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-node-enrollment.html",
+      "description": "Enroll a node"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/enroll/node",
-          "methods":[
+          "path": "/_security/enroll/node",
+          "methods": [
             "GET"
           ]
         }

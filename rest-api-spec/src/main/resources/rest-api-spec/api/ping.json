@@ -1,24 +1,26 @@
 {
-  "ping":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cluster.html",
-      "description":"Ping the cluster"
+  "ping": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cluster.html",
+      "description": "Ping the cluster"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/",
-          "methods":[
+          "path": "/",
+          "methods": [
             "HEAD"
           ]
         }
       ]
     },
-    "params":{}
+    "params": {}
   }
 }

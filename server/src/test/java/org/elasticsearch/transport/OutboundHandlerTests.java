@@ -12,7 +12,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -143,7 +142,7 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
             : TransportVersionUtils.randomCompatibleVersion(random());
-        boolean compress = version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && randomBoolean();
+        boolean compress = version.onOrAfter(TransportVersion.minimumCompatible()) && randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -216,7 +215,7 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
             : TransportVersionUtils.randomCompatibleVersion(random());
-        boolean compress = version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && randomBoolean();
+        boolean compress = version.onOrAfter(TransportVersion.minimumCompatible()) && randomBoolean();
 
         String value = "message";
         threadContext.putHeader("header", "header_value");

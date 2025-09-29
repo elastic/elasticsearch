@@ -1,33 +1,35 @@
 {
-  "license.get":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-license.html",
-      "description":"Get license information"
+  "license.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-license.html",
+      "description": "Get license information"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_license",
-          "methods":[
+          "path": "/_license",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+    "params": {
+      "local": {
+        "type": "boolean",
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
-      "accept_enterprise":{
-        "type":"boolean",
-        "description":"Supported for backwards compatibility with 7.x. If this param is used it must be set to true",
-        "deprecated":true
+      "accept_enterprise": {
+        "type": "boolean",
+        "description": "Supported for backwards compatibility with 7.x. If this param is used it must be set to true",
+        "deprecated": true
       }
     }
   }

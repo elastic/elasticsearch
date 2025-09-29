@@ -1,25 +1,27 @@
 {
-  "eql.delete":{
-    "documentation":{
-      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/v8/operation/operation-eql-delete",
+  "eql.delete": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/v8/operation/operation-eql-delete",
       "description": "Delete an async EQL search"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_eql/search/{id}",
-          "methods":[
+          "path": "/_eql/search/{id}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The async search ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async search ID"
             }
           }
         }

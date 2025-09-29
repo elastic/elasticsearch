@@ -101,7 +101,7 @@ public abstract class SenderService implements InferenceService {
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
-                yield new EmbeddingsInput(input, null, inputType, stream);
+                yield new EmbeddingsInput(input, inputType, stream);
             }
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
@@ -152,7 +152,7 @@ public abstract class SenderService implements InferenceService {
         }
 
         // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, inputType, timeout, listener);
+        doChunkedInfer(model, input, taskSettings, inputType, timeout, listener);
     }
 
     protected abstract void doInfer(
@@ -176,7 +176,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

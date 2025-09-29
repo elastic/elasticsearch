@@ -102,7 +102,7 @@ are coordinated.
 > `Rest*Action`'s `prepareRequest` implementation, it should specify the `ActionType` being invoked which can then be used to locate
 > the `Transport*Action` class that handles it.
 >
-> A netty [EventLoop] thread handles the initial steps of a Rest*Action request lifecycle such as decoding, validation and routing.
+> A netty [EventLoop] thread handles the initial steps of a `Rest*Action` request lifecycle such as decoding, validation and routing.
 > Upon entry into the "transport layer", [NodeClient] delegates the decision of execution to individual [TransportAction]. Each action
 > determines whether to execute synchronously on invoking thread-an approach reserved for lightweight processing-or to dispatch execution to an appropriate
 > thread pool, which is recommended practice for heavy workloads. Comprehensive mechanisms are available for propagating [ThreadContext] when tasks

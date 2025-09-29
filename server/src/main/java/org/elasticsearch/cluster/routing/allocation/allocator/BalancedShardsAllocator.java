@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -805,19 +806,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
-            final Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode = new HashMap<>();
-            final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
+            final MostDesirableMovementsTracker movementsTracker = new MostDesirableMovementsTracker();
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
-                ShardRouting shardRouting = it.next();
-                ProjectIndex index = projectIndex(shardRouting);
-                final MoveDecision moveDecision = decideMove(index, shardRouting, bestNonPreferredShardsByNode, comparatorCache);
+                final ShardRouting shardRouting = it.next();
+                final ProjectIndex index = projectIndex(shardRouting);
+                final MoveDecision moveDecision = decideMove(index, shardRouting, movementsTracker);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
-                        bestNonPreferredShardsByNode.put(
-                            shardRouting.currentNodeId(),
-                            new MoveNotPreferredDecision(shardRouting, moveDecision)
-                        );
+                        movementsTracker.putCurrentMoveDecision(shardRouting, moveDecision);
                     } else {
                         executeMove(shardRouting, index, moveDecision, "move");
                         shardMoved = true;
@@ -831,14 +828,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             // If we get here, attempt to move one of the best not-preferred shards that we identified earlier
-            for (var entry : bestNonPreferredShardsByNode.entrySet()) {
-                final var cachedDecision = entry.getValue();
-                final var shardRouting = cachedDecision.shardRouting();
+            for (var preferredMove : movementsTracker.getPreferredShardMovements()) {
+                final var shardRouting = preferredMove.shardRouting();
                 final var index = projectIndex(shardRouting);
                 // If `shardMoved` is true, there may have been moves that have made our previous move decision
                 // invalid, so we must call `decideMove` again. If not, we know we haven't made any moves, and we
                 // can use the cached decision.
-                final var moveDecision = shardMoved ? decideMove(index, shardRouting) : cachedDecision.moveDecision();
+                final var moveDecision = shardMoved ? decideMove(index, shardRouting) : preferredMove.moveDecision();
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // We only ever move a single non-preferred shard at a time
@@ -849,6 +845,38 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             return shardMoved;
+        }
+
+        /**
+         * Stores the most desirable shard seen so far and compares proposed shards against it using
+         * the {@link ShardMovementPriorityComparator}.
+         */
+        private class MostDesirableMovementsTracker implements Predicate<ShardRouting> {
+
+            private final Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode = new HashMap<>();
+            private final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
+
+            @Override
+            public boolean test(ShardRouting shardRouting) {
+                final var currentShardForNode = bestNonPreferredShardsByNode.get(shardRouting.currentNodeId());
+                if (currentShardForNode == null) {
+                    return true;
+                }
+                int comparison = comparatorCache.computeIfAbsent(
+                    shardRouting.currentNodeId(),
+                    nodeId -> new ShardMovementPriorityComparator(allocation, allocation.routingNodes().node(nodeId))
+                ).compare(shardRouting, currentShardForNode.shardRouting());
+                // Ignore inferior non-preferred moves
+                return comparison > 0;
+            }
+
+            public void putCurrentMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {
+                bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), new MoveNotPreferredDecision(shardRouting, moveDecision));
+            }
+
+            public Iterable<MoveNotPreferredDecision> getPreferredShardMovements() {
+                return bestNonPreferredShardsByNode.values();
+            }
         }
 
         private record MoveNotPreferredDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
@@ -953,6 +981,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
+         * Decide whether to move a started shard to another node.
+         * Unconditional version of {@link #decideMove(ProjectIndex, ShardRouting, Predicate)}
+         *
+         * @param index The index that the shard being considered belongs to
+         * @param shardRouting The shard routing being considered for movement
+         * @return The {@link MoveDecision} for the shard
+         */
+        public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
+            // Always assess options for non-preferred allocations
+            return decideMove(index, shardRouting, ignored -> true);
+        }
+
+        /**
          * Makes a decision on whether to move a started shard to another node. The following rules apply
          * to the {@link MoveDecision} return object:
          *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
@@ -963,18 +1004,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *      {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
+         *
+         * @param index The index that the shard being considered belongs to
+         * @param shardRouting The shard routing being considered for movement
+         * @param nonPreferredPredicate A predicate used to determine whether to assess move options for shards in non-preferred allocations
+         * @return The {@link MoveDecision} for the shard
          */
-        public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
-            // This is when we're not calling in a loop, so we don't need to keep track of "best non-preferred" shards
-            return decideMove(index, shardRouting, Map.of(), Map.of());
-        }
-
-        private MoveDecision decideMove(
-            ProjectIndex index,
-            ShardRouting shardRouting,
-            Map<String, MoveNotPreferredDecision> bestNonPreferredShardsByNode,
-            Map<String, ShardMovementPriorityComparator> comparatorCache
-        ) {
+        private MoveDecision decideMove(ProjectIndex index, ShardRouting shardRouting, Predicate<ShardRouting> nonPreferredPredicate) {
             NodeSorter sorter = nodeSorters.sorterForShard(shardRouting);
             index.assertMatch(shardRouting);
 
@@ -992,15 +1028,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             // Investigate whether it's a better move to make than one we've discovered already
-            if (canRemain.type() == Type.NOT_PREFERRED && bestNonPreferredShardsByNode.containsKey(shardRouting.currentNodeId())) {
-                int compare = comparatorCache.computeIfAbsent(
-                    shardRouting.currentNodeId(),
-                    nodeId -> new ShardMovementPriorityComparator(allocation, allocation.routingNodes().node(nodeId))
-                ).compare(shardRouting, bestNonPreferredShardsByNode.get(shardRouting.currentNodeId()).shardRouting());
-                if (compare <= 0) {
-                    // Ignore inferior non-preferred moves
-                    return MoveDecision.NOT_TAKEN;
-                }
+            if (canRemain.type() == Type.NOT_PREFERRED && nonPreferredPredicate.test(shardRouting) == false) {
+                return MoveDecision.NOT_TAKEN;
             }
 
             sorter.reset(index);

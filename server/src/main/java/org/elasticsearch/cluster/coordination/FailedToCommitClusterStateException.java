@@ -9,14 +9,20 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
 /**
  * Thrown when a cluster state publication fails to commit the new cluster state. If publication fails then a new master is elected but the
- * update might or might not take effect, depending on whether or not the newly-elected master accepted the published state that failed to
- * be committed.
+ * update might or might not take effect, depending on whether the newly-elected master accepted the published state that failed to
+ * be committed. This exception should only be used when there is <i>ambiguity</i> whether a state update took effect or not.
+ *
+ * This is different from {@link NotMasterException} where we know for certain that a state update never took effect.
+ *
+ * This exception is retryable within {@link TransportMasterNodeAction}.
  *
  * See {@link ClusterStatePublisher} for more details.
  */

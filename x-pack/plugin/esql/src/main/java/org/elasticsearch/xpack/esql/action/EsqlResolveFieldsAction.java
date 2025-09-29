@@ -229,8 +229,6 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 releaseResourcesOnCancel.run();
             } else {
                 finishHim(
-                    request,
-                    fieldCapTask,
                     indexResponses,
                     indexFailures,
                     listener.map(caps -> new EsqlResolveFieldsResponse(caps, minTransportVersion.get()))
@@ -285,7 +283,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                         }
                     }
-                    minTransportVersion.set(response.minTransportVersion());
+                    if (response.minTransportVersion() != null) {
+                        minTransportVersion.accumulateAndGet(response.minTransportVersion(), TransportVersion::min);
+                    }
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
@@ -325,14 +325,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     }
 
     private static void finishHim(
-        FieldCapabilitiesRequest request,
-        CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         TransportFieldCapabilitiesAction.FailureCollector indexFailures,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.isEmpty()) {
+        if (indexResponses.isEmpty() == false) {
             listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
         } else {
             // we have no responses at all, maybe because of errors

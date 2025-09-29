@@ -762,6 +762,7 @@ required_capability: fuse_v6
 
 ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | MV_EXPAND _id
+| LIMIT 10
 | FUSE LINEAR GROUP BY my_fork WITH { "normalizer": "l2_norm" }
 | SORT _id
 | KEEP _id, _score
@@ -779,6 +780,7 @@ required_capability: fuse_v6
 
 ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | MV_EXPAND _id
+| LIMIT 10
 | FUSE LINEAR GROUP BY my_fork WITH { "normalizer": "minmax" }
 | SORT _id
 | KEEP _id, _score

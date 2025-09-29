@@ -283,7 +283,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                         }
                     }
-                    if (response.minTransportVersion() != null) {
+                    if (response.minTransportVersion() == null) {
+                        minTransportVersion.set(null);
+                    } else {
                         minTransportVersion.accumulateAndGet(response.minTransportVersion(), TransportVersion::min);
                     }
                 }, ex -> {

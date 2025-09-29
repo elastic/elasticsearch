@@ -129,36 +129,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        executeRequest(
-            task,
-            request,
-            (transportService, conn, fieldCapabilitiesRequest, responseHandler) -> transportService.sendRequest(
-                conn,
-                REMOTE_TYPE.name(),
-                fieldCapabilitiesRequest,
-                TransportRequestOptions.EMPTY,
-                responseHandler
-            ),
-            listener
-        );
+        executeRequest(task, request, listener);
     }
 
-    public void executeRequest(
-        Task task,
-        FieldCapabilitiesRequest request,
-        LinkedRequestExecutor linkedRequestExecutor,
-        ActionListener<FieldCapabilitiesResponse> listener
-    ) {
+    public void executeRequest(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, linkedRequestExecutor, l)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
     }
 
-    private void doExecuteForked(
-        Task task,
-        FieldCapabilitiesRequest request,
-        LinkedRequestExecutor linkedRequestExecutor,
-        ActionListener<FieldCapabilitiesResponse> listener
-    ) {
+    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
@@ -322,10 +301,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         ActionListener.releaseAfter(remoteListener, refs.acquire())
                     ).delegateFailure(
-                        (responseListener, conn) -> linkedRequestExecutor.executeRemoteRequest(
-                            transportService,
+                        (responseListener, conn) -> transportService.sendRequest(
                             conn,
+                            REMOTE_TYPE.name(),
                             remoteRequest,
+                            TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(responseListener, FieldCapabilitiesResponse::new, singleThreadedExecutor)
                         )
                     )
@@ -360,15 +340,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             }
         });
-    }
-
-    public interface LinkedRequestExecutor {
-        void executeRemoteRequest(
-            TransportService transportService,
-            Transport.Connection conn,
-            FieldCapabilitiesRequest remoteRequest,
-            ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
-        );
     }
 
     public static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {

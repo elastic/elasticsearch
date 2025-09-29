@@ -50,6 +50,10 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
         return caps;
     }
 
+    /**
+     * The minimum {@link TransportVersion} of all clusters against which we resolved
+     * indices.
+     */
     public TransportVersion minTransportVersion() {
         return minTransportVersion;
     }

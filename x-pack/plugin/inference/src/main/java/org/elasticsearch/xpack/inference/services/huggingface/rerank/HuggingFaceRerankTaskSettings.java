@@ -33,7 +33,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
     static final HuggingFaceRerankTaskSettings EMPTY_SETTINGS = new HuggingFaceRerankTaskSettings(null, null);
 
     private static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED = TransportVersion.fromName(
-        "ml_inference_sagemaker_chat_completion"
+        "ml_inference_hugging_face_rerank_added"
     );
 
     public static HuggingFaceRerankTaskSettings fromMap(Map<String, Object> map) {

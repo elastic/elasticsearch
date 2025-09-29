@@ -51,7 +51,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     public static final String NAME = "google_vertex_ai_chatcompletion_service_settings";
 
-    private static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED = TransportVersion.fromString(
+    private static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_vertexai_chatcompletion_added"
     );
 

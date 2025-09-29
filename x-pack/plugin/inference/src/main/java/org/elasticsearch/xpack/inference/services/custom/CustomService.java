@@ -70,7 +70,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
 
-    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference-custom-service");
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,

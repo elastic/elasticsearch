@@ -28,7 +28,7 @@ public class CustomSecretSettings implements SecretSettings {
     public static final String NAME = "custom_secret_settings";
     public static final String SECRET_PARAMETERS = "secret_parameters";
 
-    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference-custom-service");
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
     public static CustomSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {

@@ -102,6 +102,12 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
                     }
 
                     @Override
+                    public void visitLabel(Label label) {
+                        // asm uses many debug labels that we do not want to consider
+                        // so we ignore labels so they do not become part of the instructions list
+                    }
+
+                    @Override
                     public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
                         if (owner.equals(TRANSPORT_VERSION_SET_CLASS) && name.equals(TRANSPORT_VERSION_SET_METHOD_NAME)) {
                             var abstractInstruction = this.instructions.getLast();
@@ -123,7 +129,7 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
             }
         };
         ClassReader classReader = new ClassReader(classBytes);
-        classReader.accept(classVisitor, ClassReader.SKIP_DEBUG);
+        classReader.accept(classVisitor, 0);
     }
 
     private static String classname(String filename) {

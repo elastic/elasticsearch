@@ -30,7 +30,7 @@ public class CustomTaskSettings implements TaskSettings {
 
     static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(new HashMap<>());
 
-    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference-custom-service");
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
     public static CustomTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

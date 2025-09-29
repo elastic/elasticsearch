@@ -154,11 +154,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     /**
-     * This is called when mappings are updated, so that the {@link IndexMetadata#getTimeSeriesDimensions()}
-     * and {@link IndexMetadata#INDEX_ROUTING_PATH} settings are updated to match the new mappings.
-     * Updates {@link IndexMetadata#getTimeSeriesDimensions} if a new dimension field is added to the mappings,
-     * or sets {@link IndexMetadata#INDEX_ROUTING_PATH} if a new dimension field is added that doesn't allow for matching all
-     * dimension fields via a wildcard pattern.
+     * This is called when mappings are updated, so that the {@link IndexMetadata#INDEX_DIMENSIONS}
+     * setting is updated if a new dimension field is added to the mappings.
+     *
+     * @throws IllegalArgumentException If a dynamic template that defines dimension fields is added to an existing index with
+     *                                  {@link IndexMetadata#getTimeSeriesDimensions()}.
+     *                                  Changing fom {@link IndexMetadata#INDEX_DIMENSIONS} to {@link IndexMetadata#INDEX_ROUTING_PATH}
+     *                                  is not allowed because it would violate the invariant that the same input document always results
+     *                                  in the same _id and _tsid.
+     *                                  Otherwise, data duplication or translog replay issues could occur.
      */
     @Override
     public void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {

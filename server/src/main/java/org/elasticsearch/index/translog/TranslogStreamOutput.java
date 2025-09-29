@@ -16,6 +16,11 @@ import org.elasticsearch.common.recycler.Recycler;
 
 import java.io.IOException;
 
+/**
+ * This class provided specialized serialization methods for translog operations. The goal is to allow direct
+ * access to the current recycler bytes stream output page and write the entire operation with a single bounds
+ * check.
+ */
 public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
 
     public static final int FIXED_INDEX_HEADER_SIZE = 39;

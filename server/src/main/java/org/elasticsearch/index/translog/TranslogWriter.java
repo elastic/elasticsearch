@@ -9,15 +9,11 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.ByteArrayDataOutput;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
@@ -282,13 +278,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             return true;
         }
 
-        byte[] checksumBytes = new byte[4];
-        DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(checksumBytes));
-        out.writeInt(serialized.checksum());
-        BytesArray checksum = new BytesArray(checksumBytes);
-        BytesReference data = serialized.source() == null
-            ? CompositeBytesReference.of(serialized.header(), checksum)
-            : CompositeBytesReference.of(serialized.header(), serialized.source(), checksum);
+        BytesReference data = serialized.toBytesReference();
         if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {

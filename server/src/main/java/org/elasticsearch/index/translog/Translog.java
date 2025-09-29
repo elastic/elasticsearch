@@ -9,14 +9,19 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -617,7 +622,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final Operation operation) throws IOException {
         try (TranslogStreamOutput out = new TranslogStreamOutput(bigArrays.bytesRefRecycler())) {
-            Serialized serialized = serializeOperation(out, operation);
+            writeHeaderWithSize(out, operation);
+            final BytesReference header = out.bytes();
+            Serialized serialized = Serialized.create(header, operation instanceof Index index ? index.source() : null, new CRC32());
 
             readLock.lock();
             try {
@@ -656,6 +663,38 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public Serialized(BytesReference header, @Nullable BytesReference source, int checksum) {
             this(header, source, header.length() + (source == null ? 0 : source.length()) + 4, checksum);
+        }
+
+        public BytesReference toBytesReference() throws IOException {
+            byte[] checksumBytes = new byte[4];
+            DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(checksumBytes));
+            out.writeInt(checksum);
+            BytesArray checksum = new BytesArray(checksumBytes);
+            return source == null ? CompositeBytesReference.of(header, checksum) : CompositeBytesReference.of(header, source, checksum);
+        }
+
+        public static Serialized create(BytesReference header, @Nullable BytesReference source, Checksum checksum) throws IOException {
+            int length = header.length() + 4;
+            updateChecksum(header, checksum, 4);
+            if (source != null) {
+                updateChecksum(source, checksum, 0);
+                length += source.length();
+            }
+            return new Serialized(header, source, length, (int) checksum.getValue());
+        }
+
+        private static void updateChecksum(BytesReference bytes, Checksum checksum, final int bytesToSkip) throws IOException {
+            if (bytes.hasArray()) {
+                checksum.update(bytes.array(), bytes.arrayOffset() + bytesToSkip, bytes.length() - bytesToSkip);
+            } else {
+                int offset = bytesToSkip;
+                BytesRefIterator iterator = bytes.iterator();
+                BytesRef slice;
+                while ((slice = iterator.next()) != null) {
+                    checksum.update(slice.bytes, slice.offset + offset, slice.length - offset);
+                    offset = 0;
+                }
+            }
         }
 
         public BytesRefIterator iterator() {
@@ -1712,40 +1751,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
-    public static Serialized serializeOperation(TranslogStreamOutput out, Translog.Operation operation) throws IOException {
-        CRC32 checksum = new CRC32();
-        writeHeaderWithSize(out, operation);
-        final BytesReference header = out.bytes();
-        updateChecksum(header, checksum, 4);
-        final BytesReference source;
-        if (operation instanceof Index index) {
-            source = index.source();
-            updateChecksum(source, checksum, 0);
-        } else {
-            source = null;
-        }
-        return new Serialized(header, source, (int) checksum.getValue());
-    }
-
     public static void writeHeaderWithSize(TranslogStreamOutput out, Translog.Operation op) throws IOException {
         switch (op) {
             case Index index -> out.writeIndexHeader(index);
             case Delete delete -> out.writeDeleteHeader(delete);
             case NoOp noOp -> out.writeNoOpHeader(noOp);
-        }
-    }
-
-    private static void updateChecksum(BytesReference bytes, Checksum checksum, final int bytesToSkip) throws IOException {
-        if (bytes.hasArray()) {
-            checksum.update(bytes.array(), bytes.arrayOffset() + bytesToSkip, bytes.length() - bytesToSkip);
-        } else {
-            int offset = bytesToSkip;
-            BytesRefIterator iterator = bytes.iterator();
-            BytesRef slice;
-            while ((slice = iterator.next()) != null) {
-                checksum.update(slice.bytes, slice.offset + offset, slice.length - offset);
-                offset = 0;
-            }
         }
     }
 

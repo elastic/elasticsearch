@@ -303,6 +303,13 @@ public class VerifierTests extends ESTestCase {
                 )
             );
         }
+
+        if (EsqlCapabilities.Cap.FUSE_V6.isEnabled()) {
+            assertEquals(
+                "1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.",
+                error("from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE", analyzer)
+            );
+        }
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -2569,7 +2576,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
@@ -2680,6 +2687,11 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error(queryPrefix + " | fuse linear KEY BY _score"),
             containsString("expected KEY BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
+        );
+
+        assertThat(
+            error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
+            containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
     }
 

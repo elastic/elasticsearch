@@ -977,6 +977,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Registering AggregateMetricDoubleLiteral as a NamedWritable.
+         */
+        AGGREGATE_METRIC_DOUBLE_LITERAL_REGISTERED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,

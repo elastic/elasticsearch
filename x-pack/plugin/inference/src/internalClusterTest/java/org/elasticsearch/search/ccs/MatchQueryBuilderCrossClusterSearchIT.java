@@ -151,7 +151,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         );
     }
 
-    private void configureClusters() throws IOException {
+    private void configureClusters() throws Exception {
         final String commonInferenceId = "common-inference-id";
         final String localInferenceId = "local-inference-id";
         final String remoteInferenceId = "remote-inference-id";

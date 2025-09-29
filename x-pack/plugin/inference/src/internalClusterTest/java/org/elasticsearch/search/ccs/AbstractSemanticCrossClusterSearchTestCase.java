@@ -8,6 +8,9 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -35,6 +38,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,6 +54,7 @@ import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtensio
 import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -92,9 +97,10 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, FakeMlPlugin.class);
     }
 
-    protected void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {
+    protected void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws Exception {
         setupCluster(LOCAL_CLUSTER, localIndexInfo);
         setupCluster(REMOTE_CLUSTER, remoteIndexInfo);
+        waitUntilRemoteClusterConnected(REMOTE_CLUSTER);
     }
 
     protected void setupCluster(String clusterAlias, TestIndexInfo indexInfo) throws IOException {
@@ -138,6 +144,29 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         }
         BroadcastResponse refreshResponse = client.admin().indices().prepareRefresh(indexName).execute().actionGet();
         assertThat(refreshResponse.getStatus(), is(RestStatus.OK));
+    }
+
+    protected void waitUntilRemoteClusterConnected(String clusterAlias) throws InterruptedException {
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        boolean connected;
+        int attempts = 0;
+        int delay = 0;
+        do {
+            if (delay > 0) {
+                // Delay between retries so that we don't use up all our attempts in a tight loop
+                Thread.sleep(Duration.ofSeconds(delay));
+            }
+            RemoteInfoResponse response = client().execute(TransportRemoteInfoAction.TYPE, request).actionGet(TEST_REQUEST_TIMEOUT);
+            connected = response.getInfos()
+                .stream()
+                .filter(i -> i.getClusterAlias().equals(clusterAlias))
+                .anyMatch(RemoteConnectionInfo::isConnected);
+            delay += 5;
+        } while (connected == false && attempts++ < 5);
+
+        if (connected == false) {
+            throw new AssertionError("Cannot connect to remote cluster [" + clusterAlias + "]");
+        }
     }
 
     protected BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {

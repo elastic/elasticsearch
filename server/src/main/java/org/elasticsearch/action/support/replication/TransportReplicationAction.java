@@ -477,10 +477,6 @@ public abstract class TransportReplicationAction<
                 }
 
                 int reshardSplitShardCountSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
-                assert (reshardSplitShardCountSummary == 0
-                    || reshardSplitShardCountSummary == indexMetadata.getReshardSplitShardCountSummaryForIndexing(
-                        primaryRequest.getRequest().shardId().getId()
-                    ));
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     setPhase(replicationTask, "primary_delegation");
@@ -514,9 +510,9 @@ public abstract class TransportReplicationAction<
                             }
                         }
                     );
-                    // Replace false with a Reshard shard count mismatch test
-                    // (an abstract API that will be implemented by bulk, refresh and flush)
-                } else if (true) {
+                } else if (reshardSplitShardCountSummary == 0
+                    || reshardSplitShardCountSummary != indexMetadata.getReshardSplitShardCountSummaryForIndexing(
+                    primaryRequest.getRequest().shardId().getId())) {
                     // Split Request
                     Map<ShardId, Request> splitRequests = splitRequestOnPrimary(primaryRequest.getRequest());
                     int numSplitRequests = splitRequests.size();
@@ -576,57 +572,13 @@ public abstract class TransportReplicationAction<
                         }
                     } else {
                         // We have requests for both source and target shards.
-                        // Use a refcounted listener to run both requests async in parallel
+                        // Use a refcounted listener to run both requests async in parallel and collect the responses from both requests
 
                         // Merge responses from source and target before calling onCompletionListener
                     }
                 } else {
                     executePrimaryRequest(primaryShardReference, "primary");
                 }
-                /*
-                setPhase(replicationTask, "primary");
-
-                final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
-                    adaptResponse(response, primaryShardReference.indexShard);
-
-                    if (syncGlobalCheckpointAfterOperation) {
-                        try {
-                            primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
-                        } catch (final Exception e) {
-                            // only log non-closed exceptions
-                            if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                // intentionally swallow, a missed global checkpoint sync should not fail this operation
-                                logger.info(
-                                    () -> format(
-                                        "%s failed to execute post-operation global checkpoint sync",
-                                        primaryShardReference.indexShard.shardId()
-                                    ),
-                                    e
-                                );
-                            }
-                        }
-                    }
-
-                    assert primaryShardReference.indexShard.isPrimaryMode();
-                    primaryShardReference.close(); // release shard operation lock before responding to caller
-                    setPhase(replicationTask, "finished");
-                    onCompletionListener.onResponse(response);
-                }, e -> handleException(primaryShardReference, e));
-
-                new ReplicationOperation<>(
-                    primaryRequest.getRequest(),
-                    primaryShardReference,
-                    responseListener.map(result -> result.replicationResponse),
-                    newReplicasProxy(),
-                    logger,
-                    threadPool,
-                    actionName,
-                    primaryRequest.getPrimaryTerm(),
-                    initialRetryBackoffBound,
-                    retryTimeout
-                ).execute();
-                }
-                */
             } catch (Exception e) {
                 handleException(primaryShardReference, e);
             }

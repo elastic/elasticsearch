@@ -151,18 +151,18 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         RemoteInfoRequest request = new RemoteInfoRequest();
         boolean connected;
         int attempts = 0;
-        int delay = 0;
+        int delayInSeconds = 0;
         do {
-            if (delay > 0) {
+            if (delayInSeconds > 0) {
                 // Delay between retries so that we don't use up all our attempts in a tight loop
-                Thread.sleep(Duration.ofSeconds(delay));
+                Thread.sleep(Duration.ofSeconds(delayInSeconds));
             }
             RemoteInfoResponse response = client().execute(TransportRemoteInfoAction.TYPE, request).actionGet(TEST_REQUEST_TIMEOUT);
             connected = response.getInfos()
                 .stream()
                 .filter(i -> i.getClusterAlias().equals(clusterAlias))
                 .anyMatch(RemoteConnectionInfo::isConnected);
-            delay += 5;
+            delayInSeconds += 5;
         } while (connected == false && attempts++ < 5);
 
         if (connected == false) {

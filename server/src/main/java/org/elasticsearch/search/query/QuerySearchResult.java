@@ -458,7 +458,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     reduced = in.readBoolean();
                 }
             }
-            if (in.getTransportVersion().onOrAfter(TIMESTAMP_RANGE_TELEMETRY)) {
+            if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 rangeTimestampFrom = in.readOptionalLong();
             }
             success = true;
@@ -531,7 +531,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             out.writeBoolean(reduced);
         }
-        if (out.getTransportVersion().onOrAfter(TIMESTAMP_RANGE_TELEMETRY)) {
+        if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(rangeTimestampFrom);
         }
     }

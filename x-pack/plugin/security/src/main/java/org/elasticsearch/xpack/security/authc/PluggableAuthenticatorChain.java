@@ -61,21 +61,20 @@ public class PluggableAuthenticatorChain implements Authenticator {
         }
         AuthenticationToken token = context.getMostRecentAuthenticationToken();
         if (token != null) {
-            var lis = new IteratingActionListener<>(
+            var iteratingListener = new IteratingActionListener<>(
                 listener,
                 getAuthConsumer(context),
                 customAuthenticators,
                 context.getThreadContext(),
-                result -> {
-                    if (result == null) {
-                        // all custom authenticators left the token unhandled
-                        return AuthenticationResult.notHandled();
-                    }
-                    return result;
-                },
-                result -> result == null || result.getStatus() == AuthenticationResult.Status.CONTINUE
+                Function.identity(),
+                result -> result.getStatus() == AuthenticationResult.Status.CONTINUE
             );
-            lis.run();
+            try {
+                iteratingListener.run();
+            } catch (Exception e) {
+                logger.debug(() -> format("Authentication of token [%s] failed", token.getClass().getName()), e);
+                listener.onFailure(context.getRequest().exceptionProcessingRequest(e, token));
+            }
             return;
         }
         listener.onResponse(AuthenticationResult.notHandled());

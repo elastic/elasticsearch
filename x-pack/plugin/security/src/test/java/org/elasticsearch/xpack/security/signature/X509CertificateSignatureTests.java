@@ -22,18 +22,20 @@ import static org.hamcrest.Matchers.hasSize;
 public class X509CertificateSignatureTests extends ESTestCase {
 
     public void testEncodeDecode() throws Exception {
-        final List<Certificate> certificates = PemUtils.readCertificates(List.of(getResourceDataPath(getClass(), "signing_rsa.crt")));
-        assertThat(certificates, hasSize(1));
+        final List<Certificate> certificates = PemUtils.readCertificates(
+            List.of(getResourceDataPath(getClass(), "signing_rsa.crt"), getResourceDataPath(getClass(), "signing_ec.crt"))
+        );
+        assertThat(certificates, hasSize(2));
         final BytesReference bytes = randomBytesReference(randomIntBetween(8, 50));
         final X509CertificateSignature original = new X509CertificateSignature(
-            (X509Certificate) certificates.get(0),
+            certificates.stream().map(cert -> (X509Certificate) cert).toArray(X509Certificate[]::new),
             "SHA256withRSA",
             bytes
         );
 
         final String encoded = original.encodeToString();
         final X509CertificateSignature decoded = X509CertificateSignature.decode(encoded);
-
+        assertThat(decoded.toString(), Matchers.equalTo(original.toString()));
         assertThat(decoded, Matchers.equalTo(original));
     }
 

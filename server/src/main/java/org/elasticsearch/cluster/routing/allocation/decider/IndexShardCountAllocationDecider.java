@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 /**
- * An allocation decider
+ * For an index of n shards hosted by a cluster of m nodes, a node should not host
+ * significantly more than n / m shards. This allocation decider enforces this principle.
+ * This allocation decider excludes any nodes flagged for shutdown from consideration
+ * when computing optimal shard distributions.
  */
-
 public class IndexShardCountAllocationDecider extends AllocationDecider {
 
 

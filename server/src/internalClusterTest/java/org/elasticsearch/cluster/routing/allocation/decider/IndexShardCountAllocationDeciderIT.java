@@ -9,13 +9,29 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
 
 
+    /**
+     * Happy path -
+     */
     public void testIndexShardCountExceedsAverageAllocation() {
+
+        Settings settings = Settings.builder().build();
+
+        internalCluster().startMasterOnlyNode(settings);
+        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
+        final String firstDataNodeName = dataNodes.get(0);
+        final String secondDataNodeName = dataNodes.get(1);
+        final String thirdDataNodeName = dataNodes.get(2);
+        final String firstDataNodeId = getNodeId(firstDataNodeName);
+        final String secondDataNodeId = getNodeId(secondDataNodeName);
+        final String thirdDataNodeId = getNodeId(thirdDataNodeName);
+        ensureStableCluster(4);
 
     }
 

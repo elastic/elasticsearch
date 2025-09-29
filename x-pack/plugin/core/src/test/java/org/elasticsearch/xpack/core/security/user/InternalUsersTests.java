@@ -387,7 +387,7 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.hasFieldOrDocumentLevelSecurity(), is(false));
         assertThat(role.hasWorkflowsRestriction(), is(false));
 
-        final List<String> alloweClusterActions = List.of(
+        final List<String> allowedClusterActions = List.of(
             RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
             TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
             TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
@@ -395,7 +395,7 @@ public class InternalUsersTests extends ESTestCase {
             "cluster:internal:data/read/esql/exchange"
         );
 
-        for (String clusterAction : alloweClusterActions) {
+        for (String clusterAction : allowedClusterActions) {
             checkClusterAccess(crossProjectSearchUser, role, clusterAction, true);
         }
 

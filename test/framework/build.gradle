@@ -10,9 +10,6 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
-configurations {
-
-}
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')

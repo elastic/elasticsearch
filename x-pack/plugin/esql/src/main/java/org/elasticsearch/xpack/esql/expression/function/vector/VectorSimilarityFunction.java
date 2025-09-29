@@ -263,7 +263,11 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public String toString() {
-            return "constantVector=[" + Arrays.toString(constantVector) + "], expressionEvaluator=[" + expressionEvaluator + "]";
+            return "constantVector="
+                + (constantVector == null ? "[null]" : Arrays.toString(constantVector))
+                + ", expressionEvaluator=["
+                + expressionEvaluator
+                + "]";
         }
     }
 

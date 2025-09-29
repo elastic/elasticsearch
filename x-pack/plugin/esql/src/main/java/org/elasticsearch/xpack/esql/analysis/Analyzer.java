@@ -1054,7 +1054,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.name().equals(score.name())) {
                     continue;
                 }
-                aggregates.add(new Alias(source, attr.name(), new Values(source, attr, aggFilter)));
+                var valuesAgg = new Values(source, attr, aggFilter);
+                // Use VALUES only on supported fields.
+                // FuseScoreEval will check that the input contains only columns with supported data types
+                // and will fail with an appropriate error message if it doesn't.
+                if (valuesAgg.resolved()) {
+                    aggregates.add(new Alias(source, attr.name(), valuesAgg));
+                }
             }
 
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);

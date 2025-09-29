@@ -977,6 +977,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Registering AggregateMetricDoubleLiteral as a NamedWritable.
+         */
+        AGGREGATE_METRIC_DOUBLE_LITERAL_REGISTERED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1367,7 +1372,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V5(Build.current().isSnapshot()),
+        FUSE_V6(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1551,7 +1556,11 @@ public class EsqlCapabilities {
          */
         INLINE_STATS_FIX_PRUNING_NULL_FILTER(INLINESTATS_V11.enabled),
 
-        INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled);
+        INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS
+
+        ;
 
         private final boolean enabled;
 

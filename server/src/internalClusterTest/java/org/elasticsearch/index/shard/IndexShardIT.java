@@ -410,6 +410,19 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
+    public void testMaxHeapPerNodeIsPresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, ByteSizeValue> maxHeapSizePerNode = clusterInfoService.getClusterInfo().getMaxHeapSizePerNode();
+        assertNotNull(maxHeapSizePerNode);
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), maxHeapSizePerNode.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(maxHeapSizePerNode.containsKey(node.getId()));
+            assertThat(maxHeapSizePerNode.get(node.getId()), greaterThan(ByteSizeValue.ZERO));
+        }
+    }
+
     public void testIndexCanChangeCustomDataPath() throws Exception {
         final String index = "test-custom-data-path";
         final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataDir().resolve(randomAsciiLettersOfLength(10));

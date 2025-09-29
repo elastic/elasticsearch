@@ -44,11 +44,10 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The irate of a counter field. irate is the per-second rate of increase between the last two data points ("
+        description = "Calculates the irate of a counter field. irate is the per-second rate of increase between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to rate, but is more responsive to recent changes in the rate of increase.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "irate") }
     )
     public Irate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
@@ -120,9 +119,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier();
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier();
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier();
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

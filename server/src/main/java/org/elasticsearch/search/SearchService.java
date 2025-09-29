@@ -2037,8 +2037,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     indexService = readerContext.indexService();
                     QueryRewriteContext queryRewriteContext = canMatchContext.getQueryRewriteContext(indexService);
                     if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
-                        indexService.getSearchOperationListener()
-                            .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
+                        recordCanMatchPhaseDuration(indexService.getSearchOperationListener(), origShardSearchRequest, startTime);
                         return new CanMatchShardResponse(false, null);
                     }
                     searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
@@ -2066,9 +2065,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     canMatchContext.request,
                     canMatchContext.getQueryRewriteContext(canMatchContext.getIndexService())
                 ) == false) {
-                    canMatchContext.getIndexService()
-                        .getSearchOperationListener()
-                        .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
+                    recordCanMatchPhaseDuration(canMatchContext.getIndexService().getSearchOperationListener(), origShardSearchRequest, startTime);
                     return new CanMatchShardResponse(false, null);
                 }
                 boolean needsWaitForRefresh = canMatchContext.request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
@@ -2085,20 +2082,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (canMatch || hasRefreshPending) {
                     FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
                     final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                    canMatchContext.getIndexService()
-                        .getSearchOperationListener()
-                        .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
+                    recordCanMatchPhaseDuration(canMatchContext.getIndexService().getSearchOperationListener(), origShardSearchRequest, startTime);
                     return new CanMatchShardResponse(true, minMax);
                 }
-                canMatchContext.getIndexService()
-                    .getSearchOperationListener()
-                    .forEach(l -> l.onCanMatchPhase(origShardSearchRequest, System.nanoTime() - startTime));
+                recordCanMatchPhaseDuration(canMatchContext.getIndexService().getSearchOperationListener(), origShardSearchRequest, startTime);
                 return new CanMatchShardResponse(false, null);
             }
         } catch (Exception e) {
             return new CanMatchShardResponse(true, null);
         } finally {
             Releasables.close(releasable);
+        }
+    }
+
+    static void recordCanMatchPhaseDuration(List<SearchOperationListener> listeners, ShardSearchRequest request, long startTime) {
+        long tookInNanos = System.nanoTime() - startTime;
+        for (SearchOperationListener listener : listeners) {
+            listener.onCanMatchPhase(request, tookInNanos);
         }
     }
 

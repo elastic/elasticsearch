@@ -57,12 +57,14 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
 
     @Override
     public void onCanMatchPhase(ShardSearchRequest request, long tookInNanos) {
-        recordPhaseLatency(canMatchPhaseMetric, tookInNanos, request);
+        recordPhaseLatency(canMatchPhaseMetric, tookInNanos, request, null);
     }
 
     @Override
     public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
-        recordPhaseLatency(dfsPhaseMetric, tookInNanos, searchContext.request());
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+        Long rangeTimestampFrom = searchExecutionContext.getRangeTimestampFrom();
+        recordPhaseLatency(dfsPhaseMetric, tookInNanos, searchContext.request(), rangeTimestampFrom);
     }
 
     @Override

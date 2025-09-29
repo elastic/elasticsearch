@@ -1,0 +1,5 @@
+pr: 135051
+summary: Ban Limit + `MvExpand` before remote Enrich
+area: ES|QL
+type: bug
+issues: []

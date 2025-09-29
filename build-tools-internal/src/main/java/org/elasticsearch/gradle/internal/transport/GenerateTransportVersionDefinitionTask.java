@@ -74,11 +74,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
 
     @Input
     @Optional
-    @Option(
-        option = "resolve-conflict",
-        description = "Regenerate the transport version currently being added to upstream to resolve a merge conflict"
-    )
-    public abstract Property<Boolean> getResolveConflict();
+    abstract Property<Boolean> getResolveConflict();
 
     /**
      * The name of the upper bounds file which will be used at runtime on the current branch. Normally
@@ -102,13 +98,14 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         List<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String targetDefinitionName = getTargetDefinitionName(resources, referencedNames, changedDefinitionNames);
 
-        List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
-        Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
-
         getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
         if (targetDefinitionName.isEmpty()) {
-            resetAllUpperBounds(resources);
+            // TODO: resetting upper bounds needs to be done locally, otherwise it pulls in some (incomplete) changes from upstream main
+            // resetAllUpperBounds(resources);
         } else {
+            List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
+            Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
+
             List<TransportVersionId> ids = updateUpperBounds(resources, upstreamUpperBounds, targetUpperBoundNames, targetDefinitionName);
             // (Re)write the definition file.
             resources.writeDefinition(new TransportVersionDefinition(targetDefinitionName, ids, true));

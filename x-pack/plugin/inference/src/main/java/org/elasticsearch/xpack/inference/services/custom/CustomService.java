@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -136,7 +137,7 @@ public class CustomService extends SenderService {
             case RERANK -> RerankParameters.of(new QueryAndDocsInputs("test query", List.of("test input")));
             case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("test input"), null, null),
+                new EmbeddingsInput(List.of("test input"), null),
                 model.getServiceSettings().getInputTypeTranslator()
             );
             default -> throw new IllegalStateException(
@@ -280,7 +281,7 @@ public class CustomService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -298,14 +299,14 @@ public class CustomService extends SenderService {
         var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-            inputs.getInputs(),
+            inputs,
             customModel.getServiceSettings().getBatchSize(),
             customModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 

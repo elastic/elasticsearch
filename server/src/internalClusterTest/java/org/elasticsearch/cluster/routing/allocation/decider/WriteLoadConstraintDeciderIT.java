@@ -480,41 +480,38 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * the first node, despite hot-spotting with queuing, because no other node has below utilization threshold stats.
          */
 
-        try (var mockLog = MockLog.capture(DesiredBalanceShardsAllocator.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "desired balance computation ran and completed",
-                    DesiredBalanceShardsAllocator.class.getName(),
-                    Level.DEBUG,
-                    "Desired balance computation for * is completed, scheduling reconciliation"
-                )
-            );
-
+        // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. Ensures no async computation.
+        MockLog.awaitLogger(() -> {
             logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
             refreshClusterInfo();
+        },
+            DesiredBalanceShardsAllocator.class,
+            new MockLog.SeenEventExpectation(
+                "desired balance computation ran and completed",
+                DesiredBalanceShardsAllocator.class.getName(),
+                Level.DEBUG,
+                "Desired balance computation for * is completed, scheduling reconciliation"
+            )
+        );
 
-            // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. This way nothing async is running.
-            mockLog.awaitAllExpectationsMatched();
-        }
-        try (var mockLog = MockLog.capture(DesiredBalanceShardsAllocator.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "desired balance computation ran and completed",
-                    DesiredBalanceShardsAllocator.class.getName(),
-                    Level.DEBUG,
-                    "Desired balance computation for * is completed, scheduling reconciliation"
-                )
-            );
-
+        // Wait for the DesiredBalance to be recomputed as a result of the settings change.
+        MockLog.awaitLogger(() -> {
             logger.info(
                 "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
             );
             // Updating the cluster settings will trigger a reroute request.
             updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+        },
+            DesiredBalanceShardsAllocator.class,
+            new MockLog.SeenEventExpectation(
+                "desired balance computation ran and completed",
+                DesiredBalanceShardsAllocator.class.getName(),
+                Level.DEBUG,
+                "Desired balance computation for * is completed, scheduling reconciliation"
+            )
+        );
 
-            // Wait for the DesiredBalance to be recomputed as a result of the settings change.
-            mockLog.awaitAllExpectationsMatched();
-
+        try {
             // Now check that all the shards remain on the first node because the other two nodes have too high write thread pool
             // utilization to accept additional shards.
             var desiredBalanceResponse = safeGet(
@@ -650,42 +647,37 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
          * the first node, despite hot-spotting, because no other node has below utilization threshold stats.
          */
 
-        try (var mockLog = MockLog.capture(DesiredBalanceShardsAllocator.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "desired balance computation ran and completed",
-                    DesiredBalanceShardsAllocator.class.getName(),
-                    Level.DEBUG,
-                    "Desired balance updated for *"
-                )
-            );
-
+        // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. This way nothing async is running.
+        MockLog.awaitLogger(() -> {
             logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
             refreshClusterInfo();
+        },
+            DesiredBalanceShardsAllocator.class,
+            new MockLog.SeenEventExpectation(
+                "desired balance computation ran and completed",
+                DesiredBalanceShardsAllocator.class.getName(),
+                Level.DEBUG,
+                "Desired balance updated for *"
+            )
+        );
 
-            // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. This way nothing async is running.
-            mockLog.awaitAllExpectationsMatched();
-        }
-
-        try (var mockLog = MockLog.capture(DesiredBalanceShardsAllocator.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "desired balance computation ran and completed",
-                    DesiredBalanceShardsAllocator.class.getName(),
-                    Level.DEBUG,
-                    "Desired balance updated for *"
-                )
-            );
-
-            logger.info(
-                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
-            );
-            // Updating the cluster settings will trigger a reroute request.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
-
-            // Wait for the DesiredBalance to be recomputed as a result of the settings change.
-            mockLog.awaitAllExpectationsMatched();
-        }
+        // Wait for the DesiredBalance to be recomputed as a result of the settings change.
+        MockLog.awaitLogger(
+            () -> {
+                logger.info(
+                    "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
+                );
+                // Updating the cluster settings will trigger a reroute request.
+                updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+            },
+            DesiredBalanceShardsAllocator.class,
+            new MockLog.SeenEventExpectation(
+                "desired balance computation ran and completed",
+                DesiredBalanceShardsAllocator.class.getCanonicalName(),
+                Level.DEBUG,
+                "Desired balance updated for *"
+            )
+        );
 
         try {
             // Now check that all a single shard was moved off of the first node to address the queuing, but the rest of the shards remain.

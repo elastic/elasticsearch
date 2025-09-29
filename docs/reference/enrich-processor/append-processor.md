@@ -25,6 +25,12 @@ $$$append-options$$$
 | `on_failure` | no | - | Handle failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
+## Examples [append-processor-examples]
+
+### Simple example [append-processor-simple-example]
+
+Here is an that adds the string "production" as well as the values of the "app" and "owner" fields to the "tags" field:
+
 ```js
 {
   "append": {
@@ -34,3 +40,21 @@ $$$append-options$$$
 }
 ```
 
+### Example using `allow_duplicates` and `ignore_empty_values`
+
+```{applies_to}
+stack: ga 9.2
+```
+
+By using `allow_duplicates` and `ignore_empty_values`, it is possible to only append the `host.name` to the `related.hosts` if the `host.name` is not empty and if the value not already present in `related.hosts`:
+
+```js
+{
+  "append": {
+    "field": "related.hosts",
+    "copy_from": "host.name",
+    "allow_duplicates": false,
+    "ignore_empty_values": true
+  }
+}
+```

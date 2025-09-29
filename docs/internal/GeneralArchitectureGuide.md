@@ -103,20 +103,20 @@ are coordinated.
 > the `Transport*Action` class that handles it.
 >
 > A netty [EventLoop] thread handles the initial steps of a `Rest*Action` request lifecycle such as decoding, validation and routing.
-> Upon entry into the "transport layer", [NodeClient] delegates the decision of execution to individual [TransportAction]. Each action
+> Upon entry into the "transport layer", [NodeClient] delegates the decision of execution to individual `TransportAction`. Each action
 > determines whether to execute synchronously on invoking thread-an approach reserved for lightweight processing-or to dispatch execution to an appropriate
 > thread pool, which is recommended practice for heavy workloads. Comprehensive mechanisms are available for propagating [ThreadContext] when tasks
 > are dispatched to alternate thread pools.
 >
-> [TransportAction] can also be initiated through peer-to-peer communication between nodes. In such cases, the [InboundHandler]
-> locates the appropriate [TransportAction] by consulting the [NamedRegistry], then invokes the [TransportAction]'s handleExecution() method. When a [TransportAction]
+> `TransportAction` can also be initiated through peer-to-peer communication between nodes. In such cases, the [InboundHandler]
+> locates the appropriate `TransportAction` by consulting the [NamedRegistry], then invokes the `TransportAction`'s handleExecution() method. When a `TransportAction`
 > is registered, it can specify an executor to control how the action is run. One option is the `DIRECT_EXECUTOR_SERVICE`, which executes the
 > action on the calling thread. However, this should be used with caution—it's only appropriate when the action is lightweight.
 > Otherwise, it risks blocking the peer-to-peer I/O thread, potentially degrading responsiveness and causing the node to become unresponsive.
-> If [TransportAction] elects a separate executor, [InboundHandler] performs message deserialization before delegating execution to the executor,
+> If `TransportAction` elects a separate executor, `InboundHandler` performs message deserialization before delegating execution to the executor,
 > refer to [TransportResponseHandler] method executor() for more details.
 >
-> [TransportAction] requests received from remote nodes are always deserialized on the Netty [EventLoop]. In contrast, [TransportAction] responses are
+> `TransportAction` requests received from remote nodes are always deserialized on the Netty `EventLoop`. In contrast, `TransportAction` responses are
 > deserialized only after being dispatched to the designated executor. Outbound messages, including both requests and responses, are serialized
 > synchronously on the calling thread.
 

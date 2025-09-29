@@ -282,10 +282,10 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         assertSearchHitsWithoutFailures(client().prepareSearch(TestSystemIndexPlugin.INDEX_NAME).setQuery(rangeQueryBuilder), "2");
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
-        assertTimeRangeAttributes(queryMeasurements, ".others", true);
+        assertTimeRangeAttributes(queryMeasurements, ".others", true, false);
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         assertEquals(1, fetchMeasurements.size());
-        assertTimeRangeAttributes(fetchMeasurements, ".others", true);
+        assertTimeRangeAttributes(fetchMeasurements, ".others", true, false);
     }
 
     public void testCanMatchFiltersAllShardsOut() {
@@ -293,23 +293,25 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         assertNoSearchHits(client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(rangeQueryBuilder));
         final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_PHASE_METRIC);
         assertEquals(num_primaries, canMatchMeasurements.size());
-        assertTimeRangeAttributes(canMatchMeasurements, "user", false);
+        assertTimeRangeAttributes(canMatchMeasurements, "user", false, true);
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(0, queryMeasurements.size());
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         assertEquals(0, fetchMeasurements.size());
     }
 
-    private static void assertTimeRangeAttributes(List<Measurement> measurements, String target, boolean isSystem) {
+    private static void assertTimeRangeAttributes(List<Measurement> measurements, String target, boolean isSystem, boolean isCanMatch) {
         for (Measurement measurement : measurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(6, attributes.size());
+            assertEquals(isCanMatch ? 5 : 6, attributes.size());
             assertEquals(target, attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(true, attributes.get("range_timestamp"));
             assertEquals(isSystem, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+            if (isCanMatch == false) {
+                assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+            }
         }
     }
 

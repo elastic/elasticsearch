@@ -258,7 +258,11 @@ public class TransformIT extends TransformRestTestCase {
         assertBusy(() -> assertThat(getTransformHealthStatus(transformId), oneOf("yellow", "red")), 30, TimeUnit.SECONDS);
 
         // unblock reads on the search index and the transform should recover
-        assertAcknowledged(adminClient().performRequest(new Request("DELETE", sourceIndexName + "/_block/read")));
+        var request = new Request("PUT", sourceIndexName + "/_settings");
+        request.setJsonEntity("""
+                { "blocks.read": false }
+            """);
+        assertAcknowledged(adminClient().performRequest(request));
         assertBusy(() -> assertEquals("green", getTransformHealthStatus(transformId)), 30, TimeUnit.SECONDS);
 
         stopTransform(transformId);

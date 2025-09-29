@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.gpu;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.plugins.Plugin;
@@ -17,16 +17,53 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
+import java.util.List;
+
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
     public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_format");
+
+    /**
+     * An enum for the tri-state value of the `index.vectors.indexing.use_gpu` setting.
+     */
+    public enum GpuMode {
+        TRUE,
+        FALSE,
+        AUTO
+    }
+
+    /**
+     * Setting to control whether to use GPU for vectors indexing.
+     * Currently only applicable for index_options.type: hnsw.
+     *
+     * If unset or "auto", an automatic decision is made based on the presence of GPU, necessary libraries, vectors' index type.
+     * If set to <code>true</code>, GPU must be used for vectors indexing, and if GPU or necessary libraries are not available,
+     * an exception will be thrown.
+     * If set to <code>false</code>, GPU will not be used for vectors indexing.
+     */
+    public static final Setting<GpuMode> VECTORS_INDEXING_USE_GPU_SETTING = Setting.enumSetting(
+        GpuMode.class,
+        "index.vectors.indexing.use_gpu",
+        GpuMode.AUTO,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        if (GPU_FORMAT.isEnabled()) {
+            return List.of(VECTORS_INDEXING_USE_GPU_SETTING);
+        } else {
+            return List.of(VECTORS_INDEXING_USE_GPU_SETTING);
+        }
+    }
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, indexOptions) -> {
             if (GPU_FORMAT.isEnabled()) {
-                IndexSettings.GpuMode gpuMode = indexSettings.getValue(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING);
-                if (gpuMode == IndexSettings.GpuMode.TRUE) {
+                GpuMode gpuMode = indexSettings.getValue(VECTORS_INDEXING_USE_GPU_SETTING);
+                if (gpuMode == GpuMode.TRUE) {
                     if (vectorIndexTypeSupported(indexOptions.getType()) == false) {
                         throw new IllegalArgumentException(
                             "[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of [" + indexOptions.getType() + "]."
@@ -39,9 +76,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                     }
                     return getVectorsFormat(indexOptions);
                 }
-                if (gpuMode == IndexSettings.GpuMode.AUTO
-                    && vectorIndexTypeSupported(indexOptions.getType())
-                    && GPUSupport.isSupported(false)) {
+                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && GPUSupport.isSupported(false)) {
                     return getVectorsFormat(indexOptions);
                 }
             }

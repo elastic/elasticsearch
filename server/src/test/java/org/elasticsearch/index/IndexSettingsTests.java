@@ -922,36 +922,4 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
 
-    public void testVectorsUseGpuSetting() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(IndexSettings.GpuMode.AUTO, settings.useGpuForVectorsIndexing());
-
-        settings.updateIndexMetadata(
-            newIndexMeta("index", Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), true).build())
-        );
-        assertEquals(IndexSettings.GpuMode.TRUE, settings.useGpuForVectorsIndexing());
-
-        settings.updateIndexMetadata(
-            newIndexMeta("index", Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), false).build())
-        );
-        assertEquals(IndexSettings.GpuMode.FALSE, settings.useGpuForVectorsIndexing());
-
-        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
-        assertEquals(IndexSettings.GpuMode.AUTO, settings.useGpuForVectorsIndexing());
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> settings.updateIndexMetadata(
-                newIndexMeta("index", Settings.builder().put("index.vectors.indexing.use_gpu", "unknown").build())
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            Matchers.containsString("illegal value can't update [index.vectors.indexing.use_gpu] from [AUTO] to [unknown]")
-        );
-    }
 }

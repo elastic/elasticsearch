@@ -530,7 +530,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         if (task == null) {
             logger.debug(
                 () -> format(
-                    "[%s] Unable to gracefully stop deployment for shutting down node %s because task does not exit",
+                    "[%s] Unable to gracefully stop deployment for shutting down node %s because task does not exist",
                     deploymentId,
                     currentNode
                 )
@@ -554,7 +554,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             routingStateListener
         );
 
-        stopDeploymentAfterCompletingPendingWorkAsync(task, notifyDeploymentOfStopped);
+        stopDeploymentAfterCompletingPendingWorkAsync(task, NODE_IS_SHUTTING_DOWN, notifyDeploymentOfStopped);
     }
 
     private ActionListener<AcknowledgedResponse> updateRoutingStateToStoppedListener(
@@ -580,11 +580,18 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         // This model is not routed to the current node at all
         TrainedModelDeploymentTask task = deploymentIdToTask.remove(deploymentId);
         if (task == null) {
+            logger.debug(
+                () -> format(
+                    "[%s] Unable to stop unreferenced deployment for node %s because task does not exist",
+                    deploymentId,
+                    currentNode
+                )
+            );
             return;
         }
 
         logger.debug(() -> format("[%s] Stopping unreferenced deployment for node %s", deploymentId, currentNode));
-        stopDeploymentAsync(
+        stopDeploymentAfterCompletingPendingWorkAsync(
             task,
             NODE_NO_LONGER_REFERENCED,
             ActionListener.wrap(
@@ -626,9 +633,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void stopDeploymentAfterCompletingPendingWorkAsync(
         TrainedModelDeploymentTask task,
+        String reason,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        stopDeploymentHelper(task, NODE_IS_SHUTTING_DOWN, deploymentManager::stopAfterCompletingPendingWork, listener);
+        stopDeploymentHelper(task, reason, deploymentManager::stopAfterCompletingPendingWork, listener);
     }
 
     private void updateNumberOfAllocations(TrainedModelAssignmentMetadata assignments) {

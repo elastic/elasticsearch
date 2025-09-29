@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
@@ -56,6 +58,8 @@ import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandl
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
+
+    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
@@ -400,10 +404,12 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::check,
                         indicesRequest.includeDataStreams()
                     );
+                    logger.debug("resolved indices for request [{}]: [{}]", action, resolved);
                     // only store resolved expressions if configured, to avoid unnecessary memory usage
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them
                     if (recordResolvedIndexExpressions) {
+                        logger.debug("setting resolved expressions [{}]: [{}]", action, resolved);
                         replaceable.setResolvedIndexExpressions(resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());

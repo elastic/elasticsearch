@@ -652,9 +652,7 @@ public class AuthorizationService {
                         threadContext
                     )
                 );
-        } else
-
-        {
+        } else {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(actionDenied(authentication, authzInfo, action, request));

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -76,6 +78,8 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.lenientIndicesOptionsForFanout;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
+
+    private static final Logger LOGGER = LogManager.getLogger(ResolveIndexAction.class);
 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();
     public static final String NAME = "indices:admin/resolve/index";
@@ -213,7 +217,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
-            this.resolvedIndexExpressions = expressions;
+            // TODO this is obviously not right
+            if (resolvedIndexExpressions == null) {
+                this.resolvedIndexExpressions = expressions;
+            }
         }
 
         @Override
@@ -631,7 +638,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams, request.indexModes);
 
             final ResolvedIndexExpressions resolvedExpressions = request.getResolvedIndexExpressions();
-            logger.info("Resolved expressions [{}] and indices [{}]", resolvedExpressions, Arrays.toString(request.indices()));
+            LOGGER.info("Resolved expressions [{}] and indices [{}]", resolvedExpressions, Arrays.toString(request.indices()));
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
@@ -672,6 +679,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
+                    LOGGER.info(
+                        "Sending request to remote cluster [{}] with indices [{}]",
+                        clusterAlias,
+                        Arrays.toString(originalIndices.indices())
+                    );
                     Request remoteRequest = new Request(
                         originalIndices.indices(),
                         originalIndices.indicesOptions(),
@@ -683,16 +695,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
-                    }, failure -> terminalHandler.run()));
+                    }, failure -> {
+                        LOGGER.error("failed to resolve indices on remote cluster [{}]", clusterAlias, failure);
+                        terminalHandler.run();
+                    }));
                 }
             } else {
                 listener.onResponse(
-                    new Response(
-                        indices,
-                        aliases,
-                        dataStreams,
-                        request.includeResolvedExpressions ? request.getResolvedIndexExpressions() : null
-                    )
+                    new Response(indices, aliases, dataStreams, request.includeResolvedExpressions ? resolvedExpressions : null)
                 );
             }
         }

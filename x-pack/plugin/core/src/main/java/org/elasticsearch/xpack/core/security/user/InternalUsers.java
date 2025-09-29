@@ -300,10 +300,10 @@ public class InternalUsers {
      * Internal user that can manage a cross-project connections (e.g. handshake)
      * and searches (e.g. cancelling).
      */
-    public static final InternalUser CROSS_PROJECT_ACCESS_USER = new InternalUser(
-        UsernamesField.CROSS_PROJECT_ACCESS_USER_NAME,
+    public static final InternalUser CROSS_PROJECT_SEARCH_USER = new InternalUser(
+        UsernamesField.CROSS_PROJECT_SEARCH_USER_NAME,
         new RoleDescriptor(
-            UsernamesField.CROSS_PROJECT_ACCESS_ROLE_NAME,
+            UsernamesField.CROSS_PROJECT_SEARCH_ROLE_NAME,
             new String[] {
                 RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
@@ -335,7 +335,7 @@ public class InternalUsers {
             REINDEX_DATA_STREAM_USER,
             SYNONYMS_USER,
             LAZY_ROLLOVER_USER,
-            CROSS_PROJECT_ACCESS_USER
+            CROSS_PROJECT_SEARCH_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

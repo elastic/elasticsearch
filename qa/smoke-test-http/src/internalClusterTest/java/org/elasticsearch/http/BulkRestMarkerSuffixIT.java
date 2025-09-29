@@ -13,6 +13,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +32,9 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
-public class BulkRestIT extends HttpSmokeTestCase {
+public class BulkRestMarkerSuffixIT extends HttpSmokeTestCase {
+
+    private final RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Bulk-Format", "marker-suffix").build();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -53,6 +56,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
 
     public void testBulkMissingBody() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        if (randomBoolean()) {
+            request.setOptions(options);
+        }
         request.setJsonEntity("");
         ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
@@ -61,6 +67,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
 
     public void testBulkInvalidIndexNameString() throws IOException {
         Request request = new Request("POST", "/_bulk");
+        if (randomBoolean()) {
+            request.setOptions(options);
+        }
 
         byte[] bytes1 = "{\"create\":{\"_index\":\"".getBytes(StandardCharsets.UTF_8);
         byte[] bytes2 = new byte[] { (byte) 0xfe, (byte) 0xfe, (byte) 0xff, (byte) 0xff };
@@ -80,6 +89,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
 
     public void testBulkRequestBodyImproperlyTerminated() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
+        if (randomBoolean()) {
+            request.setOptions(options);
+        }
         // missing final line of the bulk body. cannot process
         request.setJsonEntity(
             "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
@@ -107,7 +119,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         Request firstBulkRequest = new Request("POST", "/index_name/_bulk");
-
+        if (randomBoolean()) {
+            firstBulkRequest.setOptions(options);
+        }
         String bulkBody = "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
             + "{\"field\":1}\n"
             + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}}\n"
@@ -138,6 +152,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         Request firstBulkRequest = new Request("POST", "/index_name/_bulk");
+        if (randomBoolean()) {
+            firstBulkRequest.setOptions(options);
+        }
 
         String bulkBody = "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
             + "{\"field\":1}\n"
@@ -178,6 +195,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         Request bulkRequest = new Request("POST", "/index_name/_bulk");
+        if (randomBoolean()) {
+            bulkRequest.setOptions(options);
+        }
 
         final StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_index\":\"index_name\"}}\n");
@@ -191,9 +211,11 @@ public class BulkRestIT extends HttpSmokeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void sendLargeBulk() throws IOException {
+    private void sendLargeBulk() throws IOException {
         Request bulkRequest = new Request("POST", "/index_name/_bulk");
-
+        if (randomBoolean()) {
+            bulkRequest.setOptions(options);
+        }
         final StringBuilder bulk = new StringBuilder();
         bulk.append("{\"delete\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n");
         int updates = 0;

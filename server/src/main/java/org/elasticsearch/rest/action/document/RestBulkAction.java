@@ -64,6 +64,7 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
+    public static final String PREFIX_LENGTH_FORMAT_CAPABILITY = "prefix_length_format";
 
     private static final String BULK_FORMAT_HEADER = "Bulk-Format";
 
@@ -94,7 +95,7 @@ public class RestBulkAction extends BaseRestHandler {
     public RestBulkAction(Settings settings, ClusterSettings clusterSettings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
-        this.capabilities = Set.of(FAILURE_STORE_STATUS_CAPABILITY);
+        this.capabilities = Set.of(FAILURE_STORE_STATUS_CAPABILITY, PREFIX_LENGTH_FORMAT_CAPABILITY);
         this.incrementalEnabled = new IncrementalBulkService.Enabled(clusterSettings);
     }
 

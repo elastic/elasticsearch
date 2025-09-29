@@ -43,7 +43,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
     ) {
 
         final String evaluatorName = className
-            + "Evaluator [left=constantVector=[null], expressionEvaluator=[Attribute[channel=0]], "
+            + "Evaluator[left=constantVector=[null], expressionEvaluator=[Attribute[channel=0]], "
             + "right=constantVector=[null], expressionEvaluator=[Attribute[channel=1]]]";
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();

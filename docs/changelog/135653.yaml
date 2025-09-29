@@ -1,5 +1,5 @@
 pr: 135653
-summary: Reset health status on successful noop
+summary: Reset health status on successful empty checkpoint
 area: Machine Learning
 type: bug
 issues:

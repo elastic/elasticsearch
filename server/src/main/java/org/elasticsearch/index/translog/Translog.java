@@ -617,19 +617,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final Operation operation) throws IOException {
         try (TranslogStreamOutput out = new TranslogStreamOutput(bigArrays.bytesRefRecycler())) {
-            CRC32 checksum = new CRC32();
-            writeHeaderWithSize(out, operation);
-            final BytesReference header = out.bytes();
-            int size = header.length();
-            updateChecksum(header, checksum, 4);
-            final BytesReference source;
-            if (operation instanceof Index index) {
-                source = index.source();
-                size += source.length();
-                updateChecksum(source, checksum, 0);
-            } else {
-                source = null;
-            }
+            Serialized serialized = serializeOperation(out, operation);
 
             readLock.lock();
             try {
@@ -651,7 +639,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             + "]"
                     );
                 }
-                return current.add(new Serialized(header, source, size + 4, (int) checksum.getValue()), operation.seqNo());
+                return current.add(serialized, operation.seqNo());
             } finally {
                 readLock.unlock();
             }
@@ -665,6 +653,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public record Serialized(BytesReference header, @Nullable BytesReference source, int length, int checksum) {
+
+        public Serialized(BytesReference header, @Nullable BytesReference source, int checksum) {
+            this(header, source, header.length() + (source == null ? 0 : source.length()) + 4, checksum);
+        }
 
         public BytesRefIterator iterator() {
             final BytesRefIterator headerIterator = this.header.iterator();
@@ -1718,6 +1710,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         op.writeTo(out);
         long checksum = out.getChecksum();
         out.writeInt((int) checksum);
+    }
+
+    public static Serialized serializeOperation(TranslogStreamOutput out, Translog.Operation operation) throws IOException {
+        CRC32 checksum = new CRC32();
+        writeHeaderWithSize(out, operation);
+        final BytesReference header = out.bytes();
+        updateChecksum(header, checksum, 4);
+        final BytesReference source;
+        if (operation instanceof Index index) {
+            source = index.source();
+            updateChecksum(source, checksum, 0);
+        } else {
+            source = null;
+        }
+        return new Serialized(header, source, (int) checksum.getValue());
     }
 
     public static void writeHeaderWithSize(TranslogStreamOutput out, Translog.Operation op) throws IOException {

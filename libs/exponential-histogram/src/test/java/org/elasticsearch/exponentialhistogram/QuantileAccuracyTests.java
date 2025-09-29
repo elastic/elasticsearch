@@ -63,6 +63,21 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         assertThat(median, equalTo(0.0));
     }
 
+    public void testPercentilesClampedToMinMax() {
+        ExponentialHistogram histogram = createAutoReleasedHistogram(
+            b -> b
+                .scale(0)
+                .setNegativeBucket(1, 1)
+                .setPositiveBucket(1, 1)
+                .max(0.00001)
+                .min(-0.00002)
+        );
+        double p01 = ExponentialHistogramQuantile.getQuantile(histogram, 0.01);
+        double p99 = ExponentialHistogramQuantile.getQuantile(histogram, 0.99);
+        assertThat(p01, equalTo(-0.00002));
+        assertThat(p99, equalTo(0.00001));
+    }
+
     public void testUniformDistribution() {
         testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(randomInt()), 0, 100));
     }

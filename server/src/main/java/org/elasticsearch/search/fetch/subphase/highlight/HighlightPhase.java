@@ -61,6 +61,11 @@ public class HighlightPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return HighlightPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 Map<String, HighlightField> highlightFields = new HashMap<>();
                 Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = fieldContext.builders;
@@ -157,5 +162,10 @@ public class HighlightPhase implements FetchSubPhase {
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
         }
         return new FieldContext(storedFieldsSpec, builders);
+    }
+
+    @Override
+    public String getName() {
+        return "highlight";
     }
 }

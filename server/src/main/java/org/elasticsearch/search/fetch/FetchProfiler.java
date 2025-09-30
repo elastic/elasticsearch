@@ -130,6 +130,11 @@ public class FetchProfiler implements FetchPhase.Profiler {
             }
 
             @Override
+            public String getName() {
+                return delegate.getName(); // since this implementation wraps the delegate, return its name
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 Timer timer = breakdown.getNewTimer(FetchSubPhaseTiming.PROCESS);
                 timer.start();

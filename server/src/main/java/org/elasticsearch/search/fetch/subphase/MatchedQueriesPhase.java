@@ -99,6 +99,16 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             public StoredFieldsSpec storedFieldsSpec() {
                 return StoredFieldsSpec.NO_REQUIREMENTS;
             }
+
+            @Override
+            public String getName() {
+                return MatchedQueriesPhase.this.getName();
+            }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "matched_queries";
     }
 }

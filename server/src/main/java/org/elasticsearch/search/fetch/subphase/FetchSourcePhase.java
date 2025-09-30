@@ -45,6 +45,11 @@ public final class FetchSourcePhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return FetchSourcePhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) {
                 String index = fetchContext.getIndexName();
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
@@ -121,5 +126,10 @@ public final class FetchSourcePhase implements FetchSubPhase {
             nestedIdentity = nestedIdentity.getChild();
         }
         return Source.fromMap(sourceMap, in.sourceContentType());
+    }
+
+    @Override
+    public String getName() {
+        return "fetch_source";
     }
 }

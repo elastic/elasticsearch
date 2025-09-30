@@ -122,10 +122,20 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 }
 
                 @Override
+                public String getName() {
+                    return NAME;
+                }
+
+                @Override
                 public void process(HitContext hitContext) throws IOException {
                     hitExecute(searchContext, hitContext);
                 }
             };
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
         }
 
         private void hitExecute(FetchContext context, HitContext hitContext) throws IOException {

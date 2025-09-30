@@ -50,6 +50,11 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return ScriptFieldsPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) {
                 int docId = hitContext.docId();
                 for (int i = 0; i < leafScripts.length; i++) {
@@ -92,5 +97,10 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
             }
         }
         return scripts;
+    }
+
+    @Override
+    public String getName() {
+        return "script_fields";
     }
 }

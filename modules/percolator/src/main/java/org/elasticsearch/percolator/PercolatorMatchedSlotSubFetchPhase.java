@@ -78,6 +78,11 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return PercolatorMatchedSlotSubFetchPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 for (PercolateContext pc : percolateContexts) {
                     String fieldName = pc.fieldName();
@@ -126,6 +131,11 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                 }
             }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "percolator_matched_slot";
     }
 
     static class PercolateContext {

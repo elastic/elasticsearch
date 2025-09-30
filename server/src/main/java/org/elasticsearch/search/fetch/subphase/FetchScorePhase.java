@@ -49,6 +49,11 @@ public class FetchScorePhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return FetchScorePhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 if (scorer == null || scorer.iterator().advance(hitContext.docId()) != hitContext.docId()) {
                     throw new IllegalStateException("Can't compute score on document " + hitContext + " as it doesn't match the query");
@@ -56,5 +61,10 @@ public class FetchScorePhase implements FetchSubPhase {
                 hitContext.hit().score(scorer.score());
             }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "fetch_score";
     }
 }

@@ -209,6 +209,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
@@ -855,7 +856,10 @@ class NodeConstruction {
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
 
         final List<SearchOperationListener> searchOperationListeners = List.of(
-            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
+            new ShardSearchPhaseAPMMetrics(
+                telemetryProvider.getMeterRegistry(),
+                searchModule.getFetchSubPhases().stream().map(FetchSubPhase::getName).toList()
+            )
         );
 
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);

@@ -57,6 +57,7 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -95,22 +96,38 @@ public class TransportSearchIT extends ESIntegTestCase {
             /**
              * Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
              */
-            return Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
+            return Collections.singletonList(new FetchSubPhase() {
                 @Override
-                public void setNextReader(LeafReaderContext readerContext) {}
+                public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+                    return new FetchSubPhaseProcessor() {
+                        @Override
+                        public void setNextReader(LeafReaderContext readerContext) {}
 
-                @Override
-                public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                        @Override
+                        public StoredFieldsSpec storedFieldsSpec() {
+                            return StoredFieldsSpec.NO_REQUIREMENTS;
+                        }
+
+                        @Override
+                        public String getName() {
+                            return "test";
+                        }
+
+                        @Override
+                        public void process(FetchSubPhase.HitContext hitContext) {
+                            if (fetchContext.getIndexName().startsWith("boom")) {
+                                throw new RuntimeException("boom");
+                            }
+                        }
+                    };
                 }
 
                 @Override
-                public void process(FetchSubPhase.HitContext hitContext) {
-                    if (fetchContext.getIndexName().startsWith("boom")) {
-                        throw new RuntimeException("boom");
-                    }
+                public String getName() {
+                    return "test";
                 }
             });
+
         }
     }
 

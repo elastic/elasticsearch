@@ -69,6 +69,11 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return FetchDocValuesPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hit) throws IOException {
                 for (DocValueField f : fields) {
                     DocumentField hitField = hit.hit().field(f.field);
@@ -95,5 +100,10 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             this.field = field;
             this.fetcher = fetcher;
         }
+    }
+
+    @Override
+    public String getName() {
+        return "fetch_doc_values";
     }
 }

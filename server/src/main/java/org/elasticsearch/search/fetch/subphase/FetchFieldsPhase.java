@@ -144,6 +144,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return FetchFieldsPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 final Map<String, DocumentField> fields = fieldFetcher != null
                     ? fieldFetcher.fetch(hitContext.source(), hitContext.docId())
@@ -152,5 +157,10 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 hitContext.hit().addDocumentFields(fields, metadataFields);
             }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "fetch_fields";
     }
 }

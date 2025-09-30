@@ -267,6 +267,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -1293,4 +1294,7 @@ public class SearchModule {
         return new FetchPhase(fetchSubPhases);
     }
 
+    public List<FetchSubPhase> getFetchSubPhases() {
+        return Collections.unmodifiableList(fetchSubPhases);
+    }
 }

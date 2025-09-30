@@ -104,7 +104,16 @@ public class StoredFieldsPhase implements FetchSubPhase {
             public StoredFieldsSpec storedFieldsSpec() {
                 return storedFieldsSpec;
             }
+
+            @Override
+            public String getName() {
+                return StoredFieldsPhase.this.getName();
+            }
         };
     }
 
+    @Override
+    public String getName() {
+        return "stored_fields";
+    }
 }

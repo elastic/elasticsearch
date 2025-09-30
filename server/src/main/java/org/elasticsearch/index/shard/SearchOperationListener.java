@@ -66,6 +66,14 @@ public interface SearchOperationListener {
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 
     /**
+     * Executed after a fetch sub phase successfully finished for all docs in a shard. Used for APM metrics.
+     * @param searchContext the current search context
+     * @param subPhaseName the name of the fetch subphase
+     * @param tookInNanos the number of nanoseconds the fetch sub phase execution took
+     */
+    default void onFetchSubPhase(SearchContext searchContext, String subPhaseName, long tookInNanos) {};
+
+    /**
      * Executed before the DFS phase is executed
      * @param searchContext the current search context
      */
@@ -211,6 +219,17 @@ public interface SearchOperationListener {
                     listener.onPreDfsPhase(searchContext);
                 } catch (Exception e) {
                     logger.warn(() -> "onPreDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onFetchSubPhase(SearchContext searchContext, String subPhaseName, long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onFetchSubPhase(searchContext, subPhaseName, tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onFetchSubPhase listener [" + listener + "] failed", e);
                 }
             }
         }

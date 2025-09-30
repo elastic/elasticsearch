@@ -21,6 +21,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -30,11 +31,14 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SUBPHASE_METRIC_FORMAT;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -124,6 +128,57 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         assertEquals(1, fetchMeasurements.size());
         assertAttributes(fetchMeasurements, false, false);
+        final List<Measurement> storedFieldsFetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+            String.format(Locale.ROOT, FETCH_SUBPHASE_METRIC_FORMAT, "stored_fields")
+        );
+        assertEquals(1, storedFieldsFetchMeasurements.size());
+        assertAttributes(storedFieldsFetchMeasurements, false, false);
+        final List<Measurement> fetchSourceFetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+            String.format(Locale.ROOT, FETCH_SUBPHASE_METRIC_FORMAT, "fetch_source")
+        );
+        assertEquals(1, fetchSourceFetchMeasurements.size());
+        assertAttributes(fetchSourceFetchMeasurements, false, false);
+        final List<Measurement> fetchFieldsFetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+            String.format(Locale.ROOT, FETCH_SUBPHASE_METRIC_FORMAT, "fetch_fields")
+        );
+        assertEquals(1, fetchFieldsFetchMeasurements.size());
+        assertAttributes(fetchFieldsFetchMeasurements, false, false);
+    }
+
+    public void testSearchFetchSubPhaseMeasurements() {
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch(indexName)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreFilterShardSize(1) // force a can match phase
+                .setExplain(true)
+                .setVersion(true)
+                .seqNoAndPrimaryTerm(true)
+                .highlighter(new HighlightBuilder().field("body"))
+                .setQuery(matchQuery("body", "doc1").queryName("foobar"))
+                .addDocValueField("docvalue_fields", "@timestamp"),
+            "1"
+        );
+
+        // assert that all fetch subphases are measured
+        // missing subphases like script fields are not measured here because they need an IT environment
+        List<String> subphases = List.of(
+            "explain",
+            "stored_fields",
+            "fetch_doc_values",
+            "fetch_fields",
+            "fetch_source",
+            "fetch_version",
+            "seq_no_primary_term",
+            "matched_queries",
+            "highlight"
+        );
+        for (String subphase : subphases) {
+            final List<Measurement> fetchSubPhaseMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+                String.format(Locale.ROOT, FETCH_SUBPHASE_METRIC_FORMAT, subphase)
+            );
+            assertEquals(1, fetchSubPhaseMeasurements.size());
+            assertAttributes(fetchSubPhaseMeasurements, false, false);
+        }
     }
 
     public void testSearchTransportMetricsQueryThenFetchSystem() {

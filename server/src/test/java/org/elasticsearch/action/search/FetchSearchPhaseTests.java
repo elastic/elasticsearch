@@ -43,12 +43,15 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -88,6 +91,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FetchSearchPhaseTests extends ESTestCase {
     private static final long FETCH_PROFILE_TIME = 555;
@@ -850,21 +855,36 @@ public class FetchSearchPhaseTests extends ESTestCase {
             }
         };
         try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true, breakingCircuitBreaker)) {
-            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+            FetchPhase fetchPhase = new FetchPhase(List.of(new FetchSubPhase() {
                 @Override
-                public void setNextReader(LeafReaderContext readerContext) throws IOException {
+                public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+                    return new FetchSubPhaseProcessor() {
+                        @Override
+                        public void setNextReader(LeafReaderContext readerContext) throws IOException {
 
+                        }
+
+                        @Override
+                        public void process(FetchSubPhase.HitContext hitContext) throws IOException {
+                            Source source = hitContext.source();
+                            hitContext.hit().sourceRef(source.internalSourceRef());
+                        }
+
+                        @Override
+                        public StoredFieldsSpec storedFieldsSpec() {
+                            return StoredFieldsSpec.NEEDS_SOURCE;
+                        }
+
+                        @Override
+                        public String getName() {
+                            return "test";
+                        }
+                    };
                 }
 
                 @Override
-                public void process(FetchSubPhase.HitContext hitContext) throws IOException {
-                    Source source = hitContext.source();
-                    hitContext.hit().sourceRef(source.internalSourceRef());
-                }
-
-                @Override
-                public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NEEDS_SOURCE;
+                public String getName() {
+                    return "test";
                 }
             }));
             fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
@@ -904,23 +924,39 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 true
             )
         ) {
-            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+            FetchPhase fetchPhase = new FetchPhase(List.of(new FetchSubPhase() {
                 @Override
-                public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                    throw new IOException("bad things");
+                public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+                    return new FetchSubPhaseProcessor() {
+                        @Override
+                        public void setNextReader(LeafReaderContext readerContext) throws IOException {
+                            throw new IOException("bad things");
+                        }
+
+                        @Override
+                        public void process(FetchSubPhase.HitContext hitContext) throws IOException {
+                            Source source = hitContext.source();
+                            hitContext.hit().sourceRef(source.internalSourceRef());
+                        }
+
+                        @Override
+                        public StoredFieldsSpec storedFieldsSpec() {
+                            return StoredFieldsSpec.NEEDS_SOURCE;
+                        }
+
+                        @Override
+                        public String getName() {
+                            return "test";
+                        }
+                    };
                 }
 
                 @Override
-                public void process(FetchSubPhase.HitContext hitContext) throws IOException {
-                    Source source = hitContext.source();
-                    hitContext.hit().sourceRef(source.internalSourceRef());
-                }
-
-                @Override
-                public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NEEDS_SOURCE;
+                public String getName() {
+                    return "test";
                 }
             }));
+
             FetchPhaseExecutionException fetchPhaseExecutionException = assertThrows(
                 FetchPhaseExecutionException.class,
                 () -> fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null)
@@ -945,25 +981,40 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     private static FetchPhase createFetchPhase(ContextIndexSearcher contextIndexSearcher) {
-        return new FetchPhase(Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
-            boolean processCalledOnce = false;
-
+        return new FetchPhase(Collections.singletonList(new FetchSubPhase() {
             @Override
-            public void setNextReader(LeafReaderContext readerContext) {}
+            public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+                return new FetchSubPhaseProcessor() {
+                    boolean processCalledOnce = false;
 
-            @Override
-            public void process(FetchSubPhase.HitContext hitContext) {
-                // we throw only once one doc has been fetched, so we can test partial results are returned
-                if (processCalledOnce) {
-                    contextIndexSearcher.throwTimeExceededException();
-                } else {
-                    processCalledOnce = true;
-                }
+                    @Override
+                    public void setNextReader(LeafReaderContext readerContext) {}
+
+                    @Override
+                    public void process(FetchSubPhase.HitContext hitContext) {
+                        // we throw only once one doc has been fetched, so we can test partial results are returned
+                        if (processCalledOnce) {
+                            contextIndexSearcher.throwTimeExceededException();
+                        } else {
+                            processCalledOnce = true;
+                        }
+                    }
+
+                    @Override
+                    public StoredFieldsSpec storedFieldsSpec() {
+                        return StoredFieldsSpec.NO_REQUIREMENTS;
+                    }
+
+                    @Override
+                    public String getName() {
+                        return "test";
+                    }
+                };
             }
 
             @Override
-            public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.NO_REQUIREMENTS;
+            public String getName() {
+                return "test";
             }
         }));
     }
@@ -1030,7 +1081,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
             null,
             MapperMetrics.NOOP
         );
-        TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, null, contextIndexSearcher) {
+
+        IndexShard mockShard = mock(IndexShard.class);
+        when(mockShard.getSearchOperationListener()).thenReturn(new SearchOperationListener() {
+        });
+
+        TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, mockShard, contextIndexSearcher) {
             private final FetchSearchResult fetchSearchResult = new FetchSearchResult();
             private final ShardSearchRequest request = new ShardSearchRequest(
                 OriginalIndices.NONE,

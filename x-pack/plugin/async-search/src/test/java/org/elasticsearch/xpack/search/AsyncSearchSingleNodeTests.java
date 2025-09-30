@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.hamcrest.CoreMatchers;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -121,21 +123,36 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
     public static final class SubFetchPhasePlugin extends Plugin implements SearchPlugin {
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList(searchContext -> new FetchSubPhaseProcessor() {
+            return Collections.singletonList(new FetchSubPhase() {
                 @Override
-                public void setNextReader(LeafReaderContext readerContext) {}
+                public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+                    return new FetchSubPhaseProcessor() {
+                        @Override
+                        public void setNextReader(LeafReaderContext readerContext) {}
 
-                @Override
-                public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                        @Override
+                        public StoredFieldsSpec storedFieldsSpec() {
+                            return StoredFieldsSpec.NO_REQUIREMENTS;
+                        }
+
+                        @Override
+                        public String getName() {
+                            return "test";
+                        }
+
+                        @Override
+                        public void process(FetchSubPhase.HitContext hitContext) {
+                            if (hitContext.hit().getId().startsWith("boom")) {
+                                throw new RuntimeException("boom");
+                            }
+
+                        }
+                    };
                 }
 
                 @Override
-                public void process(FetchSubPhase.HitContext hitContext) {
-                    if (hitContext.hit().getId().startsWith("boom")) {
-                        throw new RuntimeException("boom");
-                    }
-
+                public String getName() {
+                    return "test";
                 }
             });
         }

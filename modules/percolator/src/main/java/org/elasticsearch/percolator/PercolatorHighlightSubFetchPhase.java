@@ -69,6 +69,11 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return PercolatorHighlightSubFetchPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hit) throws IOException {
                 boolean singlePercolateQuery = percolateQueries.size() == 1;
                 for (PercolateQuery percolateQuery : percolateQueries) {
@@ -136,6 +141,11 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                 }
             }
         };
+    }
+
+    @Override
+    public String getName() {
+        return "percolator_highlight";
     }
 
     static List<PercolateQuery> locatePercolatorQuery(Query query) {

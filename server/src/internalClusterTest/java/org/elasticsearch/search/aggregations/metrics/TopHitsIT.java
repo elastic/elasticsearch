@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -1377,31 +1378,44 @@ public class TopHitsIT extends ESIntegTestCase {
     public static class FetchPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList(fetchContext -> {
-                if (fetchContext.getIndexName().equals("idx")) {
-                    return new FetchSubPhaseProcessor() {
+            return Collections.singletonList(new FetchSubPhase() {
+                @Override
+                public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
+                    if (fetchContext.getIndexName().equals("idx")) {
+                        return new FetchSubPhaseProcessor() {
 
-                        private LeafSearchLookup leafSearchLookup;
+                            private LeafSearchLookup leafSearchLookup;
 
-                        @Override
-                        public void setNextReader(LeafReaderContext ctx) {
-                            leafSearchLookup = fetchContext.getSearchExecutionContext().lookup().getLeafSearchLookup(ctx);
-                        }
+                            @Override
+                            public void setNextReader(LeafReaderContext ctx) {
+                                leafSearchLookup = fetchContext.getSearchExecutionContext().lookup().getLeafSearchLookup(ctx);
+                            }
 
-                        @Override
-                        public void process(FetchSubPhase.HitContext hitContext) {
-                            leafSearchLookup.setDocument(hitContext.docId());
-                            FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
-                            hitContext.hit().setDocumentField(new DocumentField("text_stored_lookup", fieldLookup.getValues()));
-                        }
+                            @Override
+                            public void process(FetchSubPhase.HitContext hitContext) {
+                                leafSearchLookup.setDocument(hitContext.docId());
+                                FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
+                                hitContext.hit().setDocumentField(new DocumentField("text_stored_lookup", fieldLookup.getValues()));
+                            }
 
-                        @Override
-                        public StoredFieldsSpec storedFieldsSpec() {
-                            return StoredFieldsSpec.NO_REQUIREMENTS;
-                        }
-                    };
+                            @Override
+                            public StoredFieldsSpec storedFieldsSpec() {
+                                return StoredFieldsSpec.NO_REQUIREMENTS;
+                            }
+
+                            @Override
+                            public String getName() {
+                                return "test";
+                            }
+                        };
+                    }
+                    return null;
                 }
-                return null;
+
+                @Override
+                public String getName() {
+                    return "test";
+                }
             });
         }
     }

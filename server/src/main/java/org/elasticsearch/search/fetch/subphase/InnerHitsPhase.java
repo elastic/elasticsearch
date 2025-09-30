@@ -57,6 +57,11 @@ public final class InnerHitsPhase implements FetchSubPhase {
             }
 
             @Override
+            public String getName() {
+                return InnerHitsPhase.this.getName();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
                 Source rootSource = searchContext.getRootSource(hitContext);
@@ -109,5 +114,10 @@ public final class InnerHitsPhase implements FetchSubPhase {
             results.put(entry.getKey(), h);
             h.mustIncRef();
         }
+    }
+
+    @Override
+    public String getName() {
+        return "inner_hits";
     }
 }

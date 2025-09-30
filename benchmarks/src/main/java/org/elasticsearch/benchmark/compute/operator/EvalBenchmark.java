@@ -144,7 +144,7 @@ public class EvalBenchmark {
     public String operation;
 
     private static Operator operator(String operation) {
-        return new EvalOperator(driverContext.blockFactory(), evaluator(operation));
+        return new EvalOperator(driverContext, evaluator(operation));
     }
 
     private static EvalOperator.ExpressionEvaluator evaluator(String operation) {

@@ -8,7 +8,7 @@ mapped_pages:
 
 :::{tip}
 Get started with {{esql}} for search use cases with
-our [hands-on tutorial](docs-content://solutions/search/esql-search-tutorial.md).
+our [hands-on tutorial](/reference/query-languages/esql/esql-search-tutorial.md).
 
 For a high-level overview of search functionalities in {{esql}}, and to learn about relevance scoring, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring).
 :::

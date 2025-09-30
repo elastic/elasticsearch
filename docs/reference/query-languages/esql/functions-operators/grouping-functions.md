@@ -7,7 +7,7 @@ mapped_pages:
 # {{esql}} grouping functions [esql-group-functions]
 
 
-The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command supports these grouping functions:
+The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supports these grouping functions:
 
 :::{include} ../_snippets/lists/grouping-functions.md
 :::

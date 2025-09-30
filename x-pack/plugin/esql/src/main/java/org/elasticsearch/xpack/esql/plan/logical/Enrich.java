@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,7 +52,13 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
+public class Enrich extends UnaryPlan
+    implements
+        GeneratingPlan<Enrich>,
+        PostAnalysisPlanVerificationAware,
+        PostAnalysisVerificationAware,
+        TelemetryAware,
+        SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Enrich",
@@ -309,30 +317,50 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
             return;
         }
 
-        // TODO: shouldn't we also include FORK? Everything downstream from FORK should be coordinator-only.
-        // https://github.com/elastic/elasticsearch/issues/131445
-        boolean[] aggregate = { false };
-        boolean[] coordinatorOnlyEnrich = { false };
-        boolean[] lookupJoin = { false };
+        Set<String> badCommands = new HashSet<>();
 
         enrich.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof Aggregate) {
-                aggregate[0] = true;
+                badCommands.add("STATS");
             } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
-                coordinatorOnlyEnrich[0] = true;
+                badCommands.add("another ENRICH with coordinator policy");
             } else if (u instanceof LookupJoin) {
-                lookupJoin[0] = true;
+                badCommands.add("LOOKUP JOIN");
+            } else if (u instanceof Fork) {
+                badCommands.add("FORK");
             }
         });
 
-        if (aggregate[0]) {
-            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
+        badCommands.forEach(c -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after " + c)));
+    }
+
+    /**
+     * Remote ENRICH (and any remote operation in fact) is not compatible with MV_EXPAND + LIMIT. Consider:
+     * `FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:clientip_policy ON ip`
+     * Semantically, this must take two top events and then expand them. However, this can not be executed remotely,
+     * because this means that we have to take top 2 events on each node, then expand them, then apply Enrich,
+     * then bring them to the coordinator - but then we can not select top 2 of them - because that would be pre-expand!
+     * We do not know which expanded rows are coming from the true top rows and which are coming from "false" top rows
+     * which should have been thrown out. This is only possible to execute if MV_EXPAND executes on the coordinator
+     * - which contradicts remote Enrich.
+     * This could be fixed by the optimizer by moving MV_EXPAND past ENRICH, at least in some cases, but currently we do not do that.
+     */
+    private void checkMvExpandAfterLimit(Failures failures) {
+        this.forEachDown(MvExpand.class, u -> {
+            u.forEachDown(p -> {
+                if (p instanceof Limit || p instanceof TopN) {
+                    failures.add(fail(this, "MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
+                }
+            });
+        });
+
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (this.mode == Mode.REMOTE) {
+            checkMvExpandAfterLimit(failures);
         }
-        if (coordinatorOnlyEnrich[0]) {
-            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-        }
-        if (lookupJoin[0]) {
-            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LOOKUP JOIN"));
-        }
+
     }
 }

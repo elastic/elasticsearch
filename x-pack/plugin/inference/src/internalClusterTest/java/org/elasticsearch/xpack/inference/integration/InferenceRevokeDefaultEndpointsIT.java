@@ -20,6 +20,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,6 +48,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
@@ -193,7 +195,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 {
                     "models": [
                         {
-                          "model_name": "elser-v2",
+                          "model_name": "elser_model_2",
                           "task_types": ["embed/text/sparse"]
                         },
                         {
@@ -222,7 +224,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                     service.defaultConfigIds(),
                     containsInAnyOrder(
                         new InferenceService.DefaultConfigId(
-                            ".elser-v2-elastic",
+                            ".elser-2-elastic",
                             MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
                             service
                         ),
@@ -255,7 +257,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
                 service.defaultConfigs(listener);
-                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
                 assertThat(
                     listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(),
                     is(".multilingual-embed-v1-elastic")
@@ -277,7 +279,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 {
                     "models": [
                         {
-                          "model_name": "elser-v2",
+                          "model_name": "elser_model_2",
                           "task_types": ["embed/text/sparse"]
                         },
                         {
@@ -302,7 +304,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                     service.defaultConfigIds(),
                     containsInAnyOrder(
                         new InferenceService.DefaultConfigId(
-                            ".elser-v2-elastic",
+                            ".elser-2-elastic",
                             MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
                             service
                         ),

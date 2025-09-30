@@ -1,5 +1,0 @@
-pr: 131541
-summary: Added Sample operator `NamedWritable` to plugin
-area: ES|QL
-type: bug
-issues: []

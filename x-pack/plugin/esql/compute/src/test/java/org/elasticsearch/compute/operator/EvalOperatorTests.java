@@ -47,6 +47,11 @@ public class EvalOperatorTests extends OperatorTestCase {
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            return 1;
+        }
+
+        @Override
         public String toString() {
             return "Addition[lhs=" + lhs + ", rhs=" + rhs + ']';
         }
@@ -61,6 +66,11 @@ public class EvalOperatorTests extends OperatorTestCase {
             Block block = page.getBlock(channel);
             block.incRef();
             return block;
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 2;
         }
 
         @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -122,6 +123,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         }, PREVIOUS_STEP_INFO_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
     }
+
+    private static final TransportVersion ILM_ADD_SKIP_SETTING = TransportVersion.fromName("ilm_add_skip_setting");
 
     private final String index;
     private final Long indexCreationDate;
@@ -342,8 +345,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             } else {
                 previousStepInfo = null;
             }
-            if (in.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
-                || in.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+            if (in.getTransportVersion().supports(ILM_ADD_SKIP_SETTING)) {
                 skip = in.readBoolean();
             } else {
                 skip = false;
@@ -398,8 +400,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalBytesReference(previousStepInfo);
             }
-            if (out.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
-                || out.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+            if (out.getTransportVersion().supports(ILM_ADD_SKIP_SETTING)) {
                 out.writeBoolean(skip);
             }
         }

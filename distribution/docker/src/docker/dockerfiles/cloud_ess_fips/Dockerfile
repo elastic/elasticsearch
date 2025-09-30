@@ -1,5 +1,6 @@
 ################################################################################
-# This Dockerfile was generated from the template at distribution/src/docker/Dockerfile
+# This Dockerfile was generated from the template at
+# distribution/src/docker/dockerfiles/cloud_ess_fips/Dockerfile
 #
 # Beginning of multi stage Dockerfile
 ################################################################################
@@ -24,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:048914a5a4b307217c46e47e6f28d9e4e2a6f6d9055278500c8447ca487a037f AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:89ef3f08a682393841b6a072e5691ded176b4adbeb7e740a890c41acadae8b1f AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -103,14 +104,14 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:048914a5a4b307217c46e47e6f28d9e4e2a6f6d9055278500c8447ca487a037f
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:89ef3f08a682393841b6a072e5691ded176b4adbeb7e740a890c41acadae8b1f
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
           "      ${package_manager} update && \n" +
           "      ${package_manager} upgrade && \n" +
           "      ${package_manager} add --no-cache \n" +
-          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd && \n" +
+          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd wget && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
 
@@ -162,7 +163,7 @@ RUN printf "\\n" | jdk/bin/keytool -importkeystore \
   -deststorepass passwordcacert \
   -deststoretype BCFKS \
   -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
-  -providerpath lib/bc-fips-1.0.2.5.jar \
+  -providerpath lib/bc-fips-1.0.2.6.jar \
   -destprovidername BCFIPS
 
 

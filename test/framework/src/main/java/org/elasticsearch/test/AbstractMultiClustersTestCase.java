@@ -127,7 +127,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 0,
                 clusterName + "-",
                 mockPlugins,
-                Function.identity()
+                Function.identity(),
+                TEST_ENTITLEMENTS::addEntitledNodePaths
             );
             try {
                 cluster.beforeTest(random());

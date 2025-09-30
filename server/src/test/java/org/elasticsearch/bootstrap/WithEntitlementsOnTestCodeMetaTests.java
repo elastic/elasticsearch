@@ -30,13 +30,13 @@ public class WithEntitlementsOnTestCodeMetaTests extends ESTestCase {
      * is called from server code. The self-test should pass as usual.
      */
     public void testSelfTestPasses() {
-        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTest());
+        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTests());
         Elasticsearch.entitlementSelfTest();
     }
 
     @SuppressForbidden(reason = "Testing that a forbidden API is disallowed")
     public void testForbiddenActionDenied() {
-        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTest());
+        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTests());
         assertThrows(NotEntitledException.class, () -> Path.of(".").toRealPath());
     }
 }

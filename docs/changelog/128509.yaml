@@ -1,5 +1,0 @@
-pr: 128509
-summary: Use default Lucene postings format when index mode is standard.
-area: Codec
-type: enhancement
-issues: []

@@ -33,6 +33,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/ceil.md
 :::
 
+:::{include} ../_snippets/functions/layout/copy_sign.md
+:::
+
 :::{include} ../_snippets/functions/layout/cos.md
 :::
 

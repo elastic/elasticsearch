@@ -1,49 +1,51 @@
 {
-  "indices.get_template":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-template-v1.html",
-      "description":"Returns an index template."
+  "indices.get_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-template",
+      "description": "Get legacy index templates"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_template",
-          "methods":[
+          "path": "/_template",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_template/{name}",
-          "methods":[
+          "path": "/_template/{name}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"list",
-              "description":"The comma separated names of the index templates"
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "The comma separated names of the index templates"
             }
           }
         }
       ]
     },
-    "params":{
-      "flat_settings":{
-        "type":"boolean",
-        "description":"Return settings in flat format (default: false)"
+    "params": {
+      "flat_settings": {
+        "type": "boolean",
+        "description": "Return settings in flat format (default: false)"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for waiting for new cluster state in case it is blocked"
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
-      "local":{
-        "deprecated":true,
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      "local": {
+        "deprecated": true,
+        "type": "boolean",
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       }
     }
   }

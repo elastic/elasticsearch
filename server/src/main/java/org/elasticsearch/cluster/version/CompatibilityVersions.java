@@ -40,7 +40,7 @@ public record CompatibilityVersions(
     Map<String, org.elasticsearch.indices.SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersion
 ) implements Writeable, ToXContentFragment {
 
-    public static final CompatibilityVersions EMPTY = new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of());
+    public static final CompatibilityVersions EMPTY = new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of());
 
     /**
      * Constructs a VersionWrapper collecting all the minimum versions from the values of the map.

@@ -1,39 +1,41 @@
 {
-  "cluster.exists_component_template":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-component-template.html",
-      "description":"Returns information about whether a particular component template exist"
+  "cluster.exists_component_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-component-template",
+      "description": "Check component templates"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_component_template/{name}",
-          "methods":[
+          "path": "/_component_template/{name}",
+          "methods": [
             "HEAD"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"The name of the template"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the template"
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for waiting for new cluster state in case it is blocked"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
-      "local":{
-        "deprecated":true,
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      "local": {
+        "deprecated": true,
+        "type": "boolean",
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       }
     }
   }

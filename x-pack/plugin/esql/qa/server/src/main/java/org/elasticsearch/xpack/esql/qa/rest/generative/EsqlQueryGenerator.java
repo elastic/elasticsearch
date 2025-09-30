@@ -38,7 +38,11 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public class EsqlQueryGenerator {
 
-    public record Column(String name, String type) {}
+    public static final String COLUMN_NAME = "name";
+    public static final String COLUMN_TYPE = "type";
+    public static final String COLUMN_ORIGINAL_TYPES = "original_types";
+
+    public record Column(String name, String type, List<String> originalTypes) {}
 
     public record QueryExecuted(String query, int depth, List<Column> outputSchema, List<List<Object>> result, Exception exception) {}
 
@@ -288,7 +292,10 @@ public class EsqlQueryGenerator {
         // https://github.com/elastic/elasticsearch/issues/121741
         field.name().equals("<all-fields-projected>")
             // this is a known pathological case, no need to test it for now
-            || field.name().equals("<no-fields>")) == false;
+            || field.name().equals("<no-fields>")
+            // no dense vectors for now, they are not supported in most commands
+            || field.type().contains("vector")
+            || field.originalTypes.stream().anyMatch(x -> x.contains("vector"))) == false;
     }
 
     public static String unquote(String colName) {

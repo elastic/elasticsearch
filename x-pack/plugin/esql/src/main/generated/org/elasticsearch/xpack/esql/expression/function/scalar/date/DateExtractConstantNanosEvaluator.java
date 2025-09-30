@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateExtractConstantNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateExtractConstantNanosEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator value;
@@ -54,6 +57,13 @@ public final class DateExtractConstantNanosEvaluator implements EvalOperator.Exp
       }
       return eval(page.getPositionCount(), valueVector).asBlock();
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += value.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {

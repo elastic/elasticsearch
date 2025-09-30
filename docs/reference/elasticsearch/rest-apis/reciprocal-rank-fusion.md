@@ -758,7 +758,7 @@ Highlighting on vector fields, using either the `knn` retriever or a `knn` query
 ::::
 
 
-A more specific example of highlighting in RRF can also be found in the [retrievers examples](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-highlighting-retriever-results) page.
+A more specific example of highlighting in RRF can also be found in the [retrievers examples](retrievers/retrievers-examples.md#retrievers-examples-highlighting-retriever-results) page.
 
 
 ## Inner hits in RRF [_inner_hits_in_rrf]

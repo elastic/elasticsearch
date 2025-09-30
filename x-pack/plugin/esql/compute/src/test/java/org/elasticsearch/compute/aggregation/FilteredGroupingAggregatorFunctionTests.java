@@ -193,6 +193,11 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            return 0;
+        }
+
+        @Override
         public void close() {
             if (unclosed.remove(tracker) == false) {
                 throw new IllegalStateException("close failure!");

@@ -85,6 +85,7 @@ toc:
             - file: rest-apis/filter-search-results.md
             - file: rest-apis/find-text-structure-examples.md
             - file: rest-apis/highlighting.md
+            - file: rest-apis/index-disk-usage.md
             - file: rest-apis/optimistic-concurrency-control.md
             - file: rest-apis/paginate-search-results.md
             - file: rest-apis/query-api-keys.md
@@ -105,6 +106,7 @@ toc:
                 - file: rest-apis/retrievers/rule-retriever.md
                 - file: rest-apis/retrievers/standard-retriever.md
                 - file: rest-apis/retrievers/text-similarity-reranker-retriever.md
+                - file: rest-apis/retrievers/retrievers-examples.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md
             - file: rest-apis/search-rank-eval.md

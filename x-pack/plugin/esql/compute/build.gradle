@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgument
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.transport-version-references'
 
 base {
   archivesName = 'x-pack-esql-compute'

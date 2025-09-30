@@ -202,7 +202,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "page_mapping_to_iterator",
-            AbstractPageMappingOperator.Status::new
+            Status::new
         );
 
         private final long processNanos;

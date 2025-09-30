@@ -138,7 +138,6 @@ public final class DocVector extends AbstractVector implements Vector {
             prev = v;
         }
         return true;
-
     }
 
     /**

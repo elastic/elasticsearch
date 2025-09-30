@@ -36,6 +36,8 @@ import java.util.Set;
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.index.mapper.BlockLoaderTestRunner.PrettyEqual.prettyEqualTo;
+import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -69,7 +71,11 @@ public class BlockLoaderTestRunner {
             );
             LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
 
-            iw.addDocument(doc);
+            /*
+             * Add three documents with doc id 0, 1, 2. The real document is 1.
+             * The other two are empty documents.
+             */
+            iw.addDocuments(List.of(List.of(), doc, List.of()));
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
@@ -83,9 +89,32 @@ public class BlockLoaderTestRunner {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
         var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
         if (columnAtATimeReader != null) {
-            BlockLoader.Docs docs = TestBlock.docs(0);
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), docs);
-            assertThat(block.size(), equalTo(1));
+            int[] docArray;
+            int offset;
+            if (randomBoolean()) {
+                // Half the time we load a single document. Nice and simple.
+                docArray = new int[] { 1 };
+                offset = 0;
+            } else {
+                /*
+                 * The other half the time we emulate loading a larger page,
+                 * starting part way through the page.
+                 */
+                docArray = new int[between(2, 10)];
+                offset = between(0, docArray.length - 1);
+                for (int i = 0; i < docArray.length; i++) {
+                    if (i < offset) {
+                        docArray[i] = 0;
+                    } else if (i == offset) {
+                        docArray[i] = 1;
+                    } else {
+                        docArray[i] = 2;
+                    }
+                }
+            }
+            BlockLoader.Docs docs = TestBlock.docs(docArray);
+            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset);
+            assertThat(block.size(), equalTo(docArray.length - offset));
             return block.get(0);
         }
 
@@ -102,10 +131,10 @@ public class BlockLoaderTestRunner {
             StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(context, null),
             leafSourceLoader
         );
-        storedFieldsLoader.advanceTo(0);
+        storedFieldsLoader.advanceTo(1);
 
-        BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(context.reader().numDocs()), 1);
-        blockLoader.rowStrideReader(context).read(0, storedFieldsLoader, builder);
+        BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(), 1);
+        blockLoader.rowStrideReader(context).read(1, storedFieldsLoader, builder);
         var block = (TestBlock) builder.build();
         assertThat(block.size(), equalTo(1));
 

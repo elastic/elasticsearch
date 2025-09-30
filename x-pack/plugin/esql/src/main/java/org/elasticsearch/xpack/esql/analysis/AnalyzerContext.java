@@ -20,7 +20,8 @@ public record AnalyzerContext(
     IndexResolution indexResolution,
     Map<String, IndexResolution> lookupResolution,
     EnrichResolution enrichResolution,
-    InferenceResolution inferenceResolution
+    InferenceResolution inferenceResolution,
+    Map<String, IndexResolution> subqueryResolution
 ) {
     // Currently for tests only, since most do not test lookups
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -31,6 +32,17 @@ public record AnalyzerContext(
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
     ) {
-        this(configuration, functionRegistry, indexResolution, Map.of(), enrichResolution, inferenceResolution);
+        this(configuration, functionRegistry, indexResolution, Map.of(), enrichResolution, inferenceResolution, Map.of());
+    }
+
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        IndexResolution indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution
+    ) {
+        this(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution, Map.of());
     }
 }

@@ -151,6 +151,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return includeCCSMetadata;
     }
 
+    public Predicate<String> skipOnFailurePredicate() {
+        return skipOnFailurePredicate;
+    }
+
     /**
      * Call when ES|QL "planning" phase is complete and query execution (in ComputeService) is about to start.
      * Note this is currently only built for a single phase planning/execution model. When INLINE STATS

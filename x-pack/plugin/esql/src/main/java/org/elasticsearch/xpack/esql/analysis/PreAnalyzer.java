@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -16,7 +17,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
@@ -29,9 +32,10 @@ public class PreAnalyzer {
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
         boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector
+        boolean supportsDenseVector,
+        Set<IndexPattern> subqueryIndices
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false, false);
+        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false, false, Set.of());
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -46,12 +50,18 @@ public class PreAnalyzer {
         Holder<IndexMode> indexMode = new Holder<>();
         Holder<IndexPattern> index = new Holder<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
+        Set<IndexPattern> subqueryIndices = new HashSet<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
                 lookupIndices.add(p.indexPattern());
             } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
                 indexMode.set(p.indexMode());
-                index.set(p.indexPattern());
+                // the index pattern from main query is always the first to be seen
+                index.setIfAbsent(p.indexPattern());
+                // collect subquery index patterns
+                if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+                    collectSubqueryIndexPattern(p, subqueryIndices, index.get());
+                }
             } else {
                 throw new IllegalStateException("index mode is already set");
             }
@@ -96,7 +106,32 @@ public class PreAnalyzer {
             unresolvedEnriches,
             lookupIndices,
             indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),
-            supportsDenseVector.get()
+            supportsDenseVector.get(),
+            subqueryIndices
         );
+    }
+
+    private void collectSubqueryIndexPattern(
+        UnresolvedRelation relation,
+        Set<IndexPattern> subqueryIndices,
+        IndexPattern mainIndexPattern
+    ) {
+        if (relation.preAnalyzed()) {
+            return;
+        }
+
+        IndexPattern pattern = relation.indexPattern();
+        boolean isLookup = relation.indexMode() == IndexMode.LOOKUP;
+        boolean isMainIndexPattern = pattern == mainIndexPattern;
+        /*if the subquery's index pattern is the same as the main query, it won't be added
+        * to the subquery indices set, if Analyzer doesn't find the subquery' indexResolution,
+        * it falls back to the main query's indexResolution
+         */
+        if (isLookup || isMainIndexPattern) {
+            return;
+        }
+        subqueryIndices.add(pattern);
+        System.out.println("collected subquery index pattern: " + pattern);
+        System.out.println("subquery indices now: " + subqueryIndices);
     }
 }

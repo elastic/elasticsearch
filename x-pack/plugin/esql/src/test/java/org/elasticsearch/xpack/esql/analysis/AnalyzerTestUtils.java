@@ -93,7 +93,8 @@ public final class AnalyzerTestUtils {
                 indexResolution,
                 lookupResolution,
                 enrichResolution,
-                defaultInferenceResolution()
+                defaultInferenceResolution(),
+                defaultSubqueryResolution()
             ),
             verifier
         );
@@ -220,6 +221,17 @@ public final class AnalyzerTestUtils {
             .withResolvedInference(new ResolvedInference(SPARSE_EMBEDDING_INFERENCE_ID, TaskType.SPARSE_EMBEDDING))
             .withError(ERROR_INFERENCE_ID, "error with inference resolution")
             .build();
+    }
+
+    public static Map<String, IndexResolution> defaultSubqueryResolution() {
+        return Map.of(
+            "languages",
+            loadMapping("mapping-languages.json", "languages"),
+            "sample_data",
+            loadMapping("mapping-sample_data.json", "sample_data"),
+            "test_mixed_types",
+            loadMapping("mapping-default-incompatible.json", "test_mixed_types")
+        );
     }
 
     public static String randomInferenceId() {

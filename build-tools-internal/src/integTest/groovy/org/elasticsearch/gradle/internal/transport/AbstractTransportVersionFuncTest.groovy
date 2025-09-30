@@ -116,7 +116,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             include ':myplugin'
         """
         propertiesFile << """
-            org.elasticsearch.transports.upstreamRef=main
+            org.elasticsearch.transport.upstreamRef=main
         """
         versionPropertiesFile.text = versionPropertiesFile.text.replace("9.1.0", "9.2.0")
 

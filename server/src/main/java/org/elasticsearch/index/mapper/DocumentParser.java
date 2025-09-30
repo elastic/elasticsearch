@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
@@ -81,22 +82,15 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        if (source.source() != null && source.source().length() == 0) {
+        IndexSource modernSource = source.source();
+        if (modernSource.isSourceEmpty()) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
-        try (
-            XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(
-                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                    source.source(),
-                    xContentType
-                )
-            )
-        ) {
+        try (XContentParser parser = meteringParserDecorator.decorate(getParser(source, xContentType))) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -129,6 +123,16 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
+    }
+
+    private XContentParser getParser(SourceToParse source, XContentType xContentType) throws IOException {
+        XContentParserConfiguration config = parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError());
+        IndexSource modernSource = source.source();
+        if (modernSource.isStructured()) {
+            return modernSource.structuredSource().parser(config.registry(), config.deprecationHandler(), xContentType);
+        } else {
+            return XContentHelper.createParser(config, modernSource.bytes(), xContentType);
+        }
     }
 
     private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
@@ -185,7 +189,7 @@ public final class DocumentParser {
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source()),
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().bytes()),
             LeafFieldLookupProvider.fromStoredFields()
         );
         // field scripts can be called both by the loop at the end of this method and via
@@ -1095,7 +1099,7 @@ public final class DocumentParser {
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
-                tsid = forIndexDimensions.buildTsid(source.getXContentType(), source.source());
+                tsid = forIndexDimensions.buildTsid(source.getXContentType(), source.source().bytes());
             }
             this.tsid = tsid;
             assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES

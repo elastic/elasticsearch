@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -33,6 +34,7 @@ import java.util.Objects;
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
+    static final VarHandle VH_BE_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
@@ -121,6 +123,32 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.currentBytesRef = currentPage;
     }
 
+    public void writeUTF8String(String str) throws IOException {
+        byte[] utf8Bytes = str.getBytes(StandardCharsets.UTF_8);
+        writeShortIntAndBytes(utf8Bytes, 0, utf8Bytes.length);
+    }
+
+    private void writeShortIntAndBytes(byte[] bytes, int offset, int length) throws IOException {
+        BytesRef currentPage = currentBytesRef;
+        // Just in case bounds check int size
+        if (4 + length <= (pageSize - currentPageOffset)) {
+            int pos = currentPage.offset + currentPageOffset;
+            if (length <= Short.MAX_VALUE) {
+                VH_BE_SHORT.set(currentPage.bytes, currentPage.offset + currentPageOffset, (short) length);
+                pos += 2;
+            } else {
+                VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, (short) length);
+                writeInt(length | 0x80000000);
+                pos += 4;
+            }
+            System.arraycopy(bytes, offset, currentPage.bytes, pos, length);
+            currentPageOffset = pos + length;
+        } else {
+            writeShortInt(length);
+            writeBytes(bytes, offset, length);
+        }
+    }
+
     @Override
     public void writeVInt(int i) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
@@ -167,6 +195,21 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             page[offset] = (byte) i;
         } else {
             putMultiByteVInt(page, i, offset);
+        }
+    }
+
+    public void writeShortInt(int i) throws IOException {
+        if (i <= Short.MAX_VALUE) {
+            final int currentPageOffset = this.currentPageOffset;
+            if (2 > (pageSize - currentPageOffset)) {
+                super.writeShort((short) i);
+            } else {
+                BytesRef currentPage = currentBytesRef;
+                VH_BE_SHORT.set(currentPage.bytes, currentPage.offset + currentPageOffset, (short) i);
+                this.currentPageOffset = currentPageOffset + 2;
+            }
+        } else {
+            writeInt(i | 0x80000000);
         }
     }
 

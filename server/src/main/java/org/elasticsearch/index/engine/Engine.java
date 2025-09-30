@@ -41,6 +41,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
@@ -1919,12 +1920,16 @@ public abstract class Engine implements Closeable {
         }
 
         public BytesReference source() {
+            return this.doc.bytesSource();
+        }
+
+        public IndexSource modernSource() {
             return this.doc.source();
         }
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() * 2) + source().length() + 12;
+            return (id().length() * 2) + this.doc.source().byteLength() + 12;
         }
 
         /**

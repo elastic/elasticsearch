@@ -10,6 +10,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,11 +20,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.ingest.ESONFlat;
+import org.elasticsearch.ingest.ESONIndexed;
+import org.elasticsearch.ingest.ESONSource;
+import org.elasticsearch.ingest.ESONXContentSerializer;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 
 /**
@@ -32,15 +41,24 @@ import java.util.Map;
  */
 public class IndexSource implements Writeable, Releasable {
 
+    public static final TransportVersion STRUCTURED_SOURCE = TransportVersion.fromName("structured_source");
+
     private XContentType contentType;
     private BytesReference source;
+    private int bytesSourceSize = 0;
+    private ESONFlat structuredSource;
     private boolean isClosed = false;
 
     public IndexSource() {}
 
+    public IndexSource(BytesReference source) {
+        this(XContentHelper.xContentType(source), source);
+    }
+
     public IndexSource(XContentType contentType, BytesReference source) {
         this.contentType = contentType;
-        this.source = ReleasableBytesReference.wrap(source);
+        this.source = source;
+        this.bytesSourceSize = source.length();
     }
 
     public IndexSource(StreamInput in) throws IOException {
@@ -50,7 +68,21 @@ public class IndexSource implements Writeable, Releasable {
         } else {
             contentType = null;
         }
-        source = ReleasableBytesReference.wrap(in.readBytesReference());
+
+        if (in.getTransportVersion().supports(STRUCTURED_SOURCE)) {
+            if (in.readBoolean()) {
+                bytesSourceSize = in.readVInt();
+                structuredSource = ESONFlat.readFrom(in);
+                source = null;
+            } else {
+                source = in.readBytesReference();
+                bytesSourceSize = source.length();
+                structuredSource = null;
+            }
+        } else {
+            source = in.readBytesReference();
+            bytesSourceSize = source.length();
+        }
     }
 
     @Override
@@ -62,7 +94,18 @@ public class IndexSource implements Writeable, Releasable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeBytesReference(source);
+        if (out.getTransportVersion().supports(STRUCTURED_SOURCE)) {
+            if (isStructured()) {
+                out.writeBoolean(true);
+                out.writeVInt(bytesSourceSize);
+                structuredSource.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+                out.writeBytesReference(bytes());
+            }
+        } else {
+            out.writeBytesReference(source);
+        }
     }
 
     public XContentType contentType() {
@@ -72,6 +115,14 @@ public class IndexSource implements Writeable, Releasable {
 
     public BytesReference bytes() {
         assert isClosed == false;
+        if (source == null && structuredSource != null) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
+                ESONXContentSerializer.flattenToXContent(structuredSource, builder, ToXContent.EMPTY_PARAMS);
+                source = BytesReference.bytes(builder);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
         return source;
     }
 
@@ -97,9 +148,41 @@ public class IndexSource implements Writeable, Releasable {
         contentType = null;
     }
 
+    public boolean isSourceEmpty() {
+        // TODO: check this logic. What does an empty source get converted into?
+        if (structuredSource != null) {
+            return false;
+        } else {
+            return source == null || source.length() == 0;
+        }
+    }
+
+    public void ensureStructured() {
+        if (structuredSource == null) {
+            assert source != null;
+            ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
+            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType)) {
+                structuredSource = builder.parse(parser).esonFlat();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    public ESONFlat structuredSource() {
+        if (structuredSource == null) {
+            ensureStructured();
+        }
+        return structuredSource;
+    }
+
+    public boolean isStructured() {
+        return structuredSource != null;
+    }
+
     public Map<String, Object> sourceAsMap() {
         assert isClosed == false;
-        return XContentHelper.convertToMap(source, false, contentType).v2();
+        return ESONIndexed.fromFlat(structuredSource());
     }
 
     /**
@@ -242,9 +325,15 @@ public class IndexSource implements Writeable, Releasable {
         source(new BytesArray(source, offset, length), contentType);
     }
 
+    public void structuredSource(ESONIndexed.ESONObject esonSource) {
+        assert isClosed == false;
+        this.structuredSource = ESONIndexed.flatten(esonSource);
+    }
+
     private void setSource(BytesReference source, XContentType contentType) {
         assert isClosed == false;
         this.source = source;
+        this.bytesSourceSize = source.length();
         this.contentType = contentType;
     }
 }

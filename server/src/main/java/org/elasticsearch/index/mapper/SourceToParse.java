@@ -10,7 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -21,7 +21,7 @@ import java.util.Objects;
 
 public class SourceToParse {
 
-    private final BytesReference source;
+    private final IndexSource indexSource;
 
     private final String id;
 
@@ -47,10 +47,30 @@ public class SourceToParse {
         XContentMeteringParserDecorator meteringParserDecorator,
         @Nullable BytesRef tsid
     ) {
+        this(
+            id,
+            new IndexSource(xContentType, source),
+            xContentType,
+            routing,
+            dynamicTemplates,
+            includeSourceOnError,
+            meteringParserDecorator,
+            tsid
+        );
+    }
+
+    public SourceToParse(
+        @Nullable String id,
+        IndexSource source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates,
+        boolean includeSourceOnError,
+        XContentMeteringParserDecorator meteringParserDecorator,
+        @Nullable BytesRef tsid
+    ) {
         this.id = id;
-        // we always convert back to byte array, since we store it and Field only supports bytes..
-        // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = source.hasArray() ? source : new BytesArray(source.toBytesRef());
+        this.indexSource = source;
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
@@ -67,6 +87,10 @@ public class SourceToParse {
         this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
+    public SourceToParse(String id, IndexSource source, XContentType xContentType, String routing) {
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
+    }
+
     public SourceToParse(
         String id,
         BytesReference source,
@@ -78,8 +102,8 @@ public class SourceToParse {
         this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP, tsid);
     }
 
-    public BytesReference source() {
-        return this.source;
+    public IndexSource source() {
+        return this.indexSource;
     }
 
     /**

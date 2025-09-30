@@ -177,6 +177,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             ),
             outerListener
         );
+        // request.createSharedKeyBytes();
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
@@ -414,7 +415,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
-                request.source(),
+                request.indexSource(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
@@ -667,6 +668,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             indexingPressure.trackReplicaOperationExpansion(getMaxOperationMemoryOverhead(request), force(request)),
             outerListener
         );
+        // request.createSharedKeyBytes();
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();
             final Translog.Location location = performOnReplica(request, replica);
@@ -736,7 +738,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    indexRequest.source(),
+                    indexRequest.indexSource(),
                     indexRequest.getContentType(),
                     indexRequest.routing(),
                     Map.of(),

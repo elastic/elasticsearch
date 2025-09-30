@@ -227,6 +227,16 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         return sum;
     }
 
+    // public void createSharedKeyBytes() {
+    // HashMap<String, BytesRef> sharedKeyString = new HashMap<>();
+    // HashMap<BytesRef, String> sharedKeyBytes = new HashMap<>();
+    // for (BulkItemRequest bulkItemRequest : items) {
+    // if (bulkItemRequest.request() instanceof IndexRequest indexRequest) {
+    // indexRequest.modernSource().setSharedKeys(sharedKeyString, sharedKeyBytes);
+    // }
+    // }
+    // }
+
     public long largestOperationSize() {
         long maxOperationSize = 0;
         for (BulkItemRequest item : items) {

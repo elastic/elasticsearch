@@ -47,6 +47,18 @@ final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
         ZonedDateTime timestamp,
         Map<String, Object> source
     ) {
+        super(new MapStructuredSource(source), new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
+    }
+
+    IngestCtxMap(
+        String index,
+        String id,
+        long version,
+        String routing,
+        VersionType versionType,
+        ZonedDateTime timestamp,
+        MapStructuredSource source
+    ) {
         super(source, new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
     }
 
@@ -57,7 +69,7 @@ final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
      * @param metadata the metadata map
      */
     IngestCtxMap(Map<String, Object> source, IngestDocMetadata metadata) {
-        super(source, metadata);
+        super(new MapStructuredSource(source), metadata);
     }
 
     /**

@@ -1014,4 +1014,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             return Collections.unmodifiableList(executedPipelines);
         }
     }
+
+    public void ensureStructureSource() {
+        indexSource.ensureStructured();
+    }
 }

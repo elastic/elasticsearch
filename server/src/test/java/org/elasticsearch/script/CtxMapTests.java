@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ingest.MapStructuredSource;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -29,13 +30,16 @@ public class CtxMapTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        map = new CtxMap<>(new HashMap<>(), new Metadata(Map.of(), Map.of()));
+        map = new CtxMap<>(new MapStructuredSource(new HashMap<>()), new Metadata(Map.of(), Map.of()));
     }
 
     @SuppressWarnings("unchecked")
     public void testGetOrDefault() {
         {
-            map = new CtxMap<>(Map.of("foo", "bar"), new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable())));
+            map = new CtxMap<>(
+                new MapStructuredSource(Map.of("foo", "bar")),
+                new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable()))
+            );
 
             // it does the expected thing for fields that are present
             assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
@@ -46,7 +50,10 @@ public class CtxMapTests extends ESTestCase {
             assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
         }
         {
-            map = new CtxMap<>(Map.of("foo", "bar"), new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable()))) {
+            map = new CtxMap<>(
+                new MapStructuredSource(Map.of("foo", "bar")),
+                new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable()))
+            ) {
                 @Override
                 protected boolean directSourceAccess() {
                     return true;

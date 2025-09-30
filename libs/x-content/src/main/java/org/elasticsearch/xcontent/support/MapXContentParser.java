@@ -11,7 +11,9 @@ package org.elasticsearch.xcontent.support;
 
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -138,13 +140,27 @@ public class MapXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    public XContentString optimizedText() throws IOException {
+        if (currentToken() == Token.VALUE_STRING) {
+            Object value = iterator.currentValue();
+            if (value instanceof XContentString) {
+                return (XContentString) value;
+            } else {
+                return new Text(value.toString());
+            }
+        } else {
+            return new Text(text());
+        }
+    }
+
+    @Override
     public CharBuffer charBuffer() throws IOException {
         throw new UnsupportedOperationException("use text() instead");
     }
 
     @Override
     public Object objectText() throws IOException {
-        throw new UnsupportedOperationException("use text() instead");
+        return iterator.currentValue();
     }
 
     @Override
@@ -269,7 +285,7 @@ public class MapXContentParser extends AbstractXContentParser {
                 return new ArrayIterator(this, childName(), (List<Object>) value).next();
             } else if (value instanceof Number) {
                 currentToken = Token.VALUE_NUMBER;
-            } else if (value instanceof String) {
+            } else if (value instanceof String || value instanceof XContentString) {
                 currentToken = Token.VALUE_STRING;
             } else if (value instanceof Boolean) {
                 currentToken = Token.VALUE_BOOLEAN;

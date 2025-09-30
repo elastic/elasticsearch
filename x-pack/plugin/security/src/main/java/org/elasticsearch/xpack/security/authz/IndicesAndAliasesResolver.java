@@ -299,13 +299,6 @@ class IndicesAndAliasesResolver {
                 getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, projectMetadata)
             );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
-            if (replaceable.indices() != null && isNoneExpression(replaceable.indices())) {
-                // If the request has a "none" expression, we can skip all the resolution and authorization logic
-                replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
-                resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
-                return resolvedIndicesBuilder.build();
-            }
-
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
 
             // check for all and return list of authorized indices
@@ -447,12 +440,12 @@ class IndicesAndAliasesResolver {
         if (replaceable.getResolvedIndexExpressions() == null) {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
-            assert false
-                : "Resolved index expressions have already been set on ["
-                    + replaceable
-                    + "] and should not be set again. Trying to set ["
-                    + resolved
-                    + "] which will be ignored.";
+            assert replaceable.indices() == null || isNoneExpression(replaceable.indices())
+                : "resolved index expressions are already set to ["
+                    + replaceable.getResolvedIndexExpressions()
+                    + "] should not reset again. We will not set to ["
+                    + Arrays.toString(replaceable.indices())
+                    + "]. Known exception is [*,-*]";
         }
     }
 

@@ -58,8 +58,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         IndicesRequest.Replaceable,
         ToXContentObject {
 
-    public static final TransportVersion SETTINGS_IN_REQUEST_VERSION = TransportVersions.V_8_0_0;
-
     public static final int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
     private String snapshot;
@@ -107,9 +105,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         repository = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
-            readSettingsFromStream(in);
-        }
         featureStates = in.readStringArray();
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
@@ -125,9 +120,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeString(repository);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
-            Settings.EMPTY.writeTo(out);
-        }
         out.writeStringArray(featureStates);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);

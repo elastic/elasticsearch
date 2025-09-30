@@ -65,9 +65,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
 
     public ExplainResponse(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readString();
-        }
         id = in.readString();
         exists = in.readBoolean();
         if (in.readBoolean()) {
@@ -113,9 +110,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeBoolean(exists);
         if (explanation == null) {

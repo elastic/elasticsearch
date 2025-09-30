@@ -229,23 +229,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.isDimension = in.readBoolean();
-            this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
-        } else {
-            this.isDimension = false;
-            this.metricType = null;
-        }
+        this.isDimension = in.readBoolean();
+        this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.nonDimensionIndices = in.readOptionalStringArray();
-            this.metricConflictsIndices = in.readOptionalStringArray();
-        } else {
-            this.nonDimensionIndices = null;
-            this.metricConflictsIndices = null;
-        }
+        this.nonDimensionIndices = in.readOptionalStringArray();
+        this.metricConflictsIndices = in.readOptionalStringArray();
         meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
     }
 
@@ -256,17 +246,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(isDimension);
-            out.writeOptionalEnum(metricType);
-        }
+        out.writeBoolean(isDimension);
+        out.writeOptionalEnum(metricType);
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeOptionalStringArray(nonDimensionIndices);
-            out.writeOptionalStringArray(metricConflictsIndices);
-        }
+        out.writeOptionalStringArray(nonDimensionIndices);
+        out.writeOptionalStringArray(metricConflictsIndices);
         out.writeMap(meta, StreamOutput::writeStringCollection);
     }
 

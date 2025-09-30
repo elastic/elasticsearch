@@ -202,27 +202,14 @@ public final class CompressedXContent implements Writeable {
     }
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
-        final String sha256;
-        final byte[] compressedData;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            sha256 = in.readString();
-            compressedData = in.readByteArray();
-        } else {
-            int crc32 = in.readInt();
-            compressedData = in.readByteArray();
-            sha256 = sha256FromCompressed(compressedData);
-        }
+        String sha256 = in.readString();
+        byte[] compressedData = in.readByteArray();
         return new CompressedXContent(compressedData, sha256);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeString(sha256);
-        } else {
-            int crc32 = crc32FromCompressed(bytes);
-            out.writeInt(crc32);
-        }
+        out.writeString(sha256);
         out.writeByteArray(bytes);
     }
 

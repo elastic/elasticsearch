@@ -31,8 +31,15 @@ public class TranslogStreamOutputTests extends ESTestCase {
         TranslogStreamOutput fullOperationOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
 
         for (int i = 0; i < 30; i++) {
-            headerOutput.seek(0);
-            fullOperationOutput.seek(0);
+            // Test both the fast path (single page) and slow page (cross page)
+            int offset;
+            if (randomBoolean()) {
+                offset = 0;
+            } else {
+                offset = BytesRefRecycler.NON_RECYCLING_INSTANCE.pageSize() - 1;
+            }
+            headerOutput.seek(offset);
+            fullOperationOutput.seek(offset);
 
             String id = randomAlphaOfLength(20);
             long seqNo = randomLongBetween(0, Long.MAX_VALUE);
@@ -49,11 +56,16 @@ public class TranslogStreamOutputTests extends ESTestCase {
             BytesReference expectedWithoutSize = bytesStreamOutput.bytes();
 
             headerOutput.writeIndexHeader(index);
-            Translog.Serialized serialized = Translog.Serialized.create(headerOutput.bytes(), source, new CRC32());
+            BytesReference headerBytes = headerOutput.bytes();
+            Translog.Serialized serialized = Translog.Serialized.create(
+                headerBytes.slice(offset, headerBytes.length() - offset),
+                source,
+                new CRC32()
+            );
             fullOperationOutput.writeSerializedOperation(serialized);
 
             BytesReference actualWithSize = fullOperationOutput.bytes();
-            assertThat(actualWithSize.slice(4, actualWithSize.length() - 4), equalTo(expectedWithoutSize));
+            assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalTo(expectedWithoutSize));
         }
 
     }
@@ -63,8 +75,15 @@ public class TranslogStreamOutputTests extends ESTestCase {
         TranslogStreamOutput fullOperationOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
 
         for (int i = 0; i < 30; i++) {
-            headerOutput.seek(0);
-            fullOperationOutput.seek(0);
+            // Test both the fast path (single page) and slow page (cross page)
+            int offset;
+            if (randomBoolean()) {
+                offset = 0;
+            } else {
+                offset = BytesRefRecycler.NON_RECYCLING_INSTANCE.pageSize() - 1;
+            }
+            headerOutput.seek(offset);
+            fullOperationOutput.seek(offset);
 
             String id = randomAlphaOfLength(20);
             long seqNo = randomLongBetween(0, Long.MAX_VALUE);
@@ -78,11 +97,16 @@ public class TranslogStreamOutputTests extends ESTestCase {
             BytesReference expectedWithoutSize = bytesStreamOutput.bytes();
 
             headerOutput.writeDeleteHeader(delete);
-            Translog.Serialized serialized = Translog.Serialized.create(headerOutput.bytes(), null, new CRC32());
+            BytesReference headerBytes = headerOutput.bytes();
+            Translog.Serialized serialized = Translog.Serialized.create(
+                headerBytes.slice(offset, headerBytes.length() - offset),
+                null,
+                new CRC32()
+            );
             fullOperationOutput.writeSerializedOperation(serialized);
 
             BytesReference actualWithSize = fullOperationOutput.bytes();
-            assertThat(actualWithSize.slice(4, actualWithSize.length() - 4), equalTo(expectedWithoutSize));
+            assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalTo(expectedWithoutSize));
         }
     }
 
@@ -91,8 +115,15 @@ public class TranslogStreamOutputTests extends ESTestCase {
         TranslogStreamOutput fullOperationOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
 
         for (int i = 0; i < 30; i++) {
-            headerOutput.seek(0);
-            fullOperationOutput.seek(0);
+            // Test both the fast path (single page) and slow page (cross page)
+            int offset;
+            if (randomBoolean()) {
+                offset = 0;
+            } else {
+                offset = BytesRefRecycler.NON_RECYCLING_INSTANCE.pageSize() - 1;
+            }
+            headerOutput.seek(offset);
+            fullOperationOutput.seek(offset);
 
             long seqNo = randomLongBetween(0, Long.MAX_VALUE);
             long primaryTerm = randomLongBetween(0, Long.MAX_VALUE);
@@ -105,11 +136,16 @@ public class TranslogStreamOutputTests extends ESTestCase {
             BytesReference expectedWithoutSize = bytesStreamOutput.bytes();
 
             headerOutput.writeNoOpHeader(noOp);
-            Translog.Serialized serialized = Translog.Serialized.create(headerOutput.bytes(), null, new CRC32());
+            BytesReference headerBytes = headerOutput.bytes();
+            Translog.Serialized serialized = Translog.Serialized.create(
+                headerBytes.slice(offset, headerBytes.length() - offset),
+                null,
+                new CRC32()
+            );
             fullOperationOutput.writeSerializedOperation(serialized);
 
             BytesReference actualWithSize = fullOperationOutput.bytes();
-            assertThat(actualWithSize.slice(4, actualWithSize.length() - 4), equalTo(expectedWithoutSize));
+            assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalTo(expectedWithoutSize));
         }
     }
 }

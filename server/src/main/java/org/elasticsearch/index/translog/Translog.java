@@ -691,8 +691,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 BytesRefIterator iterator = bytes.iterator();
                 BytesRef slice;
                 while ((slice = iterator.next()) != null) {
-                    checksum.update(slice.bytes, slice.offset + offset, slice.length - offset);
-                    offset = 0;
+                    int toSkip = Math.min(offset, slice.length);
+                    checksum.update(slice.bytes, slice.offset + toSkip, slice.length - toSkip);
+                    offset -= toSkip;
                 }
             }
         }

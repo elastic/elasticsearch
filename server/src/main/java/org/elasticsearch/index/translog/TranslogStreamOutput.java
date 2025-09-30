@@ -101,6 +101,7 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
         writeLong(indexOperation.primaryTerm());
         writeOptionalString(indexOperation.routing());
         writeString(indexOperation.id());
+        writeVInt(indexOperation.source().length());
         final long end = position();
         // The total operation size is the header size + source size + 4 bytes for checksum
         final int operationSize = (int) (end - Integer.BYTES - start) + indexOperation.source().length() + Integer.BYTES;
@@ -143,6 +144,7 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
         writeLong(delete.version());
         writeLong(delete.seqNo());
         writeLong(delete.primaryTerm());
+        writeString(delete.id());
         final long end = position();
         // The total operation size is the header size + 4 bytes for checksum
         final int operationSize = (int) (end - Integer.BYTES - start) + Integer.BYTES;

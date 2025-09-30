@@ -106,15 +106,17 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolveEmptyPattern() {
         assertAcked(client().admin().indices().prepareCreate("data"));
-        indexRandom(true, "data", 1);
-
-        try (var response = run(syncEsqlQueryRequest().query("FROM data,index-* METADATA _index"))) {
-            assertOk(response);
-            assertResultConcreteIndices(response, "data");
+        if (randomBoolean()) {
+            indexRandom(true, "data", 1);
         }
+
         try (var response = run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response);
+        }
+        try (var response = run(syncEsqlQueryRequest().query("FROM data,index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "data");
         }
     }
 

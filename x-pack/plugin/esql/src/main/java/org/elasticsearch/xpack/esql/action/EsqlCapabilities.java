@@ -1321,7 +1321,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V5(Build.current().isSnapshot()),
+        KNN_FUNCTION_V5,
 
         /**
          * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.

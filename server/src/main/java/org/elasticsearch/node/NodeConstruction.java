@@ -185,6 +185,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
@@ -827,7 +828,11 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList(), namespaceValidator);
+        IndicesModule indicesModule = new IndicesModule(
+            pluginsService.filterPlugins(MapperPlugin.class).toList(),
+            pluginsService.filterPlugins(InternalVectorFormatProviderPlugin.class).toList(),
+            namespaceValidator
+        );
         modules.add(indicesModule);
 
         modules.add(new GatewayModule());

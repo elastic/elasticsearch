@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -142,7 +142,9 @@ public class SamplingService implements ClusterStateListener {
             SoftReference<SampleInfo> sampleInfoReference = samples.compute(
                 new ProjectIndex(projectId, indexName),
                 (k, v) -> v == null || v.get() == null
-                    ? new SoftReference<>(new SampleInfo(samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong()))
+                    ? new SoftReference<>(
+                        new SampleInfo(samplingConfig.maxSamples(), samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong())
+                    )
                     : v
             );
             SampleInfo sampleInfo = sampleInfoReference.get();
@@ -150,7 +152,7 @@ public class SamplingService implements ClusterStateListener {
                 SampleStats stats = sampleInfo.stats;
                 stats.potentialSamples.increment();
                 try {
-                    if (sampleInfo.getRawDocuments().size() < samplingConfig.maxSamples()) {
+                    if (sampleInfo.hasCapacity()) {
                         if (random.nextDouble() < samplingConfig.rate()) {
                             String condition = samplingConfig.condition();
                             if (condition != null) {
@@ -177,9 +179,12 @@ public class SamplingService implements ClusterStateListener {
                             if (condition == null
                                 || evaluateCondition(ingestDocumentSupplier, sampleInfo.script, sampleInfo.factory, sampleInfo.stats)) {
                                 RawDocument sample = getRawDocumentForIndexRequest(projectId, indexName, indexRequest);
-                                sampleInfo.getRawDocuments().add(sample);
-                                stats.samples.increment();
-                                logger.trace("Sampling " + indexRequest);
+                                if (sampleInfo.offer(sample)) {
+                                    stats.samples.increment();
+                                    logger.trace("Sampling " + indexRequest);
+                                } else {
+                                    stats.samplesRejectedForMaxSamplesExceeded.increment();
+                                }
                             } else {
                                 stats.samplesRejectedForCondition.increment();
                             }
@@ -213,7 +218,7 @@ public class SamplingService implements ClusterStateListener {
     public List<RawDocument> getLocalSample(ProjectId projectId, String index) {
         SoftReference<SampleInfo> sampleInfoReference = samples.get(new ProjectIndex(projectId, index));
         SampleInfo sampleInfo = sampleInfoReference == null ? null : sampleInfoReference.get();
-        return sampleInfo == null ? List.of() : sampleInfo.getRawDocuments().stream().toList();
+        return sampleInfo == null ? List.of() : Arrays.stream(sampleInfo.getRawDocuments()).filter(Objects::nonNull).toList();
     }
 
     /**
@@ -558,24 +563,48 @@ public class SamplingService implements ClusterStateListener {
      * This is used internally to store information about a sample in the samples Map.
      */
     private static final class SampleInfo {
-        private final List<RawDocument> rawDocuments;
+        private final RawDocument[] rawDocuments;
         private final SampleStats stats;
         private final long expiration;
         private final TimeValue timeToLive;
         private volatile Script script;
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
+        private volatile boolean isFull = false;
+        private final AtomicInteger arrayIndex = new AtomicInteger(0);
 
-        SampleInfo(TimeValue timeToLive, long relativeNowMillis) {
+        SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
             this.timeToLive = timeToLive;
-            // We expect to potentially have many concurrent writes, but relatively few reads:
-            this.rawDocuments = new CopyOnWriteArrayList<>();
+            this.rawDocuments = new RawDocument[maxSamples];
             this.stats = new SampleStats();
             this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).millis() : timeToLive.millis()) + relativeNowMillis;
         }
 
-        public List<RawDocument> getRawDocuments() {
+        public boolean hasCapacity() {
+            return isFull == false;
+        }
+
+        /*
+         * This returns the array of raw documents. It's size will be the maximum number of raw documents allowed in this sample. Some (or
+         * all) elements could be null.
+         */
+        public RawDocument[] getRawDocuments() {
             return rawDocuments;
+        }
+
+        /*
+         * Adds the rawDocument to the sample if there is capacity. Returns true if it adds it, or false if it does not.
+         */
+        public boolean offer(RawDocument rawDocument) {
+            int index = arrayIndex.getAndIncrement();
+            if (index < rawDocuments.length) {
+                rawDocuments[index] = rawDocument;
+                if (index == rawDocuments.length - 1) {
+                    isFull = true;
+                }
+                return true;
+            }
+            return false;
         }
 
         void setScript(Script script, IngestConditionalScript.Factory factory) {

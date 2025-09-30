@@ -84,8 +84,8 @@ public class HttpRequestSender implements Sender {
 
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
-    private final AtomicBoolean started = new AtomicBoolean(false);
-    private final AtomicBoolean startedCompleted = new AtomicBoolean(false);
+    private final AtomicBoolean startInitiated = new AtomicBoolean(false);
+    private final AtomicBoolean startCompleted = new AtomicBoolean(false);
     private final RequestSender requestSender;
     private final RequestExecutor service;
     private final CountDownLatch startCompletedLatch;
@@ -113,10 +113,10 @@ public class HttpRequestSender implements Sender {
      */
     @Override
     public void startAsynchronously(ActionListener<Void> listener) {
-        if (started.compareAndSet(false, true)) {
+        if (startInitiated.compareAndSet(false, true)) {
             var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> startInternal(preservedListener));
-        } else if (startedCompleted.get() == false) {
+        } else if (startCompleted.get() == false) {
             var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
             // wait on another thread so we don't potential block a transport thread
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> waitForStartToCompleteWithListener(preservedListener));
@@ -132,7 +132,7 @@ public class HttpRequestSender implements Sender {
             manager.start();
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
             waitForStartToComplete();
-            startedCompleted.set(true);
+            startCompleted.set(true);
             listener.onResponse(null);
         } catch (Exception ex) {
             listener.onFailure(ex);
@@ -155,7 +155,7 @@ public class HttpRequestSender implements Sender {
      */
     @Override
     public void startSynchronously() {
-        if (started.compareAndSet(false, true)) {
+        if (startInitiated.compareAndSet(false, true)) {
             ActionListener<Void> listener = ActionListener.wrap(
                 unused -> {},
                 exception -> logger.error("Http sender failed to start", exception)
@@ -198,7 +198,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        assert started.get() : "call start() before sending a request";
+        assert startInitiated.get() : "call start() before sending a request";
         waitForStartToComplete();
         service.execute(requestCreator, inferenceInputs, timeout, listener);
     }
@@ -220,7 +220,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        assert started.get() : "call start() before sending a request";
+        assert startInitiated.get() : "call start() before sending a request";
         waitForStartToComplete();
 
         var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());

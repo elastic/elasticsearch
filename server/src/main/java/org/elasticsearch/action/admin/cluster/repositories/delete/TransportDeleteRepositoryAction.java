@@ -95,7 +95,7 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
             ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 }

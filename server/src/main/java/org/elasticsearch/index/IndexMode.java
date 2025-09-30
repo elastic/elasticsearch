@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -114,7 +113,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -218,13 +217,15 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
-            if (source.tsid() != null) {
-                // If the source already has a _tsid field, we don't need to extract routing from the source.
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            IndexRouting indexRouting = settings.getIndexRouting();
+            if (indexRouting instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
+                return new RoutingPathFields(forRoutingPath.builder());
+            } else if (indexRouting instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
                 return RoutingFields.Noop.INSTANCE;
+            } else {
+                throw new IllegalStateException("Index routing strategy not supported for index_mode=time_series: " + indexRouting);
             }
-            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
-            return new RoutingPathFields(routing.builder());
         }
 
         @Override
@@ -303,7 +304,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -384,7 +385,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -538,7 +539,7 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source);
+    public abstract RoutingFields buildRoutingFields(IndexSettings settings);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

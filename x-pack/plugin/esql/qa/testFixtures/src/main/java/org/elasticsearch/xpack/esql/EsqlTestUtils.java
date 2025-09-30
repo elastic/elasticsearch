@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -35,6 +36,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -43,6 +45,7 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -95,6 +98,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -424,6 +428,13 @@ public final class EsqlTestUtils {
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
 
+    public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
+        DataPartitioning.AUTO,
+        ByteSizeValue.ofMb(1),
+        10_000,
+        ByteSizeValue.ofMb(1)
+    );
+
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
         createMockTransportService(),
         mock(SearchService.class),
@@ -433,7 +444,8 @@ public final class EsqlTestUtils {
         mock(IndexNameExpressionResolver.class),
         null,
         new InferenceService(mock(Client.class)),
-        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY)
+        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+        TEST_PLANNER_SETTINGS
     );
 
     private static TransportService createMockTransportService() {
@@ -890,8 +902,9 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
@@ -905,6 +918,22 @@ public final class EsqlTestUtils {
             case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    static BytesReference randomTsId() {
+        RoutingPathFields routingPathFields = new RoutingPathFields(null);
+
+        int numDimensions = randomIntBetween(1, 4);
+        for (int i = 0; i < numDimensions; i++) {
+            String fieldName = "dim" + i;
+            if (randomBoolean()) {
+                routingPathFields.addString(fieldName, randomAlphaOfLength(randomIntBetween(3, 10)));
+            } else {
+                routingPathFields.addLong(fieldName, randomLongBetween(1, 1000));
+            }
+        }
+
+        return routingPathFields.buildHash();
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {

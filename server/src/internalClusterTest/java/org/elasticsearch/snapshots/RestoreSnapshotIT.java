@@ -12,6 +12,8 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -20,6 +22,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -63,6 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -1023,6 +1029,77 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             ).setIndices(indexName).setRestoreGlobalState(false).setWaitForCompletion(true).get();
             assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
             mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testExplainUnassigableDuringRestore() {
+        final String repoName = "repo-" + randomIdentifier();
+        createRepository(repoName, FsRepository.TYPE);
+        final String indexName = "index-" + randomIdentifier();
+        createIndexWithContent(indexName);
+        final String snapshotName = "snapshot-" + randomIdentifier();
+        createSnapshot(repoName, snapshotName, List.of(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repoName,
+            snapshotName
+        )
+            .setIndices(indexName)
+            .setRestoreGlobalState(false)
+            .setWaitForCompletion(true)
+            .setIndexSettings(
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node-" + randomIdentifier())
+            )
+            .get();
+
+        logger.info("--> restoreSnapshotResponse: {}", Strings.toString(restoreSnapshotResponse, true, true));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), greaterThan(0));
+
+        final var clusterExplainResponse1 = client().execute(
+            TransportClusterAllocationExplainAction.TYPE,
+            new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName).setShard(0).setPrimary(true)
+        ).actionGet();
+
+        logger.info("--> clusterExplainResponse1: {}", Strings.toString(clusterExplainResponse1, true, true));
+        for (var nodeDecision : clusterExplainResponse1.getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision()
+            .getNodeDecisions()) {
+            assertEquals(
+                Set.of("restore_in_progress", "filter"),
+                nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+        }
+
+        updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name"), indexName);
+
+        final var clusterExplainResponse2 = client().execute(
+            TransportClusterAllocationExplainAction.TYPE,
+            new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName).setShard(0).setPrimary(true)
+        ).actionGet();
+
+        logger.info("--> clusterExplainResponse2: {}", Strings.toString(clusterExplainResponse2, true, true));
+        for (var nodeDecision : clusterExplainResponse2.getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision()
+            .getNodeDecisions()) {
+            assertEquals(
+                Set.of("restore_in_progress"),
+                nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+            assertEquals(
+                Set.of("restore_in_progress"),
+                nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+            assertThat(
+                nodeDecision.getCanAllocateDecision().getDecisions().get(0).getExplanation(),
+                startsWith(
+                    "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                        + "Please check constraints applied in index and cluster settings, then retry the restore."
+                )
+            );
         }
     }
 }

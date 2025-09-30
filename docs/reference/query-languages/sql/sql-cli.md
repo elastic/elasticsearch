@@ -61,7 +61,7 @@ The jar name will be different for each Elasticsearch version (for example `elas
 Apart from SQL queries, CLI can also execute some specific commands:
 
 `allow_partial_search_results = <boolean>` (default `false`)
-:   If `true`, returns partial results if there are shard request timeouts or [shard failures](../../../deploy-manage/distributed-architecture/reading-and-writing-documents.md#shard-failures). If `false`, returns an error with no partial results.
+:   If `true`, returns partial results if there are shard request timeouts or [shard failures](docs-content://deploy-manage/distributed-architecture/reading-and-writing-documents.md#shard-failures). If `false`, returns an error with no partial results.
 
 ```sql
 sql> allow_partial_search_results = true;

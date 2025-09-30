@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -84,17 +85,17 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     @Override
     @SuppressWarnings("unchecked")
     public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        VectorValueProvider.Builder leftVectorProviderBuilder = new VectorValueProvider.Builder();
-        VectorValueProvider.Builder rightVectorProviderBuilder = new VectorValueProvider.Builder();
-        if (left() instanceof Literal && left().dataType() == DENSE_VECTOR) {
-            leftVectorProviderBuilder.constantVector((ArrayList<Float>) ((Literal) left()).value());
+        VectorValueProviderBuilder leftVectorProviderBuilder;
+        VectorValueProviderBuilder rightVectorProviderBuilder;
+        if (left() instanceof Literal) {
+            leftVectorProviderBuilder = new VectorValueProviderBuilder((ArrayList<Float>) ((Literal) left()).value(), null);
         } else {
-            leftVectorProviderBuilder.expressionEvaluatorFactory(toEvaluator.apply(left()));
+            leftVectorProviderBuilder = new VectorValueProviderBuilder(null, toEvaluator.apply(left()));
         }
-        if (right() instanceof Literal && right().dataType() == DENSE_VECTOR) {
-            rightVectorProviderBuilder.constantVector((ArrayList<Float>) ((Literal) right()).value());
+        if (right() instanceof Literal) {
+            rightVectorProviderBuilder = new VectorValueProviderBuilder((ArrayList<Float>) ((Literal) right()).value(), null);
         } else {
-            rightVectorProviderBuilder.expressionEvaluatorFactory(toEvaluator.apply(right()));
+            rightVectorProviderBuilder = new VectorValueProviderBuilder(null, toEvaluator.apply(right()));
         }
         return new SimilarityEvaluatorFactory(
             leftVectorProviderBuilder,
@@ -110,8 +111,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     protected abstract SimilarityEvaluatorFunction getSimilarityFunction();
 
     private record SimilarityEvaluatorFactory(
-        VectorValueProvider.Builder leftVectorProviderBuilder,
-        VectorValueProvider.Builder rightVectorProviderBuilder,
+        VectorValueProviderBuilder leftVectorProviderBuilder,
+        VectorValueProviderBuilder rightVectorProviderBuilder,
         SimilarityEvaluatorFunction similarityFunction,
         String evaluatorName
     ) implements EvalOperator.ExpressionEvaluator.Factory {
@@ -131,143 +132,6 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         @Override
         public String toString() {
             return evaluatorName() + "[left=" + leftVectorProviderBuilder + ", right=" + rightVectorProviderBuilder + "]";
-        }
-    }
-
-    private static class VectorValueProvider implements Releasable {
-
-        private static final class Builder {
-            private ArrayList<Float> constantVector;
-            private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory;
-
-            void constantVector(ArrayList<Float> constantVector) {
-                this.constantVector = constantVector;
-            }
-
-            void expressionEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory) {
-                this.expressionEvaluatorFactory = expressionEvaluatorFactory;
-            }
-
-            VectorValueProvider build(DriverContext context) {
-                if (false == (constantVector == null ^ expressionEvaluatorFactory == null)) {
-                    throw new IllegalArgumentException(
-                        "One of [constantVector] or [expressionEvaluatorFactory] must be set, but not both."
-                    );
-                }
-                return new VectorValueProvider(
-                    constantVector,
-                    expressionEvaluatorFactory == null ? null : expressionEvaluatorFactory.get(context)
-                );
-            }
-
-            @Override
-            public String toString() {
-                return "constantVector="
-                    + (constantVector == null ? "[null]" : constantVector)
-                    + ", expressionEvaluator=["
-                    + expressionEvaluatorFactory
-                    + "]";
-            }
-        }
-
-        private final float[] constantVector;
-        private final EvalOperator.ExpressionEvaluator expressionEvaluator;
-        private FloatBlock block;
-        private float[] scratch;
-
-        VectorValueProvider(ArrayList<Float> constantVector, EvalOperator.ExpressionEvaluator expressionEvaluator) {
-            if (constantVector != null) {
-                this.constantVector = new float[constantVector.size()];
-                for (int i = 0; i < constantVector.size(); i++) {
-                    this.constantVector[i] = constantVector.get(i);
-                }
-            } else {
-                this.constantVector = null;
-            }
-            this.expressionEvaluator = expressionEvaluator;
-        }
-
-        private void eval(Page page) {
-            if (expressionEvaluator != null) {
-                block = (FloatBlock) expressionEvaluator.eval(page);
-            }
-        }
-
-        private float[] getVector(int position) {
-            if (constantVector != null) {
-                return constantVector;
-            } else if (block != null) {
-                if (block.isNull(position)) {
-                    return null;
-                }
-                if (scratch == null) {
-                    int dims = block.getValueCount(position);
-                    if (dims > 0) {
-                        scratch = new float[dims];
-                    }
-                }
-                if (scratch != null) {
-                    readFloatArray(block, block.getFirstValueIndex(position), scratch);
-                }
-                return scratch;
-            } else {
-                throw new EsqlClientException(
-                    "[" + getClass().getSimpleName() + "] not properly initialized. Both [constantVector] and [block] are null."
-                );
-            }
-        }
-
-        private static void readFloatArray(FloatBlock block, int firstValueIndex, float[] scratch) {
-            for (int i = 0; i < scratch.length; i++) {
-                scratch[i] = block.getFloat(firstValueIndex + i);
-            }
-        }
-
-        public int getDimensions() {
-            if (constantVector != null) {
-                return constantVector.length;
-            } else if (block != null) {
-                for (int p = 0; p < block.getPositionCount(); p++) {
-                    int dims = block.getValueCount(p);
-                    if (dims > 0) {
-                        return dims;
-                    }
-                }
-                return 0;
-            } else {
-                throw new EsqlClientException(
-                    "[" + getClass().getSimpleName() + "] not properly initialized. Both [constantVector] and [block] are null."
-                );
-            }
-        }
-
-        public long baseRamBytesUsed() {
-            return (constantVector == null ? 0 : RamUsageEstimator.shallowSizeOf(constantVector)) + (expressionEvaluator == null
-                ? 0
-                : expressionEvaluator.baseRamBytesUsed());
-        }
-
-        // Once we're doing processing a block, ensure that we dereference it and reset scratch so that it can be
-        // filled by the next page through `eval`
-        void finishBlock() {
-            if (block != null) {
-                block.close();
-                block = null;
-                scratch = null;
-            }
-        }
-
-        public void close() {
-            Releasables.close(expressionEvaluator);
-        }
-
-        @Override
-        public String toString() {
-            return "constantVector="
-                + (constantVector == null ? "[null]" : Arrays.toString(constantVector))
-                + ", expressionEvaluator=["
-                + expressionEvaluator
-                + "]";
         }
     }
 
@@ -318,8 +182,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                     return builder.build();
                 }
             } finally {
-                left.finishBlock();
-                right.finishBlock();
+                left.finish();
+                right.finish();
             }
         }
 
@@ -336,6 +200,170 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         @Override
         public void close() {
             Releasables.close(left, right);
+        }
+    }
+
+    private record VectorValueProviderBuilder(
+        ArrayList<Float> vector,
+        EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory
+    ) {
+        VectorValueProvider build(DriverContext context) {
+            if (vector != null) {
+                return new ConstantVectorProvider(vector);
+            } else {
+                return new ExpressionVectorProvider(expressionEvaluatorFactory.get(context));
+            }
+        }
+
+        @Override
+        public String toString() {
+            if (vector != null) {
+                return "ConstantVectorProvider[vector=" + Arrays.toString(vector.toArray()) + "]";
+            } else {
+                return "ExpressionVectorProvider[expressionEvaluator=[" + expressionEvaluatorFactory + "]]";
+            }
+        }
+    }
+
+    interface VectorValueProvider extends Releasable {
+
+        void eval(Page page);
+
+        float[] getVector(int position);
+
+        int getDimensions();
+
+        void finish();
+
+        long baseRamBytesUsed();
+    }
+
+    private static class ConstantVectorProvider implements VectorValueProvider {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantVectorProvider.class);
+
+        private final float[] vector;
+
+        ConstantVectorProvider(List<Float> vector) {
+            assert vector != null;
+            this.vector = new float[vector.size()];
+            for (int i = 0; i < vector.size(); i++) {
+                this.vector[i] = vector.get(i);
+            }
+        }
+
+        @Override
+        public void eval(Page page) {
+            // no-op
+        }
+
+        @Override
+        public float[] getVector(int position) {
+            return vector;
+        }
+
+        @Override
+        public int getDimensions() {
+            return vector.length;
+        }
+
+        @Override
+        public void finish() {
+            // no-op
+        }
+
+        @Override
+        public void close() {
+            // no-op
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(vector);
+        }
+
+        @Override
+        public String toString() {
+            return this.getClass().getSimpleName() + "[vector=" + (vector == null ? "[null]" : Arrays.toString(vector)) + "]";
+        }
+    }
+
+    private static class ExpressionVectorProvider implements VectorValueProvider {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ExpressionVectorProvider.class);
+
+        private final EvalOperator.ExpressionEvaluator expressionEvaluator;
+        private FloatBlock block;
+        private float[] scratch;
+
+        ExpressionVectorProvider(EvalOperator.ExpressionEvaluator expressionEvaluator) {
+            this.expressionEvaluator = expressionEvaluator;
+        }
+
+        @Override
+        public void eval(Page page) {
+            if (expressionEvaluator != null) {
+                block = (FloatBlock) expressionEvaluator.eval(page);
+            }
+        }
+
+        @Override
+        public float[] getVector(int position) {
+            if (block.isNull(position)) {
+                return null;
+            }
+            if (scratch == null) {
+                int dims = block.getValueCount(position);
+                if (dims > 0) {
+                    scratch = new float[dims];
+                }
+            }
+            if (scratch != null) {
+                readFloatArray(block, block.getFirstValueIndex(position), scratch);
+            }
+            return scratch;
+        }
+
+        @Override
+        public int getDimensions() {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int dims = block.getValueCount(p);
+                if (dims > 0) {
+                    return dims;
+                }
+            }
+            return 0;
+        }
+
+        @Override
+        public void finish() {
+            if (block != null) {
+                block.close();
+                block = null;
+                scratch = null;
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + expressionEvaluator.baseRamBytesUsed() + (block == null ? 0 : block.ramBytesUsed())
+                + (scratch == null ? 0 : RamUsageEstimator.shallowSizeOf(scratch));
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(expressionEvaluator);
+        }
+
+        private static void readFloatArray(FloatBlock block, int firstValueIndex, float[] scratch) {
+            for (int i = 0; i < scratch.length; i++) {
+                scratch[i] = block.getFloat(firstValueIndex + i);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return this.getClass().getSimpleName() + "[expressionEvaluator=[" + expressionEvaluator + "]]";
         }
     }
 }

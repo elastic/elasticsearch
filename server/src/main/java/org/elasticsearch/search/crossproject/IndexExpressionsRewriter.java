@@ -51,7 +51,7 @@ public class IndexExpressionsRewriter {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
-    public static Map<String, List<String>> rewriteIndexExpressions(
+    public static Map<String, IndexRewriteResult> rewriteIndexExpressions(
         ProjectRoutingInfo originProject,
         List<ProjectRoutingInfo> linkedProjects,
         final String[] originalIndices
@@ -67,15 +67,12 @@ public class IndexExpressionsRewriter {
 
         final Set<String> allProjectAliases = getAllProjectAliases(originProject, linkedProjects);
         final String originProjectAlias = originProject != null ? originProject.projectAlias() : null;
-        final Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
+        final Map<String, IndexRewriteResult> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
         for (String indexExpression : indices) {
             if (canonicalExpressionsMap.containsKey(indexExpression)) {
                 continue;
             }
-            canonicalExpressionsMap.put(
-                indexExpression,
-                resultAsList(rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases))
-            );
+            canonicalExpressionsMap.put(indexExpression, rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases));
         }
         return canonicalExpressionsMap;
     }
@@ -207,16 +204,6 @@ public class IndexExpressionsRewriter {
         if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
             throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");
         }
-    }
-
-    private static List<String> resultAsList(IndexRewriteResult result) {
-        if (result.localExpression == null) {
-            return result.remoteExpressions;
-        }
-        List<String> all = new ArrayList<>();
-        all.add(result.localExpression);
-        all.addAll(result.remoteExpressions);
-        return List.copyOf(all);
     }
 
     /**

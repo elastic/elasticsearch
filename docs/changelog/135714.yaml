@@ -1,0 +1,5 @@
+pr: 135714
+summary: Improve `SingleValueMatchQuery` performance
+area: Compute Engine
+type: enhancement
+issues: []

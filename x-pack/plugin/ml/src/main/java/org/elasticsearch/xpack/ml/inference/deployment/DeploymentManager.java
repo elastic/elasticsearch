@@ -16,6 +16,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -79,6 +80,7 @@ public class DeploymentManager {
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
     private static final AtomicLong requestIdCounter = new AtomicLong(1);
     public static final int NUM_RESTART_ATTEMPTS = 3;
+    private static final TimeValue WORKER_QUEUE_COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -674,25 +676,38 @@ public class DeploymentManager {
             prepareInternalStateForShutdown();
 
             // Waiting for the process worker to finish the pending work could
-            // take a long time. Best not to block the thread so register
-            // a function with the process worker that is called when the
-            // work is finished. Then proceed to closing the native process
+            // take a long time. To avoid blocking the calling thread register
+            // a function with the process worker queue that is called when the
+            // worker queue is finished. Then proceed to closing the native process
             // and wait for all results to be processed, the second part can be
             // done synchronously as it is not expected to take long.
-            // The ShutdownTracker will handle this.
 
-            // Shutdown tracker will stop the process work and start a race with
-            // a timeout condition.
-            new ShutdownTracker(() -> {
-                // Stopping the process worker timed out, kill the process
-                logger.warn(format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId()));
-                forcefullyStopProcess();
-            }, () -> {
+            // This listener closes the native process and waits for the results
+            // after the worker queue has finished
+            var closeProcessListener = listener.delegateResponse((l, r) -> {
                 // process worker stopped within allotted time, close process
                 closeProcessAndWaitForResultProcessor();
                 closeNlpTaskProcessor();
-            }, threadPool, priorityProcessWorker, listener);
+                l.onResponse(AcknowledgedResponse.TRUE);
+            });
 
+            // Timeout listener waits
+            var listenWithTimeout = ListenerTimeouts.wrapWithTimeout(
+                threadPool,
+                WORKER_QUEUE_COMPLETION_TIMEOUT,
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                closeProcessListener,
+                (l) -> {
+                    // Stopping the process worker timed out, kill the process
+                    logger.warn(
+                        format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId())
+                    );
+                    forcefullyStopProcess();
+                    l.onResponse(AcknowledgedResponse.FALSE);
+                }
+            );
+
+            priorityProcessWorker.shutdownWithCallback(() -> listenWithTimeout.onResponse(AcknowledgedResponse.TRUE));
         }
 
         private void closeProcessAndWaitForResultProcessor() {

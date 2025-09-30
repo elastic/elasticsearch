@@ -131,14 +131,14 @@ public class PutSamplingConfigurationAction extends ActionType<AcknowledgedRespo
         }
 
         /**
-         * Sets the target indices for this sampling configuration request.
+         * Sets the target indices or data streams for this sampling configuration request.
          *
-         * @param dataStreamNames the names of indices or data streams to target
+         * @param indices the names of indices or data streams to target
          * @return this request instance for method chaining
          */
         @Override
-        public Request indices(String... dataStreamNames) {
-            this.indices = dataStreamNames;
+        public Request indices(String... indices) {
+            this.indices = indices;
             return this;
         }
 
@@ -174,7 +174,7 @@ public class PutSamplingConfigurationAction extends ActionType<AcknowledgedRespo
          */
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+            return new CancellableTask(id, type, action, "Updates Sampling Configuration.", parentTaskId, headers);
         }
 
         /**

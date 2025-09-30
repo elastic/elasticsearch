@@ -60,7 +60,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             String original,
             HashSet<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult,
-            HashSet<String> remoteExpressions
+            Set<String> remoteExpressions
         ) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(localExpressions);
@@ -71,16 +71,10 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             );
         }
 
-        public void addRemoteExpressions(String original, HashSet<String> remoteExpressions) {
+        public void addRemoteExpressions(String original, Set<String> remoteExpressions) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(remoteExpressions);
-            expressions.add(
-                new ResolvedIndexExpression(
-                    original,
-                    new LocalExpressions(new HashSet<>(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
-                    remoteExpressions
-                )
-            );
+            expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, remoteExpressions));
         }
 
         /**
@@ -90,7 +84,11 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
                 for (ResolvedIndexExpression prior : expressions) {
-                    prior.localExpressions().expressions().removeAll(expressionsToExclude);
+                    final Set<String> localExpressions = prior.localExpressions().expressions();
+                    if (localExpressions.isEmpty()) {
+                        continue;
+                    }
+                    localExpressions.removeAll(expressionsToExclude);
                 }
             }
         }

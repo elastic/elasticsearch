@@ -22,8 +22,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
-import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
-import org.elasticsearch.search.crossproject.LocalWithRemoteExpressions;
+import org.elasticsearch.search.crossproject.IndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.util.HashSet;
@@ -88,7 +87,7 @@ public class IndexAbstractionResolver {
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
         boolean wildcardSeen = false;
         for (String index : indices) {
-            final LocalWithRemoteExpressions rewrittenIndexExpression = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+            final IndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = IndexExpressionsRewriter.rewriteIndexExpression(
                 index,
                 originProjectAlias,
                 linkedProjectAliases
@@ -97,26 +96,26 @@ public class IndexAbstractionResolver {
                 "[{}] rewritten index expression [{}] to local [{}] and remote [{}]",
                 originProjectAlias,
                 index,
-                rewrittenIndexExpression.localExpression(),
-                rewrittenIndexExpression.remoteExpressions()
+                indexRewriteResult.localExpression(),
+                indexRewriteResult.remoteExpressions()
             );
 
-            if (rewrittenIndexExpression.localExpression() == null) {
-                resolvedExpressionsBuilder.addRemoteExpressions(index, new HashSet<>(rewrittenIndexExpression.remoteExpressions()));
+            if (indexRewriteResult.localExpression() == null) {
+                resolvedExpressionsBuilder.addRemoteExpressions(index, Set.copyOf(indexRewriteResult.remoteExpressions()));
                 continue;
             }
 
             wildcardSeen = resolveIndexAbstraction(
                 resolvedExpressionsBuilder,
                 index,
-                rewrittenIndexExpression.localExpression(),
+                indexRewriteResult.localExpression(),
                 indicesOptions,
                 projectMetadata,
                 allAuthorizedAndAvailableBySelector,
                 isAuthorized,
                 includeDataStreams,
                 wildcardSeen,
-                new HashSet<>(rewrittenIndexExpression.remoteExpressions())
+                Set.copyOf(indexRewriteResult.remoteExpressions())
             );
         }
 
@@ -133,7 +132,7 @@ public class IndexAbstractionResolver {
         final BiPredicate<String, IndexComponentSelector> isAuthorized,
         final boolean includeDataStreams,
         boolean wildcardSeen,
-        HashSet<String> remoteExpressions
+        Set<String> remoteExpressions
     ) {
         String indexAbstraction;
         boolean minus = false;

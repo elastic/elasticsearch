@@ -85,6 +85,8 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
                 : "If the local resolution result is SUCCESS, exception must be null";
         }
 
+        public static final LocalExpressions NONE = new LocalExpressions(Set.of(), LocalIndexResolutionResult.NONE, null);
+
         public LocalExpressions(StreamInput in) throws IOException {
             this(
                 in.readCollectionAsSet(StreamInput::readString),

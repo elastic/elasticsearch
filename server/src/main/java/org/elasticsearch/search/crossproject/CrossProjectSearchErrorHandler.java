@@ -164,6 +164,23 @@ public class CrossProjectSearchErrorHandler {
             exceptions.add(localException);
         }
 
+        if (localResolvedIndices.remoteExpressions().isEmpty()) {
+            if (localExpressions.localIndexResolutionResult() == CONCRETE_RESOURCE_NOT_VISIBLE) {
+                throw new IndexNotFoundException(originalExpression);
+            }
+            if (localExpressions.localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                // we only ever get exceptions if they are security related
+                // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
+                // as 403 or 404
+                ElasticsearchSecurityException e = new ElasticsearchSecurityException(
+                    "authorization errors while resolving [" + originalExpression + "]",
+                    RestStatus.FORBIDDEN
+                );
+                exceptions.forEach(e::addSuppressed);
+                throw e;
+            }
+        }
+
         for (String remoteExpression : localResolvedIndices.remoteExpressions()) {
             boolean isQualifiedResource = RemoteClusterAware.isRemoteIndexName(remoteExpression);
             if (isQualifiedResource) {
@@ -184,8 +201,12 @@ public class CrossProjectSearchErrorHandler {
                     .get(resource);
                 assert resolvedRemoteExpression != null : "we should always have resolved expressions from remote";
 
+                // TODO in wildcard case?
+                if (resolvedRemoteExpression.expressions().isEmpty()) {
+                    throw new IndexNotFoundException(originalExpression);
+                }
                 if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_NOT_VISIBLE) {
-                    throw new IndexNotFoundException(remoteExpression);
+                    throw new IndexNotFoundException(originalExpression);
                 }
                 if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
                     // we only ever get exceptions if they are security related
@@ -203,13 +224,15 @@ public class CrossProjectSearchErrorHandler {
                 for (var linkedProjectExpressions : remoteResolvedExpressions.expressions().values()) {
                     ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
                         .get(remoteExpression);
-                    if (resolvedRemoteExpression != null) {
+                    if (resolvedRemoteExpression != null
+                        && resolvedRemoteExpression.expressions().isEmpty() == false
+                        && resolvedRemoteExpression.localIndexResolutionResult() == SUCCESS) {
                         foundFlat = true;
                         break;
                     }
                 }
                 if (false == foundFlat) {
-                    throw new IndexNotFoundException(remoteExpression);
+                    throw new IndexNotFoundException(originalExpression);
                 }
             }
         }

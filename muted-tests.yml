@@ -591,21 +591,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/134407
-- class: org.elasticsearch.action.admin.cluster.stats.SearchUsageStatsTests
-  method: testToXContent
-  issue: https://github.com/elastic/elasticsearch/issues/135558
-- class: org.elasticsearch.search.ccs.SparseVectorQueryBuilderCrossClusterSearchIT
-  method: testSparseVectorQueryWithCcsMinimizeRoundTripsFalse
-  issue: https://github.com/elastic/elasticsearch/issues/135559
 - class: org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDeciderTests
   method: testCanAllocatePrimaryExistingInRestoreInProgress
   issue: https://github.com/elastic/elasticsearch/issues/135566
 - class: org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/135569
-- class: org.elasticsearch.search.ccs.KnnVectorQueryBuilderCrossClusterSearchIT
-  method: testKnnQueryWithCcsMinimizeRoundTripsFalse
-  issue: https://github.com/elastic/elasticsearch/issues/135573
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=esql/60_usage/Basic ESQL usage output (telemetry) snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/135579

@@ -802,6 +802,15 @@ public enum DataType implements Writeable {
         return isString(this) ? KEYWORD : this;
     }
 
+    public DataType noCounter() {
+        return switch (this) {
+            case COUNTER_DOUBLE -> DOUBLE;
+            case COUNTER_INTEGER -> INTEGER;
+            case COUNTER_LONG -> LONG;
+            default -> this;
+        };
+    }
+
     public boolean isDate() {
         return switch (this) {
             case DATETIME, DATE_NANOS -> true;

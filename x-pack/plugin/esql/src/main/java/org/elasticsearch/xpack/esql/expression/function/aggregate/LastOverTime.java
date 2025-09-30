@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunct
 import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -117,23 +116,14 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     public DataType dataType() {
-        var dataType = field().dataType();
-        if (dataType.isCounter()) {
-            return switch (dataType) {
-                case COUNTER_DOUBLE -> DataType.DOUBLE;
-                case COUNTER_INTEGER -> DataType.INTEGER;
-                case COUNTER_LONG -> DataType.LONG;
-                default -> throw new InvalidArgumentException("Received an unsupported counter type in LastOverTime");
-            };
-        }
-        return dataType;
+        return field().dataType().noCounter();
     }
 
     @Override
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.TSID_DATA_TYPE || dt.isCounter(),
+            dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.TSID_DATA_TYPE,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"

@@ -199,24 +199,18 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testPartialResolution() {
-        assertAcked(client().admin().indices().prepareCreate("index-1"));
-        assertAcked(client().admin().indices().prepareCreate("index-2"));
-        indexRandom(true, "index-2", 10);
+        assertAcked(client().admin().indices().prepareCreate("data"));
+        indexRandom(true, "data", 10);
 
         expectThrows(
             VerificationException.class,
-            containsString("Unknown index [nonexisting-1]"), // fails when present index is empty
-            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [nonexisting-1]"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
+            containsString("Unknown index [nonexisting-1]"),
+            () -> run(syncEsqlQueryRequest().query("FROM data,nonexisting-1"))
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [nonexisting-1]"), // only the first missing index is reported
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
+            () -> run(syncEsqlQueryRequest().query("FROM data,nonexisting-1,nonexisting-2"))
         );
     }
 

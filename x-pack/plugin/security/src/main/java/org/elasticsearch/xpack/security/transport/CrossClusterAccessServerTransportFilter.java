@@ -23,28 +23,30 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
-import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
+import static org.elasticsearch.xpack.security.transport.X509CertificateSignature.CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY;
 
 final class CrossClusterAccessServerTransportFilter extends ServerTransportFilter {
 
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessServerTransportFilter.class);
 
     // pkg-private for testing
-    static final Set<String> ALLOWED_TRANSPORT_HEADERS;
-    static {
-        final Set<String> allowedHeaders = new HashSet<>(
-            Set.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
-        );
-        allowedHeaders.add(AuditUtil.AUDIT_REQUEST_ID);
-        allowedHeaders.add(Task.TRACE_STATE);
-        allowedHeaders.addAll(Task.HEADERS_TO_COPY);
-        ALLOWED_TRANSPORT_HEADERS = Set.copyOf(allowedHeaders);
-    }
+    static final Set<String> ALLOWED_TRANSPORT_HEADERS = Stream.concat(
+        Stream.of(
+            CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
+            CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
+            CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY,
+            AuditUtil.AUDIT_REQUEST_ID,
+            Task.TRACE_STATE
+        ),
+        Task.HEADERS_TO_COPY.stream()
+    ).collect(Collectors.toUnmodifiableSet());
 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final XPackLicenseState licenseState;

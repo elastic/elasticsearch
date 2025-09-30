@@ -71,7 +71,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             new CrossClusterAccessHeaders(
                 ApiKeyService.withApiKeyPrefix("abc"),
                 AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
-            ).writeToContext(threadContext);
+            ).writeToContext(threadContext, null);
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(
@@ -106,7 +106,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                     AuthenticationTestHelper.builder().internal(internalUser).build(),
                     RoleDescriptorsIntersection.EMPTY
                 )
-            ).writeToContext(threadContext);
+            ).writeToContext(threadContext, null);
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(
@@ -121,7 +121,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
-            ).writeToContext(threadContext);
+            ).writeToContext(threadContext, null);
 
             authenticateAndAssertExpectedErrorMessage(
                 service,
@@ -295,7 +295,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                         RoleDescriptorsIntersection.EMPTY
                     )
                 )
-            ).writeToContext(threadContext);
+            ).writeToContext(threadContext, null);
         } else {
             if (randomBoolean()) {
                 threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, validEncodedApiKey);

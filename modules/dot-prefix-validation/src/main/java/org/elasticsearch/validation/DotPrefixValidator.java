@@ -62,11 +62,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      * .ml-* is used by ML
      * .slo-observability-* is used by Observability
      */
-    private static Set<String> IGNORED_INDEX_NAMES = Set.of(
-        ".elastic-connectors-v1",
-        ".elastic-connectors-sync-jobs-v1",
-        ".ml-state"
-    );
+    private static Set<String> IGNORED_INDEX_NAMES = Set.of(".elastic-connectors-v1", ".elastic-connectors-sync-jobs-v1", ".ml-state");
     public static Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.listSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(

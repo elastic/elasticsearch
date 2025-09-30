@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.concurrent.Future;
@@ -34,6 +35,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             .build();
     }
 
+    @SuppressForbidden(reason = "testing in CI")
     @Repeat(iterations = 100)
     public void testOpenContextsAfterRejections() throws Exception {
         createIndex("test");

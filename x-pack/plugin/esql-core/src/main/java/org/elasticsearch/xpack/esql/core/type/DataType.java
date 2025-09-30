@@ -35,7 +35,6 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING;
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -326,8 +325,7 @@ public enum DataType implements Writeable {
         builder().esType("dense_vector")
             .estimatedSize(4096)
             .createdVersion(
-                // Version created just *after* we committed support for dense_vector
-                ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION
+                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
             )
     );
 
@@ -953,5 +951,9 @@ public enum DataType implements Writeable {
             this.createdVersion = CreatedVersion.supportedOn(createdVersion);
             return this;
         }
+    }
+
+    private static class DataTypesTransportVersions {
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName("esql_dense_vector_created_version");
     }
 }

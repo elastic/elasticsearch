@@ -1915,7 +1915,7 @@ public class NumberFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, isIndexed, isStored, hasDocValues, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -1955,6 +1955,11 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return type.name;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         /**

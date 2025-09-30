@@ -217,7 +217,6 @@ public class TransformIT extends TransformRestTestCase {
      * Verify the basic stats API, which includes state, health, and optionally progress (if it exists).
      * These are required for Kibana 8.13+.
      */
-    @SuppressWarnings("unchecked")
     public void testBasicContinuousTransformStats() throws Exception {
         var transformId = "transform-continuous-basic-stats";
         createContinuousTransform("continuous-basic-stats-reviews", transformId, "reviews-by-user-business-day");
@@ -232,6 +231,54 @@ public class TransformIT extends TransformRestTestCase {
 
         stopTransform(transformId);
         deleteTransform(transformId);
+    }
+
+    public void testEmptySourceIndexClearsErrors() throws Exception {
+        var sourceIndexName = "source-empty-reviews";
+        var destIndexName = "destination-empty-reviews";
+        var transformId = "transform-empty-source-index";
+
+        createReviewsIndexMappings(sourceIndexName, null);
+
+        var config = createTransformConfigBuilder(transformId, destIndexName, QueryConfig.matchAll(), sourceIndexName).setPivotConfig(
+            createPivotConfig(groupByUserOnly(), aggregateScoresAndTimes())
+        )
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSettings(new SettingsConfig.Builder().setUnattended(true).build())
+            .build();
+
+        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+        startTransform(config.getId(), RequestOptions.DEFAULT);
+
+        waitUntilCheckpoint(config.getId(), 1L);
+        assertEquals("green", getTransformHealthStatus(transformId));
+
+        // this will cause the transform to fail to search
+        assertAcknowledged(adminClient().performRequest(new Request("PUT", sourceIndexName + "/_block/read")));
+        assertBusy(() -> assertThat(getTransformHealthStatus(transformId), oneOf("yellow", "red")), 30, TimeUnit.SECONDS);
+
+        // unblock reads on the search index and the transform should recover
+        var request = new Request("PUT", sourceIndexName + "/_settings");
+        request.setJsonEntity("""
+                { "blocks.read": false }
+            """);
+        assertAcknowledged(adminClient().performRequest(request));
+        assertBusy(() -> assertEquals("green", getTransformHealthStatus(transformId)), 30, TimeUnit.SECONDS);
+
+        stopTransform(transformId);
+        deleteTransform(transformId);
+        deleteIndex(sourceIndexName);
+        deleteIndex(destIndexName);
+    }
+
+    private Map<String, SingleGroupSource> groupByUserOnly() {
+        return Map.of("by-user", new TermsGroupSource("user_id", null, false));
+    }
+
+    private AggregatorFactories.Builder aggregateScoresAndTimes() {
+        return AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
     }
 
     public void testDestinationIndexBlocked() throws Exception {
@@ -385,12 +432,8 @@ public class TransformIT extends TransformRestTestCase {
         String indexName = "continuous-reviews-update";
         createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-user", new TermsGroupSource("user_id", null, false));
-
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
-            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
-            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+        var groups = groupByUserOnly();
+        var aggs = aggregateScoresAndTimes();
 
         String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
@@ -481,8 +524,7 @@ public class TransformIT extends TransformRestTestCase {
         String dest = "retention-policy-dest";
         createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+        var groups = groupByUserOnly();
 
         AggregatorFactories.Builder aggs = AggregatorFactories.builder()
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));

@@ -284,7 +284,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public String toString() {
-            return this.getClass().getSimpleName() + "[vector=" + (vector == null ? "[null]" : Arrays.toString(vector)) + "]";
+            return this.getClass().getSimpleName() + "[vector=" + Arrays.toString(vector) + "]";
         }
     }
 
@@ -297,6 +297,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         private float[] scratch;
 
         ExpressionVectorProvider(EvalOperator.ExpressionEvaluator expressionEvaluator) {
+            assert expressionEvaluator != null;
             this.expressionEvaluator = expressionEvaluator;
         }
 

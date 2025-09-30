@@ -99,6 +99,10 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
@@ -113,6 +117,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -344,12 +349,20 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testShardMemoryMetricsForHollowEngine() throws Exception {
-        startMasterOnlyNode();
+        final boolean hollowShardMemoryEstimationEnabled = randomBoolean();
+        final var fixedHollowShardMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024));
+        final var hollowShardSegmentMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024));
+
+        startMasterNode(
+            Settings.builder().put(SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING.getKey(), hollowShardMemoryEstimationEnabled).build()
+        );
         final var indexNodeSettings = Settings.builder()
             .put(INDEX_NODE_SETTINGS)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), fixedHollowShardMemoryOverhead)
+            .put(HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING.getKey(), hollowShardSegmentMemoryOverhead)
             .build();
         String indexNodeA = startIndexNode(indexNodeSettings);
         ensureStableCluster(2);
@@ -373,6 +386,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 var shardMemoryMetric = metricsService.getShardMemoryMetrics().get(indexShard.shardId());
                 assertNotNull(shardMemoryMetric);
                 assertThat(shardMemoryMetric.getMetricShardNodeId(), equalTo(getNodeId(indexNodeA)));
+                assertThat(shardMemoryMetric.getShardMemoryOverheadBytes(), equalTo(UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES));
                 originalShardMemoryMetrics.put(indexShard.shardId(), shardMemoryMetric);
             });
         }
@@ -391,6 +405,9 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 var originalShardMemoryMetric = originalShardMemoryMetrics.get(indexShard.shardId());
                 assertThat(shardMemoryMetric.getTotalFields(), equalTo(originalShardMemoryMetric.getTotalFields()));
                 assertThat(shardMemoryMetric.getNumSegments(), equalTo(originalShardMemoryMetric.getNumSegments()));
+                var expectedMemoryOverhead = fixedHollowShardMemoryOverhead.getBytes() + (hollowShardSegmentMemoryOverhead.getBytes()
+                    * shardMemoryMetric.getNumSegments());
+                assertThat(shardMemoryMetric.getShardMemoryOverheadBytes(), equalTo(expectedMemoryOverhead));
             });
         }
 
@@ -419,6 +436,73 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 assertThat(shardMemoryMetric.getNumSegments(), equalTo(originalShardMemoryMetric.getNumSegments()));
             });
         }
+    }
+
+    public void testHollowingReducesMemoryEstimate() throws Exception {
+        // Use a low value to ensure we always see a reduction in estimate after hollowing
+        final var fixedHollowShardMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024));
+        final var hollowShardSegmentMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024));
+        // Randomly choose whether to use fixed or adaptive method for memory overhead estimation for non-hollow shards
+        final var shardMemoryOverhead = randomBoolean() ? FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT : ByteSizeValue.MINUS_ONE;
+        startMasterNode(
+            Settings.builder()
+                .put(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), shardMemoryOverhead)
+                .put(SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        final var indexNodeSettings = Settings.builder()
+            .put(INDEX_NODE_SETTINGS)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), fixedHollowShardMemoryOverhead)
+            .put(HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING.getKey(), hollowShardSegmentMemoryOverhead)
+            .build();
+        String indexNodeA = startIndexNode(indexNodeSettings);
+        ensureStableCluster(2);
+
+        var indexName = INDEX_NAME;
+        int numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        indexDocs(indexName, randomIntBetween(16, 64));
+        flush(indexName);
+
+        var metricsService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
+
+        int totalSegmentsNum = 0;
+        long mappingSizeInBytes = 0;
+        for (var shardMetric : metricsService.getShardMemoryMetrics().values()) {
+            totalSegmentsNum += shardMetric.getNumSegments();
+            mappingSizeInBytes += shardMetric.getMappingSizeInBytes();
+        }
+        final long estimateMemoryUsageBeforeHollow = metricsService.estimateTierMemoryUsage().totalBytes();
+
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        hollowShards(indexName, numberOfShards, indexNodeA, indexNodeB);
+        // Memory estimate should be reduced after hollowing
+        final long expectedTierMemoryUsageAfterHollow = fixedHollowShardMemoryOverhead.getBytes() * numberOfShards
+            + hollowShardSegmentMemoryOverhead.getBytes() * totalSegmentsNum + mappingSizeInBytes;
+        assertBusy(() -> {
+            var estimateMemoryUsageAfterHollow = metricsService.estimateTierMemoryUsage().totalBytes();
+            assertThat(estimateMemoryUsageAfterHollow, equalTo(expectedTierMemoryUsageAfterHollow));
+            assertThat(estimateMemoryUsageAfterHollow, lessThan(estimateMemoryUsageBeforeHollow));
+        });
+
+        // After unhollowing memory estimate should be the same as before hollowing
+        assertBusy(() -> {
+            indexDocs(indexName, randomIntBetween(16, 64));
+            for (int i = 0; i < numberOfShards; i++) {
+                var indexShard = findIndexShard(index, i);
+                assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            }
+        });
+        assertBusy(() -> {
+            var estimateMemoryUsageAfterUnhollow = metricsService.estimateTierMemoryUsage().totalBytes();
+            assertThat(estimateMemoryUsageAfterUnhollow, equalTo(estimateMemoryUsageBeforeHollow));
+        });
     }
 
     public void testScaleUpAndDownOnMultipleIndicesAndNodes() throws Exception {
@@ -1310,6 +1394,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING.getKey(), indexingOperationMemoryMetricsEnabled)
             .put(ServerlessSharedSettings.PROJECT_TYPE.getKey(), projectType)
             .put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "1%")
+            .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
 
         startMasterAndIndexNode(nodeSettings);
@@ -1613,6 +1698,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                     m.getTotalFields(),
                     m.getPostingsInMemoryBytes(),
                     0L,
+                    m.getShardMemoryOverheadBytes(),
                     m.getSeqNo(),
                     m.getMetricQuality(),
                     m.getMetricShardNodeId(),
@@ -1623,9 +1709,14 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
     }
 
     private String startMasterNode() {
+        return startMasterNode(Settings.EMPTY);
+    }
+
+    private String startMasterNode(Settings extraSettings) {
         return internalCluster().startMasterOnlyNode(
             nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
                 .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .put(extraSettings)
                 .build()
         );
     }

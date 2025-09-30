@@ -78,6 +78,8 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -114,7 +116,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
                 MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                 MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
-                MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING
+                MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+                MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING
             )
         );
         service = new MemoryMetricsService(
@@ -143,6 +146,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 totalFields,
                 postingsMemoryBytes,
                 liveDocsBytes,
+                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                 randomNonNegativeLong(),
                 MetricQuality.EXACT,
                 randomIdentifier(),
@@ -173,6 +177,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 newFields,
                 postingsMemoryBytes,
                 liveDocsBytes,
+                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                 randomNonNegativeLong(),
                 MetricQuality.MINIMUM,
                 randomIdentifier(),
@@ -194,7 +199,21 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         // init value
         ShardId shardId = new ShardId(INDEX, between(0, 5));
         service.getShardMemoryMetrics()
-            .put(shardId, new MemoryMetricsService.ShardMemoryMetrics(0, 0, 0, 0L, 0L, 0L, MetricQuality.MISSING, "node-0", 0));
+            .put(
+                shardId,
+                new MemoryMetricsService.ShardMemoryMetrics(
+                    0,
+                    0,
+                    0,
+                    0L,
+                    0L,
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                    0L,
+                    MetricQuality.MISSING,
+                    "node-0",
+                    0
+                )
+            );
 
         // simulate concurrent updates
         for (int i = 0; i < numberOfConcurrentUpdates; i++) {
@@ -202,23 +221,40 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             final int numSegments;
             final int totalFields;
             final long postingsInMemoryBytes;
+            final long liveDocsBytes;
+            final long shardMemoryOverheadBytes;
             if (randomBoolean()) {
                 mappingSize = 100;
                 seqNo = 10;
                 numSegments = 50;
                 totalFields = 100;
                 postingsInMemoryBytes = 100L;
+                liveDocsBytes = 40L;
+                shardMemoryOverheadBytes = 200L;
             } else {
                 mappingSize = 200;
                 seqNo = 1;
                 numSegments = 5;
                 totalFields = 10;
                 postingsInMemoryBytes = 30L;
+                liveDocsBytes = 20L;
+                shardMemoryOverheadBytes = UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
             }
             executorService.execute(() -> {
                 HeapMemoryUsage metric = new HeapMemoryUsage(
                     seqNo,
-                    Map.of(shardId, new ShardMappingSize(mappingSize, numSegments, totalFields, postingsInMemoryBytes, 0, "node-0"))
+                    Map.of(
+                        shardId,
+                        new ShardMappingSize(
+                            mappingSize,
+                            numSegments,
+                            totalFields,
+                            postingsInMemoryBytes,
+                            liveDocsBytes,
+                            shardMemoryOverheadBytes,
+                            "node-0"
+                        )
+                    )
                 );
                 service.updateShardsMappingSize(metric);
                 latch.countDown();
@@ -231,6 +267,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertThat(metrics.getNumSegments(), equalTo(50));
         assertThat(metrics.getTotalFields(), equalTo(100));
         assertThat(metrics.getPostingsInMemoryBytes(), equalTo(100L));
+        assertThat(metrics.getLiveDocsBytes(), equalTo(40L));
+        assertThat(metrics.getShardMemoryOverheadBytes(), is(200L));
     }
 
     public void testReportNonExactMetricsInTotalIndicesMappingSize() throws Exception {
@@ -247,7 +285,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             customService.getShardMemoryMetrics()
                 .put(
                     new ShardId(new Index(randomIdentifier(), randomUUID()), 0),
-                    new MemoryMetricsService.ShardMemoryMetrics(2, 1, 5, 30L, 23L, 0L, MetricQuality.MISSING, "node-0", updateTime)
+                    new MemoryMetricsService.ShardMemoryMetrics(2, 1, 5, 30L, 23L, 40L, 0L, MetricQuality.MISSING, "node-0", updateTime)
                 );
         }
         int count = randomIntBetween(10, 100);
@@ -261,6 +299,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                         randomNonNegativeInt(),
                         randomNonNegativeLong(),
                         randomNonNegativeInt(),
+                        randomShardMemoryOverheadBytes(),
                         randomIntBetween(1, 100),
                         "node-0",
                         currentTime
@@ -277,7 +316,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                         Level.WARN,
                         Strings.format(
                             "Memory metrics are stale for shard %s=ShardMemoryMetrics{mappingSizeInBytes=2, numSegments=1,"
-                                + " totalFields=5, seqNo=0, metricQuality=MISSING, metricShardNodeId='node-0', updateTimestampNanos='%d'}",
+                                + " totalFields=5, postingsInMemoryBytes=30, liveDocsBytes=23, shardMemoryOverheadBytes=40, seqNo=0,"
+                                + " metricQuality=MISSING, metricShardNodeId='node-0', updateTimestampNanos='%d'}",
                             shard,
                             updateTime
                         )
@@ -308,6 +348,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                         randomNonNegativeInt(),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
+                        randomShardMemoryOverheadBytes(),
                         randomNonNegativeLong(),
                         MetricQuality.EXACT,
                         "node-0",
@@ -336,6 +377,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                         randomNonNegativeInt(),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
+                        randomShardMemoryOverheadBytes(),
                         0,
                         MetricQuality.MISSING,
                         "node-0",
@@ -356,7 +398,21 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     public void testDoNotThrowMissedIndicesUpdateExceptionOnOutOfOrderMessages() {
         ShardId shardId = new ShardId(INDEX, between(0, 2));
         service.getShardMemoryMetrics()
-            .put(shardId, new MemoryMetricsService.ShardMemoryMetrics(0, 0, 0, 0L, 0L, 0L, MetricQuality.MISSING, "node-0", 0));
+            .put(
+                shardId,
+                new MemoryMetricsService.ShardMemoryMetrics(
+                    0,
+                    0,
+                    0,
+                    0L,
+                    0L,
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                    0L,
+                    MetricQuality.MISSING,
+                    "node-0",
+                    0
+                )
+            );
 
         int amount = randomIntBetween(50, 100);
         List<Integer> seqIds = IntStream.range(1, amount + 1).mapToObj(Integer::valueOf).collect(Collectors.toList());
@@ -373,6 +429,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                             randomIntBetween(0, 100),
                             randomLongBetween(0, 100),
                             randomLongBetween(0, 100),
+                            randomShardMemoryOverheadBytes(1, 100),
                             "node-0"
                         )
                     )
@@ -386,14 +443,31 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     public void testThrowMissedIndicesUpdateExceptionOnMissedIndex() {
         ShardId shardId = new ShardId(INDEX, between(0, 2));
         service.getShardMemoryMetrics()
-            .put(shardId, new MemoryMetricsService.ShardMemoryMetrics(0, 0, 0, 0, 0, 0, MetricQuality.MISSING, "node-0", 0));
+            .put(
+                shardId,
+                new MemoryMetricsService.ShardMemoryMetrics(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                    0,
+                    MetricQuality.MISSING,
+                    "node-0",
+                    0
+                )
+            );
 
         ShardId otherShardId = randomValueOtherThan(shardId, () -> new ShardId(INDEX, between(0, 2)));
         expectThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
             service.updateShardsMappingSize(
                 new HeapMemoryUsage(
                     randomIntBetween(0, 100),
-                    Map.of(otherShardId, new ShardMappingSize(randomIntBetween(0, 100), 0, 0, 0, 0, "node-0"))
+                    Map.of(
+                        otherShardId,
+                        new ShardMappingSize(randomIntBetween(0, 100), 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "node-0")
+                    )
                 )
             );
         });
@@ -411,6 +485,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                     randomNonNegativeInt(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
+                    randomShardMemoryOverheadBytes(),
                     0,
                     MetricQuality.MISSING,
                     currentNode,
@@ -431,6 +506,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                             randomNonNegativeInt(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
+                            randomShardMemoryOverheadBytes(),
                             newNode
                         )
                     )
@@ -460,6 +536,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                     numFields,
                     postingsInMemoryBytes,
                     0L,
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                     liveDocsBytes,
                     MetricQuality.EXACT,
                     node,
@@ -495,7 +572,18 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             service.getShardMemoryMetrics()
                 .put(
                     new ShardId(indexMetadata.getIndex(), 0),
-                    new MemoryMetricsService.ShardMemoryMetrics(0, numSegments, numFields, 0, 0, 0, MetricQuality.EXACT, node, 0)
+                    new MemoryMetricsService.ShardMemoryMetrics(
+                        0,
+                        numSegments,
+                        numFields,
+                        0,
+                        0,
+                        UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                        0,
+                        MetricQuality.EXACT,
+                        node,
+                        0
+                    )
                 );
         }
 
@@ -508,15 +596,27 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testEstimateMethods() {
+        final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
+        final boolean shardMemoryOverheadOverrideEnabled = randomBoolean();
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio)
+                .put(SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING.getKey(), shardMemoryOverheadOverrideEnabled)
+                .build()
+        );
+        service = new MemoryMetricsService(
+            System::nanoTime,
+            clusterSettings,
+            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
+            MeterRegistry.NOOP
+        );
+
         int numberOfIndices = between(1, 5);
         int numberOfShards = between(1, 2);
         ClusterState clusterState = createClusterStateWithIndices(numberOfIndices, numberOfShards);
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
         service.clusterChanged(event);
-        final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
-        clusterSettings.applySettings(
-            Settings.builder().put(MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio).build()
-        );
+
         var shardMetrics = service.getShardMemoryMetrics();
         assertThat(shardMetrics.size(), equalTo(numberOfIndices * numberOfShards));
         long totalMappingSizeInBytes = 0;
@@ -551,6 +651,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                                 numFields,
                                 postingsInMemoryBytes,
                                 liveDocsBytes,
+                                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                                 metrics.getMetricShardNodeId()
                             )
                         )
@@ -559,6 +660,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 totalMappingSizeInBytes += mappingSizeInBytes;
             }
         }
+
         // defaults to the fixed method
         long fixedEstimateBytes = totalMappingSizeInBytes + totalShards * FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes();
         assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(fixedEstimateBytes));
@@ -575,6 +677,69 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(newFixedEstimateBytes));
 
         assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytes));
+
+        // Test handling of shard memory overhead overrides. E.g. this is used for hollow shards.
+        int overrideCount = randomIntBetween(1, numberOfIndices * numberOfShards);
+        List<ShardId> shardsToOverride = randomSubsetOf(overrideCount, service.getShardMemoryMetrics().keySet());
+        long totalOverheadOverrideBytes = 0;
+        long maxPostingsInMemoryBytesAfterOverride = 0L;
+        for (ShardId shardId : service.getShardMemoryMetrics().keySet()) {
+            MemoryMetricsService.ShardMemoryMetrics metrics = service.getShardMemoryMetrics().get(shardId);
+            if (shardsToOverride.contains(shardId)) {
+                long overheadOverrideBytes = randomLongBetween(1, 1000);
+                totalOverheadOverrideBytes += overheadOverrideBytes;
+                service.updateShardsMappingSize(
+                    new HeapMemoryUsage(
+                        metrics.getSeqNo() + 1,
+                        Map.of(
+                            shardId,
+                            new ShardMappingSize(
+                                metrics.getMappingSizeInBytes(),
+                                metrics.getNumSegments(),
+                                metrics.getTotalFields(),
+                                metrics.getPostingsInMemoryBytes(),
+                                metrics.getLiveDocsBytes(),
+                                overheadOverrideBytes,
+                                metrics.getMetricShardNodeId()
+                            )
+                        )
+                    )
+                );
+                // We skip regular logic when we have an override value supplied
+                totalSegments -= metrics.getNumSegments();
+                totalFields -= metrics.getTotalFields();
+                totalLiveDocsBytes -= metrics.getLiveDocsBytes();
+            } else {
+                maxPostingsInMemoryBytesAfterOverride = Math.max(maxPostingsInMemoryBytesAfterOverride, metrics.getPostingsInMemoryBytes());
+            }
+        }
+        var nonOverrideCount = totalShards - overrideCount;
+        var fixedEstimateBytesWithOverride = totalMappingSizeInBytes + nonOverrideCount * newOverhead.getBytes()
+            + totalOverheadOverrideBytes;
+        if (shardMemoryOverheadOverrideEnabled) {
+            assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(fixedEstimateBytesWithOverride));
+        } else {
+            // No change as overrides are ignored
+            assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(newFixedEstimateBytes));
+        }
+        // Switch to the adaptive method and check with the updated aggregates
+        service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
+        long adaptiveEstimateBytesWithOverride = nonOverrideCount * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
+            * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + totalLiveDocsBytes;
+        long extraBytesWithHollow = (long) (adaptiveEstimateBytesWithOverride * adaptiveExtraOverheadRatio);
+        if (shardMemoryOverheadOverrideEnabled) {
+            assertThat(
+                service.estimateTierMemoryUsage().totalBytes(),
+                equalTo(totalMappingSizeInBytes + totalOverheadOverrideBytes + adaptiveEstimateBytesWithOverride + extraBytesWithHollow)
+            );
+            assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytesAfterOverride));
+        } else {
+            assertThat(
+                service.estimateTierMemoryUsage().totalBytes(),
+                equalTo(totalMappingSizeInBytes + adaptiveEstimateBytes + extraBytes)
+            );
+            assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytes));
+        }
     }
 
     public void testAdaptiveEstimateValues() {
@@ -923,6 +1088,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         service.updateShardsMappingSize(new HeapMemoryUsage(2, randomMemoryMetrics(node0, clusterState1)));
 
         // Node 0 heap estimate should have increased
+        // Note that hollow shards can reduce the initial estimate, but we don't test this here
         final long node0EstimateAfterUpdate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
@@ -1020,6 +1186,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                     randomIntBetween(1, 100),
                     randomLongBetween(1, 100),
                     randomIntBetween(1, 100),
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                     node.getId()
                 )
             );
@@ -1109,6 +1276,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomShardMemoryOverheadBytes(),
             nodeId
         );
     }
@@ -1136,5 +1304,17 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             .metadata(Metadata.builder().indices(indices))
             .version(version)
             .build();
+    }
+
+    private long randomShardMemoryOverheadBytes() {
+        return randomShardMemoryOverheadBytes(1, Long.MAX_VALUE);
+    }
+
+    private long randomShardMemoryOverheadBytes(long min, long max) {
+        if (randomBoolean()) {
+            return UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+        } else {
+            return randomLongBetween(min, max);
+        }
     }
 }

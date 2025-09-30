@@ -1,5 +1,5 @@
 pr: 135709
 summary: ES|QL - KNN function
-area: "ES|QL"
+area: ES|QL
 type: feature
-issues: [126710]
+issues: []

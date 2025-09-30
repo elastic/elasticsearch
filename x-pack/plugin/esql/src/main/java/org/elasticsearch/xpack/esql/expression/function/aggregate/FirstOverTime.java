@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunc
 import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -55,7 +56,10 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "first_over_time") }
     )
-    public FirstOverTime(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
+    public FirstOverTime(
+        Source source,
+        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double" }) Expression field
+    ) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
@@ -108,21 +112,29 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        var dataType = field().dataType();
+        if (dataType.isCounter()) {
+            return switch (dataType) {
+                case COUNTER_DOUBLE -> DataType.DOUBLE;
+                case COUNTER_INTEGER -> DataType.INTEGER;
+                case COUNTER_LONG -> DataType.LONG;
+                default -> throw new InvalidArgumentException("Received an unsupported counter type in FirstOverTime");
+            };
+        }
+        return dataType;
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long")
-            .and(
-                isType(
-                    timestamp,
-                    dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
-                    sourceText(),
-                    SECOND,
-                    "date_nanos or datetime"
-                )
-            );
+        return isType(
+            field(),
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.AGGREGATE_METRIC_DOUBLE || dt.isCounter(),
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long"
+        ).and(
+            isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
+        );
     }
 
     @Override
@@ -131,9 +143,9 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new FirstLongByTimestampAggregatorFunctionSupplier();
-            case INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
-            case DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
+            case LONG, COUNTER_LONG -> new FirstLongByTimestampAggregatorFunctionSupplier();
+            case INTEGER, COUNTER_INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
+            case DOUBLE, COUNTER_DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };

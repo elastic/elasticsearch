@@ -30,16 +30,50 @@ public record ShardMappingSize(
     int totalFields,
     long postingsInMemoryBytes,
     long liveDocsBytes,
+    // Value that can be passed to the master to indicate a more accurate overhead for the shard.
+    // Use UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES to indicate that the node doesn't provide this value.
+    long shardMemoryOverheadBytes,
     String nodeId
 ) implements Writeable {
 
     private static final TransportVersion TRACK_LIVE_DOCS_IN_MEMORY_BYTES = TransportVersion.fromName("track_live_docs_in_memory_bytes");
+    private static final TransportVersion SHARD_MEMORY_OVERHEAD_IN_SHARD_MAPPING_SIZE = TransportVersion.fromName(
+        "shard_memory_overhead_in_shard_mapping_size"
+    );
+
+    public static final long UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES = 0L;
 
     public static ShardMappingSize from(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
-            return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readString());
+        if (in.getTransportVersion().supports(SHARD_MEMORY_OVERHEAD_IN_SHARD_MAPPING_SIZE)) {
+            return new ShardMappingSize(
+                in.readVLong(),
+                in.readVInt(),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readString()
+            );
+        } else if (in.getTransportVersion().supports(TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
+            return new ShardMappingSize(
+                in.readVLong(),
+                in.readVInt(),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVLong(),
+                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                in.readString()
+            );
         } else {
-            return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readVLong(), 0L, in.readString());
+            return new ShardMappingSize(
+                in.readVLong(),
+                in.readVInt(),
+                in.readVInt(),
+                in.readVLong(),
+                0L,
+                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                in.readString()
+            );
         }
     }
 
@@ -51,6 +85,9 @@ public record ShardMappingSize(
         out.writeVLong(postingsInMemoryBytes);
         if (out.getTransportVersion().supports(TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
             out.writeVLong(liveDocsBytes);
+        }
+        if (out.getTransportVersion().supports(SHARD_MEMORY_OVERHEAD_IN_SHARD_MAPPING_SIZE)) {
+            out.writeVLong(shardMemoryOverheadBytes);
         }
         out.writeString(nodeId);
     }

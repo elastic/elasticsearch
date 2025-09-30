@@ -55,6 +55,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -143,6 +144,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
                                 entry.getValue().totalFields(),
                                 entry.getValue().postingsInMemoryBytes(),
                                 entry.getValue().liveDocsBytes(),
+                                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                                 nodeId
                             )
                         )

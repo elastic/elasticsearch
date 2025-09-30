@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -27,8 +29,9 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
@@ -51,28 +54,42 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 
 public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEventListener {
 
     public static final Setting<TimeValue> PUBLISHING_FREQUENCY_SETTING = Setting.timeSetting(
         "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
         TimeValue.timeValueMinutes(5),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> CUT_OFF_TIMEOUT_SETTING = Setting.timeSetting(
         "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.cut_off_timeout",
         // Safe timeout value, all mappings will eventually be synced by the periodic task
         TimeValue.timeValueMinutes(2),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.retry_initial_delay",
         TimeValue.timeValueSeconds(5),
+        Setting.Property.NodeScope
+    );
+    // This setting will apply only when serverless.autoscaling.memory_metrics.shard_memory_overhead_override.enabled is true.
+    public static final Setting<ByteSizeValue> FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
+        "serverless.autoscaling.memory_metrics.hollow_shard_memory_overhead.fixed_overhead",
+        ByteSizeValue.ofKb(90),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    // The memory overhead per segment for hollow shards taken up by structures like SegmentInfo.
+    // This setting will apply only when serverless.autoscaling.memory_metrics.shard_memory_overhead_override.enabled is true.
+    public static final Setting<ByteSizeValue> HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
+        "serverless.autoscaling.memory_metrics.hollow_shard_memory_overhead.segment_overhead",
+        ByteSizeValue.ofKb(2),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(ShardsMappingSizeCollector.class);
     private static final org.apache.logging.log4j.Logger log4jLogger = org.apache.logging.log4j.LogManager.getLogger(
         ShardsMappingSizeCollector.class
@@ -87,47 +104,32 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
     private final TimeValue retryInitialDelay;
     private final AtomicLong seqNo = new AtomicLong();
     private final ClusterService clusterService;
+    private final HollowShardsService hollowShardsService;
     private volatile PublishTask publishTask;
+    private volatile ByteSizeValue fixedHollowShardMemoryOverhead;
+    private volatile ByteSizeValue hollowShardSegmentMemoryOverhead;
 
     public ShardsMappingSizeCollector(
         final boolean isIndexNode,
         final IndicesService indicesService,
         final HeapMemoryUsagePublisher publisher,
         final ThreadPool threadPool,
-        final Settings settings,
-        final ClusterService clusterService
-    ) {
-        this(
-            isIndexNode,
-            indicesService,
-            publisher,
-            threadPool,
-            PUBLISHING_FREQUENCY_SETTING.get(settings),
-            CUT_OFF_TIMEOUT_SETTING.get(settings),
-            RETRY_INITIAL_DELAY_SETTING.get(settings),
-            clusterService
-        );
-    }
-
-    ShardsMappingSizeCollector(
-        final boolean isIndexNode,
-        final IndicesService indicesService,
-        final HeapMemoryUsagePublisher publisher,
-        final ThreadPool threadPool,
-        final TimeValue publicationFrequency,
-        final TimeValue cutOffTimeout,
-        final TimeValue retryInitialDelay,
-        final ClusterService clusterService
+        final ClusterService clusterService,
+        final HollowShardsService hollowShardsService
     ) {
         this.isIndexNode = isIndexNode;
         this.indicesService = indicesService;
         this.publisher = publisher;
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
-        this.publicationFrequency = publicationFrequency;
-        this.cutOffTimeout = cutOffTimeout;
-        this.retryInitialDelay = retryInitialDelay;
         this.clusterService = clusterService;
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        this.publicationFrequency = clusterSettings.get(PUBLISHING_FREQUENCY_SETTING);
+        this.cutOffTimeout = clusterSettings.get(CUT_OFF_TIMEOUT_SETTING);
+        this.retryInitialDelay = clusterSettings.get(RETRY_INITIAL_DELAY_SETTING);
+        this.hollowShardsService = hollowShardsService;
+        clusterSettings.initializeAndWatch(FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedHollowShardMemoryOverhead = value);
+        clusterSettings.initializeAndWatch(HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING, value -> hollowShardSegmentMemoryOverhead = value);
     }
 
     public static ShardsMappingSizeCollector create(
@@ -136,15 +138,15 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
         final IndicesService indicesService,
         final HeapMemoryUsagePublisher publisher,
         final ThreadPool threadPool,
-        final Settings settings
+        final HollowShardsService hollowShardsService
     ) {
         final ShardsMappingSizeCollector instance = new ShardsMappingSizeCollector(
             isIndexNode,
             indicesService,
             publisher,
             threadPool,
-            settings,
-            clusterService
+            clusterService,
+            hollowShardsService
         );
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -259,6 +261,13 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
                     : shard.shardId() + ": started or post_recovery shard must have shard_field_stats ready";
                 continue;
             }
+            final var isHollowShard = hollowShardsService.isHollowShard(shard.shardId());
+            long shardMemoryOverheadBytes = UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+            if (isHollowShard) {
+                shardMemoryOverheadBytes = fixedHollowShardMemoryOverhead.getBytes() + hollowShardSegmentMemoryOverhead.getBytes()
+                    * shardFieldStats.numSegments();
+                assert shardMemoryOverheadBytes != UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+            }
             final String nodeId = shard.routingEntry().currentNodeId();
             final ShardMappingSize shardMappingSize = new ShardMappingSize(
                 indexMappingSizeInBytes,
@@ -266,6 +275,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
                 shardFieldStats.totalFields(),
                 shardFieldStats.postingsInMemoryBytes(),
                 shardFieldStats.liveDocsBytes(),
+                shardMemoryOverheadBytes,
                 nodeId
             );
             map.put(shard.shardId(), shardMappingSize);

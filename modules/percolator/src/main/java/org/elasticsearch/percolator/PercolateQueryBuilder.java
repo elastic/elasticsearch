@@ -206,15 +206,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         super(in);
         field = in.readString();
         name = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String documentType = in.readOptionalString();
-            assert documentType == null;
-        }
         indexedDocumentIndex = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String indexedDocumentType = in.readOptionalString();
-            assert indexedDocumentType == null;
-        }
         indexedDocumentId = in.readOptionalString();
         indexedDocumentRouting = in.readOptionalString();
         indexedDocumentPreference = in.readOptionalString();
@@ -248,15 +240,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeString(field);
         out.writeOptionalString(name);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // In 7x, typeless percolate queries are represented by null documentType values
-            out.writeOptionalString(null);
-        }
         out.writeOptionalString(indexedDocumentIndex);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // In 7x, typeless percolate queries are represented by null indexedDocumentType values
-            out.writeOptionalString(null);
-        }
         out.writeOptionalString(indexedDocumentId);
         out.writeOptionalString(indexedDocumentRouting);
         out.writeOptionalString(indexedDocumentPreference);

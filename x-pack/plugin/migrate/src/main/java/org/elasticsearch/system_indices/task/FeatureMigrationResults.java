@@ -35,7 +35,6 @@ import java.util.TreeMap;
  */
 public class FeatureMigrationResults implements Metadata.ProjectCustom {
     public static final String TYPE = "system_index_migration";
-    public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersions.V_8_0_0;
 
     static final ParseField RESULTS_FIELD = new ParseField("results");
 
@@ -94,7 +93,7 @@ public class FeatureMigrationResults implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return MIGRATION_ADDED_VERSION;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -164,7 +163,7 @@ public class FeatureMigrationResults implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return MIGRATION_ADDED_VERSION;
+            return TransportVersion.minimumCompatible();
         }
 
     }

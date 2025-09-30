@@ -17,8 +17,8 @@ $$$append-options$$$
 | `value` | yes* | - | The value to be appended. Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). May specify only one of `value` or `copy_from`. |
 | `copy_from` {applies_to}`stack: ga 9.2` | no | - | The origin field which will be appended to `field`, cannot set `value` simultaneously. |
 | `allow_duplicates` | no | true | If `false`, the processor does not appendvalues already present in the field. |
-| `ignore_empty_values` {applies_to}`stack: ga 9.2` | no | false | If `true`, the processor does not append values that resolve `null` or an empty strings.
-| `Media_type` | no | `application/json` | The media type for encoding `value`. Applies only when `value` is a [template snippet](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). Must be one of `application/json`, `text/plain`, or`application/x-www-form-urlencoded`. |
+| `ignore_empty_values` {applies_to}`stack: ga 9.2` | no | false | If `true`, the processor does not append values that resolve to `null` or an empty string.
+| `media_type` | no | `application/json` | The media type for encoding `value`. Applies only when `value` is a [template snippet](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). Must be one of `application/json`, `text/plain`, or`application/x-www-form-urlencoded`. |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
 | `if` | no | - | Conditionally execute the processor. See [Conditionally run a processor](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#conditionally-run-processor). |
 | `ignore_failure` | no | `false` | Ignore failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
@@ -29,7 +29,7 @@ $$$append-options$$$
 
 ### Simple example [append-processor-simple-example]
 
-Here is an that adds the string `"production"` as well as the values of the `app` and `owner` fields to the `tags` field:
+Here is an `append` processor definition that adds the string `"production"` as well as the values of the `app` and `owner` fields to the `tags` field:
 
 ```js
 {
@@ -40,13 +40,13 @@ Here is an that adds the string `"production"` as well as the values of the `app
 }
 ```
 
-### Example using `allow_duplicates` and `ignore_empty_values`
+### Example using `allow_duplicates` and `ignore_empty_values` [append-processor-example-using-allow-duplicates-and-ignore-empty-values]
 
 ```{applies_to}
 stack: ga 9.2
 ```
 
-By using `allow_duplicates` and `ignore_empty_values`, it is possible to only append the `host.name` to the `related.hosts` if the `host.name` is not empty and if the value not already present in `related.hosts`:
+By using `allow_duplicates` and `ignore_empty_values`, it is possible to only append the `host.name` to the `related.hosts` if the `host.name` is not empty and if the value is not already present in `related.hosts`:
 
 ```js
 {

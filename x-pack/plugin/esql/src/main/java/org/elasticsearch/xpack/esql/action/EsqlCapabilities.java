@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
@@ -1291,7 +1290,7 @@ public class EsqlCapabilities {
         /**
          * Dense vector field type support
          */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_RELEASED,
 
         /**
          * Enable support for index aliases in lookup joins
@@ -1327,7 +1326,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V5(Build.current().isSnapshot()),
+        KNN_FUNCTION_V5,
 
         /**
          * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
@@ -1377,7 +1376,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V6(Build.current().isSnapshot()),
+        FUSE_V6,
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1448,12 +1447,12 @@ public class EsqlCapabilities {
         /**
          * Byte elements dense vector field type support.
          */
-        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS,
 
         /**
          * Bit elements dense vector field type support.
          */
-        DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS,
 
         /**
          * Support null elements on vector similarity functions
@@ -1521,7 +1520,7 @@ public class EsqlCapabilities {
         /**
          * TO_DENSE_VECTOR function.
          */
-        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+        TO_DENSE_VECTOR_FUNCTION,
 
         /**
          * Support present_over_time aggregation that gets evaluated per time-series
@@ -1548,6 +1547,8 @@ public class EsqlCapabilities {
         /** INLINE STATS supports remote indices */
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
 
+        INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled),
+
         /**
          * Support TS command in non-snapshot builds
          */
@@ -1564,6 +1565,11 @@ public class EsqlCapabilities {
         INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
 
         DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
+        /**
+         * FUSE L2_NORM score normalization support
+         */
+        FUSE_L2_NORM(Build.current().isSnapshot()),
 
         /**
          * Support for requesting the "_tsid" metadata field.

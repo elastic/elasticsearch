@@ -372,7 +372,7 @@ class IndicesAndAliasesResolver {
                 // once we've migrated from `indices()` to using resolved expressions holistically,
                 // we will always store them
                 if (recordResolvedIndexExpressions) {
-                    setResolvedExpressionsIfUnset(replaceable, resolved);
+                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                 }
                 resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                 resolvedIndicesBuilder.addRemote(split.getRemote());
@@ -443,7 +443,7 @@ class IndicesAndAliasesResolver {
         return resolvedIndicesBuilder.build();
     }
 
-    private static void setResolvedExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
+    private static void setResolvedIndexExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
         if (replaceable.getResolvedIndexExpressions() == null) {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {

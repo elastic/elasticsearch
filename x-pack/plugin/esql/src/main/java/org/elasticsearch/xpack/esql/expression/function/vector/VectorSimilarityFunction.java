@@ -303,9 +303,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public void eval(Page page) {
-            if (expressionEvaluator != null) {
-                block = (FloatBlock) expressionEvaluator.eval(page);
-            }
+            block = (FloatBlock) expressionEvaluator.eval(page);
         }
 
         @Override

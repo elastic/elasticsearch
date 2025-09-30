@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -144,7 +145,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Double")
-    static void process(DoubleBlock.Builder builder, int position, DoubleBlock bestEstimateBlock, DoubleBlock estimatesBlock, IntBlock bucketCountBlock, DoubleBlock emptyBucketValueBlock) {
+    static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock bestEstimateBlock, DoubleBlock estimatesBlock, IntBlock bucketCountBlock, DoubleBlock emptyBucketValueBlock) {
         assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
         assert bucketCountBlock.getValueCount(position) == 1 : "bucketCount: expected 1 element, got " + bucketCountBlock.getValueCount(position);
         assert emptyBucketValueBlock.getValueCount(position) == 1 : "emptyBucketValue: expected 1 element, got " + emptyBucketValueBlock.getValueCount(position);
@@ -168,7 +169,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Int")
-    static void process(IntBlock.Builder builder, int position, IntBlock bestEstimateBlock, IntBlock estimatesBlock, IntBlock bucketCountBlock, DoubleBlock emptyBucketValueBlock) {
+    static void process(IntBlock.Builder builder, @Position int position, IntBlock bestEstimateBlock, IntBlock estimatesBlock, IntBlock bucketCountBlock, DoubleBlock emptyBucketValueBlock) {
         assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
         assert bucketCountBlock.getValueCount(position) == 1 : "bucketCount: expected 1 element, got " + bucketCountBlock.getValueCount(position);
         assert emptyBucketValueBlock.getValueCount(position) == 1 : "emptyBucketValue: expected 1 element, got " + emptyBucketValueBlock.getValueCount(position);
@@ -190,7 +191,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Long")
-    static void process(LongBlock.Builder builder, int position, LongBlock bestEstimateBlock, LongBlock estimatesBlock, IntBlock bucketCountBlock, DoubleBlock emptyBucketValueBlock) {
+    static void process(LongBlock.Builder builder, @Position int position, LongBlock bestEstimateBlock, LongBlock estimatesBlock, IntBlock bucketCountBlock, DoubleBlock emptyBucketValueBlock) {
         assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
         assert bucketCountBlock.getValueCount(position) == 1 : "bucketCount: expected 1 element, got " + bucketCountBlock.getValueCount(position);
         assert emptyBucketValueBlock.getValueCount(position) == 1 : "emptyBucketValue: expected 1 element, got " + emptyBucketValueBlock.getValueCount(position);

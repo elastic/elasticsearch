@@ -180,12 +180,12 @@ public class Version implements Comparable<Version>, Serializable {
             return false;
         }
         Version version = (Version) o;
-        return major == version.major && minor == version.minor && revision == version.revision;
+        return major == version.major && minor == version.minor && revision == version.revision && detached == version.detached;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(major, minor, revision, id);
+        return Objects.hash(major, minor, revision, id, detached);
     }
 
     public int getMajor() {

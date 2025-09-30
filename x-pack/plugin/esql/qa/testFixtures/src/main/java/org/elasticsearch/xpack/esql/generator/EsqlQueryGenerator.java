@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
-import org.elasticsearch.xpack.esql.generator.command.pipe.SampleGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
@@ -74,7 +73,8 @@ public class EsqlQueryGenerator {
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
         RenameGenerator.INSTANCE,
-        SampleGenerator.INSTANCE,
+        // awaits fix for https://github.com/elastic/elasticsearch/issues/135336
+        // SampleGenerator.INSTANCE,
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         WhereGenerator.INSTANCE

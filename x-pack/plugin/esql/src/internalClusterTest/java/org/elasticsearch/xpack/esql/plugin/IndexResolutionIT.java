@@ -104,11 +104,19 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDoesNotResolveEmptyPattern() {
+        assertAcked(client().admin().indices().prepareCreate("data"));
+        indexRandom(true, "data", 1);
+
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [index-*]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-*"))
+            () -> run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))
         );
+
+        try (var response = run(syncEsqlQueryRequest().query("FROM data,index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "data");
+        }
     }
 
     public void testDoesNotResolveClosedIndex() {

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;

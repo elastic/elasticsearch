@@ -128,6 +128,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -174,6 +175,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     protected TestPlannerOptimizer plannerOptimizer;
     private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     private Analyzer timeSeriesAnalyzer;
+    protected TestPlannerOptimizer plannerOptimizerTimeSeries;
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
@@ -240,6 +242,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             ),
             TEST_VERIFIER
         );
+        plannerOptimizerTimeSeries = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
     }
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
@@ -2470,8 +2473,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     private LocalPhysicalPlanOptimizer getCustomRulesLocalPhysicalPlanOptimizer(List<RuleExecutor.Batch<PhysicalPlan>> batches) {
+        var flags = new EsqlFlags(true);
         LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
-            new EsqlFlags(true),
+            TEST_PLANNER_SETTINGS,
+            flags,
             config,
             FoldContext.small(),
             SearchStats.EMPTY

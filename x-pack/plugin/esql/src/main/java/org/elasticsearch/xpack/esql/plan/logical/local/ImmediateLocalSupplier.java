@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +24,8 @@ import java.io.IOException;
  */
 public class ImmediateLocalSupplier implements LocalSupplier {
 
+    private static final TransportVersion ESQL_PLAN_WITH_NO_COLUMNS = TransportVersion.fromName("esql_plan_with_no_columns");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LocalSupplier.class,
         "ImmediateSupplier",
@@ -37,7 +40,7 @@ public class ImmediateLocalSupplier implements LocalSupplier {
 
     ImmediateLocalSupplier(StreamInput in) throws IOException {
         this(
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLAN_WITH_NO_COLUMNS)
+            in.getTransportVersion().supports(ESQL_PLAN_WITH_NO_COLUMNS)
                 ? new Page(in.readInt(), ((PlanStreamInput) in).readCachedBlockArray())
                 : legacyPage((PlanStreamInput) in)
         );
@@ -64,7 +67,7 @@ public class ImmediateLocalSupplier implements LocalSupplier {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLAN_WITH_NO_COLUMNS)) {
+        if (out.getTransportVersion().supports(ESQL_PLAN_WITH_NO_COLUMNS)) {
             out.writeInt(page.getPositionCount());
         }
 

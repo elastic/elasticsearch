@@ -21,7 +21,7 @@ import java.util.List;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
-    public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_format");
+    public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_vectors_indexing");
 
     /**
      * An enum for the tri-state value of the `index.vectors.indexing.use_gpu` setting.

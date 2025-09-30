@@ -210,27 +210,27 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         };
     }
 
-    @Evaluator(extraName = "Int", allNullsIsNull=false)
+    @Evaluator(extraName = "Int", allNullsIsNull = false)
     static boolean process(@Position int position, IntBlock field1, IntBlock field2) {
         return containsAll(field1, field2, position, IntBlock::getInt);
     }
 
-    @Evaluator(extraName = "Boolean", allNullsIsNull=false)
+    @Evaluator(extraName = "Boolean", allNullsIsNull = false)
     static boolean process(@Position int position, BooleanBlock field1, BooleanBlock field2) {
         return containsAll(field1, field2, position, BooleanBlock::getBoolean);
     }
 
-    @Evaluator(extraName = "Long", allNullsIsNull=false)
+    @Evaluator(extraName = "Long", allNullsIsNull = false)
     static boolean process(@Position int position, LongBlock field1, LongBlock field2) {
         return containsAll(field1, field2, position, LongBlock::getLong);
     }
 
-    @Evaluator(extraName = "Double", allNullsIsNull=false)
+    @Evaluator(extraName = "Double", allNullsIsNull = false)
     static boolean process(@Position int position, DoubleBlock field1, DoubleBlock field2) {
         return containsAll(field1, field2, position, DoubleBlock::getDouble);
     }
 
-    @Evaluator(extraName = "BytesRef", allNullsIsNull=false)
+    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
     static boolean process(@Position int position, BytesRefBlock field1, BytesRefBlock field2) {
         return containsAll(field1, field2, position, (block, index) -> {
             var ref = new BytesRef();

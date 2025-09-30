@@ -59,7 +59,8 @@ public class EvaluatorImplementer {
         ExecutableElement processFunction,
         String extraName,
         List<TypeMirror> warnExceptions,
-        boolean allNullsIsNull) {
+        boolean allNullsIsNull
+    ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = new ProcessFunction(types, processFunction, warnExceptions);
 
@@ -233,9 +234,9 @@ public class EvaluatorImplementer {
                 pattern.append(")");
                 String builtPattern;
                 if (processFunction.builderArg == null) {
-                    if(vectorize) {
+                    if (vectorize) {
                         builtPattern = "result.$L(p, " + pattern + ")";
-                    } else if(processOutputsMultivalued) {
+                    } else if (processOutputsMultivalued) {
                         builtPattern = "result.beginPositionEntry().$L(" + pattern + ").endPositionEntry()";
                     } else {
                         builtPattern = "result.$L(" + pattern + ")";

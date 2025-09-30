@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -207,7 +208,10 @@ public class FuseScoreEval extends UnaryPlan
                 String stringValue = BytesRefs.toString(value.fold(FoldContext.small())).toUpperCase(Locale.ROOT);
                 if (Arrays.stream(LinearConfig.Normalizer.values()).noneMatch(s -> s.name().equals(stringValue))) {
                     failures.add(new Failure(this, "[" + value.sourceText() + "] is not a valid normalizer"));
-                }
+                } else if (LinearConfig.Normalizer.valueOf(stringValue) == LinearConfig.Normalizer.L2_NORM
+                    && EsqlCapabilities.Cap.FUSE_L2_NORM.isEnabled() == false) {
+                        failures.add(new Failure(this, "[" + value.sourceText() + "] is not a valid normalizer"));
+                    }
             } else if (key.equals(FuseConfig.WEIGHTS)) {
                 validateWeights(value, failures);
             } else {

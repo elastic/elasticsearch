@@ -637,8 +637,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      *LimitExec[10000[INTEGER],8]
-     * \_AggregateExec[[],[SUM(salary{f}#13460,true[BOOLEAN]) AS x#13454],FINAL,[$$x$sum{r}#13466, $$x$seen{r}#13467],8]
-     *   \_AggregateExec[[],[SUM(salary{f}#13460,true[BOOLEAN]) AS x#13454],INITIAL,[$$x$sum{r}#13466, $$x$seen{r}#13467],8]
+     * \_AggregateExec[[],[SUM(salary{f}#13460,true[BOOLEAN]) AS x#13454],SINGLE,[$$x$sum{r}#13466, $$x$seen{r}#13467],8]
      *     \_FilterExec[ROUND(emp_no{f}#13455) > 10[INTEGER]]
      *       \_TopNExec[[Order[last_name{f}#13459,ASC,LAST]],10[INTEGER],58]
      *         \_ExchangeExec[[emp_no{f}#13455, last_name{f}#13459, salary{f}#13460],false]
@@ -659,11 +658,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
-        var aggregateFinal = as(limit.child(), AggregateExec.class);
-        assertThat(aggregateFinal.estimatedRowSize(), equalTo(Long.BYTES));
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.estimatedRowSize(), equalTo(Long.BYTES));
 
-        var aggregatePartial = as(aggregateFinal.child(), AggregateExec.class);
-        var filter = as(aggregatePartial.child(), FilterExec.class);
+        var filter = as(agg.child(), FilterExec.class);
         var topN = as(filter.child(), TopNExec.class);
 
         var exchange = asRemoteExchange(topN.child());
@@ -3143,8 +3141,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Expects
      *
      * LimitExec[10000[INTEGER]]
-     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],FINAL,[count{r}#13, seen{r}#14],8]
-     *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],INITIAL,[count{r}#13, seen{r}#14],8]
+     * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS count(*)],SINGLE,[count{r}#13, seen{r}#14],8]
      *     \_LimitExec[10[INTEGER]]
      *       \_ExchangeExec[[&lt;all-fields-projected&gt;{r:s}#28],false]
      *         \_ProjectExec[[&lt;all-fields-projected&gt;{r:s}#28]]
@@ -3159,9 +3156,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
 
         var limit = as(plan, LimitExec.class);
-        var aggFinal = as(limit.child(), AggregateExec.class);
-        var aggInitial = as(aggFinal.child(), AggregateExec.class);
-        var limit10 = as(aggInitial.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), equalTo(SINGLE));
+        var limit10 = as(agg.child(), LimitExec.class);
 
         var exchange = as(limit10.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -3228,8 +3225,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * ProjectExec[[a{r}#5]]
      * \_EvalExec[[__a_SUM@81823521{r}#15 / __a_COUNT@31645621{r}#16 AS a]]
      *   \_LimitExec[10000[INTEGER]]
-     *     \_AggregateExec[[],[SUM(salary{f}#11) AS __a_SUM@81823521, COUNT(salary{f}#11) AS __a_COUNT@31645621],FINAL,24]
-     *       \_AggregateExec[[],[SUM(salary{f}#11) AS __a_SUM@81823521, COUNT(salary{f}#11) AS __a_COUNT@31645621],PARTIAL,16]
+     *     \_AggregateExec[[],[SUM(salary{f}#11) AS __a_SUM@81823521, COUNT(salary{f}#11) AS __a_COUNT@31645621],SINGLE,24]
      *         \_LimitExec[10[INTEGER]]
      *           \_ExchangeExec[[],false]
      *             \_ProjectExec[[salary{f}#11]]
@@ -3249,11 +3245,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(eval.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(10000));
-        var aggFinal = as(limit.child(), AggregateExec.class);
-        assertThat(aggFinal.getMode(), equalTo(FINAL));
-        var aggPartial = as(aggFinal.child(), AggregateExec.class);
-        assertThat(aggPartial.getMode(), equalTo(INITIAL));
-        limit = as(aggPartial.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), equalTo(SINGLE));
+        limit = as(agg.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
 
@@ -3363,11 +3357,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan, stats);
 
         var limit = as(optimized, LimitExec.class);
-        var aggFinal = as(limit.child(), AggregateExec.class);
-        var aggPartial = as(aggFinal.child(), AggregateExec.class);
-        // The partial aggregation's output is determined via AbstractPhysicalOperationProviders.intermediateAttributes()
-        assertThat(Expressions.names(aggPartial.output()), contains("$$c$count", "$$c$seen"));
-        limit = as(aggPartial.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), equalTo(SINGLE));
+        limit = as(agg.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
     }
@@ -4093,8 +4085,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * After local optimizations:
      * <code>
      * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,58]
-     *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,58]
+     * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],SINGLE,58]
      *     \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *       \_ExchangeExec[[scalerank{f}#16, xVal{r}#19, xDel{r}#20, yVal{r}#21, yDel{r}#22, count{r}#23, count{r}#24, seen{r}#25],true]
      *         \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],PARTIAL,58]
@@ -4138,12 +4129,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         limit = as(optimized, LimitExec.class);
         agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
-        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-        assertAggregation(agg, "count", Sum.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
-        agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+        assertThat("Aggregation is SINGLE", agg.getMode(), equalTo(SINGLE));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);

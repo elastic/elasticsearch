@@ -33,7 +33,7 @@ public class InlineStatsGenerator extends StatsGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-        
+
         int prevCols = previousColumns.size();
 
         if (previousColumns.stream().anyMatch(x -> x.name().equals("<all-fields-projected>"))) {

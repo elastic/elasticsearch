@@ -313,7 +313,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             .putList("index.sort.mode", new String[] { "max" })
             .build();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-        assertThat(exc.getMessage(), containsString("index.sort.field:[] index.sort.mode:[max], size mismatch"));
+        assertThat(exc.getMessage(), containsString("index.sort.field:[] index.sort.mode:[MAX], size mismatch"));
     }
 
     public void testLegacyLogsdbInvalidIndexSortMissing() {

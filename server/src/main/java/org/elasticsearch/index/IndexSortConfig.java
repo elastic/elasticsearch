@@ -189,21 +189,8 @@ public final class IndexSortConfig {
                     return null;
                 }
 
-                List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-                if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
-                    var order = INDEX_SORT_ORDER_SETTING.get(settings);
-                    throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.order:" + order + ", size mismatch");
-                }
-                if (INDEX_SORT_MODE_SETTING.exists(settings)) {
-                    var mode = INDEX_SORT_MODE_SETTING.get(settings);
-                    throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.mode:" + mode + ", size mismatch");
-                }
-                if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
-                    var missing = INDEX_SORT_MISSING_SETTING.get(settings);
-                    throw new IllegalArgumentException(
-                        "index.sort.fields:" + fields + " index.sort.missing:" + missing + ", size mismatch"
-                    );
-                }
+                validateSortSettings(settings);
+
                 if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
                     || version.between(
                         IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT,

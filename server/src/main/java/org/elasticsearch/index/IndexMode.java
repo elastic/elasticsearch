@@ -658,7 +658,10 @@ public enum IndexMode {
                         );
                     }
                 } else {
-                    additionalSettings.putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), List.of("asc", "desc"));
+                    additionalSettings.putList(
+                        IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
+                        sortOrder.stream().map(Object::toString).toList()
+                    );
                 }
             }
         }

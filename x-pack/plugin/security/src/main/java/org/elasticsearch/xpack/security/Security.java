@@ -1144,9 +1144,6 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        final AuthorizedProjectsSupplier authorizedProjectsSupplier = getCrossProjectSearchAuthorizationService(
-            extensionComponents
-        );
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1165,9 +1162,7 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            authorizedProjectsSupplier == null
-                ? new AuthorizedProjectsSupplier.Default()
-                : authorizedProjectsSupplier
+            getAuthorizedProjectsSupplier(extensionComponents)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1352,13 +1347,12 @@ public class Security extends Plugin
         }
     }
 
-    private AuthorizedProjectsSupplier getCrossProjectSearchAuthorizationService(
-        SecurityExtension.SecurityComponents extensionComponents
-    ) {
-        return findValueFromExtensions(
-            "cross-project search authorization service",
-            extension -> extension.getCrossProjectSearchAuthorizationService(extensionComponents)
+    private AuthorizedProjectsSupplier getAuthorizedProjectsSupplier(SecurityExtension.SecurityComponents extensionComponents) {
+        AuthorizedProjectsSupplier serverlesAuthorizedProjectsSupplier = findValueFromExtensions(
+            "serverles authorized projects supplier",
+            extension -> extension.getAuthorizedProjectsSupplier(extensionComponents)
         );
+        return serverlesAuthorizedProjectsSupplier == null ? new AuthorizedProjectsSupplier.Default() : serverlesAuthorizedProjectsSupplier;
     }
 
     private ServiceAccountService createServiceAccountService(

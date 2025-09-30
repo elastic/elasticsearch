@@ -171,47 +171,6 @@ public class AuthorizationService {
         RestrictedIndices restrictedIndices,
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
-        ProjectResolver projectResolver
-    ) {
-        this(
-            settings,
-            rolesStore,
-            fieldPermissionsCache,
-            clusterService,
-            auditTrailService,
-            authcFailureHandler,
-            threadPool,
-            anonymousUser,
-            authorizationEngine,
-            requestInterceptors,
-            licenseState,
-            resolver,
-            operatorPrivilegesService,
-            restrictedIndices,
-            authorizationDenialMessages,
-            linkedProjectConfigService,
-            projectResolver,
-            new AuthorizedProjectsSupplier.Default()
-        );
-    }
-
-    public AuthorizationService(
-        Settings settings,
-        CompositeRolesStore rolesStore,
-        FieldPermissionsCache fieldPermissionsCache,
-        ClusterService clusterService,
-        AuditTrailService auditTrailService,
-        AuthenticationFailureHandler authcFailureHandler,
-        ThreadPool threadPool,
-        AnonymousUser anonymousUser,
-        @Nullable AuthorizationEngine authorizationEngine,
-        Set<RequestInterceptor> requestInterceptors,
-        XPackLicenseState licenseState,
-        IndexNameExpressionResolver resolver,
-        OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices,
-        AuthorizationDenialMessages authorizationDenialMessages,
-        LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         AuthorizedProjectsSupplier authorizedProjectsSupplier
     ) {
@@ -222,7 +181,7 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            authorizedProjectsSupplier.enabled()
+            authorizedProjectsSupplier.recordResolvedIndexExpressions()
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -558,7 +517,6 @@ public class AuthorizationService {
                         ActionListener.wrap(authorizedIndices -> {
                             if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsCrossProjectResolution()) {
                                 crossProjectSearchAuthzService.getAuthorizedProjects(ActionListener.wrap(authorizedProjects -> {
-                                    logger.info("Loaded authorized projects: [{}]", authorizedProjects);
                                     resolvedIndicesListener.onResponse(
                                         indicesAndAliasesResolver.resolve(
                                             action,
@@ -569,7 +527,6 @@ public class AuthorizationService {
                                         )
                                     );
                                 }, e -> {
-                                    // TODO avoid duplicating this
                                     if (e instanceof InvalidIndexNameException
                                         || e instanceof InvalidSelectorException
                                         || e instanceof UnsupportedSelectorException) {

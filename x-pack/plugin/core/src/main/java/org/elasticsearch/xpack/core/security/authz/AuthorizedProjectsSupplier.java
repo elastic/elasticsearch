@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.core.security.authz;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.crossproject.TargetProjects;
 
+/**
+ * A supplier of authorized projects for the current user. This includes the origin project and all linked projects the user has access to.
+ * If we are not in a cross-project search context, the supplier returns {@link TargetProjects#NOT_CROSS_PROJECT}.
+ */
 public interface AuthorizedProjectsSupplier {
     void getAuthorizedProjects(ActionListener<TargetProjects> listener);
 
-    boolean enabled();
+    boolean recordResolvedIndexExpressions();
 
     class Default implements AuthorizedProjectsSupplier {
         @Override
@@ -22,7 +26,7 @@ public interface AuthorizedProjectsSupplier {
         }
 
         @Override
-        public boolean enabled() {
+        public boolean recordResolvedIndexExpressions() {
             return false;
         }
     }

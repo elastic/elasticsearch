@@ -150,7 +150,7 @@ public interface SecurityExtension {
         return getClass().getName();
     }
 
-    default AuthorizedProjectsSupplier getCrossProjectSearchAuthorizationService(SecurityComponents components) {
+    default AuthorizedProjectsSupplier getAuthorizedProjectsSupplier(SecurityComponents components) {
         return null;
     }
 }

@@ -72,7 +72,8 @@ public final class RandomEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendInt(Random.process(boundBlock.getInt(boundBlock.getFirstValueIndex(p))));
+        int bound = boundBlock.getInt(boundBlock.getFirstValueIndex(p));
+        result.appendInt(Random.process(bound));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class RandomEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntVector eval(int positionCount, IntVector boundVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Random.process(boundVector.getInt(p)));
+        int bound = boundVector.getInt(p);
+        result.appendInt(p, Random.process(bound));
       }
       return result.build();
     }

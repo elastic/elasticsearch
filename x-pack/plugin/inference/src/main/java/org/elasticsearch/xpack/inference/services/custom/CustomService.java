@@ -95,7 +95,12 @@ public class CustomService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            var chunkingSettings = extractChunkingSettings(config, taskType);
+            ChunkingSettings chunkingSettings = null;
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
 
             CustomModel model = createModel(
                 inferenceEntityId,
@@ -146,7 +151,14 @@ public class CustomService extends SenderService {
         };
     }
 
-    private static ChunkingSettings extractChunkingSettings(Map<String, Object> config, TaskType taskType) {
+    private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
+        /*
+         * There's a sutle difference between how the chunking settings are parsed for the request context vs the persistent context.
+         * For persistent context, to support backwards compatibility, if the chunking settings are not present, removeFromMap will
+         * return null which results in the older word boundary chunking settings being used as the default.
+         * For request context, removeFromMapOrDefaultEmpty returns an empty map which results in the newer sentence boundary chunking
+         * settings being used as the default.
+         */
         if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
             return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
@@ -219,7 +231,7 @@ public class CustomService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        var chunkingSettings = extractChunkingSettings(config, taskType);
+        var chunkingSettings = extractPersistentChunkingSettings(config, taskType);
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
@@ -236,7 +248,7 @@ public class CustomService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        var chunkingSettings = extractChunkingSettings(config, taskType);
+        var chunkingSettings = extractPersistentChunkingSettings(config, taskType);
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,

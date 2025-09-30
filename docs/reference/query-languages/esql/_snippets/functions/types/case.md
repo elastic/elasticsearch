@@ -14,6 +14,8 @@
 | boolean | date | | date |
 | boolean | date_nanos | date_nanos | date_nanos |
 | boolean | date_nanos | | date_nanos |
+| boolean | dense_vector | dense_vector | dense_vector |
+| boolean | dense_vector | | dense_vector |
 | boolean | double | double | double |
 | boolean | double | | double |
 | boolean | geo_point | geo_point | geo_point |

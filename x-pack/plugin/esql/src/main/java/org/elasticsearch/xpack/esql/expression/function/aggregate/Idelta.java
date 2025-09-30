@@ -47,7 +47,8 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         description = "Calculates the idelta of a gauge. idelta is the absolute change between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to delta, but is more responsive to recent changes.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true
     )
     public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));

@@ -51,6 +51,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
@@ -109,6 +110,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
         final Settings settings
     ) {
         return RemoteClusterConnectionTests.startTransport(id, knownNodes, version, transportVersion, threadPool, settings);
+    }
+
+    private MockTransportService startTransport(final String id) {
+        return startTransport(id, List.of(), VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
     }
 
     public void testSettingsAreRegistered() {
@@ -1825,6 +1830,48 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     "*"
                 )
             );
+        }
+    }
+
+    public void testSetSkipUnavailable() throws IOException {
+        final var skipUnavailableProperty = RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("remote")
+            .getKey();
+        final var seedNodeProperty = SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("remote").getKey();
+        final var clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+
+        try (
+            var remote1Transport = startTransport("remote1");
+            var remote2Transport = startTransport("remote2");
+            var local = startTransport("local");
+            var remoteClusterService = createRemoteClusterService(Settings.EMPTY, clusterSettings, local)
+        ) {
+            linkedProjectConfigService.register(remoteClusterService);
+
+            final BiConsumer<Boolean, MockTransportService> applySettingsAndVerify = (skipUnavailableValue, mockTransportService) -> {
+                clusterSettings.applySettings(
+                    Settings.builder()
+                        .put(skipUnavailableProperty, skipUnavailableValue)
+                        .put(seedNodeProperty, mockTransportService.getLocalNode().getAddress().toString())
+                        .build()
+                );
+                assertTrue(isRemoteClusterRegistered(remoteClusterService, "remote"));
+                assertEquals(skipUnavailableValue, remoteClusterService.isSkipUnavailable("remote").orElseThrow());
+            };
+
+            // Apply the initial settings and verify the new connection is built.
+            var skipUnavailable = randomBoolean();
+            applySettingsAndVerify.accept(skipUnavailable, remote1Transport);
+
+            // Change skip_unavailable value, but not seed node, connection should not be rebuilt, but skip_unavailable should be modified.
+            skipUnavailable = skipUnavailable == false;
+            applySettingsAndVerify.accept(skipUnavailable, remote1Transport);
+
+            // Change the seed node but not skip_unavailable, connection should be rebuilt and skip_unavailable should stay the same.
+            applySettingsAndVerify.accept(skipUnavailable, remote2Transport);
+
+            // Change skip_unavailable value and the seed node, connection should be rebuilt and skip_unavailable should also be modified.
+            skipUnavailable = skipUnavailable == false;
+            applySettingsAndVerify.accept(skipUnavailable, remote1Transport);
         }
     }
 

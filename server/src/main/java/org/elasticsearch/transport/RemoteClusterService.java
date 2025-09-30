@@ -285,19 +285,6 @@ public final class RemoteClusterService extends RemoteClusterAware
         return connection;
     }
 
-    @Override
-    public void skipUnavailableChanged(
-        ProjectId originProjectId,
-        ProjectId linkedProjectId,
-        String linkedProjectAlias,
-        boolean skipUnavailable
-    ) {
-        final var remote = getConnectionsMapForProject(originProjectId).get(linkedProjectAlias);
-        if (remote != null) {
-            remote.setSkipUnavailable(skipUnavailable);
-        }
-    }
-
     @FixForMultiProject(description = "Refactor as needed to support project specific changes to linked remotes.")
     public synchronized void updateRemoteClusterCredentials(Supplier<Settings> settingsSupplier, ActionListener<Void> listener) {
         final var projectId = projectResolver.getProjectId();
@@ -450,6 +437,9 @@ public final class RemoteClusterService extends RemoteClusterAware
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {
+            if (crossProjectEnabled == false) {
+                remote.setSkipUnavailable(config.skipUnavailable());
+            }
             // No changes to connection configuration.
             listener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
         }

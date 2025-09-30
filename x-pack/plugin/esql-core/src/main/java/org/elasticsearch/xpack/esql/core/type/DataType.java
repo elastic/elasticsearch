@@ -11,11 +11,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
@@ -32,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
@@ -53,15 +52,14 @@ import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
  * easier.
  * <ul>
  *     <li>
- *         Create a new feature flag for the type in {@link EsqlCorePlugin}. We
- *         recommend developing the data type over a series of smaller PRs behind
- *         a feature flag; even for relatively simple data types.</li>
+ *         Create a new data type and mark it as under construction using
+ *         {@link Builder#underConstruction()}. This makes the type available on
+ *         SNAPSHOT builds, only, prevents some tests from running and prevents documentation
+ *         for the new type to be built.</li>
  *     <li>
- *         Add a capability to EsqlCapabilities related to the new type, and
- *         gated by the feature flag you just created. Again, using the feature
- *         flag is preferred over snapshot-only. As development progresses, you may
- *         need to add more capabilities related to the new type, e.g. for
- *         supporting specific functions. This is fine, and expected.</li>
+ *         New tests using the type will require a new {@code EsqlCapabilities} entry,
+ *         otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
+ *         know about the new type.</li>
  *     <li>
  *         Create a new CSV test file for the new type. You'll either need to
  *         create a new data file as well, or add values of the new type to
@@ -85,11 +83,6 @@ import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
  *         compile errors for switch statements throughout the code.  Resolve those
  *         as appropriate. That is the main way in which the new type will be tied
  *         into the framework.</li>
- *     <li>
- *         Add the new type to the {@link DataType#UNDER_CONSTRUCTION}
- *         collection. This is used by the test framework to disable some checks
- *         around how functions report their supported types, which would otherwise
- *         generate a lot of noise while the type is still in development.</li>
  *     <li>
  *         Add typed data generators to TestCaseSupplier, and make sure all
  *         functions that support the new type have tests for it.</li>
@@ -121,20 +114,20 @@ import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
  *         EsqlDataTypeConverter#commonType, individual function type checking, the
  *         verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
+
  * </ul>
- * TODO: update the items below
  * There are some additional steps that should be taken when removing the
  * feature flag and getting ready for a release:
  * <ul>
  *     <li>
- *         Ensure the capabilities for this type are always enabled
- *     </li>
+ *         Ensure the capabilities for this type are always enabled.</li>
  *     <li>
- *         Remove the type from the {@link DataType#UNDER_CONSTRUCTION}
- *         collection</li>
+ *         Mark the type with a new transport version via
+ *         {@link Builder#supportedOn(TransportVersion)}. This will enable the type on
+ *         non-SNAPSHOT builds as long as all nodes in the cluster (and remote clusters)
+ *         support it.</li>
  *     <li>
- *         Fix new test failures related to declared function types
- *     </li>
+ *         Fix new test failures related to declared function types.</li>
  *     <li>
  *         Make sure to run the full test suite locally via gradle to generate
  *         the function type tables and helper files with the new type. Ensure all
@@ -301,7 +294,7 @@ public enum DataType implements Writeable {
     // wild estimate for size, based on some test data (airport_city_boundaries)
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
-    // We use INDEX_SOURCE because it's already on Serverless at the time of writing and it's not in stateful versions before 9.2.0.
+    // We use INDEX_SOURCE because it's already on Serverless at the time of writing, and it's not in stateful versions before 9.2.0.
     GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
     GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
     GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
@@ -323,15 +316,8 @@ public enum DataType implements Writeable {
      * Every document in {@link IndexMode#TIME_SERIES} index will have a single value
      * for this field and the segments themselves are sorted on this value.
      */
-    TSID_DATA_TYPE(
-        builder().esType("_tsid")
-            .estimatedSize(Long.BYTES * 2)
-            .docValues()
-            .supportedOn(
-                // We use INDEX_SOURCE because it's already on Serverless at the time of writing and it's not in stateful versions before 9.2.0.
-                INDEX_SOURCE
-            )
-    ),
+    // We use INDEX_SOURCE because it's already on Serverless at the time of writing, and it's not in stateful versions before 9.2.0.
+    TSID_DATA_TYPE(builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues().supportedOn(INDEX_SOURCE)),
     /**
      * Fields with this type are the partial result of running a non-time-series aggregation
      * inside alongside time-series aggregations. These fields are not parsable from the
@@ -342,44 +328,25 @@ public enum DataType implements Writeable {
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
             .supportedOn(
-                // We use INDEX_SOURCE because it's already on Serverless at the time of writing and it's not in stateful versions before 9.2.0.
+                // TODO: Use actual version when it's added to TransportVersions
                 INDEX_SOURCE
             )
     ),
     /**
-     * Fields with this type are dense vectors, represented as an array of double values.
+     * Fields with this type are dense vectors, represented as an array of float values.
      */
     DENSE_VECTOR(
         builder().esType("dense_vector")
             .estimatedSize(4096)
             .supportedOn(
-                // We use INDEX_SOURCE because it's already on Serverless at the time of writing and it's not in stateful versions before 9.2.0.
+                // TODO: Use actual version when it's added to TransportVersions
                 INDEX_SOURCE
             )
     );
 
-    /**
-     * Types that are actively being built. These types are
-     * <ul>
-     *     <li>Not returned from Elasticsearch if their associated {@link FeatureFlag} is disabled.</li>
-     *     <li>Not included in generated documentation</li>
-     *     <li>
-     *         Not tested by {@code ErrorsForCasesWithoutExamplesTestCase} subclasses.
-     *         When a function supports a type it includes a test case in its subclass
-     *         of {@code AbstractFunctionTestCase}. If a function does not support.
-     *         them like {@code TO_STRING} then the tests won't notice. See class javadoc
-     *         for instructions on adding new types, but that usually involves adding support
-     *         for that type to a handful of functions. Once you've done that you should be
-     *         able to remove your new type from UNDER_CONSTRUCTION and update a few error
-     *         messages.
-     *     </li>
-     * </ul>
-     */
-    // TODO: remove the feature flags. We should have only 1 mechanism.
-    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
-    );
+    public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
+        .filter(t -> t.supportedVersion() == SupportedVersion.UNDER_CONSTRUCTION)
+        .collect(Collectors.toSet());
 
     private final String typeName;
 
@@ -498,11 +465,7 @@ public enum DataType implements Writeable {
 
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
-        if (type == null) {
-            return UNSUPPORTED;
-        }
-        FeatureFlag underConstruction = UNDER_CONSTRUCTION.get(type);
-        if (underConstruction != null && underConstruction.isEnabled() == false) {
+        if (type == null || type.supportedVersion().supportedLocally() == false) {
             return UNSUPPORTED;
         }
         return type;
@@ -978,6 +941,12 @@ public enum DataType implements Writeable {
             return this;
         }
 
+        /**
+         * The version from when on a {@link DataType} is supported. When a query tries to use a data type
+         * not supported on any of the nodes it runs on, it is invalid.
+         * <p>
+         * Generally, we should add a dedicated transport version when a type is enabled on release builds.
+         */
         Builder supportedOn(TransportVersion supportedVersion) {
             this.supportedVersion = SupportedVersion.supportedOn(supportedVersion);
             return this;

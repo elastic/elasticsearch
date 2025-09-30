@@ -211,7 +211,14 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             randomOptionalString(),
             optionalUri,
             optionalUri == null ? createUri(randomString()) : createOptionalUri(randomOptionalString()),
-            randomFrom(GoogleModelGardenProvider.ANTHROPIC),
+            randomFrom(
+                GoogleModelGardenProvider.ANTHROPIC,
+                GoogleModelGardenProvider.META,
+                GoogleModelGardenProvider.MISTRAL,
+                GoogleModelGardenProvider.HUGGING_FACE,
+                GoogleModelGardenProvider.GOOGLE,
+                GoogleModelGardenProvider.AI21
+            ),
             new RateLimitSettings(randomIntBetween(1, 1000))
         );
     }

@@ -45,7 +45,11 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.USER_ROLE;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -140,6 +144,138 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
         );
     }
 
+    public void testExecute_ThrowsElasticsearchExceptionMeta() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.META,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMeta() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.META,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsExceptionMeta() throws URISyntaxException {
+        testExecute_ThrowsException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.META,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsElasticsearchExceptionMistral() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.MISTRAL,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMistral() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.MISTRAL,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsExceptionMistral() throws URISyntaxException {
+        testExecute_ThrowsException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.MISTRAL,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsElasticsearchExceptionHuggingFace() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.HUGGING_FACE,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledHuggingFace() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.HUGGING_FACE,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsExceptionHuggingFace() throws URISyntaxException {
+        testExecute_ThrowsException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.HUGGING_FACE,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsElasticsearchExceptionAi21() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.AI21,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledAi21() throws URISyntaxException {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.AI21,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER
+        );
+    }
+
+    public void testExecute_ThrowsExceptionAi21() throws URISyntaxException {
+        testExecute_ThrowsException(
+            null,
+            null,
+            null,
+            GoogleModelGardenProvider.AI21,
+            new URI("http://localhost:9200"),
+            GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER
+        );
+    }
+
     private void testExecute_ThrowsException(
         String location,
         String projectId,
@@ -164,22 +300,14 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
         String location,
         String projectId,
         String actualModelId,
-        GoogleModelGardenProvider googleModelGardenProvider,
+        GoogleModelGardenProvider provider,
         URI uri,
         ResponseHandler googleModelGardenAnthropicCompletionHandler
     ) {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(
-            location,
-            projectId,
-            actualModelId,
-            sender,
-            googleModelGardenProvider,
-            uri,
-            googleModelGardenAnthropicCompletionHandler
-        );
+        var action = createAction(location, projectId, actualModelId, sender, provider, uri, googleModelGardenAnthropicCompletionHandler);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);

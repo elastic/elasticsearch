@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.mistral.request.completion;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * MistralChatCompletionRequestEntity is responsible for creating the request entity for Mistral chat completion.
@@ -23,21 +22,24 @@ import java.util.Objects;
  */
 public class MistralChatCompletionRequestEntity implements ToXContentObject {
 
-    private final MistralChatCompletionModel model;
+    private final String modelId;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
-    public MistralChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, MistralChatCompletionModel model) {
+    public MistralChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, @Nullable String modelId) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
-        this.model = Objects.requireNonNull(model);
+        this.modelId = modelId;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(
-            builder,
-            UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(model.getServiceSettings().modelId(), params)
-        );
+        if (modelId != null) {
+            // Some Mistral endpoints require the model ID to be specified in the request body
+            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(modelId, params));
+        } else {
+            // Some Mistral endpoints do not require the model ID to be specified
+            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(params));
+        }
         builder.endObject();
         return builder;
     }

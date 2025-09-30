@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
@@ -28,6 +29,9 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.Map;
 import java.util.Objects;
@@ -52,6 +56,28 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
         "Google Model Garden Anthropic completion",
         AnthropicChatCompletionResponseEntity::fromResponse,
         true
+    );
+
+    static final ResponseHandler GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
+        "Google Model Garden Meta completion",
+        OpenAiChatCompletionResponseEntity::fromResponse
+    );
+
+    static final ResponseHandler GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        "Google Model Garden Hugging Face completion",
+        OpenAiChatCompletionResponseEntity::fromResponse
+    );
+
+    static final ResponseHandler GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        "Google Model Garden Mistral completion",
+        OpenAiChatCompletionResponseEntity::fromResponse,
+        ErrorResponse::fromResponse
+    );
+
+    static final ResponseHandler GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        "Google Model Garden AI21 completion",
+        OpenAiChatCompletionResponseEntity::fromResponse,
+        ErrorResponse::fromResponse
     );
 
     static final String USER_ROLE = "user";
@@ -91,11 +117,23 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
 
     private GenericRequestManager<ChatCompletionInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
         switch (model.getServiceSettings().provider()) {
+            case GOOGLE -> {
+                return createRequestManagerWithHandler(model, GOOGLE_VERTEX_AI_COMPLETION_HANDLER);
+            }
             case ANTHROPIC -> {
                 return createRequestManagerWithHandler(model, GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER);
             }
-            case GOOGLE -> {
-                return createRequestManagerWithHandler(model, GOOGLE_VERTEX_AI_COMPLETION_HANDLER);
+            case META -> {
+                return createRequestManagerWithHandler(model, GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER);
+            }
+            case HUGGING_FACE -> {
+                return createRequestManagerWithHandler(model, GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER);
+            }
+            case MISTRAL -> {
+                return createRequestManagerWithHandler(model, GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER);
+            }
+            case AI21 -> {
+                return createRequestManagerWithHandler(model, GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER);
             }
             case null, default -> throw new ElasticsearchException(
                 "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
@@ -104,14 +142,14 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
     }
 
     private GenericRequestManager<ChatCompletionInput> createRequestManagerWithHandler(
-        GoogleVertexAiChatCompletionModel overriddenModel,
+        GoogleVertexAiChatCompletionModel model,
         ResponseHandler responseHandler
     ) {
         return new GenericRequestManager<>(
             serviceComponents.threadPool(),
-            overriddenModel,
+            model,
             responseHandler,
-            inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
+            inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
             ChatCompletionInput.class
         );
     }

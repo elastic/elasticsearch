@@ -14,7 +14,11 @@ import java.util.Locale;
  */
 public enum GoogleModelGardenProvider {
     GOOGLE,
-    ANTHROPIC;
+    ANTHROPIC,
+    META,
+    HUGGING_FACE,
+    MISTRAL,
+    AI21;
 
     public static final String NAME = "google_model_garden_provider";
 

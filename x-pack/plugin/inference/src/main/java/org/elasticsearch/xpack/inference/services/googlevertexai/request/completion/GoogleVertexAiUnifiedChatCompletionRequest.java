@@ -17,8 +17,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequestEntity;
+import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequestEntity;
+import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequestEntity;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -53,17 +57,39 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     }
 
     private ToXContentObject createRequestEntity() {
+        final var modelId = extractModelId();
         switch (model.getServiceSettings().provider()) {
+            case GOOGLE -> {
+                return new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings().thinkingConfig());
+            }
             case ANTHROPIC -> {
                 return new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings());
             }
-            case GOOGLE -> {
-                return new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings().thinkingConfig());
+            case META -> {
+                return new LlamaChatCompletionRequestEntity(unifiedChatInput, modelId);
+            }
+            case HUGGING_FACE -> {
+                return new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, modelId);
+            }
+            case MISTRAL -> {
+                return new MistralChatCompletionRequestEntity(unifiedChatInput, modelId);
+            }
+            case AI21 -> {
+                return new Ai21ChatCompletionRequestEntity(unifiedChatInput, modelId);
             }
             case null, default -> throw new ElasticsearchException(
                 "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
             );
         }
+    }
+
+    /**
+     * Extracts the model ID to be used for the request. If the request contains a model ID, it is preferred.
+     * Otherwise, the model ID from the configuration is used.
+     * @return the model ID to be used for the request
+     */
+    private String extractModelId() {
+        return unifiedChatInput.getRequest().model() != null ? unifiedChatInput.getRequest().model() : model.getServiceSettings().modelId();
     }
 
     public void decorateWithAuth(HttpPost httpPost) {

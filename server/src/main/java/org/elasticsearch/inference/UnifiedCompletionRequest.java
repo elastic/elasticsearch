@@ -101,6 +101,17 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxTokens(Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD)),
+            params
+        );
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
      * - Key: {@link #MODEL_FIELD}, Value: modelId
      * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #MAX_TOKENS_FIELD}
      * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
@@ -109,6 +120,21 @@ public record UnifiedCompletionRequest(
         return new DelegatingMapParams(
             Map.ofEntries(
                 Map.entry(MODEL_ID_PARAM, modelId),
+                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
+                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
+            ),
+            params
+        );
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #MAX_TOKENS_FIELD}
+     * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
+     */
+    public static Params withMaxTokensAndSkipStreamOptionsField(Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(
                 Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
                 Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
             ),

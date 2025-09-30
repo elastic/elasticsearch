@@ -292,13 +292,13 @@ public class EsqlSession {
         executionInfo.startSubPlans();
 
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
-            AtomicReference<Block[]> localRelationBlocks = new AtomicReference<>();
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
                 LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-                localRelationBlocks.set(resultWrapper.supplier().get());
-                var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationBlocks));
+                localRelationPage.set(resultWrapper.supplier().get());
+                var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationPage));
                 subPlansResults.add(resultWrapper);
 
                 // replace the original logical plan with the backing result
@@ -340,7 +340,7 @@ public class EsqlSession {
             } catch (Exception e) {
                 // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks off
                 // the current thread, but with the blocks still referenced
-                releaseLocalRelationBlocks(localRelationBlocks);
+                releaseLocalRelationBlocks(localRelationPage);
                 throw e;
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
@@ -361,10 +361,10 @@ public class EsqlSession {
         return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
     }
 
-    private static void releaseLocalRelationBlocks(AtomicReference<Block[]> localRelationBlocks) {
-        Block[] relationBlocks = localRelationBlocks.getAndSet(null);
-        if (relationBlocks != null) {
-            Releasables.closeExpectNoException(relationBlocks);
+    private static void releaseLocalRelationBlocks(AtomicReference<Page> localRelationPage) {
+        Page relationPage = localRelationPage.getAndSet(null);
+        if (relationPage != null) {
+            Releasables.closeExpectNoException(relationPage);
         }
     }
 

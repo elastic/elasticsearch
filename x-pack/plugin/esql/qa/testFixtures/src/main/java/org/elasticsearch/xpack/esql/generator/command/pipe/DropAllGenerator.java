@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.HashSet;
 import java.util.List;
@@ -27,8 +28,9 @@ public class DropAllGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
         Set<String> droppedColumns = new HashSet<>();
         String name = EsqlQueryGenerator.randomStringField(previousOutput);
@@ -45,9 +47,9 @@ public class DropAllGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {
@@ -57,9 +59,7 @@ public class DropAllGenerator implements CommandGenerator {
         if (columns.size() > 0) {
             return new ValidationResult(
                 false,
-                "Expecting no columns, got ["
-                    + columns.stream().map(Column::name).collect(Collectors.joining(", "))
-                    + "]"
+                "Expecting no columns, got [" + columns.stream().map(Column::name).collect(Collectors.joining(", ")) + "]"
             );
         }
 

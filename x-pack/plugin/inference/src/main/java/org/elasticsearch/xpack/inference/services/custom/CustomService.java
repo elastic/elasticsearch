@@ -227,10 +227,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
+        var chunkingSettings = extractPersistentChunkingSettings(config, taskType);
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
@@ -242,15 +239,21 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         );
     }
 
+    private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            // note there's 
+            return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        return null;
+    }
+
     @Override
     public CustomModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
+        var chunkingSettings = extractPersistentChunkingSettings(config, taskType);
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,

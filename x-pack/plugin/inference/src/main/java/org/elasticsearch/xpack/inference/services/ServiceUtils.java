@@ -1088,6 +1088,24 @@ public final class ServiceUtils {
         );
     }
 
+    /**
+     * Create an exception for when the task type is not valid for the service.
+     */
+    public static ElasticsearchStatusException createInvalidTaskTypeException(
+        String inferenceEntityId,
+        String serviceName,
+        TaskType taskType,
+        ConfigurationParseContext parseContext
+    ) {
+        var message = parseContext == ConfigurationParseContext.PERSISTENT
+            ? parsePersistedConfigErrorMsg(inferenceEntityId, serviceName, taskType)
+            : TaskType.unsupportedTaskTypeErrorMsg(taskType, serviceName);
+        return new ElasticsearchStatusException(
+            message,
+            RestStatus.BAD_REQUEST
+        );
+    }
+
     public static ElasticsearchStatusException createInvalidModelException(Model model) {
         return new ElasticsearchStatusException(
             format(

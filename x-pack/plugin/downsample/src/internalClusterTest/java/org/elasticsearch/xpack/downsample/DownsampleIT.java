@@ -44,8 +44,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
-        // Set up template
-        putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
+        String mapping = """
             {
               "properties": {
                 "attributes": {
@@ -65,7 +64,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
               }
             }
-            """, null, null);
+            """;
 
         // Create data stream by indexing documents
         final Instant now = Instant.now();
@@ -83,45 +82,12 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        bulkIndex(dataStreamName, sourceSupplier, 100);
-        // Rollover to ensure the index we will downsample is not the write index
-        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String sourceIndex = backingIndices.get(0);
-        String interval = "5m";
-        String targetIndex = "downsample-" + interval + "-" + sourceIndex;
-        // Set the source index to read-only state
-        assertAcked(
-            indicesAdmin().prepareUpdateSettings(sourceIndex)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
-        );
-
-        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
-        assertAcked(
-            client().execute(
-                DownsampleAction.INSTANCE,
-                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, targetIndex, TIMEOUT, downsampleConfig)
-            )
-        );
-
-        // Wait for downsampling to complete
-        SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            final var indexMetadata = clusterState.metadata().getProject().index(targetIndex);
-            if (indexMetadata == null) {
-                return false;
-            }
-            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
-            return downsampleStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
-        });
-        safeAwait(listener);
-
-        assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
     }
 
     public void testDownsamplingPassthroughMetrics() throws Exception {
         String dataStreamName = "metrics-foo";
-        // Set up template
-        putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
+        String mapping = """
             {
               "properties": {
                 "attributes.os.name": {
@@ -140,7 +106,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
               }
             }
-            """, null, null);
+            """;
 
         // Create data stream by indexing documents
         final Instant now = Instant.now();
@@ -158,6 +124,18 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+    }
+
+    /**
+     * Create a data stream with the provided mapping and downsampled the first backing index of this data stream. After downsampling has
+     *  completed, it asserts if the downsampled index is as expected.
+     */
+    private void downsampleAndAssert(String dataStreamName, String mapping, Supplier<XContentBuilder> sourceSupplier) throws Exception {
+        // Set up template
+        putTSDBIndexTemplate("my-template", List.of(dataStreamName), null, mapping, null, null);
+
+        // Create data stream by indexing documents
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // Rollover to ensure the index we will downsample is not the write index
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));

@@ -131,7 +131,5 @@ public class PreAnalyzer {
             return;
         }
         subqueryIndices.add(pattern);
-        System.out.println("collected subquery index pattern: " + pattern);
-        System.out.println("subquery indices now: " + subqueryIndices);
     }
 }

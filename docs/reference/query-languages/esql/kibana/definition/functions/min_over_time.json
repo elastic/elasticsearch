@@ -140,6 +140,6 @@
   "examples" : [
     "TS k8s\n| STATS cost=sum(min_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

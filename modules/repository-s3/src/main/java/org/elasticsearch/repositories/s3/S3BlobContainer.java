@@ -137,18 +137,15 @@ class S3BlobContainer extends AbstractBlobContainer {
         return ByteSizeValue.of(32, ByteSizeUnit.MB).getBytes();
     }
 
-    /**
-     * This implementation ignores the failIfAlreadyExists flag as the S3 API has no way to enforce this due to its weak consistency model.
-     */
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
         if (blobSize <= getLargeBlobThresholdInBytes()) {
-            executeSingleUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize);
+            executeSingleUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
         } else {
-            executeMultipartUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize);
+            executeMultipartUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
         }
     }
 
@@ -545,7 +542,8 @@ class S3BlobContainer extends AbstractBlobContainer {
         final S3BlobStore s3BlobStore,
         final String blobName,
         final InputStream input,
-        final long blobSize
+        final long blobSize,
+        final boolean failIfAlreadyExists
     ) throws IOException {
         try (var clientReference = s3BlobStore.clientReference()) {
             // Extra safety checks
@@ -564,6 +562,9 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .acl(s3BlobStore.getCannedACL());
             if (s3BlobStore.serverSideEncryption()) {
                 putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+            }
+            if (failIfAlreadyExists) {
+                putRequestBuilder.ifNoneMatch("*");
             }
             S3BlobStore.configureRequestForMetrics(putRequestBuilder, blobStore, Operation.PUT_OBJECT, purpose);
 
@@ -586,7 +587,8 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String blobName,
         final long partSize,
         final long blobSize,
-        final PartOperation partOperation
+        final PartOperation partOperation,
+        final boolean failIfAlreadyExists
     ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
@@ -639,6 +641,11 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .key(blobName)
                 .uploadId(uploadId)
                 .multipartUpload(b -> b.parts(parts));
+
+            if (failIfAlreadyExists) {
+                completeMultipartUploadRequestBuilder.ifNoneMatch("*");
+            }
+
             S3BlobStore.configureRequestForMetrics(completeMultipartUploadRequestBuilder, blobStore, operation, purpose);
             final var completeMultipartUploadRequest = completeMultipartUploadRequestBuilder.build();
             try (var clientReference = s3BlobStore.clientReference()) {
@@ -663,7 +670,8 @@ class S3BlobContainer extends AbstractBlobContainer {
         final S3BlobStore s3BlobStore,
         final String blobName,
         final InputStream input,
-        final long blobSize
+        final long blobSize,
+        final boolean failIfAlreadyExists
     ) throws IOException {
         executeMultipart(
             purpose,
@@ -680,7 +688,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                         .uploadPart(uploadRequest, RequestBody.fromInputStream(input, partSize));
                     return CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
                 }
-            }
+            },
+            failIfAlreadyExists
         );
     }
 
@@ -727,7 +736,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final var uploadPartCopyResponse = clientReference.client().uploadPartCopy(uploadPartCopyRequest);
                     return CompletedPart.builder().partNumber(partNum).eTag(uploadPartCopyResponse.copyPartResult().eTag()).build();
                 }
-            })
+            }),
+            false
         );
     }
 

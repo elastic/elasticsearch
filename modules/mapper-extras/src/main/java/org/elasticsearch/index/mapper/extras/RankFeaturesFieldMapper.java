@@ -80,7 +80,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, true, false, false, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 
@@ -102,6 +102,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_ONLY;
         }
 
         @Override

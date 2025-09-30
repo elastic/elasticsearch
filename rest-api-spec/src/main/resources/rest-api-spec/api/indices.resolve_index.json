@@ -51,8 +51,19 @@
         "default": true
       },
       "mode": {
+        "type": "enum",
+        "options": [
+          "standard",
+          "time_series",
+          "logsdb",
+          "lookup"
+        ],
+        "default": "",
+        "description": "Filter indices by index mode. Comma-separated list of IndexMode. Empty means no filter."
+      },
+      "project_routing": {
         "type": "string",
-        "description": "Filter indices by index mode"
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     }
   }

@@ -25,14 +25,14 @@ import java.util.NoSuchElementException;
  * <p>This iterator reads from a {@link BytesRefBlock} containing input documents or items to be reranked. It slices the input into batches
  * of configurable size and converts each batch into an {@link InferenceAction.Request} with the task type {@link TaskType#RERANK}.
  */
-public class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
+class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
     private final BytesRefBlock inputBlock;
     private final String inferenceId;
     private final String queryText;
     private final int batchSize;
     private int remainingPositions;
 
-    public RerankOperatorRequestIterator(BytesRefBlock inputBlock, String inferenceId, String queryText, int batchSize) {
+    RerankOperatorRequestIterator(BytesRefBlock inputBlock, String inferenceId, String queryText, int batchSize) {
         this.inputBlock = inputBlock;
         this.inferenceId = inferenceId;
         this.queryText = queryText;

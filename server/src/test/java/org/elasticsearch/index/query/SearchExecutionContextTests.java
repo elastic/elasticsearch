@@ -630,7 +630,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)));
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList(), namespaceValidator);
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList(), Collections.emptyList(), namespaceValidator);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);
@@ -650,6 +650,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 query -> {
                     throw new UnsupportedOperationException();
                 },
+                null,
                 namespaceValidator
             )
         );

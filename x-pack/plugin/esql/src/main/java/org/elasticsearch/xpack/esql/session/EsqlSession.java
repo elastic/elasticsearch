@@ -531,6 +531,10 @@ public class EsqlSession {
             // If the index resolution is invalid, don't bother with the rest of the analysis
             return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
+        if (lookupIndexResolution.get().concreteIndices().isEmpty()) {
+            // require non empty lookup index
+            return result.addLookupIndexResolution(index, IndexResolution.notFound(lookupIndexResolution.get().name()));
+        }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
             if (lookupIndexResolution.get().indexNameWithModes().isEmpty()) {

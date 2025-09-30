@@ -45,6 +45,11 @@ public final class IndexResolution {
         return IndexResolution.valid(new EsIndex(indexPattern, Map.of(), Map.of()));
     }
 
+    public static IndexResolution notFound(String name) {
+        Objects.requireNonNull(name, "name must not be null");
+        return invalid("Unknown index [" + name + "]");
+    }
+
     private final EsIndex index;
     @Nullable
     private final String invalid;

@@ -3201,7 +3201,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 FROM employees
                 | KEEP emp_no, languages, gender
                 | FORK (WHERE emp_no == 10048 OR emp_no == 10081
-                | INLINESTATS x = MAX(languages) BY gender)
+                | INLINE STATS x = MAX(languages) BY gender)
                 (WHERE emp_no == 10081 OR emp_no == 10087
                 | INLINE STATS x = MIN(languages))
                 (WHERE emp_no == 10012 OR emp_no == 10012)

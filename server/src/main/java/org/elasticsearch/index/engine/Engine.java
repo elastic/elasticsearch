@@ -1540,6 +1540,10 @@ public abstract class Engine implements Closeable {
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, String forceMergeUUID)
         throws EngineException, IOException;
 
+    /**
+     * Checks whether any segments would be merged with the specified {@code maxNumSegments} and {@code onlyExpungeDeletes}.
+     * Returns true if no segments would be merged and a force-merge request can be considered a no-op.
+     */
     public abstract boolean forceMergeIsNoOp(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException;
 
     /**

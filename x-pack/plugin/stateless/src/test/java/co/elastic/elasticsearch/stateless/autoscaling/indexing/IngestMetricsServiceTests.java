@@ -106,7 +106,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
                     MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                     MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
-                    MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING
+                    MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+                    MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING
                 )
             ),
             ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,

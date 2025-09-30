@@ -639,7 +639,14 @@ public class Stateless extends Plugin
         var heapMemoryUsagePublisher = new HeapMemoryUsagePublisher(client);
         var shardsMappingSizeCollector = setAndGet(
             this.shardsMappingSizeCollector,
-            ShardsMappingSizeCollector.create(hasIndexRole, clusterService, indicesService, heapMemoryUsagePublisher, threadPool, settings)
+            ShardsMappingSizeCollector.create(
+                hasIndexRole,
+                clusterService,
+                indicesService,
+                heapMemoryUsagePublisher,
+                threadPool,
+                hollowShardsService
+            )
         );
         components.add(shardsMappingSizeCollector);
 
@@ -1119,6 +1126,8 @@ public class Stateless extends Plugin
             ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
             ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
+            ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
+            ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
             MergeMemoryEstimateCollector.MERGE_MEMORY_ESTIMATE_PUBLICATION_MIN_CHANGE_RATIO,
             MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
             MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
@@ -1127,6 +1136,7 @@ public class Stateless extends Plugin
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
             MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
             MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+            MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,

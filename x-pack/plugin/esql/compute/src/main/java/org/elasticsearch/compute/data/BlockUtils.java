@@ -36,29 +36,29 @@ public final class BlockUtils {
         public BuilderWrapper(Block.Builder builder, Consumer<Object> append) {
             this.builder = builder;
             this.append = o -> {
-                if (o == null) {
-                    builder.appendNull();
-                    return;
-                }
-                if (o instanceof List<?> l) {
-                    builder.beginPositionEntry();
-                    for (Object v : l) {
-                        append.accept(v);
+                try {
+                    if (o == null) {
+                        builder.appendNull();
+                        return;
                     }
-                    builder.endPositionEntry();
-                    return;
+                    if (o instanceof List<?> l) {
+                        builder.beginPositionEntry();
+                        for (Object v : l) {
+                            append.accept(v);
+                        }
+                        builder.endPositionEntry();
+                        return;
+                    }
+                    append.accept(o);
+                } catch (CircuitBreakingException e) {
+                    close();
+                    throw e;
                 }
-                append.accept(o);
             };
         }
 
         public void accept(Object object) {
-            try {
-                append.accept(object);
-            } catch (CircuitBreakingException e) {
-                close();
-                throw e;
-            }
+            append.accept(object);
         }
 
         @Override

@@ -52,7 +52,7 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 :::
 
 When `STATS` is nested under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
-[time series aggregate functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+[time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
 are also supported.
 
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:

@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -3360,7 +3359,7 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(plan.output(), hasSize(1));
             assertThat(
                 plan.output().getFirst().dataType(),
-                equalTo(EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED)
+                equalTo(EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED)
             );
         }
         {
@@ -5008,7 +5007,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testImplicitCastingForAggregateMetricDouble() {
         assumeTrue(
             "aggregate metric double implicit casting must be available",
-            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.isEnabled()
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()
         );
         Map<String, EsField> mapping = Map.of(
             "@timestamp",

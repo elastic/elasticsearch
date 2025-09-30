@@ -416,11 +416,13 @@ public class TopNOperator implements Operator, Accountable {
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
 
                 if (inputQueue.size() < inputQueue.topCount) {
+                    // Heap not yet full, just add elements
                     rowFiller.writeValues(i, spare);
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.add(spare);
                     spare = null;
                 } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
+                    // Heap full AND this node fit in it.
                     Row nextSpare = inputQueue.top();
                     rowFiller.writeValues(i, spare);
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);

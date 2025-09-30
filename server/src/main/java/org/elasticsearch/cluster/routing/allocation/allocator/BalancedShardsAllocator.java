@@ -1046,6 +1046,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         // Visible for testing
         static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
 
+            /**
+             * This is the threshold over which we consider shards to have a "high" write load represented
+             * as a ratio of the maximum write-load present on the node.
+             * <p/>
+             * We prefer to move shards that have a write-load close to <b>this value</b> x {@link #maxWriteLoadOnNode}.
+             */
             private static final double THRESHOLD_RATIO = 0.5;
             private static final double MISSING_WRITE_LOAD = -1;
             private final Map<ShardId, Double> shardWriteLoads;

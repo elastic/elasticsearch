@@ -1500,7 +1500,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127467">ES|QL: pruning of JOINs leads to missing fields</a>
       */
     public void testAvoidGrokAttributesRemoval() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from message_types
             | eval type = 1
@@ -1512,7 +1511,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testAvoidGrokAttributesRemoval2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from sample_data
             | dissect message "%{type}"
@@ -1524,7 +1522,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testAvoidGrokAttributesRemoval3() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from sample_data
             | grok message "%{WORD:type}"
@@ -1539,7 +1536,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval4() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from message_types
             | eval type = 1
@@ -1554,7 +1550,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval5() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data, employees
@@ -1611,7 +1606,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
             Set.of("languages", "languages.*", "language_code", "language_code.*"),
@@ -1620,7 +1614,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLookupJoinKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1634,7 +1627,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLookupJoinKeepWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1648,7 +1640,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1661,7 +1652,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1675,7 +1665,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1700,7 +1689,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1727,7 +1715,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfterWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1741,7 +1728,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndex() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1755,7 +1741,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1770,7 +1755,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1796,7 +1780,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1971,7 +1954,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoins() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             FROM sample_data
             | EVAL client_ip = client_ip::keyword
@@ -1982,7 +1964,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoins2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             FROM sample_data
             | EVAL client_ip = client_ip::keyword
@@ -1994,7 +1975,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoinsAndKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2010,7 +1990,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoinKeepLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2026,7 +2005,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterKeepAndLookupJoins() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2042,7 +2020,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterKeepAndLookupJoins2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2485,7 +2462,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2512,7 +2488,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2539,7 +2514,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees

@@ -221,6 +221,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             batchedResults = this.batchedResults;
         }
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
+        final boolean hasBatchedResults = batchedResults.isEmpty() == false;
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;
 
@@ -252,6 +253,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (aggsList != null) {
                 // Add an estimate of the final reduce size
                 breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(circuitBreakerBytes));
+                AggregationReduceContext aggReduceContext = performFinalReduce
+                    ? aggReduceContextBuilder.forFinalReduction()
+                    : aggReduceContextBuilder.forPartialReduction();
+                aggReduceContext.setHasBatchedResult(hasBatchedResults);
                 aggs = aggregate(buffer.iterator(), new Iterator<>() {
                     @Override
                     public boolean hasNext() {
@@ -262,10 +267,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     public DelayableWriteable<InternalAggregations> next() {
                         return aggsList.pollFirst();
                     }
-                },
-                    resultSize,
-                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-                );
+                }, resultSize, aggReduceContext);
             } else {
                 aggs = null;
             }

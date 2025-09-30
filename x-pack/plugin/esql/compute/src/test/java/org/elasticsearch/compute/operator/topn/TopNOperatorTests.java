@@ -92,7 +92,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -470,7 +469,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             page
         );
         TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
-        rf.row(position, row);
+        rf.writeKey(position, row);
+        rf.writeValues(position, row);
         return row;
     }
 
@@ -1491,7 +1491,8 @@ public class TopNOperatorTests extends OperatorTestCase {
 
             // 105 are from the objects
             // 1 is for the min-heap itself
-            assertThat(breaker.getMemoryRequestCount(), is(106L));
+            // could be less than because we don't always insert
+            assertThat(breaker.getMemoryRequestCount(), lessThanOrEqualTo(106L));
         }
     }
 

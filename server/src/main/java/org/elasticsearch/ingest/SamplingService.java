@@ -41,15 +41,13 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -215,7 +213,7 @@ public class SamplingService implements ClusterStateListener {
     public List<RawDocument> getLocalSample(ProjectId projectId, String index) {
         SoftReference<SampleInfo> sampleInfoReference = samples.get(new ProjectIndex(projectId, index));
         SampleInfo sampleInfo = sampleInfoReference == null ? null : sampleInfoReference.get();
-        return sampleInfo == null ? List.of() : new ArrayList<>(sampleInfo.getRawDocuments());
+        return sampleInfo == null ? List.of() : sampleInfo.getRawDocuments().stream().toList();
     }
 
     /**
@@ -560,7 +558,7 @@ public class SamplingService implements ClusterStateListener {
      * This is used internally to store information about a sample in the samples Map.
      */
     private static final class SampleInfo {
-        private final Queue<RawDocument> rawDocuments;
+        private final List<RawDocument> rawDocuments;
         private final SampleStats stats;
         private final long expiration;
         private final TimeValue timeToLive;
@@ -571,12 +569,12 @@ public class SamplingService implements ClusterStateListener {
         SampleInfo(TimeValue timeToLive, long relativeNowMillis) {
             this.timeToLive = timeToLive;
             // We expect to potentially have many concurrent writes, but relatively few reads:
-            this.rawDocuments = new ConcurrentLinkedQueue<>();
+            this.rawDocuments = new CopyOnWriteArrayList<>();
             this.stats = new SampleStats();
             this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).millis() : timeToLive.millis()) + relativeNowMillis;
         }
 
-        public Queue<RawDocument> getRawDocuments() {
+        public List<RawDocument> getRawDocuments() {
             return rawDocuments;
         }
 

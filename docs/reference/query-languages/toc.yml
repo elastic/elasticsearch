@@ -159,6 +159,20 @@ toc:
       - file: esql/limitations.md
   - file: sql.md
     children:
+      - file: sql/sql-getting-started.md
+      - file: sql/sql-concepts.md
+      - file: sql/sql-security.md
+      - file: sql/sql-rest.md
+        children:
+            - file: sql/sql-rest-overview.md
+            - file: sql/sql-rest-format.md
+      - file: sql/sql-translate.md
+      - file: sql/sql-cli.md
+      - file: sql/sql-jdbc.md
+      - file: sql/sql-odbc.md
+        children:
+            - file: sql/sql-odbc-installation.md
+            - file: sql/sql-odbc-setup.md
       - file: sql/sql-spec.md
         children:
           - file: sql/sql-lexical-structure.md

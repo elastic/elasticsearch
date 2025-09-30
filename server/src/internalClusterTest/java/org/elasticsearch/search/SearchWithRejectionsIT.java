@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -21,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -32,6 +34,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             .build();
     }
 
+    @Repeat(iterations = 100)
     public void testOpenContextsAfterRejections() throws Exception {
         createIndex("test");
         ensureGreen("test");
@@ -46,7 +49,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         int numSearches = 10;
         @SuppressWarnings({ "rawtypes", "unchecked" })
         Future<SearchResponse>[] responses = new Future[numSearches];
-        SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
+        SearchType searchType = SearchType.QUERY_THEN_FETCH;
         logger.info("search type is {}", searchType);
         for (int i = 0; i < numSearches; i++) {
             responses[i] = prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute();

@@ -304,12 +304,10 @@ public class VerifierTests extends ESTestCase {
             );
         }
 
-        if (EsqlCapabilities.Cap.FUSE_V6.isEnabled()) {
-            assertEquals(
-                "1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.",
-                error("from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE", analyzer)
-            );
-        }
+        assertEquals(
+            "1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.",
+            error("from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE", analyzer)
+        );
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -2576,8 +2574,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
         query(queryPrefix + " | fuse");

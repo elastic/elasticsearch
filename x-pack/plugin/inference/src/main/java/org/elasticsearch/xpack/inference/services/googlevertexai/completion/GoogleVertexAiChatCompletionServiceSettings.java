@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,6 +37,10 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         GoogleDiscoveryEngineRateLimitServiceSettings {
 
     public static final String NAME = "google_vertex_ai_chatcompletion_service_settings";
+
+    private static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED = TransportVersion.fromName(
+        "ml_inference_vertexai_chatcompletion_added"
+    );
 
     private final String location;
     private final String modelId;
@@ -118,7 +121,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED_8_19;
+        return ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED;
     }
 
     @Override

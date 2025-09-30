@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
  * Utility class for rewriting cross-project index expressions.
  * Provides methods that can rewrite qualified and unqualified index expressions to canonical CCS.
  */
-public class CrossProjectIndexExpressionsRewriter {
+public class IndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
 
-    private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
+    private static final Logger logger = LogManager.getLogger(IndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
@@ -74,7 +74,7 @@ public class CrossProjectIndexExpressionsRewriter {
             }
             canonicalExpressionsMap.put(
                 indexExpression,
-                rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases).all()
+                resultAsList(rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases))
             );
         }
         return canonicalExpressionsMap;
@@ -91,7 +91,7 @@ public class CrossProjectIndexExpressionsRewriter {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
-    public static LocalWithRemoteExpressions rewriteIndexExpression(
+    public static IndexRewriteResult rewriteIndexExpression(
         String indexExpression,
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
@@ -102,7 +102,7 @@ public class CrossProjectIndexExpressionsRewriter {
         maybeThrowOnUnsupportedResource(indexExpression);
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
-        final LocalWithRemoteExpressions rewrittenExpression;
+        final IndexRewriteResult rewrittenExpression;
         if (isQualified) {
             rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
             logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
@@ -124,7 +124,7 @@ public class CrossProjectIndexExpressionsRewriter {
         return Collections.unmodifiableSet(allProjectAliases);
     }
 
-    private static LocalWithRemoteExpressions rewriteUnqualifiedExpression(
+    private static IndexRewriteResult rewriteUnqualifiedExpression(
         String indexExpression,
         @Nullable String originAlias,
         Set<String> allProjectAliases
@@ -139,10 +139,10 @@ public class CrossProjectIndexExpressionsRewriter {
                 rewrittenExpressions.add(RemoteClusterAware.buildRemoteIndexName(targetProjectAlias, indexExpression));
             }
         }
-        return new LocalWithRemoteExpressions(localExpression, rewrittenExpressions);
+        return new IndexRewriteResult(localExpression, rewrittenExpressions);
     }
 
-    private static LocalWithRemoteExpressions rewriteQualifiedExpression(
+    private static IndexRewriteResult rewriteQualifiedExpression(
         String resource,
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
@@ -161,7 +161,7 @@ public class CrossProjectIndexExpressionsRewriter {
 
         if (originProjectAlias != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
-            return new LocalWithRemoteExpressions(indexExpression);
+            return new IndexRewriteResult(indexExpression);
         }
 
         if (originProjectAlias == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
@@ -189,7 +189,7 @@ public class CrossProjectIndexExpressionsRewriter {
                 }
             }
 
-            return new LocalWithRemoteExpressions(localExpression, resourcesMatchingLinkedProjectAliases);
+            return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
         } catch (NoSuchRemoteClusterException ex) {
             logger.debug(ex.getMessage(), ex);
             throw new NoMatchingProjectException(requestedProjectAlias);
@@ -206,6 +206,25 @@ public class CrossProjectIndexExpressionsRewriter {
         }
         if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
             throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");
+        }
+    }
+
+    private static List<String> resultAsList(IndexRewriteResult result) {
+        if (result.localExpression == null) {
+            return result.remoteExpressions;
+        }
+        List<String> all = new ArrayList<>();
+        all.add(result.localExpression);
+        all.addAll(result.remoteExpressions);
+        return List.copyOf(all);
+    }
+
+    /**
+     * A container for a local expression and a list of remote expressions.
+     */
+    public record IndexRewriteResult(@Nullable String localExpression, List<String> remoteExpressions) {
+        public IndexRewriteResult(String localExpression) {
+            this(localExpression, List.of());
         }
     }
 }

@@ -143,6 +143,7 @@ public class EsqlDataTypeConverter {
         typeToConverter.put(DATETIME, ToDatetime::new);
         typeToConverter.put(DATE_NANOS, ToDateNanos::new);
         // ToDegrees, typeless
+        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
         typeToConverter.put(DOUBLE, ToDouble::new);
         typeToConverter.put(GEO_POINT, ToGeoPoint::new);
         typeToConverter.put(GEO_SHAPE, ToGeoShape::new);

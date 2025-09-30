@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportSettings;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationSe
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.Set;
@@ -59,7 +57,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class CrossClusterAccessServerTransportFilterTests extends ESTestCase {
+public class CrossClusterAccessServerTransportFilterTests extends ServerTransportFilterTests {
 
     private AuthenticationService authcService;
     private AuthorizationService authzService;
@@ -292,18 +290,4 @@ public class CrossClusterAccessServerTransportFilterTests extends ESTestCase {
         );
     }
 
-    private static Answer<Class<Void>> getAnswer(Authentication authentication) {
-        return getAnswer(authentication, false);
-    }
-
-    private static Answer<Class<Void>> getAnswer(Authentication authentication, boolean crossClusterAccess) {
-        return i -> {
-            final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(crossClusterAccess ? 3 : 4));
-            @SuppressWarnings("unchecked")
-            ActionListener<Authentication> callback = (ActionListener<Authentication>) args[args.length - 1];
-            callback.onResponse(authentication);
-            return Void.TYPE;
-        };
-    }
 }

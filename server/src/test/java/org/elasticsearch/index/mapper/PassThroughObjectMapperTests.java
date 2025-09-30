@@ -187,10 +187,11 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testMergingWithPassThrough() {
         boolean isSourceSynthetic = randomBoolean();
-        var passThroughMapper = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10))
-            .build(MapperBuilderContext.root(isSourceSynthetic, true));
-        var objectMapper = new RootObjectMapper.Builder("_doc").add(
-            new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current()))
+        var passThroughMapper = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new PassThroughObjectMapper.Builder("metrics").setPriority(10)
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        var objectMapper = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new ObjectMapper.Builder("metrics", Optional.empty()).add(new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current()))
         ).build(MapperBuilderContext.root(isSourceSynthetic, true));
 
         RootObjectMapper merged = passThroughMapper.merge(
@@ -199,8 +200,8 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         );
         assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
 
-        var objectMapperWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
-            new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.ENABLED)).add(
+        var objectMapperWithSubObjectTrue = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new ObjectMapper.Builder("metrics", Optional.of(ObjectMapper.Subobjects.ENABLED)).add(
                 new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
             )
         ).build(MapperBuilderContext.root(isSourceSynthetic, true));
@@ -217,7 +218,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
         );
 
-        var rootObjectMapper = new RootObjectMapper.Builder("metrics").add(
+        var rootObjectMapper = new RootObjectMapper.Builder("metrics", Optional.empty()).add(
             new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
         ).build(MapperBuilderContext.root(isSourceSynthetic, true));
 

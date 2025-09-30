@@ -200,8 +200,8 @@ public class PassThroughObjectMapper extends ObjectMapper {
     static boolean isEligibleForMerge(ObjectMapper objectMapper) {
         return objectMapper.isRoot() == false
             && (objectMapper.subobjects == null
-                || objectMapper.subobjects.explicit() == false
-                || objectMapper.subobjects.value().equals(Subobjects.DISABLED));
+                || objectMapper.subobjects.isEmpty()
+                || objectMapper.subobjects.get().equals(Subobjects.DISABLED));
     }
 
     @Override

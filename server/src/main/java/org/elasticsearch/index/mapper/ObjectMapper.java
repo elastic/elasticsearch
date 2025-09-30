@@ -621,6 +621,8 @@ public class ObjectMapper extends Mapper {
             if (mergeWithObject.subobjects.isPresent()) {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     subObjects = mergeWithObject.subobjects;
+                } else if (mergeWithObject instanceof PassThroughObjectMapper && existing.subobjects.isEmpty()) {
+                    subObjects = mergeWithObject.subobjects;
                 } else if (existing.subobjects() != mergeWithObject.subobjects()) {
                     throw new MapperException(
                         "the [subobjects] parameter can't be updated for the object mapping [" + existing.fullPath() + "]"

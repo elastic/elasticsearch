@@ -21,7 +21,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -129,7 +128,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testIndexSortingNoDocValues() {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
-        MappedFieldType fieldType = new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        MappedFieldType fieldType = new MappedFieldType("field", false, false, false, Collections.emptyMap()) {
             @Override
             public String typeName() {
                 return null;

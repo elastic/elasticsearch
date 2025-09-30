@@ -51,6 +51,10 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 :::{include} ../../lists/aggregation-functions.md
 :::
 
+When `STATS` is used under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
+[time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+are also supported.
+
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 
 :::{include} ../../lists/grouping-functions.md

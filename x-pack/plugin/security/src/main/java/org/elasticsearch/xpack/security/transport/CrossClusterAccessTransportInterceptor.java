@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationSe
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -328,51 +326,30 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
     }
 
     @Override
-    public Map<String, ServerTransportFilter> getProfileTransportFilters(
-        Map<String, SslProfile> profileConfigurations,
+    public Optional<ServerTransportFilter> getRemoteProfileTransportFilter(
+        String profileName,
+        SslProfile sslProfile,
         DestructiveOperations destructiveOperations
     ) {
-        Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
-
-        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        final boolean remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
+        assert REMOTE_CLUSTER_PROFILE.equals(profileName) : "should only be called for remote cluster transport profiles";
+        final SslConfiguration profileConfiguration = sslProfile.configuration();
+        assert profileConfiguration != null : "SSL Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
+        final boolean remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
-
-        for (Map.Entry<String, SslProfile> entry : profileConfigurations.entrySet()) {
-            final String profileName = entry.getKey();
-            final SslProfile sslProfile = entry.getValue();
-            final SslConfiguration profileConfiguration = sslProfile.configuration();
-            assert profileConfiguration != null : "Ssl Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
-            final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
-            if (useRemoteClusterProfile) {
-                profileFilters.put(
-                    profileName,
-                    new CrossClusterAccessServerTransportFilter(
-                        crossClusterAccessAuthcService,
-                        authzService,
-                        threadPool.getThreadContext(),
-                        remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
-                        destructiveOperations,
-                        securityContext,
-                        licenseState
-                    )
-                );
-            } else {
-                profileFilters.put(
-                    profileName,
-                    new ServerTransportFilter(
-                        authcService,
-                        authzService,
-                        threadPool.getThreadContext(),
-                        transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
-                        destructiveOperations,
-                        securityContext
-                    )
-                );
-            }
+        if (remoteClusterServerEnabled) {
+            return Optional.of(
+                new CrossClusterAccessServerTransportFilter(
+                    crossClusterAccessAuthcService,
+                    authzService,
+                    threadPool.getThreadContext(),
+                    remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                    destructiveOperations,
+                    securityContext,
+                    licenseState
+                )
+            );
         }
-
-        return Collections.unmodifiableMap(profileFilters);
+        return Optional.empty();
     }
 
     @Override

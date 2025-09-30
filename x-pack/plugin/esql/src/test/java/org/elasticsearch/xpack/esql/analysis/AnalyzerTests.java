@@ -2356,22 +2356,14 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingKnn() {
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
-
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkDenseVectorCastingHexKnn("float_vector");
-            checkDenseVectorCastingKnn("float_vector");
-        }
-        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS.isEnabled()) {
-            checkDenseVectorCastingKnn("byte_vector");
-            checkDenseVectorCastingHexKnn("byte_vector");
-            checkDenseVectorEvalCastingKnn("byte_vector");
-        }
-        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
-            checkDenseVectorCastingKnn("bit_vector");
-            checkDenseVectorCastingHexKnn("bit_vector");
-            checkDenseVectorEvalCastingKnn("bit_vector");
-        }
+        checkDenseVectorCastingHexKnn("float_vector");
+        checkDenseVectorCastingKnn("float_vector");
+        checkDenseVectorCastingKnn("byte_vector");
+        checkDenseVectorCastingHexKnn("byte_vector");
+        checkDenseVectorEvalCastingKnn("byte_vector");
+        checkDenseVectorCastingKnn("bit_vector");
+        checkDenseVectorCastingHexKnn("bit_vector");
+        checkDenseVectorEvalCastingKnn("bit_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
@@ -2535,9 +2527,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testVectorFunctionHexImplicitCastingError() {
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
-        }
+        checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkVectorFunctionHexImplicitCastingError("eval s = v_dot_product(\"notcorrect\", 0.342)");
         }
@@ -3920,7 +3910,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testKnnFunctionWithTextEmbedding() {
-        assumeTrue("KNN function capability required", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
 
         LogicalPlan plan = analyze(

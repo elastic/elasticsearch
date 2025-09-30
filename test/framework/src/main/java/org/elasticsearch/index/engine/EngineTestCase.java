@@ -50,7 +50,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.ModernSource;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
@@ -360,7 +360,7 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
-    public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
+    public static EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
@@ -1440,7 +1440,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     try {
                         assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
                     } catch (AssertionError e) {
-                        if (((Translog.Index) luceneOp).modernSource().getContentType().equals(XContentType.SMILE)) {
+                        if (((Translog.Index) luceneOp).modernSource().contentType().equals(XContentType.SMILE)) {
                             Translog.Index luceneOpI = (Translog.Index) luceneOp;
                             Translog.Index translogOpI = (Translog.Index) translogOp;
                             // SMILE can produce inconsistent values for the same source compare the JSON
@@ -1454,7 +1454,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    private static BytesReference toJSON(ModernSource source) throws IOException {
+    private static BytesReference toJSON(IndexSource source) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             ESONXContentSerializer.flattenToXContent(source.structuredSource(), builder, ToXContent.EMPTY_PARAMS);
             return BytesReference.bytes(builder);

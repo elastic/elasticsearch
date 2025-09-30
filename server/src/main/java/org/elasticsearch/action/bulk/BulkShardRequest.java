@@ -10,7 +10,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
@@ -26,7 +25,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -52,12 +50,26 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         }
     }
 
+    public BulkShardRequest(ShardId shardId, int reshardSplitShardCountSummary, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        this(shardId, reshardSplitShardCountSummary, refreshPolicy, items, false);
+    }
+
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        this(shardId, refreshPolicy, items, false);
+        this(shardId, 0, refreshPolicy, items, false);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
-        super(shardId);
+        this(shardId, 0, refreshPolicy, items, isSimulated);
+    }
+
+    public BulkShardRequest(
+        ShardId shardId,
+        int reshardSplitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items,
+        boolean isSimulated
+    ) {
+        super(shardId, reshardSplitShardCountSummary);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
         this.isSimulated = isSimulated;
@@ -92,11 +104,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                totalSizeInBytes += ((IndexRequest) request).sourceSize();
+                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null && doc.source() != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().sourceSize();
+                if (doc != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
                 }
             }
         }
@@ -108,11 +120,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).sourceSize());
+                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).indexSource().byteLength());
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null && doc.source() != null) {
-                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().sourceSize());
+                if (doc != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
                 }
             }
         }
@@ -215,15 +227,15 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         return sum;
     }
 
-    public void createSharedKeyBytes() {
-        HashMap<String, BytesRef> sharedKeyString = new HashMap<>();
-        HashMap<BytesRef, String> sharedKeyBytes = new HashMap<>();
-        for (BulkItemRequest bulkItemRequest : items) {
-            if (bulkItemRequest.request() instanceof IndexRequest indexRequest) {
-                indexRequest.modernSource().setSharedKeys(sharedKeyString, sharedKeyBytes);
-            }
-        }
-    }
+    // public void createSharedKeyBytes() {
+    // HashMap<String, BytesRef> sharedKeyString = new HashMap<>();
+    // HashMap<BytesRef, String> sharedKeyBytes = new HashMap<>();
+    // for (BulkItemRequest bulkItemRequest : items) {
+    // if (bulkItemRequest.request() instanceof IndexRequest indexRequest) {
+    // indexRequest.modernSource().setSharedKeys(sharedKeyString, sharedKeyBytes);
+    // }
+    // }
+    // }
 
     public long largestOperationSize() {
         long maxOperationSize = 0;

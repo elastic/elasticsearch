@@ -49,11 +49,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -65,6 +63,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -178,7 +177,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             ),
             outerListener
         );
-        request.createSharedKeyBytes();
+        // request.createSharedKeyBytes();
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
@@ -367,8 +366,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
-                var gFields = getStoredFieldsSpec(context.getPrimary());
-                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier, gFields);
+                updateResult = updateHelper.prepare(
+                    updateRequest,
+                    context.getPrimary(),
+                    nowInMillisSupplier,
+                    // Include inference fields so that partial updates can still retrieve embeddings for fields that weren't updated.
+                    FetchSourceContext.FETCH_ALL_SOURCE
+                );
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
@@ -411,12 +415,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
-                request.modernSource(),
+                request.indexSource(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
                 request.getIncludeSourceOnError(),
-                meteringParserDecorator
+                meteringParserDecorator,
+                request.tsid()
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -442,16 +447,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         onComplete(result, context, updateResult);
         return true;
-    }
-
-    private static String[] getStoredFieldsSpec(IndexShard indexShard) {
-        if (InferenceMetadataFieldsMapper.isEnabled(indexShard.mapperService().mappingLookup())) {
-            if (indexShard.mapperService().mappingLookup().inferenceFields().size() > 0) {
-                // Retrieves the inference metadata field containing the inference results for all semantic fields defined in the mapping.
-                return new String[] { RoutingFieldMapper.NAME, InferenceMetadataFieldsMapper.NAME };
-            }
-        }
-        return new String[] { RoutingFieldMapper.NAME };
     }
 
     private static boolean handleMappingUpdateRequired(
@@ -673,7 +668,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             indexingPressure.trackReplicaOperationExpansion(getMaxOperationMemoryOverhead(request), force(request)),
             outerListener
         );
-        request.createSharedKeyBytes();
+        // request.createSharedKeyBytes();
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();
             final Translog.Location location = performOnReplica(request, replica);
@@ -743,9 +738,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    indexRequest.modernSource(),
+                    indexRequest.indexSource(),
                     indexRequest.getContentType(),
-                    indexRequest.routing()
+                    indexRequest.routing(),
+                    Map.of(),
+                    true,
+                    XContentMeteringParserDecorator.NOOP,
+                    indexRequest.tsid()
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),

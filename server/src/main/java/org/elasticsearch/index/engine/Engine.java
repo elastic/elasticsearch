@@ -41,7 +41,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.ModernSource;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
@@ -69,7 +69,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
@@ -302,26 +301,20 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            boolean trackPostingsMemoryEnabled = isStateless;
-            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
+            if (isStateless) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
                 if (segmentReader != null) {
-                    if (trackPostingsMemoryEnabled) {
-                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                        );
-                        if (postingBytes != null) {
-                            totalPostingBytes += Long.parseLong(postingBytes);
-                        }
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
                     }
-                    if (trackLiveDocsMemoryEnabled) {
-                        var liveDocs = segmentReader.getLiveDocs();
-                        if (liveDocs != null) {
-                            assert validateLiveDocsClass(liveDocs);
-                            long liveDocsBytes = getLiveDocsBytes(liveDocs);
-                            totalLiveDocsBytes += liveDocsBytes;
-                        }
+                    var liveDocs = segmentReader.getLiveDocs();
+                    if (liveDocs != null) {
+                        assert validateLiveDocsClass(liveDocs);
+                        long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                        totalLiveDocsBytes += liveDocsBytes;
                     }
                 }
             }
@@ -405,7 +398,7 @@ public abstract class Engine implements Closeable {
                 if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorsReader = fieldsReader.getFieldReader(info.name);
                 }
-                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                Map<String, Long> offHeap = vectorsReader.getOffHeapByteSize(info);
                 offHeapStats.put(info.name, offHeap);
             }
         }
@@ -1930,13 +1923,13 @@ public abstract class Engine implements Closeable {
             return this.doc.bytesSource();
         }
 
-        public ModernSource modernSource() {
+        public IndexSource modernSource() {
             return this.doc.source();
         }
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() * 2) + this.doc.source().originalSourceSize() + 12;
+            return (id().length() * 2) + this.doc.source().byteLength() + 12;
         }
 
         /**

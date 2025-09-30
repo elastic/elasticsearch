@@ -16,8 +16,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
@@ -423,68 +421,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         l.add(SortField.FIELD_SCORE);
         sort = new Sort(l.toArray(SortField[]::new));
         return new ScoringPerShardCollector(context, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
-    }
-
-    private static int perDocMemoryUsage(SortField[] sorts) {
-        int usage = FIELD_DOC_SIZE;
-        for (SortField sort : sorts) {
-            usage += perDocMemoryUsage(sort);
-        }
-        return usage;
-    }
-
-    private static int perDocMemoryUsage(SortField sort) {
-        if (sort.getType() == SortField.Type.CUSTOM) {
-            return perDocMemoryUsageForCustom(sort);
-        }
-        return perDocMemoryUsageByType(sort, sort.getType());
-
-    }
-
-    private static int perDocMemoryUsageByType(SortField sort, SortField.Type type) {
-        return switch (type) {
-            case SCORE, DOC ->
-                /* SCORE and DOC are always part of ScoreDoc/FieldDoc
-                 * So they are in FIELD_DOC_SIZE already.
-                 * And they can't be removed. */
-                0;
-            case DOUBLE, LONG ->
-                // 8 for the long, 8 for the long copied to the topDoc.
-                16;
-            case INT, FLOAT ->
-                // 4 for the int, 8 boxed object copied to topDoc.
-                12;
-            case STRING ->
-                /* `keyword`-like fields. Compares ordinals when possible, otherwise
-                 * the strings. Does a bunch of deduplication, but in the worst
-                 * case we end up with the string itself, plus two BytesRefs. Let's
-                 * presume short-ish strings. */
-                1024;
-            case STRING_VAL ->
-                /* Other string fields. Compares the string itself. Let's assume two
-                 * 2kb per string because they tend to be bigger than the keyword
-                 * versions. */
-                2048;
-            case CUSTOM -> throw new IllegalArgumentException("unsupported type " + sort.getClass() + ": " + sort);
-            case REWRITEABLE -> {
-                assert false : "rewriteable  " + sort.getClass() + ": " + sort;
-                yield 2048;
-            }
-        };
-    }
-
-    private static int perDocMemoryUsageForCustom(SortField sort) {
-        return switch (sort) {
-            case SortedNumericSortField f -> perDocMemoryUsageByType(f, f.getNumericType());
-            case SortedSetSortField f -> perDocMemoryUsageByType(f, SortField.Type.STRING);
-            default -> {
-                if (sort.getClass().getName().equals("org.apache.lucene.document.LatLonPointSortField")) {
-                    yield perDocMemoryUsageByType(sort, SortField.Type.DOUBLE);
-                }
-                assert false : "unknown type " + sort.getClass() + ": " + sort;
-                yield 2048;
-            }
-        };
     }
 
     private static final int FIELD_DOC_SIZE = Math.toIntExact(RamUsageEstimator.shallowSizeOf(FieldDoc.class));

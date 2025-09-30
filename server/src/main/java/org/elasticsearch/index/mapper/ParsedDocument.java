@@ -12,7 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.index.ModernSource;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -38,7 +38,7 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private ModernSource source;
+    private IndexSource source;
     private XContentType xContentType;
     private Mapping dynamicMappingsUpdate;
 
@@ -110,7 +110,7 @@ public class ParsedDocument {
             id,
             routing,
             documents,
-            new ModernSource(source, xContentType),
+            new IndexSource(xContentType, source),
             xContentType,
             dynamicMappingsUpdate,
             normalizedSize
@@ -123,7 +123,7 @@ public class ParsedDocument {
         String id,
         String routing,
         List<LuceneDocument> documents,
-        ModernSource source,
+        IndexSource source,
         XContentType xContentType,
         Mapping dynamicMappingsUpdate,
         long normalizedSize
@@ -168,10 +168,10 @@ public class ParsedDocument {
     }
 
     public BytesReference bytesSource() {
-        return this.source.originalSourceBytes();
+        return this.source.bytes();
     }
 
-    public ModernSource source() {
+    public IndexSource source() {
         return this.source;
     }
 
@@ -180,7 +180,7 @@ public class ParsedDocument {
     }
 
     public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = new ModernSource(source, xContentType);
+        this.source = new IndexSource(xContentType, source);
     }
 
     /**

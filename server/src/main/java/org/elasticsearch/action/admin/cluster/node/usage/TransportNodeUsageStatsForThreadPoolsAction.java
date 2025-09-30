@@ -28,7 +28,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -117,11 +116,9 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             maxQueueLatencyMillis
         );
 
-        Map<String, ThreadPoolUsageStats> perThreadPool = new HashMap<>();
-        perThreadPool.put(ThreadPool.Names.WRITE, threadPoolUsageStats);
         return new NodeUsageStatsForThreadPoolsAction.NodeResponse(
             localNode,
-            new NodeUsageStatsForThreadPools(localNode.getId(), perThreadPool)
+            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats))
         );
     }
 

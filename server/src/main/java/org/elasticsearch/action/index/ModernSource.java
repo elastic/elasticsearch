@@ -128,7 +128,6 @@ public class ModernSource implements Writeable {
         } else {
             return originalSource == null || originalSource.length() == 0;
         }
-
     }
 
     @Override

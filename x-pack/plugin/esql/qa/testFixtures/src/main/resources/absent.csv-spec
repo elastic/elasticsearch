@@ -1,0 +1,129 @@
+// ABSENT-specific tests
+
+ABSENT when field is absent 
+required_capability: fn_absent
+
+// tag::absent[]
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_absent = ABSENT(languages)
+// end::absent[]
+;
+
+// tag::absent-result[]
+is_absent:boolean
+true
+// end::absent-result[]
+;
+
+Not ABSENT with filter
+required_capability: fn_absent
+
+FROM employees
+| WHERE emp_no == 10019
+| STATS is_absent = ABSENT(languages)
+;
+
+is_absent:boolean
+false
+;
+
+ABSENT with grouping
+required_capability: fn_absent
+
+// tag::absent-by[]
+FROM employees
+| STATS is_absent = ABSENT(salary) BY languages
+// end::absent-by[]
+;
+ignoreOrder:true
+
+// tag::absent-by-result[]
+is_absent:boolean    | languages:integer
+false                  | 1
+false                  | 2
+false                  | 3
+false                  | 4
+false                  | 5
+false                  | null
+// end::absent-by-result[]
+;
+
+ABSENT with null evaluated field
+required_capability: fn_absent
+
+FROM employees
+| EVAL null_field = null
+| STATS is_absent = ABSENT(null_field)
+;
+
+is_absent:boolean
+true
+;
+
+ABSENT with an expression
+required_capability: fn_absent
+
+FROM employees
+| STATS is_absent = ABSENT(salary + 10)
+;
+
+is_absent:boolean
+false
+;
+
+Fields are ABSENT with grouping
+required_capability: fn_absent
+
+FROM employees
+| WHERE gender IS NULL
+| STATS is_absent = ABSENT(gender) BY languages
+;
+ignoreOrder:true
+
+is_absent:boolean     | languages:integer
+true                  | 4
+true                  | 5
+true                  | 1
+true                  | 2
+;
+
+ABSENT with per-agg filter
+required_capability: fn_absent
+
+FROM employees
+| STATS a_false = ABSENT(salary) WHERE gender == "M",
+        a_true = ABSENT(salary) WHERE gender == "X"
+;
+
+a_false:boolean    | a_true:boolean
+false              | true
+;
+
+TO_INTEGER(ABSENT) with filter returns 0
+required_capability: fn_absent
+
+FROM employees
+| WHERE emp_no IN (10019, 10020)
+| STATS is_absent = TO_INTEGER(ABSENT(languages))
+;
+
+is_absent:integer
+0
+;
+
+TO_INTEGER(ABSENT) with filter returns 1
+required_capability: fn_absent
+
+// tag::absent-as-integer[]
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_absent = TO_INTEGER(ABSENT(languages))
+// end::absent-as-integer[]
+;
+
+// tag::absent-as-integer-result[]
+is_absent:integer
+1
+// end::absent-as-integer-result[]
+;

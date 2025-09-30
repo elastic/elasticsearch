@@ -462,7 +462,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
                     var valueFetcher = fieldType.valueFetcher(searchContext, null);
                     valueFetcher.setNextReader(leafReader.getContext());
 
-                    var source = Source.fromBytes(sourceToParse.source().originalSourceBytes());
+                    var source = Source.fromBytes(sourceToParse.source().bytes());
                     var result = valueFetcher.fetchValues(source, 0, List.of());
                     assertThat(result.size(), equalTo(1));
                     assertThat(result.get(0), instanceOf(Map.class));

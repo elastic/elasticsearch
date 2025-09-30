@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
@@ -173,7 +172,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
+            super(name, false, false, true, meta);
             this.element = Element.getElement(elementType);
             this.dims = dims;
             this.licenseState = licenseState;
@@ -409,8 +408,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new DocValuesSyntheticFieldLoader();
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorsAsList);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                DocValuesSyntheticFieldLoader::new,
+                DocValuesSyntheticFieldLoader::copyVectorsAsList
+            );
         }
         return null;
     }

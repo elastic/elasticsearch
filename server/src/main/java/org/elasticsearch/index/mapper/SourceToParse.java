@@ -9,7 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.action.index.ModernSource;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -20,9 +21,11 @@ import java.util.Objects;
 
 public class SourceToParse {
 
-    private final ModernSource modernSource;
+    private final IndexSource indexSource;
 
     private final String id;
+
+    private final @Nullable BytesRef tsid;
 
     private final @Nullable String routing;
 
@@ -41,47 +44,51 @@ public class SourceToParse {
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
         boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator
+        XContentMeteringParserDecorator meteringParserDecorator,
+        @Nullable BytesRef tsid
     ) {
         this(
             id,
-            new ModernSource(source, xContentType, source.length(), null),
+            new IndexSource(xContentType, source),
             xContentType,
             routing,
             dynamicTemplates,
             includeSourceOnError,
-            meteringParserDecorator
+            meteringParserDecorator,
+            tsid
         );
     }
 
     public SourceToParse(
         @Nullable String id,
-        ModernSource source,
+        IndexSource source,
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
         boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator
+        XContentMeteringParserDecorator meteringParserDecorator,
+        @Nullable BytesRef tsid
     ) {
         this.id = id;
-        this.modernSource = source;
+        this.indexSource = source;
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
         this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
+        this.tsid = tsid;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
-    public SourceToParse(String id, ModernSource source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+    public SourceToParse(String id, IndexSource source, XContentType xContentType, String routing) {
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
     public SourceToParse(
@@ -89,13 +96,14 @@ public class SourceToParse {
         BytesReference source,
         XContentType xContentType,
         String routing,
-        Map<String, String> dynamicTemplates
+        Map<String, String> dynamicTemplates,
+        BytesRef tsid
     ) {
-        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP, tsid);
     }
 
-    public ModernSource source() {
-        return this.modernSource;
+    public IndexSource source() {
+        return this.indexSource;
     }
 
     /**
@@ -134,5 +142,9 @@ public class SourceToParse {
 
     public boolean getIncludeSourceOnError() {
         return includeSourceOnError;
+    }
+
+    public BytesRef tsid() {
+        return tsid;
     }
 }

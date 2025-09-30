@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -26,10 +27,14 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -71,6 +76,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         """;
 
     private LogsdbLicenseService logsdbLicenseService;
+    private LogsdbLicenseService basicLogsdbLicenseService;
     private final AtomicInteger newMapperServiceCounter = new AtomicInteger();
 
     @Before
@@ -83,6 +89,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         logsdbLicenseService.setLicenseState(licenseState);
         logsdbLicenseService.setLicenseService(mockLicenseService);
+
+        var basicLicenseState = new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.BASIC, true, null));
+        var basicLicenseService = mock(LicenseService.class);
+        when(basicLicenseService.getLicense()).thenReturn(null);
+        basicLogsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
+        basicLogsdbLicenseService.setLicenseState(basicLicenseState);
+        basicLogsdbLicenseService.setLicenseService(basicLicenseService);
     }
 
     private LogsdbIndexModeSettingsProvider withSyntheticSourceDemotionSupport(boolean enabled) {
@@ -120,16 +133,26 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     private Settings generateLogsdbSettings(Settings settings, String mapping, Version version) throws IOException {
-        var provider = new LogsdbIndexModeSettingsProvider(
-            logsdbLicenseService,
-            Settings.builder().put("cluster.logsdb.enabled", true).build()
-        );
+        return generateLogsdbSettings(settings, mapping, version, logsdbLicenseService);
+    }
+
+    private Settings generateLogsdbSettings(Settings settings, String mapping, Version version, LogsdbLicenseService licenseService)
+        throws IOException {
+        var provider = new LogsdbIndexModeSettingsProvider(licenseService, Settings.builder().put("cluster.logsdb.enabled", true).build());
+        var logsdbPlugin = new LogsDBPlugin(settings);
         provider.init(im -> {
             newMapperServiceCounter.incrementAndGet();
-            return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
+            return MapperTestUtils.newMapperService(
+                xContentRegistry(),
+                createTempDir(),
+                im.getSettings(),
+                new IndicesModule(List.of(logsdbPlugin)),
+                im.getIndex().getName(),
+                logsdbPlugin.getSettings().stream().filter(Setting::hasIndexScope).toArray(Setting<?>[]::new)
+            );
         }, IndexVersion::current, () -> version, true, true);
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,
             IndexMode.LOGSDB,
@@ -137,8 +160,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now(),
             settings,
             mapping == null ? List.of() : List.of(new CompressedXContent(mapping)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         var result = settingsBuilder.build();
         return builder().put(result).build();
@@ -151,7 +174,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -159,8 +182,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -174,7 +197,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             "logs-apache-production",
             null,
             null,
@@ -182,8 +205,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -197,7 +220,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -205,8 +228,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -220,7 +243,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -228,8 +251,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -243,7 +266,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs",
             null,
@@ -251,8 +274,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -262,7 +285,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithoutLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -270,8 +293,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -281,7 +304,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -289,8 +312,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -300,7 +323,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithMultipleComponentTemplates() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -308,8 +331,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -319,7 +342,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testWithCustomComponentTemplatesOnly() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -327,8 +350,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -338,7 +361,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testNonMatchingTemplateIndexPattern() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -346,8 +369,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -361,7 +384,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "LOGS-apache-production",
             null,
@@ -369,8 +392,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -381,7 +404,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production-eu",
             null,
@@ -389,8 +412,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings additionalIndexSettings = settingsBuilder.build();
 
@@ -400,7 +423,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testBeforeAndAfterSettingUpdate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = withoutMapperService(false);
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -408,8 +431,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k2, v2) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings beforeSettings = settingsBuilder.build();
 
@@ -418,7 +441,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.updateClusterIndexModeLogsdbEnabled(true);
 
         settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -426,8 +449,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k1, v1) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings afterSettings = settingsBuilder.build();
 
@@ -436,7 +459,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         provider.updateClusterIndexModeLogsdbEnabled(false);
 
         settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             null,
             "logs-apache-production",
             null,
@@ -444,8 +467,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         final Settings laterSettings = settingsBuilder.build();
 
@@ -698,7 +721,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .build();
 
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -706,8 +729,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         Settings result = settingsBuilder.build();
         assertThat(result.size(), equalTo(0));
@@ -715,7 +738,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
         logsdbLicenseService.setSyntheticSourceFallback(true);
         settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -723,8 +746,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         result = settingsBuilder.build();
         assertThat(result.size(), equalTo(1));
@@ -732,7 +755,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(2));
 
         settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -740,8 +763,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         result = settingsBuilder.build();
         assertThat(result.size(), equalTo(1));
@@ -749,7 +772,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(3));
 
         settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.LOGSDB,
@@ -757,8 +780,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         result = settingsBuilder.build();
         assertThat(result.size(), equalTo(3));
@@ -781,7 +804,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         Settings settings = builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .build();
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 2),
             DATA_STREAM_NAME,
             null,
@@ -789,8 +812,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         var result = settingsBuilder.build();
         assertTrue(result.isEmpty());
@@ -810,7 +833,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             1
         );
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -818,8 +841,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         Settings result = settingsBuilder.build();
         assertThat(result.size(), equalTo(0));
@@ -834,7 +857,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
 
         settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -842,8 +865,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             settings,
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         result = settingsBuilder.build();
         assertThat(result.size(), equalTo(4));
@@ -853,7 +876,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
 
         settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -861,8 +884,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.ofEpochMilli(1L),
             builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.toString()).build(),
             List.of(),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         result = settingsBuilder.build();
         assertThat(result.size(), equalTo(0));
@@ -956,6 +979,36 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         Settings result = generateLogsdbSettings(settings);
         assertFalse(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.get(result));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
+    }
+
+    public void testPatternTextNotAllowedByLicense() throws IOException {
+        String[] patternTextLicenceCheckedFieldMappings = {
+            "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"pattern_text\"}}}}",
+            "{\"_doc\":{\"properties\":{\"error\":{\"properties\":{\"message\":{\"type\":\"pattern_text\"}}}}}}",
+            "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"pattern_text\"}}}}",
+            "{\"_doc\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"pattern_text\"}}}}}}" };
+
+        var expectedSettings = Settings.builder()
+            .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
+            .build();
+
+        for (String mapping : patternTextLicenceCheckedFieldMappings) {
+            var result = generateLogsdbSettings(Settings.EMPTY, mapping, Version.CURRENT, basicLogsdbLicenseService);
+            assertEquals(expectedSettings, result);
+        }
+    }
+
+    public void testPatternTextNotAllowedByLicenseAlreadyDisallowed() throws IOException {
+        Settings settings = Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), "true").build();
+        var result = generateLogsdbSettings(settings, null, Version.CURRENT, basicLogsdbLicenseService);
+        var expected = Settings.builder()
+            .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
+            .build();
+        assertEquals(expected, result);
     }
 
     public void testSortAndHostNamePropagateValue() throws Exception {
@@ -1288,7 +1341,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             true
         );
         Settings.Builder settingsBuilder = builder();
-        provider.provideAdditionalMetadata(
+        provider.provideAdditionalSettings(
             DataStream.getDefaultBackingIndexName(systemIndex, 0),
             systemIndex,
             IndexMode.LOGSDB,
@@ -1296,8 +1349,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Instant.now(),
             settings,
             List.of(new CompressedXContent(mappings)),
-            settingsBuilder,
-            (k, v) -> {}
+            IndexVersion.current(),
+            settingsBuilder
         );
         var additionalIndexSettings = settingsBuilder.build();
 

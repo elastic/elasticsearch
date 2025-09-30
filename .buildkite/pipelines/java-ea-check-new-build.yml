@@ -3,5 +3,5 @@ steps:
     env:
       RECENT_TIME_WINDOW: "24" # time window to consider a build as new in hours
     agents:
-      image: "docker.elastic.co/ci-agent-images/eck-region/buildkite-agent:1.5"
+      image: "docker.elastic.co/ci-agent-images/eck-region/buildkite-agent:1.15"
       memory: "4G"

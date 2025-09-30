@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,8 +33,8 @@ import java.util.Objects;
  *   "time_series": {
  *      "enabled": true,
  *      "available": true,
- *      "data_streams_count": 10,
- *      "indices_count": 100,
+ *      "data_stream_count": 10,
+ *      "index_count": 100,
  *      "downsampling": {
  *         "index_count_per_interval": {
  *           "5m": 5,
@@ -70,6 +69,9 @@ import java.util.Objects;
  * }
  */
 public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
+
+    private static final TransportVersion TIME_SERIES_TELEMETRY = TransportVersion.fromName("time_series_telemetry");
+
     private final long timeSeriesDataStreamCount;
     private final long timeSeriesIndexCount;
     private final DownsamplingUsage downsamplingUsage;
@@ -137,7 +139,7 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.TIME_SERIES_TELEMETRY;
+        return TIME_SERIES_TELEMETRY;
     }
 
     public long getTimeSeriesDataStreamCount() {

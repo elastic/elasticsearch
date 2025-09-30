@@ -15,7 +15,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.index.ModernSource;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -340,7 +340,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final boolean enabled;
 
         private SourceFieldType(boolean enabled) {
-            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, enabled, false, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -436,12 +436,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
         SourceToParse sourceToParse = context.sourceToParse();
-        ModernSource modernSource = sourceToParse.source();
+        IndexSource indexSource = sourceToParse.source();
         XContentType contentType = sourceToParse.getXContentType();
 
-        final var storedSource = stored()
-            ? removeSyntheticVectorFields(context.mappingLookup(), modernSource.originalSourceBytes(), contentType)
-            : null;
+        final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), indexSource.bytes(), contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
         if (adaptedStoredSource != null) {
@@ -461,13 +459,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
             // when loading batches of synthetic sources during recovery.
             // TODO: can be inaccurate after modifications
-            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, modernSource.originalSourceSize()));
+            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, indexSource.byteLength()));
         } else if (stored() == false || adaptedStoredSource != storedSource) {
             // If the source is missing (due to synthetic source or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.
-            var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), modernSource.originalSourceBytes(), contentType)
-                .toBytesRef();
+            var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), indexSource.bytes(), contentType).toBytesRef();
             context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }

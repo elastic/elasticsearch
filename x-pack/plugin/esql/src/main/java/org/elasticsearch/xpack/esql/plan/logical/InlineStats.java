@@ -95,7 +95,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
         return lazyOutput;
     }
 
-    // TODO: in case of inlinestats, the join key is always the grouping
+    // TODO: in case of INLINE STATS, the join key is always the grouping
     private JoinConfig joinConfig() {
         List<Expression> groupings = aggregate.groupings();
         List<Attribute> namedGroupings = new ArrayList<>(groupings.size());
@@ -118,7 +118,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
                 }
             }
         }
-        return new JoinConfig(JoinTypes.LEFT, namedGroupings, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, leftFields, rightFields, null);
     }
 
     @Override
@@ -127,6 +127,11 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
         Source source = source();
         LogicalPlan left = aggregate.child();
         return new InlineJoin(source, left, InlineJoin.stubSource(aggregate, left), joinConfig());
+    }
+
+    @Override
+    public String telemetryLabel() {
+        return "INLINE STATS";
     }
 
     @Override

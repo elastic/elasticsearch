@@ -95,7 +95,9 @@ public final class EqualsMillisNanosEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(Equals.processMillisNanos(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+        long lhs = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
+        long rhs = rhsBlock.getLong(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(Equals.processMillisNanos(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class EqualsMillisNanosEvaluator implements EvalOperator.Expression
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, Equals.processMillisNanos(lhsVector.getLong(p), rhsVector.getLong(p)));
+        long lhs = lhsVector.getLong(p);
+        long rhs = rhsVector.getLong(p);
+        result.appendBoolean(p, Equals.processMillisNanos(lhs, rhs));
       }
       return result.build();
     }

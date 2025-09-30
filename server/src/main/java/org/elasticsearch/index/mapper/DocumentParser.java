@@ -12,12 +12,15 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.index.ModernSource;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexSource;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,6 +30,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,7 +82,7 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        ModernSource modernSource = source.source();
+        IndexSource modernSource = source.source();
         if (modernSource.isSourceEmpty()) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
@@ -123,11 +127,11 @@ public final class DocumentParser {
 
     private XContentParser getParser(SourceToParse source, XContentType xContentType) throws IOException {
         XContentParserConfiguration config = parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError());
-        ModernSource modernSource = source.source();
+        IndexSource modernSource = source.source();
         if (modernSource.isStructured()) {
             return modernSource.structuredSource().parser(config.registry(), config.deprecationHandler(), xContentType);
         } else {
-            return XContentHelper.createParser(config, modernSource.originalSourceBytes(), xContentType);
+            return XContentHelper.createParser(config, modernSource.bytes(), xContentType);
         }
     }
 
@@ -175,6 +179,7 @@ public final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
+            fieldName -> context.mappingLookup().getMapper(fieldName) == null,
             (ft, lookup, fto) -> ft.fielddataBuilder(
                 new FieldDataContext(
                     context.indexSettings().getIndex().getName(),
@@ -184,7 +189,8 @@ public final class DocumentParser {
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalSourceBytes())
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().bytes()),
+            LeafFieldLookupProvider.fromStoredFields()
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we
@@ -798,7 +804,8 @@ public final class DocumentParser {
             DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
                 fieldName,
                 context.indexSettings().getIndexVersionCreated(),
-                IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings())
+                IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
+                context.getVectorFormatProviders()
             );
             builder.dimensions(mappers.size());
             DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
@@ -949,7 +956,7 @@ public final class DocumentParser {
     private static FieldMapper noopFieldMapper(String path) {
         return new FieldMapper(
             NOOP_FIELD_MAPPER_NAME,
-            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, false, false, false, Collections.emptyMap()) {
                 @Override
                 public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();
@@ -1049,7 +1056,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Optional.empty(), Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Defaults.SUBOBJECTS, Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
         }
 
         @Override
@@ -1070,6 +1077,7 @@ public final class DocumentParser {
         private final long maxAllowedNumNestedDocs;
         private long numNestedDocs;
         private boolean docsReversed = false;
+        private final BytesRef tsid;
 
         RootDocumentParserContext(
             MappingLookup mappingLookup,
@@ -1084,6 +1092,18 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
+            IndexSettings indexSettings = mappingParserContext.getIndexSettings();
+            BytesRef tsid = source.tsid();
+            if (tsid == null
+                && indexSettings.getMode() == IndexMode.TIME_SERIES
+                && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
+                // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
+                // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
+                tsid = forIndexDimensions.buildTsid(source.getXContentType(), source.source().bytes());
+            }
+            this.tsid = tsid;
+            assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES
+                : "tsid should only be set for time series indices";
             if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
@@ -1139,6 +1159,11 @@ public final class DocumentParser {
                 );
             }
             this.documents.add(doc);
+        }
+
+        @Override
+        public BytesRef getTsid() {
+            return this.tsid;
         }
 
         @Override

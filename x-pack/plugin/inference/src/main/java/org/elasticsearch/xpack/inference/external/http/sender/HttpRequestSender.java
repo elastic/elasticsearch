@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,6 +43,7 @@ public class HttpRequestSender implements Sender {
      */
     public static class Factory {
         private final HttpRequestSender httpRequestSender;
+        private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
         public Factory(ServiceComponents serviceComponents, HttpClientManager httpClientManager, ClusterService clusterService) {
             Objects.requireNonNull(serviceComponents);
@@ -70,7 +70,8 @@ public class HttpRequestSender implements Sender {
                 httpClientManager,
                 requestSender,
                 service,
-                startCompleted
+                startCompleted,
+                START_COMPLETED_WAIT_TIME
             );
         }
 
@@ -80,27 +81,31 @@ public class HttpRequestSender implements Sender {
     }
 
     private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
-    private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean startedCompleted = new AtomicBoolean(false);
     private final RequestSender requestSender;
     private final RequestExecutor service;
-    private final CountDownLatch startCompleted;
+    private final CountDownLatch startCompletedLatch;
+    private final TimeValue startCompletedWaitTime;
 
-    private HttpRequestSender(
+    // Visible for testing
+    protected HttpRequestSender(
         ThreadPool threadPool,
         HttpClientManager httpClientManager,
         RequestSender requestSender,
         RequestExecutor service,
-        CountDownLatch startCompleted
+        CountDownLatch startCompletedLatch,
+        TimeValue startCompletedWaitTime
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);
         this.requestSender = Objects.requireNonNull(requestSender);
         this.service = Objects.requireNonNull(service);
-        this.startCompleted = Objects.requireNonNull(startCompleted);
+        this.startCompletedLatch = Objects.requireNonNull(startCompletedLatch);
+        this.startCompletedWaitTime = Objects.requireNonNull(startCompletedWaitTime);
     }
 
     /**
@@ -109,7 +114,12 @@ public class HttpRequestSender implements Sender {
     @Override
     public void startAsynchronously(ActionListener<Void> listener) {
         if (started.compareAndSet(false, true)) {
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> startInternal(listener));
+            var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> startInternal(preservedListener));
+        } else if (startedCompleted.get() == false) {
+            var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+            // wait on another thread so we don't potential block a transport thread
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> waitForStartToCompleteWithListener(preservedListener));
         } else {
             listener.onResponse(null);
         }
@@ -122,9 +132,19 @@ public class HttpRequestSender implements Sender {
             manager.start();
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
             waitForStartToComplete();
+            startedCompleted.set(true);
             listener.onResponse(null);
         } catch (Exception ex) {
             listener.onFailure(ex);
+        }
+    }
+
+    private void waitForStartToCompleteWithListener(ActionListener<Void> listener) {
+        try {
+            waitForStartToComplete();
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -136,10 +156,10 @@ public class HttpRequestSender implements Sender {
     @Override
     public void startSynchronously() {
         if (started.compareAndSet(false, true)) {
-            ActionListener<Void> listener = ActionListener.wrap(unused -> {}, exception -> {
-                logger.error("Http sender failed to start", exception);
-                ExceptionsHelper.maybeDieOnAnotherThread(exception);
-            });
+            ActionListener<Void> listener = ActionListener.wrap(
+                unused -> {},
+                exception -> logger.error("Http sender failed to start", exception)
+            );
             startInternal(listener);
         }
         // Handle the case where start*() was already called and this would return immediately because the started flag is already true
@@ -148,7 +168,7 @@ public class HttpRequestSender implements Sender {
 
     private void waitForStartToComplete() {
         try {
-            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
+            if (startCompletedLatch.await(startCompletedWaitTime.getMillis(), TimeUnit.MILLISECONDS) == false) {
                 throw new IllegalStateException("Http sender startup did not complete in time");
             }
         } catch (InterruptedException e) {

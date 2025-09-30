@@ -32,7 +32,14 @@ public class MvDedupeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double"));
+        return equalTo(
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double"
+            )
+        );
     }
 
     @Override

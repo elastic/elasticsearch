@@ -342,8 +342,7 @@ public enum DataType implements Writeable {
      *     </li>
      * </ul>
      */
-    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-    );
+    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries();
 
     private final String typeName;
 

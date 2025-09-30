@@ -78,7 +78,11 @@ public final class TypeResolutions {
     /**
      * @see DataType#isRepresentable(DataType)
      */
-    public static TypeResolution isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
         return isType(
             e,
             dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE,
@@ -95,7 +99,7 @@ public final class TypeResolutions {
     ) {
         return isType(
             e,
-            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t) && t != DENSE_VECTOR,
+            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t) && t != DENSE_VECTOR && t != AGGREGATE_METRIC_DOUBLE,
             operationName,
             paramOrd,
             "any type except counter, spatial types, dense_vector, or aggregate_metric_double"

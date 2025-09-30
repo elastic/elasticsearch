@@ -37,11 +37,23 @@ public class MvContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
         if (unsupportedTypes.contains(signature.getFirst())
             || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
             return containsString(
-                typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double")
+                typeErrorMessage(
+                    false,
+                    validPerPosition,
+                    signature,
+                    (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double"
+                )
             );
         } else {
-            return equalTo("second argument of [" + sourceForSignature(signature) + "] must be [" + signature.get(0).noText().typeName()
-            + "], found value [] type [" + signature.get(1).typeName() + "]");
-    }
+            return equalTo(
+                "second argument of ["
+                    + sourceForSignature(signature)
+                    + "] must be ["
+                    + signature.get(0).noText().typeName()
+                    + "], found value [] type ["
+                    + signature.get(1).typeName()
+                    + "]"
+            );
+        }
     }
 }

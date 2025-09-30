@@ -49,7 +49,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -96,6 +95,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
@@ -115,9 +115,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
-    private final ThreadContext threadContext;
     private final PersistentTasksService persistentTasksService;
     private final DownsampleMetrics downsampleMetrics;
+    private final Supplier<Long> nowSupplier;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -158,6 +158,37 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         PersistentTasksService persistentTasksService,
         DownsampleMetrics downsampleMetrics
     ) {
+        this(
+            new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN),
+            indicesService,
+            clusterService,
+            transportService,
+            threadPool,
+            metadataCreateIndexService,
+            actionFilters,
+            indexScopedSettings,
+            persistentTasksService,
+            downsampleMetrics,
+            clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR),
+            () -> client.threadPool().relativeTimeInMillis()
+        );
+    }
+
+    // For testing
+    TransportDownsampleAction(
+        Client client,
+        IndicesService indicesService,
+        ClusterService clusterService,
+        TransportService transportService,
+        ThreadPool threadPool,
+        MetadataCreateIndexService metadataCreateIndexService,
+        ActionFilters actionFilters,
+        IndexScopedSettings indexScopedSettings,
+        PersistentTasksService persistentTasksService,
+        DownsampleMetrics downsampleMetrics,
+        MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue,
+        Supplier<Long> nowSupplier
+    ) {
         super(
             DownsampleAction.NAME,
             transportService,
@@ -167,14 +198,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             DownsampleAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
+        this.client = client;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
-        this.threadContext = threadPool.getThreadContext();
-        this.taskQueue = clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
+        this.taskQueue = taskQueue;
         this.persistentTasksService = persistentTasksService;
         this.downsampleMetrics = downsampleMetrics;
+        this.nowSupplier = nowSupplier;
     }
 
     private void recordSuccessMetrics(long startTime) {
@@ -190,10 +221,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     private void recordOperation(long startTime, DownsampleMetrics.ActionStatus status) {
-        downsampleMetrics.recordOperation(
-            TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime).getMillis(),
-            status
-        );
+        downsampleMetrics.recordOperation(TimeValue.timeValueMillis(nowSupplier.get() - startTime).getMillis(), status);
     }
 
     @Override
@@ -203,11 +231,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        long startTime = client.threadPool().relativeTimeInMillis();
+        long startTime = nowSupplier.get();
         String sourceIndexName = request.getSourceIndex();
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(request.getTargetIndex());
-        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        final IndicesAccessControl indicesAccessControl = threadPool.getThreadContext()
+            .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl != null) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
             if (indexPermissions != null) {
@@ -263,7 +292,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Short circuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
-        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), startTime, state.metadata(), listener)) {
+        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), startTime, true, state.metadata(), listener)) {
             logger.info("Skipping downsampling, because a previous execution already completed downsampling");
             return;
         }
@@ -300,6 +329,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
             final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+            final boolean forceMergeEnabled = isForceMergeEnabled(sourceIndexMappings);
 
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
@@ -373,7 +403,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             startTime,
                             metricFields,
                             labelFields,
-                            dimensionFields
+                            dimensionFields,
+                            forceMergeEnabled
                         );
                     } else {
                         recordFailureMetrics(startTime);
@@ -387,6 +418,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             parentTask,
                             request.getWaitTimeout(),
                             startTime,
+                            forceMergeEnabled,
                             metadata,
                             listener
                         )) {
@@ -403,7 +435,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             startTime,
                             metricFields,
                             labelFields,
-                            dimensionFields
+                            dimensionFields,
+                            forceMergeEnabled
                         );
                     } else {
                         recordFailureMetrics(startTime);
@@ -414,6 +447,18 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }));
     }
 
+    private boolean isForceMergeEnabled(Map<String, Object> sourceIndexMappings) {
+        if (sourceIndexMappings.containsKey("_meta")) {
+            if (sourceIndexMappings.get("_meta") instanceof Map<?, ?> metadataMap) {
+                var enabledForceMergeValue = metadataMap.get("downsample.forcemerge.enabled");
+                if (enabledForceMergeValue instanceof Boolean enabledForceMerge) {
+                    return enabledForceMerge;
+                }
+            }
+        }
+        return true;
+    }
+
     /**
      * Shortcircuit when another downsample api invocation already completed successfully.
      */
@@ -422,6 +467,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         TaskId parentTask,
         TimeValue waitTimeout,
         long startTime,
+        boolean forceMergeEnabled,
         Metadata metadata,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -454,7 +500,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         parentTask,
                         targetIndexMetadata.getIndex().getName(),
                         waitTimeout,
-                        startTime
+                        startTime,
+                        forceMergeEnabled
                     )
                 );
             return true;
@@ -473,7 +520,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         long startTime,
         List<String> metricFields,
         List<String> labelFields,
-        List<String> dimensionFields
+        List<String> dimensionFields,
+        boolean forceMergeEnabled
     ) {
         final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
         final Index sourceIndex = sourceIndexMetadata.getIndex();
@@ -532,7 +580,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             sourceIndexMetadata,
                             downsampleIndexName,
                             parentTask,
-                            startTime
+                            startTime,
+                            forceMergeEnabled
                         );
                     }
                 }
@@ -584,7 +633,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final IndexMetadata sourceIndexMetadata,
         final String downsampleIndexName,
         final TaskId parentTask,
-        final long startTime
+        final long startTime,
+        final boolean forceMergeEnabled
     ) {
         // 4. Make downsample index read-only and set the correct number of replicas
         final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
@@ -612,7 +662,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     parentTask,
                     downsampleIndexName,
                     request.getWaitTimeout(),
-                    startTime
+                    startTime,
+                    forceMergeEnabled
                 )
             );
     }
@@ -989,19 +1040,22 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final String downsampleIndexName;
         final TimeValue timeout;
         final long startTime;
+        final boolean forceMergeEnabled;
 
         UpdateDownsampleIndexSettingsActionListener(
             final ActionListener<AcknowledgedResponse> listener,
             final TaskId parentTask,
             final String downsampleIndexName,
             final TimeValue timeout,
-            final long startTime
+            final long startTime,
+            final boolean forceMergeEnabled
         ) {
             this.listener = listener;
             this.parentTask = parentTask;
             this.downsampleIndexName = downsampleIndexName;
             this.timeout = timeout;
             this.startTime = startTime;
+            this.forceMergeEnabled = forceMergeEnabled;
         }
 
         @Override
@@ -1010,7 +1064,17 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             request.setParentTask(parentTask);
             client.admin()
                 .indices()
-                .refresh(request, new RefreshDownsampleIndexActionListener(listener, parentTask, downsampleIndexName, timeout, startTime));
+                .refresh(
+                    request,
+                    new RefreshDownsampleIndexActionListener(
+                        listener,
+                        parentTask,
+                        downsampleIndexName,
+                        timeout,
+                        startTime,
+                        forceMergeEnabled
+                    )
+                );
         }
 
         @Override
@@ -1031,19 +1095,22 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         private final String downsampleIndexName;
         private final TimeValue timeout;
         private final long startTime;
+        private final boolean forceMergeEnabled;
 
         RefreshDownsampleIndexActionListener(
             final ActionListener<AcknowledgedResponse> actionListener,
             TaskId parentTask,
             final String downsampleIndexName,
             final TimeValue timeout,
-            final long startTime
+            final long startTime,
+            final boolean forceMergeEnabled
         ) {
             this.actionListener = actionListener;
             this.parentTask = parentTask;
             this.downsampleIndexName = downsampleIndexName;
             this.timeout = timeout;
             this.startTime = startTime;
+            this.forceMergeEnabled = forceMergeEnabled;
         }
 
         @Override
@@ -1051,12 +1118,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             if (response.getFailedShards() != 0) {
                 logger.info("Post refresh failed [{}],{}", downsampleIndexName, Strings.toString(response));
             }
+            ActionListener<AcknowledgedResponse> nextStepListener = forceMergeEnabled
+                ? new ForceMergeActionListener(parentTask, downsampleIndexName, startTime, actionListener)
+                : new MeasurementActionListener(startTime, actionListener);
             // Mark downsample index as "completed successfully" ("index.downsample.status": "success")
             taskQueue.submitTask(
                 "update-downsample-metadata [" + downsampleIndexName + "]",
-                new DownsampleClusterStateUpdateTask(
-                    new ForceMergeActionListener(parentTask, downsampleIndexName, startTime, actionListener)
-                ) {
+                new DownsampleClusterStateUpdateTask(nextStepListener) {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -1097,18 +1165,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final ActionListener<AcknowledgedResponse> actionListener;
         private final TaskId parentTask;
         private final String downsampleIndexName;
-        private final long startTime;
 
         ForceMergeActionListener(
             final TaskId parentTask,
             final String downsampleIndexName,
             final long startTime,
-            final ActionListener<AcknowledgedResponse> onFailure
+            final ActionListener<AcknowledgedResponse> actionListener
         ) {
             this.parentTask = parentTask;
             this.downsampleIndexName = downsampleIndexName;
-            this.startTime = startTime;
-            this.actionListener = onFailure;
+            this.actionListener = new MeasurementActionListener(startTime, actionListener);
         }
 
         @Override
@@ -1116,19 +1182,43 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             ForceMergeRequest request = new ForceMergeRequest(downsampleIndexName);
             request.maxNumSegments(1);
             request.setParentTask(parentTask);
-            client.admin().indices().forceMerge(request, ActionListener.wrap(mergeIndexResp -> {
-                actionListener.onResponse(AcknowledgedResponse.TRUE);
-                recordSuccessMetrics(startTime);
-            }, t -> {
-                /*
-                 * At this point downsample index has been created
-                 * successfully even if force merge failed.
-                 * So, we should not fail the downsample operation.
-                 */
-                logger.error("Failed to force-merge downsample index [" + downsampleIndexName + "]", t);
-                actionListener.onResponse(AcknowledgedResponse.TRUE);
-                recordSuccessMetrics(startTime);
-            }));
+            client.admin()
+                .indices()
+                .forceMerge(request, ActionListener.wrap(mergeIndexResp -> { actionListener.onResponse(AcknowledgedResponse.TRUE); }, t -> {
+                    /*
+                     * At this point downsample index has been created
+                     * successfully even if force merge failed.
+                     * So, we should not fail the downsample operation.
+                     */
+                    logger.error("Failed to force-merge downsample index [" + downsampleIndexName + "]", t);
+                    actionListener.onResponse(AcknowledgedResponse.TRUE);
+                }));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            this.actionListener.onFailure(e);
+        }
+
+    }
+
+    /**
+     * Records measurements
+     */
+    class MeasurementActionListener implements ActionListener<AcknowledgedResponse> {
+
+        final ActionListener<AcknowledgedResponse> actionListener;
+        private final long startTime;
+
+        MeasurementActionListener(final long startTime, final ActionListener<AcknowledgedResponse> onFailure) {
+            this.startTime = startTime;
+            this.actionListener = onFailure;
+        }
+
+        @Override
+        public void onResponse(final AcknowledgedResponse response) {
+            recordSuccessMetrics(startTime);
+            actionListener.onResponse(AcknowledgedResponse.TRUE);
         }
 
         @Override

@@ -1107,7 +1107,12 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // if there is no field to delegate to and this field isn't stored, then fallback to ignored source
+            // _ignored_source field will contain entries for this field if it is not stored
+            // and there is no syntheticSourceDelegate.
+            // See #syntheticSourceSupport().
+            // But if a text field is a multi field it won't have an entry in _ignored_source.
+            // The parent might, but we don't have enough context here to figure this out.
+            // So we bail.
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader(blContext);
             }
@@ -1466,17 +1471,22 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        // store the field if isn't stored yet, and we need it to be stored for synthetic source
-        if (fieldType.stored() == false && fieldType().storeFieldForSyntheticSource(indexCreatedVersion)) {
-            // if we can rely on the synthetic source delegate for synthetic source, then exit as there is nothing to do
+        // if the field isn't stored, yet we need it stored for synthetic source, then attempt to use the synthetic source delegate
+        if (fieldType().storeFieldForSyntheticSource(indexCreatedVersion)
+            && fieldType.stored() == false
+            && fieldType().syntheticSourceDelegate.isPresent()) {
+
+            // check if the delegate can even handle storing for us
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 
-            // otherwise, store this field in Lucene so that synthetic source can load it
+            // if not, then store the field ourselves
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             context.doc().add(new StoredField(fieldName, value));
         }
+
+        // if we get to this point and synthetic source is enabled, then the field will be stored in ignored source
     }
 
     /**
@@ -1672,6 +1682,12 @@ public final class TextFieldMapper extends FieldMapper {
             });
         }
 
+        // if there is no synthetic source delegate, then fall back to ignored source
+        if (fieldType().syntheticSourceDelegate.isEmpty()) {
+            return super.syntheticSourceSupport();
+        }
+
+        // otherwise, we can use a stored field that was either created by this mapper or the delegate mapper
         return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
     }
 

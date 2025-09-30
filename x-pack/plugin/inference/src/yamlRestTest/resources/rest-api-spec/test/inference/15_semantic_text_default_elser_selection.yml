@@ -1,0 +1,122 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: semantic_text introduced in 8.15.0
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: test-elser-service
+        body: >
+          {
+            "service": "test_elastic_service",
+            "service_settings": {
+              "model": "elser_model_2"
+            }
+          }
+
+---
+"Test semantic_text field defaults to EIS ELSER when available":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              my_semantic_field:
+                type: semantic_text
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.my_semantic_field.type: "semantic_text" }
+  # Should default to .elser-2-elastic when EIS is available (mocked by test_elastic_service)
+  - match: { test_index.mappings.properties.my_semantic_field.inference_id: ".elser-2-elastic" }
+
+---
+"Test semantic_text field with explicit inference_id":
+
+  - do:
+      indices.create:
+        index: test_index_explicit
+        body:
+          mappings:
+            properties:
+              my_semantic_field:
+                type: semantic_text
+                inference_id: test-elser-service
+
+  - do:
+      indices.get_mapping:
+        index: test_index_explicit
+
+  - match: { test_index_explicit.mappings.properties.my_semantic_field.type: "semantic_text" }
+  - match: { test_index_explicit.mappings.properties.my_semantic_field.inference_id: "test-elser-service" }
+
+---
+"Test semantic_text field with search_inference_id":
+
+  - do:
+      indices.create:
+        index: test_index_search
+        body:
+          mappings:
+            properties:
+              my_semantic_field:
+                type: semantic_text
+                search_inference_id: test-elser-service
+
+  - do:
+      indices.get_mapping:
+        index: test_index_search
+
+  - match: { test_index_search.mappings.properties.my_semantic_field.type: "semantic_text" }
+  # Should still default indexing to EIS endpoint
+  - match: { test_index_search.mappings.properties.my_semantic_field.inference_id: ".elser-2-elastic" }
+  # But use explicit search endpoint
+  - match: { test_index_search.mappings.properties.my_semantic_field.search_inference_id: "test-elser-service" }
+
+---
+"Test semantic_text field mapping creation and document indexing":
+
+  - do:
+      indices.create:
+        index: test_index_docs
+        body:
+          mappings:
+            properties:
+              my_semantic_field:
+                type: semantic_text
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # Index a document
+  - do:
+      index:
+        index: test_index_docs
+        id: doc1
+        body:
+          my_semantic_field: "Hello world semantic search"
+
+  - do:
+      indices.refresh:
+        index: test_index_docs
+
+  # Verify document was indexed
+  - do:
+      get:
+        index: test_index_docs
+        id: doc1
+
+  - match: { _source.my_semantic_field: "Hello world semantic search" }
+
+  # Verify the mapping was created correctly
+  - do:
+      indices.get_mapping:
+        index: test_index_docs
+
+  - match: { test_index_docs.mappings.properties.my_semantic_field.type: "semantic_text" }
+  - match: { test_index_docs.mappings.properties.my_semantic_field.inference_id: ".elser-2-elastic" }

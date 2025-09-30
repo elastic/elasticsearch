@@ -15,7 +15,9 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.List;
 
-public class TestInferenceServicePlugin extends Plugin {
+import org.elasticsearch.plugins.InferencePlugin;
+
+public class TestInferenceServicePlugin extends Plugin implements InferencePlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -60,6 +62,18 @@ public class TestInferenceServicePlugin extends Plugin {
                 TestCompletionServiceExtension.TestServiceSettings.NAME,
                 TestCompletionServiceExtension.TestServiceSettings::new
             )
+        );
+    }
+
+    @Override
+    public List<TestInferenceServiceExtension> getTestInferenceServiceExtensions() {
+        return List.of(
+            new TestCompletionServiceExtension(),
+            new TestDenseInferenceServiceExtension(),
+            new TestRerankingServiceExtension(),
+            new TestSparseInferenceServiceExtension(),
+            new TestStreamingCompletionServiceExtension(),
+            new TestEisMockInferenceServiceExtension()
         );
     }
 }

@@ -1,0 +1,29 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
+#
+---
+"Test semantic_text defaults to EIS when available":
+  - skip:
+      features: [ test_plugin ]
+
+  - do:
+      indices.create:
+        index: test_semantic_text_eis_default
+        body:
+          mappings:
+            properties:
+              my_semantic_field:
+                type: "semantic_text"
+
+  - do:
+      indices.get_mapping:
+        index: test_semantic_text_eis_default
+
+  - match: { test_semantic_text_eis_default.mappings.properties.my_semantic_field.inference_id: ".elser-2-elastic" }
+
+  - do:
+      indices.delete:
+        index: test_semantic_text_eis_default

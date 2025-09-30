@@ -1523,7 +1523,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Builds a new ingest document from the passed-in index request.
      */
     private static IngestDocument newIngestDocument(final IndexRequest request) {
-        request.ensureStructureSource();
         return new IngestDocument(
             request.index(),
             request.id(),
@@ -1573,7 +1572,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         assert ensureNoSelfReferences == false;
         MapStructuredSource source = (MapStructuredSource) document.getSource();
         ESONIndexed.ESONObject esonSource = (ESONIndexed.ESONObject) source.map();
-        request.setStructuredSource(esonSource);
+        request.indexSource().structuredSource(esonSource);
     }
 
     /**

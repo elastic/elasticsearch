@@ -39,7 +39,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ingest.ESONIndexed;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -1017,10 +1016,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public void ensureStructureSource() {
-
-    }
-
-    public void setStructuredSource(ESONIndexed.ESONObject esonSource) {
-
+        indexSource.ensureStructured();
     }
 }

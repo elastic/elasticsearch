@@ -325,6 +325,11 @@ public class IndexSource implements Writeable, Releasable {
         source(new BytesArray(source, offset, length), contentType);
     }
 
+    public void structuredSource(ESONIndexed.ESONObject esonSource) {
+        assert isClosed == false;
+        this.structuredSource = ESONIndexed.flatten(esonSource);
+    }
+
     private void setSource(BytesReference source, XContentType contentType) {
         assert isClosed == false;
         this.source = source;

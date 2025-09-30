@@ -51,7 +51,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -98,6 +97,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
@@ -117,10 +117,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
-    private final ThreadContext threadContext;
     private final PersistentTasksService persistentTasksService;
     private final DownsampleMetrics downsampleMetrics;
     private final ProjectResolver projectResolver;
+    private final Supplier<Long> nowSupplier;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -162,6 +162,39 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         PersistentTasksService persistentTasksService,
         DownsampleMetrics downsampleMetrics
     ) {
+        this(
+            new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN),
+            indicesService,
+            clusterService,
+            transportService,
+            threadPool,
+            metadataCreateIndexService,
+            actionFilters,
+            projectResolver,
+            indexScopedSettings,
+            persistentTasksService,
+            downsampleMetrics,
+            clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR),
+            () -> client.threadPool().relativeTimeInMillis()
+        );
+    }
+
+    // For testing
+    TransportDownsampleAction(
+        Client client,
+        IndicesService indicesService,
+        ClusterService clusterService,
+        TransportService transportService,
+        ThreadPool threadPool,
+        MetadataCreateIndexService metadataCreateIndexService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver,
+        IndexScopedSettings indexScopedSettings,
+        PersistentTasksService persistentTasksService,
+        DownsampleMetrics downsampleMetrics,
+        MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue,
+        Supplier<Long> nowSupplier
+    ) {
         super(
             DownsampleAction.NAME,
             transportService,
@@ -171,15 +204,15 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             DownsampleAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
+        this.client = client;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.projectResolver = projectResolver;
         this.indexScopedSettings = indexScopedSettings;
-        this.threadContext = threadPool.getThreadContext();
-        this.taskQueue = clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
+        this.taskQueue = taskQueue;
         this.persistentTasksService = persistentTasksService;
         this.downsampleMetrics = downsampleMetrics;
+        this.nowSupplier = nowSupplier;
     }
 
     private void recordSuccessMetrics(long startTime) {
@@ -195,10 +228,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     private void recordOperation(long startTime, DownsampleMetrics.ActionStatus status) {
-        downsampleMetrics.recordOperation(
-            TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime).getMillis(),
-            status
-        );
+        downsampleMetrics.recordOperation(TimeValue.timeValueMillis(nowSupplier.get() - startTime).getMillis(), status);
     }
 
     @Override
@@ -208,11 +238,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        long startTime = client.threadPool().relativeTimeInMillis();
+        long startTime = nowSupplier.get();
         String sourceIndexName = request.getSourceIndex();
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(request.getTargetIndex());
-        final IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext);
+        final IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(
+            threadPool.getThreadContext()
+        );
         if (indicesAccessControl != null) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
             if (indexPermissions != null) {

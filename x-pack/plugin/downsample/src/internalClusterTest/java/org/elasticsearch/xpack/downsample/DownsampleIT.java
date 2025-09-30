@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -44,8 +45,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
-        String mapping = """
+        String mapping = String.format(Locale.ROOT, """
             {
+              %s
               "properties": {
                 "attributes": {
                   "type": "passthrough",
@@ -64,7 +66,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
               }
             }
-            """;
+            """, generateForceMergeMetadata());
 
         // Create data stream by indexing documents
         final Instant now = Instant.now();
@@ -169,6 +171,16 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         safeAwait(listener);
 
         assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
+    }
+
+    private String generateForceMergeMetadata() {
+        return switch (randomIntBetween(0, 4)) {
+            case 0 -> "\"_meta\": { \"downsample.forcemerge.enabled\": false},";
+            case 1 -> "\"_meta\": { \"downsample.forcemerge.enabled\": true},";
+            case 2 -> "\"_meta\": { \"downsample.forcemerge.enabled\": 4},";
+            case 3 -> "\"_meta\": { \"downsample.forcemerge.enabled\": null},";
+            default -> "";
+        };
     }
 
     public void testAggMetricInEsqlTSAfterDownsampling() throws Exception {

@@ -50,7 +50,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Surrogat
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long" },
+            type = { "aggregate_metric_double", "double", "integer", "long" },
             description = "Expression that outputs values to average."
         ) Expression field
     ) {

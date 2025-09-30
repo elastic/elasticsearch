@@ -1,0 +1,5 @@
+pr: 135713
+summary: Add shard search subphase metrics for the fetch subphases
+area: Search
+type: enhancement
+issues: []

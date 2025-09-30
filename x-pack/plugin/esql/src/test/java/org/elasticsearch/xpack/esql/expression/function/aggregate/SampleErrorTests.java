@@ -17,6 +17,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
@@ -32,6 +33,17 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.getFirst() == DataType.DENSE_VECTOR) {
+            return equalTo(
+                "first argument of ["
+                    + sourceForSignature(signature)
+                    + "] must be [any type except counter types"
+                    + " or dense_vector], found value [] type [dense_vector]"
+            );
+        }
+        if (signature.getFirst() == DataType.NULL && signature.get(1) == DataType.DENSE_VECTOR) {
+            return containsString(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "integer"));
+        }
         if (signature.get(1).equals(DataType.NULL)) {
             return equalTo("second argument of [" + sourceForSignature(signature) + "] cannot be null, received []");
         }

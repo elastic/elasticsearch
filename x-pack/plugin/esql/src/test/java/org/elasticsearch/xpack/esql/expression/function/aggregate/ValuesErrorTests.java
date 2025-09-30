@@ -33,13 +33,12 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types and aggregate metric double")
+            typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double")
         );
     }
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        // 1 for aggregate metric double
-        assertThat(checked, equalTo(1));
+        assertThat(checked, equalTo(2));
     }
 }

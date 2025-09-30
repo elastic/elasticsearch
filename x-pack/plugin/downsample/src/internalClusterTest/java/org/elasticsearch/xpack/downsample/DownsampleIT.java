@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -44,14 +45,20 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
-        // Set up template
-        putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
+        String mapping = String.format(Locale.ROOT, """
             {
+              %s
               "properties": {
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,
-                  "time_series_dimension": true
+                  "time_series_dimension": true,
+                  "properties": {
+                    "os.name": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
                 },
                 "metrics.cpu_usage": {
                   "type": "double",
@@ -59,7 +66,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
               }
             }
-            """, null, null);
+            """, generateForceMergeMetadata());
 
         // Create data stream by indexing documents
         final Instant now = Instant.now();
@@ -70,12 +77,67 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .startObject()
                     .field("@timestamp", ts)
                     .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
+                    .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         };
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+    }
+
+    public void testDownsamplingPassthroughMetrics() throws Exception {
+        String dataStreamName = "metrics-foo";
+        String mapping = """
+            {
+              "properties": {
+                "attributes.os.name": {
+                  "type": "keyword",
+                  "time_series_dimension": true
+                },
+                "metrics": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "properties": {
+                    "cpu_usage": {
+                        "type": "double",
+                        "time_series_metric": "counter"
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        // Create data stream by indexing documents
+        final Instant now = Instant.now();
+        Supplier<XContentBuilder> sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
+                    .field("metrics.cpu_usage", randomDouble())
+                    .field("metrics.memory_usage", randomDouble())
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+    }
+
+    /**
+     * Create a data stream with the provided mapping and downsampled the first backing index of this data stream. After downsampling has
+     *  completed, it asserts if the downsampled index is as expected.
+     */
+    private void downsampleAndAssert(String dataStreamName, String mapping, Supplier<XContentBuilder> sourceSupplier) throws Exception {
+        // Set up template
+        putTSDBIndexTemplate("my-template", List.of(dataStreamName), null, mapping, null, null);
+
+        // Create data stream by indexing documents
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // Rollover to ensure the index we will downsample is not the write index
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
@@ -109,6 +171,16 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         safeAwait(listener);
 
         assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
+    }
+
+    private String generateForceMergeMetadata() {
+        return switch (randomIntBetween(0, 4)) {
+            case 0 -> "\"_meta\": { \"downsample.forcemerge.enabled\": false},";
+            case 1 -> "\"_meta\": { \"downsample.forcemerge.enabled\": true},";
+            case 2 -> "\"_meta\": { \"downsample.forcemerge.enabled\": 4},";
+            case 3 -> "\"_meta\": { \"downsample.forcemerge.enabled\": null},";
+            default -> "";
+        };
     }
 
     public void testAggMetricInEsqlTSAfterDownsampling() throws Exception {

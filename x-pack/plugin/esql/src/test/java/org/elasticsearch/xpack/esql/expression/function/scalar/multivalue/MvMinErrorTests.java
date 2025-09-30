@@ -37,7 +37,7 @@ public class MvMinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter and spatial types and aggregate metric double"
+                (v, p) -> "any type except counter, spatial types, dense_vector, or aggregate_metric_double"
             )
         );
     }

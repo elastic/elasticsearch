@@ -134,7 +134,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithD
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -1643,7 +1642,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+            + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -2356,9 +2355,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingKnn() {
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
 
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkDenseVectorCastingHexKnn("float_vector");
@@ -2435,8 +2432,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
-
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_cosine(float_vector, [0.342, 0.164, 0.234])",
@@ -2499,8 +2494,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorEvalCastingSimilarityFunctions() {
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
-
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
@@ -2541,8 +2534,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testVectorFunctionHexImplicitCastingError() {
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
-
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
         }
@@ -3346,7 +3337,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
-            assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR_FEATURE_FLAG.isEnabled() ? DENSE_VECTOR : UNSUPPORTED));
+            assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
             IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
@@ -4156,9 +4147,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldsInvalidTypes() {
-        List<String> invalidFieldNames = DENSE_VECTOR_FEATURE_FLAG.isEnabled()
-            ? List.of("date", "date_nanos", "ip", "version", "dense_vector")
-            : List.of("date", "date_nanos", "ip", "version");
+        List<String> invalidFieldNames = List.of("date", "date_nanos", "ip", "version", "dense_vector");
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);

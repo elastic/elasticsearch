@@ -55,6 +55,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
@@ -648,6 +649,33 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             n -> expectedValue.apply(n.doubleValue()),
             n -> expectedWarnings.apply(n.doubleValue())
         );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on a {@link DataType#DENSE_VECTOR}.
+     */
+    @SuppressWarnings("unchecked")
+    public static void forUnaryDenseVector(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<List<Float>, Object> expectedValue,
+        float lowerBound,
+        float upperBound
+    ) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        cases.add(new TypedDataSupplier("<dense vector>", () -> randomDenseVector(lowerBound, upperBound), DataType.DENSE_VECTOR));
+
+        unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
+    }
+
+    private static List<Float> randomDenseVector(float lower, float upper) {
+        int dimensions = randomIntBetween(64, 128);
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimensions; i++) {
+            vector.add(randomFloatBetween(lower, upper, true));
+        }
+        return vector;
     }
 
     /**

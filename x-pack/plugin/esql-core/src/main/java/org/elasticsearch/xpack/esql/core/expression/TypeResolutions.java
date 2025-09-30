@@ -21,8 +21,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 public final class TypeResolutions {
@@ -76,45 +78,27 @@ public final class TypeResolutions {
     /**
      * @see DataType#isRepresentable(DataType)
      */
-    public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
+    public static TypeResolution isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(
+            e,
+            dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE,
+            operationName,
+            paramOrd,
+            "any type except counter types, dense_vector, or aggregate_metric_double"
+        );
     }
 
-    public static TypeResolution isRepresentableExceptCountersAndAggregateMetricDouble(
+    public static TypeResolution isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble(
         Expression e,
         String operationName,
         ParamOrdinal paramOrd
     ) {
         return isType(
             e,
-            (t) -> t != AGGREGATE_METRIC_DOUBLE && DataType.isRepresentable(t),
+            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t) && t != DENSE_VECTOR,
             operationName,
             paramOrd,
-            "any type except counter types and aggregate metric double"
-        );
-    }
-
-    public static TypeResolution isRepresentableExceptCountersAndSpatialAndAggregateMetricDouble(
-        Expression e,
-        String operationName,
-        ParamOrdinal paramOrd
-    ) {
-        return isType(
-            e,
-            (t) -> t != AGGREGATE_METRIC_DOUBLE && isSpatialOrGrid(t) == false && DataType.isRepresentable(t),
-            operationName,
-            paramOrd,
-            "any type except counter and spatial types and aggregate metric double"
-        );
-    }
-
-    public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(
-            e,
-            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t),
-            operationName,
-            paramOrd,
-            "any type except counter and spatial types"
+            "any type except counter, spatial types, dense_vector, or aggregate_metric_double"
         );
     }
 

@@ -1264,7 +1264,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
-                    false
+                    false,
+                    List.of()
                 );
 
                 configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);

@@ -1,5 +1,0 @@
-pr: 135699
-summary: Handle duplicate calls to index resolution
-area: Security
-type: bug
-issues: []

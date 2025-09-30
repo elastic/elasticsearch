@@ -244,13 +244,19 @@ public class RestSearchAction extends BaseRestHandler {
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request);
         } else {
-            if (inCpsContext.orElse(false) && request.hasParam("ccs_minimize_roundtrips")) {
-                throw new IllegalArgumentException("Setting ccs_minimize_roundtrips is not supported in CPS context");
+            if (inCpsContext.orElse(false)) {
+                // We're in CPS environment. MRT should always be true and not be settable by the user.
+                if (request.hasParam("ccs_minimize_roundtrips")) {
+                    throw new IllegalArgumentException("Setting ccs_minimize_roundtrips is not supported in CPS context");
+                } else {
+                    searchRequest.setCcsMinimizeRoundtrips(true);
+                }
+            } else {
+                // We're not in CPS environment, so parse what's in the request.
+                searchRequest.setCcsMinimizeRoundtrips(
+                    request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
+                );
             }
-
-            searchRequest.setCcsMinimizeRoundtrips(
-                request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
-            );
         }
         if (request.paramAsBoolean("force_synthetic_source", false)) {
             searchRequest.setForceSyntheticSource(true);

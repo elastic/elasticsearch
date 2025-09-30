@@ -353,10 +353,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
         boolean collectSearchTelemetry
     ) {
-        if (forceConnectTimeoutSecs != null) {
-            original.setCcsMinimizeRoundtrips(true);
-        }
-
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(
             original.getOrCreateAbsoluteStartMillis(),

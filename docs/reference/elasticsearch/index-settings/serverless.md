@@ -56,7 +56,7 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 * [`index.look_ahead_time`](./time-series.md#index-look-ahead-time)
 * [`index.look_back_time`](./time-series.md#index-look-back-time)
 * [`index.routing_path`](./time-series.md#index-routing-path)
-* [`index.index_dimensions_tsid_strategy_enabled`](./time-series.md#index-dimensions-tsid-strategy-enabled)
+* [`index.dimensions_tsid_strategy_enabled`](./time-series.md#index-dimensions-tsid-strategy-enabled)
 
 ### Similarity and analyzers
 

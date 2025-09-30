@@ -119,7 +119,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result)
             .put("index.mode", "time_series")
-            .put("index.index_dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
             .build();
         assertThat(result.size(), equalTo(5));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
@@ -251,7 +251,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result)
             .put("index.mode", "time_series")
-            .put("index.index_dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
             .build();
         assertThat(result.size(), equalTo(5));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
@@ -981,7 +981,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
         Settings settings = Settings.builder()
-            .put("index.index_dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
             .build();
 
         Settings.Builder additionalSettings = builder();

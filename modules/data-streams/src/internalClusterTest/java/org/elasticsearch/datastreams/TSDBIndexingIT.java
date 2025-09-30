@@ -333,7 +333,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                         Settings.builder()
                             .put("index.mode", "time_series")
                             .put("index.routing_path", randomBoolean() ? null : "metricset")
-                            .put("index.index_dimensions_tsid_strategy_enabled", usually())
+                            .put("index.dimensions_tsid_strategy_enabled", usually())
                             .build(),
                         new CompressedXContent(mappingTemplate),
                         null
@@ -649,7 +649,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     new Template(
                         Settings.builder()
                             .put("index.mode", "time_series")
-                            .put("index.index_dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
+                            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
                             .build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
                         null

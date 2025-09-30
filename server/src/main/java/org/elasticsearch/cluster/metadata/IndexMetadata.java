@@ -545,7 +545,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * it's not allowed to add a dynamic template that defines dimension fields to existing backing indices of a time series data stream.
      */
     public static final Setting<Boolean> INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED = Setting.boolSetting(
-        "index.index_dimensions_tsid_strategy_enabled",
+        "index.dimensions_tsid_strategy_enabled",
         true,
         Setting.Property.IndexScope,
         Property.Final,

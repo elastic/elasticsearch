@@ -20,6 +20,10 @@ import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests to ensure that the multistep optimized TranslogStreamOutput serialization matches the standard
+ * StreamOutput version.
+ */
 public class TranslogStreamOutputTests extends ESTestCase {
 
     public void testIndexOperationSerializationMatches() throws IOException {

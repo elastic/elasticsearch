@@ -43,7 +43,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS tx = sum(delta(network.bytes_in)) WHERE pod == \"one\"  BY cluster, time_bucket = bucket(@timestamp, 10minute)"
+    "TS k8s\n| WHERE pod == \"one\"\n| STATS tx = sum(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

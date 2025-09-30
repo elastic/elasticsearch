@@ -4,5 +4,7 @@
 Calculates the absolute increase of a counter field in a time window.
 
 ```esql
-null
+TS k8s
+| WHERE pod == "one"
+| STATS increase_bytes_in = sum(increase(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 ```

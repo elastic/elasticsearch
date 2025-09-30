@@ -7,5 +7,6 @@ Note: Available with the [TS](https://www.elastic.co/docs/reference/query-langua
 
 ```esql
 TS k8s
-| STATS tx = sum(delta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| WHERE pod == "one"
+| STATS tx = sum(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 ```

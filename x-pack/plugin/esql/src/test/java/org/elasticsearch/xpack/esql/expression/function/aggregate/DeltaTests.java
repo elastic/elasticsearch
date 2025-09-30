@@ -116,21 +116,21 @@ public class DeltaTests extends AbstractAggregationTestCase {
             if (dataRows.size() < 2) {
                 matcher = Matchers.nullValue();
             } else {
-                var maxrate = switch (fieldTypedData.type().widenSmallNumeric()) {
+                var maxdelta = switch (fieldTypedData.type().widenSmallNumeric()) {
                     case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).max().orElse(0);
                     case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).max().orElse(0L);
                     case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).max().orElse(0.0);
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
-                var minrate = switch (fieldTypedData.type().widenSmallNumeric()) {
+                var mindelta = switch (fieldTypedData.type().widenSmallNumeric()) {
                     case INTEGER, COUNTER_INTEGER -> dataRows.stream().mapToInt(v -> (Integer) v).min().orElse(0);
                     case LONG, COUNTER_LONG -> dataRows.stream().mapToLong(v -> (Long) v).min().orElse(0L);
                     case DOUBLE, COUNTER_DOUBLE -> dataRows.stream().mapToDouble(v -> (Double) v).min().orElse(0.0);
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
-                maxrate = Math.max(maxrate, maxrate - Math.min(minrate, 0));
-                minrate = -maxrate;
-                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(minrate), Matchers.lessThanOrEqualTo(maxrate));
+                maxdelta = Math.max(maxdelta, maxdelta - Math.min(mindelta, 0));
+                mindelta = -maxdelta;
+                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(mindelta), Matchers.lessThanOrEqualTo(maxdelta));
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),

@@ -54,13 +54,20 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 
 idelta_with_filtering
 required_capability: ts_command_v0
-TS k8s | WHERE pod == "one" | STATS tx = sum(idelta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+// tag::idelta[]
+TS k8s
+| WHERE pod == "one"
+| STATS tx = sum(idelta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+// end::idelta[]
+| SORT time_bucket, cluster | LIMIT 10;
 
+// tag::idelta-result[]
 tx:double | cluster:keyword | time_bucket:datetime
 -224.0    | prod            | 2024-05-10T00:00:00.000Z
 791.0     | qa              | 2024-05-10T00:00:00.000Z
 534.0     | staging         | 2024-05-10T00:00:00.000Z
 -448.0    | prod            | 2024-05-10T00:10:00.000Z
+// end::idelta-result[]
 -560.0    | qa              | 2024-05-10T00:10:00.000Z
 -512.0    | staging         | 2024-05-10T00:10:00.000Z
 915.0     | prod            | 2024-05-10T00:20:00.000Z
@@ -70,20 +77,16 @@ tx:double | cluster:keyword | time_bucket:datetime
 
 idelta_with_inline_filtering
 required_capability: ts_command_v0
-// tag::delta[]
 TS k8s
 | STATS tx = sum(idelta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute)
-// end::delta[]
 | SORT time_bucket, cluster | LIMIT 10;
 
-// tag::delta-result[]
 tx:double | cluster:keyword | time_bucket:datetime
 -224.0    | prod            | 2024-05-10T00:00:00.000Z
 791.0     | qa              | 2024-05-10T00:00:00.000Z
 534.0     | staging         | 2024-05-10T00:00:00.000Z
 -448.0    | prod            | 2024-05-10T00:10:00.000Z
 -560.0    | qa              | 2024-05-10T00:10:00.000Z
-// end::delta-result[]
 -512.0    | staging         | 2024-05-10T00:10:00.000Z
 915.0     | prod            | 2024-05-10T00:20:00.000Z
 9.0       | qa              | 2024-05-10T00:20:00.000Z

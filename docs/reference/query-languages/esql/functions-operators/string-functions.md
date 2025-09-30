@@ -96,3 +96,12 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/trim.md
 :::
 
+:::{include} ../_snippets/functions/layout/url_encode.md
+:::
+
+:::{include} ../_snippets/functions/layout/url_encode_component.md
+:::
+
+:::{include} ../_snippets/functions/layout/url_decode.md
+:::
+

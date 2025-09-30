@@ -81,7 +81,6 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
@@ -410,11 +409,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) {
         var source = source(ctx);
-        if (false == EsqlPlugin.INLINE_STATS_FEATURE_FLAG) {
+        if (false == EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             throw new ParsingException(source, "INLINE STATS command currently requires a snapshot build");
         }
         // TODO: drop after next minor release
-        if (ctx.DEV_INLINESTATS() != null) {
+        if (ctx.INLINESTATS() != null) {
             HeaderWarning.addWarning(
                 "Line {}:{}: INLINESTATS is deprecated, use INLINE STATS instead",
                 source.source().getLineNumber(),

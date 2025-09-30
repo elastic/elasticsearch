@@ -206,6 +206,10 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         }
     }
 
+    /**
+     * Literal to represent AggregateMetricDouble and primarily used for testing and during folding.
+     * For all other purposes it is preferred to use the individual builders over the literal for generating blocks when possible.
+     */
     public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
         public AggregateMetricDoubleLiteral {
             min = (min == null || min.isNaN()) ? null : min;
@@ -246,5 +250,29 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
             assert false : "must not be called when overriding supportsVersion";
             throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
         }
+    }
+
+    public AggregateMetricDoubleBlockBuilder appendLiteral(AggregateMetricDoubleLiteral literal) {
+        if (literal.min != null) {
+            minBuilder.appendDouble(literal.min);
+        } else {
+            minBuilder.appendNull();
+        }
+        if (literal.max != null) {
+            maxBuilder.appendDouble(literal.max);
+        } else {
+            maxBuilder.appendNull();
+        }
+        if (literal.sum != null) {
+            sumBuilder.appendDouble(literal.sum);
+        } else {
+            sumBuilder.appendNull();
+        }
+        if (literal.count != null) {
+            countBuilder.appendInt(literal.count);
+        } else {
+            countBuilder.appendNull();
+        }
+        return this;
     }
 }

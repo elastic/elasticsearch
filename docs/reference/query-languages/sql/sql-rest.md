@@ -10,8 +10,8 @@ products:
 
 # SQL REST API [sql-rest]
 
-* [Overview](sql/sql-rest-overview.md)
-* [Response Data Formats](sql/sql-rest-format.md)
+* [Overview](sql-rest-overview.md)
+* [Response Data Formats](sql-rest-format.md)
 
 
 

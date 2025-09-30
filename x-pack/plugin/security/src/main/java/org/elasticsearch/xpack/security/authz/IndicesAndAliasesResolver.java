@@ -51,6 +51,7 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -298,6 +299,13 @@ class IndicesAndAliasesResolver {
                 getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, projectMetadata)
             );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
+            if (isNoneExpression(replaceable.indices())) {
+                // If the request has a "none" expression, we can skip all the resolution and authorization logic
+                replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
+                resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
+                return resolvedIndicesBuilder.build();
+            }
+
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
 
             // check for all and return list of authorized indices
@@ -364,7 +372,7 @@ class IndicesAndAliasesResolver {
                 // once we've migrated from `indices()` to using resolved expressions holistically,
                 // we will always store them
                 if (recordResolvedIndexExpressions) {
-                    replaceable.setResolvedIndexExpressions(resolved);
+                    setResolvedExpressionsIfUnset(replaceable, resolved);
                 }
                 resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                 resolvedIndicesBuilder.addRemote(split.getRemote());
@@ -433,6 +441,19 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    private static void setResolvedExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
+        if (replaceable.getResolvedIndexExpressions() == null) {
+            replaceable.setResolvedIndexExpressions(resolved);
+        } else {
+            assert false
+                : "Resolved index expressions have already been set on ["
+                    + replaceable
+                    + "] and should not be set again. Trying to set ["
+                    + resolved
+                    + "] which will be ignored.";
+        }
     }
 
     /**

@@ -168,10 +168,7 @@ public class TestElasticServiceExtension implements InferenceServiceExtension {
                 case SPARSE_EMBEDDING -> listener.onResponse(makeChunkedSparseResults(input));
                 case TEXT_EMBEDDING -> listener.onResponse(makeChunkedDenseResults(input));
                 case RERANK -> listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Chunked inference is not supported for rerank task type",
-                        RestStatus.BAD_REQUEST
-                    )
+                    new ElasticsearchStatusException("Chunked inference is not supported for rerank task type", RestStatus.BAD_REQUEST)
                 );
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(

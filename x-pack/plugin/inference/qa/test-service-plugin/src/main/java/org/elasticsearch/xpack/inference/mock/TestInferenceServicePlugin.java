@@ -11,11 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.plugins.InferencePlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.List;
-
-import org.elasticsearch.plugins.InferencePlugin;
 
 public class TestInferenceServicePlugin extends Plugin implements InferencePlugin {
 

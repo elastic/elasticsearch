@@ -684,7 +684,7 @@ public class DeploymentManager {
 
             // This listener closes the native process and waits for the results
             // after the worker queue has finished
-            var closeProcessListener = listener.delegateResponse((l, r) -> {
+            var closeProcessListener = listener.delegateFailureAndWrap((l, r) -> {
                 // process worker stopped within allotted time, close process
                 closeProcessAndWaitForResultProcessor();
                 closeNlpTaskProcessor();

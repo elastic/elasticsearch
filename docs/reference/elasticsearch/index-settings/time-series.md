@@ -48,7 +48,7 @@ $$$index-routing-path$$$ `index.routing_path` {applies_to}`serverless: all`
 
 $$$index-dimensions-tsid-strategy-enabled$$$
 
-`index.index_dimensions_tsid_strategy_enabled` {applies_to}`serverless: all`
+`index.index_dimensions_tsid_strategy_enabled` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
 :   (Static, boolean) Controls if the `_tsid` can be created using the `index.dimensions` index setting.
 This is an internal setting that will be automatically populated and updated for eligible time series data streams and is not user-configurable.
 This strategy offers an improved ingestion performance that avoids processing dimensions multiple times for the purposes of shard routing and creating the `_tsid`.

@@ -151,8 +151,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         } else {
             shape = null;
             indexedShapeId = in.readOptionalString();
-            String type = in.readOptionalString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc], got [" + type + "]";
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
             indexedShapeRouting = in.readOptionalString();
@@ -174,7 +172,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             GeometryIO.writeGeometry(out, shape);
         } else {
             out.writeOptionalString(indexedShapeId);
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
             out.writeOptionalString(indexedShapeIndex);
             out.writeOptionalString(indexedShapePath);
             out.writeOptionalString(indexedShapeRouting);

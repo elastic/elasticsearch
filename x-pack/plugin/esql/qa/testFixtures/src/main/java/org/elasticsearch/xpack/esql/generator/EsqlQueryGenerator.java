@@ -338,23 +338,39 @@ public class EsqlQueryGenerator {
     }
 
     public static String agg(List<Column> previousOutput) {
-        String name = randomNumericOrDateField(previousOutput);
+        String name = randomNumericField(previousOutput);
+        // complex with numerics
         if (name != null && randomBoolean()) {
-            // numerics only
-            return switch (randomIntBetween(0, 1)) {
-                case 0 -> "max(" + name + ")";
-                default -> "min(" + name + ")";
-                // TODO more numerics
-            };
+            int ops = randomIntBetween(1, 3);
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < ops; i++) {
+                if (i > 0) {
+                    result.append(" + ");
+                }
+                String agg = switch (randomIntBetween(0, 5)) {
+                    case 0 -> "max(" + name + ")";
+                    case 1 -> "min(" + name + ")";
+                    case 2 -> "avg(" + name + ")";
+                    case 3 -> "median(" + name + ")";
+                    case 4 -> "sum(" + name + ")";
+                    default -> "count(" + name + ")";
+                    // TODO more numerics
+                };
+                result.append(agg);
+            }
+            return result.toString();
         }
         // all types
         name = randomBoolean() ? randomStringField(previousOutput) : randomNumericOrDateField(previousOutput);
         if (name == null) {
             return "count(*)";
         }
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> "count(*)";
             case 1 -> "count(" + name + ")";
+            case 2 -> "absent(" + name + ")";
+            case 3 -> "present(" + name + ")";
+            case 4 -> "values(" + name + ")";
             default -> "count_distinct(" + name + ")";
         };
     }

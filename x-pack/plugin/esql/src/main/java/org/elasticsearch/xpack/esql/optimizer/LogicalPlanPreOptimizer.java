@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.FoldInferenceFunctions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.LogicalPlanPreOptimizerRule;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+
+import java.util.List;
 
 /**
  * The class is responsible for invoking any steps that need to be applied to the logical plan,
@@ -18,11 +23,14 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
  * </p>
  */
 public class LogicalPlanPreOptimizer {
-
-    private final LogicalPreOptimizerContext preOptimizerContext;
+    private final List<LogicalPlanPreOptimizerRule> preOptimizerRules;
 
     public LogicalPlanPreOptimizer(LogicalPreOptimizerContext preOptimizerContext) {
-        this.preOptimizerContext = preOptimizerContext;
+        this(List.of(new FoldInferenceFunctions(preOptimizerContext)));
+    }
+
+    LogicalPlanPreOptimizer(List<LogicalPlanPreOptimizerRule> preOptimizerRules) {
+        this.preOptimizerRules = preOptimizerRules;
     }
 
     /**
@@ -43,8 +51,17 @@ public class LogicalPlanPreOptimizer {
         }));
     }
 
+    /**
+     * Loop over the rules and apply them sequentially to the logical plan.
+     *
+     * @param plan     the analyzed logical plan to pre-optimize
+     * @param listener the listener returning the pre-optimized plan when pre-optimization is complete
+     */
     private void doPreOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        // this is where we will be executing async tasks
-        listener.onResponse(plan);
+        SubscribableListener<LogicalPlan> rulesListener = SubscribableListener.newSucceeded(plan);
+        for (LogicalPlanPreOptimizerRule preOptimizerRule : preOptimizerRules) {
+            rulesListener = rulesListener.andThen((l, p) -> preOptimizerRule.apply(p, l));
+        }
+        rulesListener.addListener(listener);
     }
 }

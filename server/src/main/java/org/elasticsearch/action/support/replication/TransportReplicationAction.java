@@ -512,73 +512,75 @@ public abstract class TransportReplicationAction<
                     );
                 } else if (reshardSplitShardCountSummary == 0
                     || reshardSplitShardCountSummary != indexMetadata.getReshardSplitShardCountSummaryForIndexing(
-                    primaryRequest.getRequest().shardId().getId())) {
-                    // Split Request
-                    Map<ShardId, Request> splitRequests = splitRequestOnPrimary(primaryRequest.getRequest());
-                    int numSplitRequests = splitRequests.size();
+                        primaryRequest.getRequest().shardId().getId()
+                    )) {
+                        // Split Request
+                        Map<ShardId, Request> splitRequests = splitRequestOnPrimary(primaryRequest.getRequest());
+                        int numSplitRequests = splitRequests.size();
 
-                    // splitRequestOnPrimary must handle the case when the request has no items
-                    assert numSplitRequests > 0 : "expected atleast 1 split request";
-                    assert numSplitRequests <= 2 : "number of split requests too many";
+                        // splitRequestOnPrimary must handle the case when the request has no items
+                        assert numSplitRequests > 0 : "expected atleast 1 split request";
+                        assert numSplitRequests <= 2 : "number of split requests too many";
 
-                    // System.out.println("numSplitRequests = " + numSplitRequests);
-                    // System.out.println("source shardId = " + primaryRequest.getRequest().shardId().toString());
-                    if (numSplitRequests == 1) {
-                        // System.out.println("shardId = " + splitRequests.entrySet().iterator().next().getKey().toString());
-                        // If the request is for source, same behaviour as before
-                        if (splitRequests.containsKey(primaryRequest.getRequest().shardId())) {
-                            // System.out.println("Execute request on source");
-                            executePrimaryRequest(primaryShardReference, "primary");
-                            // executePrimaryRequest(primaryShardReference, "primary_reshardSplit");
+                        // System.out.println("numSplitRequests = " + numSplitRequests);
+                        // System.out.println("source shardId = " + primaryRequest.getRequest().shardId().toString());
+                        if (numSplitRequests == 1) {
+                            // System.out.println("shardId = " + splitRequests.entrySet().iterator().next().getKey().toString());
+                            // If the request is for source, same behaviour as before
+                            if (splitRequests.containsKey(primaryRequest.getRequest().shardId())) {
+                                // System.out.println("Execute request on source");
+                                executePrimaryRequest(primaryShardReference, "primary");
+                                // executePrimaryRequest(primaryShardReference, "primary_reshardSplit");
+                            } else {
+                                // System.out.println("Execute request on target");
+                                // If the request is for target, forward request to target.
+                                // TODO: Note that the request still contains the original shardId. We need to test if this will be a
+                                // problem.
+                                setPhase(replicationTask, "primary_reshardSplit_delegation");
+                                // If the request is for target, send request to target node
+                                ShardId targetShardId = splitRequests.entrySet().iterator().next().getKey();
+                                final IndexShard targetShard = getIndexShard(targetShardId);
+                                final ShardRouting target = targetShard.routingEntry();
+                                final Writeable.Reader<Response> reader = TransportReplicationAction.this::newResponseInstance;
+                                DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
+                                transportService.sendRequest(
+                                    targetNode,
+                                    transportPrimaryAction,
+                                    new ConcreteShardRequest<>(
+                                        primaryRequest.getRequest(),
+                                        target.allocationId().getRelocationId(),
+                                        primaryRequest.getPrimaryTerm()
+                                    ),
+                                    transportOptions,
+                                    new ActionListenerResponseHandler<>(
+                                        onCompletionListener,
+                                        reader,
+                                        TransportResponseHandler.TRANSPORT_WORKER
+                                    ) {
+
+                                        @Override
+                                        public void handleResponse(Response response) {
+                                            setPhase(replicationTask, "finished");
+                                            super.handleResponse(response);
+                                        }
+
+                                        @Override
+                                        public void handleException(TransportException exp) {
+                                            setPhase(replicationTask, "finished");
+                                            super.handleException(exp);
+                                        }
+                                    }
+                                );
+                            }
                         } else {
-                            // System.out.println("Execute request on target");
-                            // If the request is for target, forward request to target.
-                            // TODO: Note that the request still contains the original shardId. We need to test if this will be a problem.
-                            setPhase(replicationTask, "primary_reshardSplit_delegation");
-                            // If the request is for target, send request to target node
-                            ShardId targetShardId = splitRequests.entrySet().iterator().next().getKey();
-                            final IndexShard targetShard = getIndexShard(targetShardId);
-                            final ShardRouting target = targetShard.routingEntry();
-                            final Writeable.Reader<Response> reader = TransportReplicationAction.this::newResponseInstance;
-                            DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
-                            transportService.sendRequest(
-                                targetNode,
-                                transportPrimaryAction,
-                                new ConcreteShardRequest<>(
-                                    primaryRequest.getRequest(),
-                                    target.allocationId().getRelocationId(),
-                                    primaryRequest.getPrimaryTerm()
-                                ),
-                                transportOptions,
-                                new ActionListenerResponseHandler<>(
-                                    onCompletionListener,
-                                    reader,
-                                    TransportResponseHandler.TRANSPORT_WORKER
-                                ) {
+                            // We have requests for both source and target shards.
+                            // Use a refcounted listener to run both requests async in parallel and collect the responses from both requests
 
-                                    @Override
-                                    public void handleResponse(Response response) {
-                                        setPhase(replicationTask, "finished");
-                                        super.handleResponse(response);
-                                    }
-
-                                    @Override
-                                    public void handleException(TransportException exp) {
-                                        setPhase(replicationTask, "finished");
-                                        super.handleException(exp);
-                                    }
-                                }
-                            );
+                            // Merge responses from source and target before calling onCompletionListener
                         }
                     } else {
-                        // We have requests for both source and target shards.
-                        // Use a refcounted listener to run both requests async in parallel and collect the responses from both requests
-
-                        // Merge responses from source and target before calling onCompletionListener
+                        executePrimaryRequest(primaryShardReference, "primary");
                     }
-                } else {
-                    executePrimaryRequest(primaryShardReference, "primary");
-                }
             } catch (Exception e) {
                 handleException(primaryShardReference, e);
             }

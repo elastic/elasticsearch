@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;

@@ -48,7 +48,7 @@ Configure the {{es}} SQL connection appropriately:
 
 Make sure the correct JDBC driver version is used by using the **Edit Driver Settings** button:
 
-![dbeaver 4 driver ver](/explore-analyze/images/elasticsearch-reference-dbeaver-4-driver-ver.png "")
+![dbeaver 4 driver ver](../images/elasticsearch-reference-dbeaver-4-driver-ver.png "")
 
 DBeaver is aware of the {{es}} JDBC maven repository so simply **Download/Update** the artifact or add a new one. As an alternative one can add a local file instead if the {{es}} Maven repository is not an option.
 

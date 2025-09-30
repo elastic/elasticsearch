@@ -244,14 +244,7 @@ public class OpenAiService extends SenderService {
 
         moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null
-        );
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override

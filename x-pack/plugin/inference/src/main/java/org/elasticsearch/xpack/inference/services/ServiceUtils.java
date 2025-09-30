@@ -1079,8 +1079,6 @@ public final class ServiceUtils {
         E apply(String name) throws IllegalArgumentException;
     }
 
-
-
     /**
      * Create an exception for when the task type is not valid for the service.
      */
@@ -1093,10 +1091,7 @@ public final class ServiceUtils {
         var message = parseContext == ConfigurationParseContext.PERSISTENT
             ? parsePersistedConfigErrorMsg(inferenceEntityId, serviceName, taskType)
             : TaskType.unsupportedTaskTypeErrorMsg(taskType, serviceName);
-        return new ElasticsearchStatusException(
-            message,
-            RestStatus.BAD_REQUEST
-        );
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
     private static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName, TaskType taskType) {

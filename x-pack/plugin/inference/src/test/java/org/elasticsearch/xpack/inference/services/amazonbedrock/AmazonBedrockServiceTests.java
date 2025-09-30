@@ -628,10 +628,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 )
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                containsString("Failed to parse stored model [id] for [amazonbedrock] service")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [amazonbedrock] service"));
             assertThat(
                 thrownException.getMessage(),
                 containsString("The [amazonbedrock] service does not support task type [sparse_embedding]")
@@ -880,10 +877,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                containsString("Failed to parse stored model [id] for [amazonbedrock] service")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [amazonbedrock] service"));
             assertThat(
                 thrownException.getMessage(),
                 containsString("The [amazonbedrock] service does not support task type [sparse_embedding]")

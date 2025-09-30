@@ -71,6 +71,8 @@ public class EsqlQueryGenerator {
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
         RenameGenerator.INSTANCE,
+        // awaits fix for https://github.com/elastic/elasticsearch/issues/135336
+        // SampleGenerator.INSTANCE,
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         WhereGenerator.INSTANCE

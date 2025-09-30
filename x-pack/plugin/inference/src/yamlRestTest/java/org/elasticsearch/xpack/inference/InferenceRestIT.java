@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +22,6 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public class InferenceRestIT extends ESClientYamlSuiteTestCase {
@@ -34,18 +32,13 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.RERANK_SNIPPETS)
+        .feature(FeatureFlag.ELASTIC_RERANKER_CHUNKING)
         .plugin("inference-service-test")
         .distribution(DistributionType.DEFAULT)
         .build();
 
     public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
-        String testPath = testCandidate.getTestPath();
-        if (testPath.startsWith("inference/70_text_similarity_rank_retriever")
-            && (testPath.toLowerCase(Locale.ROOT).contains("snippet") || testPath.toLowerCase(Locale.ROOT).contains("rescore"))) {
-            assumeTrue("Rerank snippets does not work in release builds", Build.current().isSnapshot());
-        }
     }
 
     @Override

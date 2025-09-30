@@ -43,9 +43,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         String indexName = "test-index";
         var testHarness = createClusterStateAndRoutingAllocation(indexName);
 
-        // The write load decider is disabled by default.
-
-        var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
+        var writeLoadDecider = createWriteLoadConstraintDecider(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
+                )
+                .build()
+        );
 
         assertEquals(
             Decision.Type.YES,
@@ -104,7 +109,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertEquals(
             "Assigning a new shard to a node that is above the threshold should fail",
-            Decision.Type.NO,
+            Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canAllocate(
                 testHarness.shardRouting2,
                 testHarness.exceedingThresholdRoutingNode,
@@ -128,7 +133,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertEquals(
             "Assigning a new shard that would cause the node to exceed capacity should fail",
-            Decision.Type.NO,
+            Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.nearThresholdRoutingNode, testHarness.routingAllocation)
                 .type()
         );

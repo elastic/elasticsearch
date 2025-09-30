@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -66,6 +65,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
     private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
 
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
     private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING = TransportVersion.fromName(
         "ml_inference_custom_service_remove_error_parsing"
     );
@@ -401,7 +401,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19;
+        return INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override

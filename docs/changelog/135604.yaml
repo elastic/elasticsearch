@@ -1,0 +1,6 @@
+pr: 135604
+summary: ES|QL - add `dense_vector` field type and `to_dense_vector` function to release
+  builds
+area: ES|QL
+type: feature
+issues: []

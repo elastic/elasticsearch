@@ -7,7 +7,7 @@
 
 lexer grammar Fuse;
 
-DEV_FUSE : {this.isDevVersion()}? 'fuse' -> pushMode(FUSE_MODE);
+FUSE : 'fuse' -> pushMode(FUSE_MODE);
 
 mode FUSE_MODE;
 FUSE_PIPE : PIPE -> type(PIPE), popMode;

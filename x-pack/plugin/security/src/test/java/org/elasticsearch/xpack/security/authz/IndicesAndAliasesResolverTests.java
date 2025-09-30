@@ -61,6 +61,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
@@ -2881,7 +2882,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(String action, TransportRequest request, AuthorizedIndices authorizedIndices) {
-        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices);
+        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices, TargetProjects.NOT_CROSS_PROJECT);
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {

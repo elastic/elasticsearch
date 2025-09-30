@@ -78,15 +78,6 @@ class IndicesAndAliasesResolver {
         this.recordResolvedIndexExpressions = recordResolvedIndexExpressions;
     }
 
-    ResolvedIndices resolve(
-        String action,
-        TransportRequest request,
-        ProjectMetadata projectMetadata,
-        AuthorizationEngine.AuthorizedIndices authorizedIndices
-    ) {
-        return resolve(action, request, projectMetadata, authorizedIndices, TargetProjects.NOT_CROSS_PROJECT);
-    }
-
     /**
      * Resolves, and if necessary updates, the list of index names in the provided <code>request</code> in accordance with the user's
      * <code>authorizedIndices</code>.
@@ -371,7 +362,7 @@ class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-                if (replaceable.allowsCrossProjectResolution() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT) {
+                if (replaceable.crossProjectResolvable() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
                     assert recordResolvedIndexExpressions : "cross-project requests must record resolved index expressions";
                     assert false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())

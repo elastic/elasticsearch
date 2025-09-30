@@ -1,5 +1,5 @@
 pr: 135709
-summary: ES|QL - KNN function in release builds
-area: "ES|QL, ES|QL"
+summary: ES|QL - KNN function
+area: "ES|QL"
 type: feature
-issues: []
+issues: [126710]

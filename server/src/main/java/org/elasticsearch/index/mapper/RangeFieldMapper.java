@@ -193,7 +193,7 @@ public class RangeFieldMapper extends FieldMapper {
             boolean coerce,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexed, stored, hasDocValues, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
@@ -214,7 +214,7 @@ public class RangeFieldMapper extends FieldMapper {
             boolean coerce,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexed, stored, hasDocValues, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -248,6 +248,11 @@ public class RangeFieldMapper extends FieldMapper {
                     };
                 }
             };
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override

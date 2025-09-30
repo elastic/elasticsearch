@@ -742,14 +742,8 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 () -> service.parsePersistedConfigWithSecrets("id", TaskType.SPARSE_EMBEDDING, config.config(), config.secrets())
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                containsString("Failed to parse stored model [id] for [mistral] service")
-            );
-            assertThat(
-                thrownException.getMessage(),
-                containsString("The [mistral] service does not support task type [sparse_embedding]")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [mistral] service"));
+            assertThat(thrownException.getMessage(), containsString("The [mistral] service does not support task type [sparse_embedding]"));
         }
     }
 

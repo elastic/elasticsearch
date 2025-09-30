@@ -807,10 +807,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
                 () -> service.parsePersistedConfigWithSecrets("id", TaskType.SPARSE_EMBEDDING, config.config(), config.secrets())
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                containsString("Failed to parse stored model [id] for [azureaistudio] service")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [azureaistudio] service"));
             assertThat(
                 thrownException.getMessage(),
                 containsString("The [azureaistudio] service does not support task type [sparse_embedding]")

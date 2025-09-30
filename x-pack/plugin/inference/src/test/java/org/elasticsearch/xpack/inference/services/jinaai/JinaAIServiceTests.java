@@ -443,14 +443,8 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 )
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                containsString("Failed to parse stored model [id] for [jinaai] service")
-            );
-            assertThat(
-                thrownException.getMessage(),
-                containsString("The [jinaai] service does not support task type [sparse_embedding]")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [jinaai] service"));
+            assertThat(thrownException.getMessage(), containsString("The [jinaai] service does not support task type [sparse_embedding]"));
         }
     }
 
@@ -687,14 +681,8 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
-            assertThat(
-                thrownException.getMessage(),
-                containsString("Failed to parse stored model [id] for [jinaai] service")
-            );
-            assertThat(
-                thrownException.getMessage(),
-                containsString("The [jinaai] service does not support task type [sparse_embedding]")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [jinaai] service"));
+            assertThat(thrownException.getMessage(), containsString("The [jinaai] service does not support task type [sparse_embedding]"));
         }
     }
 

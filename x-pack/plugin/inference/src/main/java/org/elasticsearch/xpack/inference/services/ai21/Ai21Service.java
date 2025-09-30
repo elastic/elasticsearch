@@ -176,13 +176,7 @@ public class Ai21Service extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            Ai21Model model = createModel(
-                modelId,
-                taskType,
-                serviceSettingsMap,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
+            Ai21Model model = createModel(modelId, taskType, serviceSettingsMap, serviceSettingsMap, ConfigurationParseContext.REQUEST);
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -205,12 +199,7 @@ public class Ai21Service extends SenderService {
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            secretSettingsMap
-        );
+        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, secretSettingsMap);
     }
 
     @Override
@@ -218,12 +207,7 @@ public class Ai21Service extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            null
-        );
+        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, null);
     }
 
     @Override
@@ -257,13 +241,7 @@ public class Ai21Service extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> secretSettings
     ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
-        );
+        return createModel(inferenceEntityId, taskType, serviceSettings, secretSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     /**

@@ -106,9 +106,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolveEmptyPattern() {
         assertAcked(client().admin().indices().prepareCreate("data"));
-        if (randomBoolean()) {
-            indexRandom(true, "data", 1);
-        }
+        indexRandom(true, "data", 1);
 
         try (var response = run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))) {
             assertOk(response);

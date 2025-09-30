@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -105,11 +106,18 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                 .getShard(shardRouting.shardId().id());
             indexShard.ensureMutable(l.map(unused -> indexShard), false);
-        }).<EmptyResult>andThen((l, indexShard) -> {
-            boolean forceMergeIsNoOp = indexShard.withEngineException(engine -> {
-                engine.flush();
-                return engine.forceMergeIsNoOp(request.maxNumSegments());
-            });
+        }).<Tuple<Boolean, IndexShard>>andThen((l, indexShard) -> {
+            // Checking whether a force-merge is a no-op requires IO, so we fork to the generic threadpool.
+            threadPool.generic().execute(ActionRunnable.supply(l, () -> {
+                boolean forceMergeIsNoOp = indexShard.withEngineException(engine -> {
+                    engine.flush();
+                    return engine.forceMergeIsNoOp(request.maxNumSegments());
+                });
+                return Tuple.tuple(forceMergeIsNoOp, indexShard);
+            }));
+        }).<EmptyResult>andThen((l, tuple) -> {
+            final boolean forceMergeIsNoOp = tuple.v1();
+            final IndexShard indexShard = tuple.v2();
             if (forceMergeIsNoOp) {
                 logger.info("---> skipping force merge for shard {} since it is a no-op", indexShard.shardId());
                 l.onResponse(EmptyResult.INSTANCE);

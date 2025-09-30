@@ -322,11 +322,7 @@ public enum DataType implements Writeable {
      * Fields with this type are dense vectors, represented as an array of double values.
      */
     DENSE_VECTOR(
-        builder().esType("dense_vector")
-            .estimatedSize(4096)
-            .createdVersion(
-                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
-            )
+        builder().esType("dense_vector").estimatedSize(4096).createdVersion(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
     );
 
     /**
@@ -954,6 +950,8 @@ public enum DataType implements Writeable {
     }
 
     private static class DataTypesTransportVersions {
-        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName("esql_dense_vector_created_version");
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
     }
 }

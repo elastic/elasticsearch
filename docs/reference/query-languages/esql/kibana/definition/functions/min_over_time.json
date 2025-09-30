@@ -8,6 +8,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "boolean",
           "optional" : false,
           "description" : ""

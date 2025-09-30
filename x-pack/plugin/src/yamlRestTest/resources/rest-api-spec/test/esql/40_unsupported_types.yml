@@ -145,7 +145,7 @@ unsupported:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [dense_vector_field_type, dense_vector_agg_metric_double_if_fns]
+          capabilities: [dense_vector_field_type_released, dense_vector_agg_metric_double_if_fns]
       reason: "uses original_type"
 
   - do:
@@ -338,7 +338,7 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ dense_vector_field_type, dense_vector_agg_metric_double_if_fns ]
+          capabilities: [ dense_vector_field_type_released, dense_vector_agg_metric_double_if_fns ]
       reason: "support for sorting when dense_vector_field_type present"
 
   - do:

@@ -1562,6 +1562,11 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
+        /**
+         * Add support for counter doubles, ints, and longs in first_ and last_over_time
+         */
+        FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
+
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 
         /**

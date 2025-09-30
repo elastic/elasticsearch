@@ -1543,6 +1543,8 @@ public class EsqlCapabilities {
         /** INLINE STATS supports remote indices */
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
 
+        INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled),
+
         /**
          * Support TS command in non-snapshot builds
          */
@@ -1558,9 +1560,7 @@ public class EsqlCapabilities {
 
         INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
 
-        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
-
-        INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled)
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS
 
         ;
 

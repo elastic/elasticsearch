@@ -8,7 +8,7 @@ products:
   - id: elasticsearch
 ---
 
-# Response Data Formats [sql-rest-format]
+# Response data formats [sql-rest-format]
 
 While the textual format is nice for humans, computers prefer something more structured.
 

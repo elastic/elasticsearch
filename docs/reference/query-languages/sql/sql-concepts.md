@@ -10,7 +10,7 @@ products:
   - id: elasticsearch
 ---
 
-# Conventions and Terminology [sql-concepts]
+# Conventions and terminology [sql-concepts]
 
 For clarity, it is important to establish the meaning behind certain words as, the same wording might convey different meanings to different readers depending on one’s familiarity with SQL versus {{es}}.
 

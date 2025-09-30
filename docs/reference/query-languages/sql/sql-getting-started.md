@@ -1,7 +1,12 @@
 ---
+navigation_title: Getting started
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-getting-started.html
-navigation_title: Getting started
+applies_to:
+  stack: ga
+  serverless: ga
+products:
+  - id: elasticsearch
 ---
 
 # Getting started with SQL [sql-getting-started]

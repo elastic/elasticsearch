@@ -1,7 +1,13 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-translate.html
+applies_to:
+  stack: ga
+  serverless: ga
+products:
+  - id: elasticsearch
 ---
+
 # SQL Translate API [sql-translate]
 
 The SQL Translate API accepts SQL in a JSON document and translates it into native {{es}} queries. For example:

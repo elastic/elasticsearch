@@ -55,7 +55,17 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     @SuppressWarnings("checkstyle:LineLength")
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-        int maxSamples = 1000; // TODO get from sampling config
+        SamplingMetadata samplingMetadata = clusterService.state()
+            .projectState(request.getProjectId())
+            .metadata()
+            .custom(SamplingMetadata.TYPE);
+        final int maxSamples;
+        if (samplingMetadata == null) {
+            maxSamples = 0;
+        } else {
+            SamplingConfiguration samplingConfiguration = samplingMetadata.getIndexToSamplingConfigMap().get(request.indices()[0]);
+            maxSamples = samplingConfiguration == null ? 0 : samplingConfiguration.maxSamples();
+        }
         return new Response(clusterService.getClusterName(), nodeResponses, failures, maxSamples);
     }
 
@@ -73,7 +83,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         ProjectId projectId = request.getProjectId();
         String index = request.indices()[0];
-        List<SamplingService.RawDocument> sample = samplingService.getSample(projectId, index);
+        List<SamplingService.RawDocument> sample = samplingService.getLocalSample(projectId, index);
         return new NodeResponse(transportService.getLocalNode(), sample == null ? List.of() : sample);
     }
 }

@@ -89,11 +89,8 @@ public class SamplingService implements ClusterStateListener {
         // TODO Sampling logic to go here in the near future
     }
 
-    public List<RawDocument> getSample(ProjectId projectId, String index) {
-        // IndexRequest indexRequest = new IndexRequest("fake").id("fake_id").source(Map.of("foo", "baxxxx"));
-        // RawDocument rawDocument = getRawDocumentForIndexRequest(projectId, index, indexRequest);
-        // return List.of(rawDocument); // TODO: placeholder
-        return List.of();
+    public List<RawDocument> getLocalSample(ProjectId projectId, String index) {
+        return List.of(); // TODO placeholder
     }
 
     public boolean atLeastOneSampleConfigured() {

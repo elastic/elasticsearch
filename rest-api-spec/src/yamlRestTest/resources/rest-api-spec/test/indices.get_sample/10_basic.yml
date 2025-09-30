@@ -1,0 +1,28 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          mappings: {}
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          mappings: {}
+---
+"Test get sample for index with no sample config":
+
+  - do:
+      indices.get_sample:
+        index: non_existent
+  - match: { sample: []}
+
+  - do:
+      indices.create:
+        index: no_config
+
+  - do:
+      indices.get_sample:
+        index: no_config
+  - match: { sample: []}

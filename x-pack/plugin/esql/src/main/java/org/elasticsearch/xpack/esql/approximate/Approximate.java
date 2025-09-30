@@ -19,20 +19,18 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -56,8 +54,10 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -120,7 +120,7 @@ public class Approximate {
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 100000;
 
-    private static final int BUCKET_COUNT = 25;
+    private static final int BUCKET_COUNT = 3; // 25;
 
     private static final Logger logger = LogManager.getLogger(Approximate.class);
 
@@ -301,12 +301,11 @@ public class Approximate {
 
         logger.debug("generating approximate plan (p={})", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
-        Set<NameId> variablesWithConfidenceInterval = new HashSet<>();
-        Set<NameId> variablesWithPastConfidenceInterval = new HashSet<>();
+        Map<NameId, List<Alias>> variablesWithConfidenceInterval = new HashMap<>();
 
-        Alias bucketId = new Alias(
+        Alias bucketIdField = new Alias(
             Source.EMPTY,
-            ".bucket_id",
+            "$$bucket_id",
             new MvAppend(
                 Source.EMPTY,
                 Literal.integer(Source.EMPTY, -1),
@@ -316,125 +315,134 @@ public class Approximate {
 
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
-                return new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
+                plan = new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
             } else if (encounteredStats.get() == false && plan instanceof Aggregate aggregate) {
                 encounteredStats.set(true);
 
-                Eval addBucketId = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketId));
-                List<NamedExpression> aggregates = new ArrayList<>(aggregate.aggregates());
-                aggregates.add(bucketId.toAttribute());
-                List<Expression> groupings = new ArrayList<>(aggregate.groupings());
-                groupings.add(bucketId.toAttribute());
-
-                Aggregate aggregateWithBucketId = (Aggregate) aggregate.with(addBucketId, groupings, aggregates)
-                    .transformExpressionsOnlyUp(
-                        expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(
-                            new Case(Source.EMPTY,
-                                new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
-                                List.of(
-                                    Literal.fromDouble(Source.EMPTY, sampleProbability),
-                                    Literal.fromDouble(Source.EMPTY, sampleProbability / BUCKET_COUNT)
-                                )
-                            )
-                        ) : expr);
-
-                for (NamedExpression aggr : aggregate.aggregates()) {
-                    if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        variablesWithConfidenceInterval.add(alias.id());
+                Eval addBucketId = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
+                List<NamedExpression> aggregates = new ArrayList<>();
+                for (NamedExpression aggOrKey : aggregate.aggregates()) {
+                    if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+                        // This is a grouping key, not an aggregate function.
+                        aggregates.add(aggOrKey);
+                        continue;
                     }
+                    Alias aggAlias = (Alias) aggOrKey;
+                    AggregateFunction agg = (AggregateFunction) aggAlias.child();
+                    List<Alias> bucketedAggs = new ArrayList<>();
+                    for (int bucketId = -1; bucketId < BUCKET_COUNT; bucketId++) {
+                        AggregateFunction bucketedAgg = agg.withFilter(
+                            new MvContains(Source.EMPTY, bucketIdField.toAttribute(), Literal.integer(Source.EMPTY, bucketId)));
+                        Expression correctedAgg = bucketedAgg instanceof NeedsSampleCorrection nsc
+                            ? nsc.sampleCorrection(
+                                Literal.fromDouble(Source.EMPTY, bucketId == -1 ? sampleProbability : sampleProbability / BUCKET_COUNT)
+                              )
+                            : bucketedAgg;
+                        Alias correctAggAlias = bucketId == -1
+                            ? aggAlias.replaceChild(correctedAgg)
+                            : new Alias(
+                                Source.EMPTY,
+                                aggOrKey.name() + "$bucket:" + bucketId,
+                                correctedAgg
+                            );
+                        aggregates.add(correctAggAlias);
+                        if (bucketId >= 0) {
+                            bucketedAggs.add(correctAggAlias);
+                        }
+                    }
+                    variablesWithConfidenceInterval.put(aggOrKey.id(), bucketedAggs);
                 }
+                plan = aggregate.with(addBucketId, aggregate.groupings(), aggregates);
 
-                return aggregateWithBucketId;
             } else if (encounteredStats.get()) {
                 System.out.println("@@@ UPDATE variablesWithConfidenceInterval");
                 System.out.println("plan = " + plan);
-                System.out.println("vars = " + variablesWithConfidenceInterval + " / " + variablesWithPastConfidenceInterval);
+                System.out.println("vars = " + variablesWithConfidenceInterval);
                 switch (plan) {
                     case Eval eval:
+                        List<Alias> newFields = new ArrayList<>(eval.fields());
                         for (Alias field : eval.fields()) {
-                            if (field.anyMatch(expr -> expr instanceof NamedExpression named && variablesWithConfidenceInterval.contains(named.id()))) {
-                                // TODO: blacklist / whitelist?
-                                if (field.child() instanceof MvAppend == false && field.dataType().isNumeric()) {
-                                    variablesWithConfidenceInterval.add(field.id());
-                                } else {
-                                    variablesWithPastConfidenceInterval.add(field.id());
+                            if (field.dataType().isNumeric() == false || field.child().anyMatch(expr -> expr instanceof MvAppend)) {
+                                continue;
+                            }
+                            if (field.child().anyMatch(expr -> expr instanceof NamedExpression named && variablesWithConfidenceInterval.containsKey(named.id()))) {
+                                List<Alias> newBuckets = new ArrayList<>();
+                                for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
+                                    final int finalBucketId = bucketId;
+                                    Expression newChild = field.child().transformDown(expr -> {
+                                        if (expr instanceof NamedExpression named && variablesWithConfidenceInterval.containsKey(named.id())) {
+                                            List<Alias> buckets = variablesWithConfidenceInterval.get(named.id());
+                                            return buckets.get(finalBucketId).toAttribute();
+                                        } else {
+                                            return expr;
+                                        }
+                                    });
+                                    Alias newField = new Alias(
+                                        Source.EMPTY,
+                                        field.name() + "$bucket:" + bucketId,
+                                        newChild
+                                    );
+                                    newBuckets.add(newField);
                                 }
-                            } else if (field.anyMatch(expr -> expr instanceof NamedExpression named && variablesWithPastConfidenceInterval.contains(named.id()))) {
-                                variablesWithPastConfidenceInterval.add(field.id());
+                                variablesWithConfidenceInterval.put(field.id(), newBuckets);
+                                newFields.addAll(newBuckets);
                             }
                         }
+                        plan = new Eval(Source.EMPTY, eval.child(), newFields);
                         break;
-                    case Project project:
-                        List<NamedExpression> projections = new ArrayList<>(project.projections());
-                        projections.add(bucketId.toAttribute());
-                        plan = project.withProjections(projections);
-                        break;
+//                    case Project project:
+//                        List<NamedExpression> projections = new ArrayList<>(project.projections());
+//                        plan = project.withProjections(projections);
+//                        break;
                     case Rename rename:
                         // TODO
                         break;
                     default:
                 }
-                System.out.println("vars = " + variablesWithConfidenceInterval + " / " + variablesWithPastConfidenceInterval);
+                System.out.println("vars = " + variablesWithConfidenceInterval);
             }
             return plan;
         });
 
         System.out.println("### OUTPUT: " + approximatePlan.output());
 
-        List<NamedExpression> aggregates = new ArrayList<>();
-        List<Expression> groupings = new ArrayList<>();
-        for (Attribute attribute : approximatePlan.output()) {
-            if (attribute.id() == bucketId.id()) {
-                continue;
-            }
-            if (variablesWithConfidenceInterval.contains(attribute.id()) || variablesWithPastConfidenceInterval.contains(attribute.id())) {
-                Alias bestEstimate = new Alias(
+        List<Alias> confidenceIntervals = new ArrayList<>();
+        for (Attribute output : logicalPlan.output()) {
+            if (variablesWithConfidenceInterval.containsKey(output.id())) {
+                List<Alias> buckets = variablesWithConfidenceInterval.get(output.id());
+                Expression appendedBuckets = buckets.getFirst().toAttribute();
+                for (int i = 1; i < buckets.size(); i++) {
+                    appendedBuckets = new MvAppend(Source.EMPTY, appendedBuckets, buckets.get(i).toAttribute());
+                }
+                confidenceIntervals.add(new Alias(
                     Source.EMPTY,
-                    attribute.name(),
-                    new Values(
+                    "CONFIDENCE_INTERVAL(" + output.name() + ")",
+                    new ConfidenceInterval(
                         Source.EMPTY,
-                        attribute,
-                        new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1))
-                    )
-                );
-                aggregates.add(bestEstimate);
-                if (variablesWithConfidenceInterval.contains(attribute.id())) {
-                    aggregates.add(new Alias(
-                        Source.EMPTY, "CONFIDENCE_INTERVAL(" + attribute.name() + ")", new ConfidenceInterval(
-                        Source.EMPTY,
-                        bestEstimate.toAttribute(),
-                        new Top(
-                            Source.EMPTY,
-                            attribute,
-                            new NotEquals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
-                            Literal.integer(Source.EMPTY, BUCKET_COUNT),
-                            Literal.keyword(Source.EMPTY, "ASC")
-                        ),
+                        output,
+                        appendedBuckets,
                         Literal.integer(Source.EMPTY, BUCKET_COUNT),
                         Literal.fromDouble(Source.EMPTY, 0.0)
-                        // TODO: fix, 0.0 or NaN ?? TODO: remove!!
                     )
-                    ));
-                }
-            } else {
-                aggregates.add(attribute);
-                groupings.add(attribute);
+                ));
             }
         }
 
-        Aggregate finalAggregate = new Aggregate(
+        approximatePlan = new Eval(
             Source.EMPTY,
             approximatePlan,
-            groupings,
-            aggregates
+            confidenceIntervals
         );
 
-        if (approximatePlan instanceof Limit || approximatePlan instanceof TopN) {
-            approximatePlan = ((UnaryPlan) approximatePlan).replaceChild(finalAggregate.replaceChild(((UnaryPlan) approximatePlan).child()));
-        } else {
-            // Can this happen? Or is the last command always a Limit / TopN?
-            approximatePlan = finalAggregate;
-        }
+        Set<Attribute> dropAttributes = variablesWithConfidenceInterval.values().stream().flatMap(List::stream).map(Alias::toAttribute).collect(Collectors.toSet());
+        List<Attribute> keepAttributes = new ArrayList<>(approximatePlan.output());
+        keepAttributes.removeAll(dropAttributes);
+
+        approximatePlan = new Project(
+            Source.EMPTY,
+            approximatePlan,
+            keepAttributes
+        );
 
         logger.info("### AFTER APPROXIMATE:\n{}", approximatePlan);
         System.out.println("### OUTPUT: " + approximatePlan.output());

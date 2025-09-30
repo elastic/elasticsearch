@@ -1,0 +1,326 @@
+clamp_of_double_no_grouping
+required_capability: ts_command_v0
+TS k8s
+| STATS cost=sum(clamp_max(network.cost, 1)) BY time_bucket = bucket(@timestamp,1minute)
+| SORT cost DESC, time_bucket DESC | LIMIT 10;
+
+cost:double | time_bucket:datetime
+9.0         | 2024-05-10T00:09:00.000Z
+8.0         | 2024-05-10T00:15:00.000Z
+8.0         | 2024-05-10T00:08:00.000Z
+7.5         | 2024-05-10T00:18:00.000Z
+7.0         | 2024-05-10T00:22:00.000Z
+6.5         | 2024-05-10T00:17:00.000Z
+6.125       | 2024-05-10T00:14:00.000Z
+6.0         | 2024-05-10T00:13:00.000Z
+6.0         | 2024-05-10T00:02:00.000Z
+5.875       | 2024-05-10T00:20:00.000Z
+;
+
+clamp_of_long
+required_capability: ts_command_v0
+TS k8s | STATS bytes_in = sum(clamp_max(network.bytes_in, 1000)) BY time_bucket = bucket(@timestamp,1minute) | SORT bytes_in DESC, time_bucket | LIMIT 10;
+
+bytes_in:long | time_bucket:datetime
+5587          | 2024-05-10T00:18:00.000Z
+5580          | 2024-05-10T00:20:00.000Z
+4384          | 2024-05-10T00:17:00.000Z
+4146          | 2024-05-10T00:15:00.000Z
+4030          | 2024-05-10T00:14:00.000Z
+3850          | 2024-05-10T00:09:00.000Z
+3594          | 2024-05-10T00:06:00.000Z
+3487          | 2024-05-10T00:02:00.000Z
+3188          | 2024-05-10T00:08:00.000Z
+3165          | 2024-05-10T00:22:00.000Z
+
+;
+
+clamp_of_long_grouping
+required_capability: ts_command_v0
+TS k8s | STATS bytes_in = sum(clamp(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT bytes_in DESC, time_bucket | LIMIT 10;
+
+bytes_in:long | cluster:keyword | time_bucket:datetime
+3013          | prod            | 2024-05-10T00:18:00.000Z
+2848          | prod            | 2024-05-10T00:17:00.000Z
+2483          | prod            | 2024-05-10T00:20:00.000Z
+2247          | qa              | 2024-05-10T00:18:00.000Z
+2153          | qa              | 2024-05-10T00:15:00.000Z
+2087          | qa              | 2024-05-10T00:17:00.000Z
+2035          | staging         | 2024-05-10T00:09:00.000Z
+1908          | qa              | 2024-05-10T00:20:00.000Z
+1904          | qa              | 2024-05-10T00:06:00.000Z
+1811          | prod            | 2024-05-10T00:13:00.000Z
+;
+
+clamp_of_date_nanos
+required_capability: ts_command_v0
+TS k8s | STATS last_up = max(clamp(network.eth0.last_up)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
+
+last_up:date_nanos             | time_bucket:datetime
+2024-05-03T15:37:33.324440296Z | 2024-05-10T00:00:00.000Z
+2024-04-09T03:20:29.012174065Z | 2024-05-10T00:01:00.000Z
+2024-05-08T10:03:43.290628939Z | 2024-05-10T00:02:00.000Z
+2024-05-02T09:02:26.799002478Z | 2024-05-10T00:03:00.000Z
+2024-05-09T23:18:49.214537497Z | 2024-05-10T00:04:00.000Z
+2024-04-25T19:33:06.187780912Z | 2024-05-10T00:05:00.000Z
+2024-05-08T01:35:07.955894784Z | 2024-05-10T00:06:00.000Z
+2024-05-02T07:53:33.802839368Z | 2024-05-10T00:07:00.000Z
+2024-05-08T18:36:40.027496014Z | 2024-05-10T00:08:00.000Z
+2024-05-08T23:33:34.42759108Z  | 2024-05-10T00:09:00.000Z
+;
+
+clamp_of_date_nanos_grouping
+required_capability: ts_command_v0
+TS k8s | STATS last_up = max(clamp(network.eth0.last_up)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
+
+last_up:date_nanos             | cluster:keyword | time_bucket:datetime
+2024-03-25T09:57:51.755620402Z | prod            | 2024-05-10T00:00:00.000Z
+2024-05-03T15:37:33.324440296Z | staging         | 2024-05-10T00:00:00.000Z
+2024-04-09T03:20:29.012174065Z | prod            | 2024-05-10T00:01:00.000Z
+2024-03-31T23:14:25.575848186Z | qa              | 2024-05-10T00:01:00.000Z
+2024-05-06T19:01:53.843370676Z | prod            | 2024-05-10T00:02:00.000Z
+2024-05-02T13:22:35.021783722Z | qa              | 2024-05-10T00:02:00.000Z
+2024-05-08T10:03:43.290628939Z | staging         | 2024-05-10T00:02:00.000Z
+2024-04-04T01:13:26.805245198Z | prod            | 2024-05-10T00:03:00.000Z
+2024-04-28T06:40:53.255612616Z | qa              | 2024-05-10T00:03:00.000Z
+2024-05-02T09:02:26.799002478Z | staging         | 2024-05-10T00:03:00.000Z
+;
+
+clamp_of_version
+required_capability: ts_command_v0
+TS k8s | STATS version = max(clamp(network.eth0.firmware_version)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
+
+version:version | time_bucket:datetime
+13.10.4         | 2024-05-10T00:00:00.000Z
+13.10.4         | 2024-05-10T00:01:00.000Z
+13.10.4         | 2024-05-10T00:02:00.000Z
+15.6.9          | 2024-05-10T00:03:00.000Z
+10.3.2          | 2024-05-10T00:04:00.000Z
+13.10.4         | 2024-05-10T00:05:00.000Z
+13.10.4         | 2024-05-10T00:06:00.000Z
+10.4.3          | 2024-05-10T00:07:00.000Z
+15.6.9          | 2024-05-10T00:08:00.000Z
+15.6.9          | 2024-05-10T00:09:00.000Z
+;
+
+clamp_of_version_grouping
+required_capability: ts_command_v0
+TS k8s | STATS version = max(clamp(network.eth0.firmware_version)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
+
+version:version | cluster:keyword | time_bucket:datetime
+13.10.4         | prod            | 2024-05-10T00:00:00.000Z
+7.8.4           | staging         | 2024-05-10T00:00:00.000Z
+13.10.4         | prod            | 2024-05-10T00:01:00.000Z
+10.3.2          | qa              | 2024-05-10T00:01:00.000Z
+13.10.4         | prod            | 2024-05-10T00:02:00.000Z
+1.7.2           | qa              | 2024-05-10T00:02:00.000Z
+7.8.4           | staging         | 2024-05-10T00:02:00.000Z
+9.10.4          | prod            | 2024-05-10T00:03:00.000Z
+1.7.2           | qa              | 2024-05-10T00:03:00.000Z
+15.6.9          | staging         | 2024-05-10T00:03:00.000Z
+;
+
+clamp_of_integer
+required_capability: ts_command_v0
+TS k8s | STATS clients = avg(clamp(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
+
+clients:double    | time_bucket:datetime
+726.6666666666666 | 2024-05-10T00:00:00.000Z
+418.25            | 2024-05-10T00:01:00.000Z
+550.3333333333334 | 2024-05-10T00:02:00.000Z
+598.8             | 2024-05-10T00:03:00.000Z
+546.3333333333334 | 2024-05-10T00:04:00.000Z
+809.8             | 2024-05-10T00:05:00.000Z
+656.8333333333334 | 2024-05-10T00:06:00.000Z
+822.6666666666666 | 2024-05-10T00:07:00.000Z
+605.25            | 2024-05-10T00:08:00.000Z
+642.1111111111111 | 2024-05-10T00:09:00.000Z
+;
+
+clamp_of_integer_grouping
+required_capability: ts_command_v0
+TS k8s | STATS clients = avg(clamp(network.eth0.currently_connected_clients)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
+
+clients:double | cluster:keyword | time_bucket:datetime
+949.0          | prod            | 2024-05-10T00:00:00.000Z
+615.5          | staging         | 2024-05-10T00:00:00.000Z
+396.5          | prod            | 2024-05-10T00:01:00.000Z
+440.0          | qa              | 2024-05-10T00:01:00.000Z
+659.5          | prod            | 2024-05-10T00:02:00.000Z
+565.0          | qa              | 2024-05-10T00:02:00.000Z
+426.5          | staging         | 2024-05-10T00:02:00.000Z
+742.0          | prod            | 2024-05-10T00:03:00.000Z
+454.0          | qa              | 2024-05-10T00:03:00.000Z
+672.0          | staging         | 2024-05-10T00:03:00.000Z
+;
+
+clamp_of_aggregate_metric_double
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double
+TS k8s-downsampled | STATS tx = sum(clamp(network.eth0.tx)) BY time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket | LIMIT 10;
+tx:double | time_bucket:datetime
+6053.0    | 2024-05-09T23:30:00.000Z
+6699.0    | 2024-05-09T23:40:00.000Z
+5895.0    | 2024-05-09T23:50:00.000Z
+;
+
+clamp_of_aggregate_metric_double_grouping
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double
+TS k8s-downsampled | STATS tx = sum(clamp(network.eth0.tx)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+tx:double | cluster:keyword | time_bucket:datetime
+1601.0    | prod            | 2024-05-09T23:30:00.000Z
+2109.0    | qa              | 2024-05-09T23:30:00.000Z
+2343.0    | staging         | 2024-05-09T23:30:00.000Z
+1854.0    | prod            | 2024-05-09T23:40:00.000Z
+2975.0    | qa              | 2024-05-09T23:40:00.000Z
+1870.0    | staging         | 2024-05-09T23:40:00.000Z
+2377.0    | prod            | 2024-05-09T23:50:00.000Z
+1686.0    | qa              | 2024-05-09T23:50:00.000Z
+1832.0    | staging         | 2024-05-09T23:50:00.000Z
+;
+
+clamp_with_filtering
+required_capability: ts_command_v0
+TS k8s | WHERE pod == "one" | STATS tx = sum(clamp(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+tx:long | cluster:keyword | time_bucket:datetime
+970     | prod            | 2024-05-10T00:00:00.000Z
+842     | qa              | 2024-05-10T00:00:00.000Z
+753     | staging         | 2024-05-10T00:00:00.000Z
+990     | prod            | 2024-05-10T00:10:00.000Z
+1006    | qa              | 2024-05-10T00:10:00.000Z
+947     | staging         | 2024-05-10T00:10:00.000Z
+953     | prod            | 2024-05-10T00:20:00.000Z
+917     | qa              | 2024-05-10T00:20:00.000Z
+749     | staging         | 2024-05-10T00:20:00.000Z
+;
+
+clamp_older_than_10h
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double
+TS k8s-downsampled | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(clamp(network.eth0.rx)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;
+
+cost:double | pod:keyword | time_bucket:datetime
+655.0       | one         | 2024-05-09T23:30:00.000Z
+1.0         | three       | 2024-05-09T23:30:00.000Z
+461.0       | two         | 2024-05-09T23:30:00.000Z
+1049.0      | one         | 2024-05-09T23:40:00.000Z
+1237.0      | three       | 2024-05-09T23:40:00.000Z
+;
+
+eval_on_clamp
+required_capability: ts_command_v0
+TS k8s | STATS max_bytes = avg(clamp(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | EVAL kb_minus_offset = (max_bytes - 100) / 1000.0 | LIMIT 10 | SORT time_bucket, cluster ;
+
+max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset:double
+909.3333333333334 | prod            | 2024-05-10T00:00:00.000Z | 0.8093333333333333
+908.6666666666666 | qa              | 2024-05-10T00:00:00.000Z | 0.8086666666666666
+794.0             | staging         | 2024-05-10T00:00:00.000Z | 0.694
+1005.0            | prod            | 2024-05-10T00:10:00.000Z | 0.905
+980.0             | qa              | 2024-05-10T00:10:00.000Z | 0.88
+917.6666666666666 | staging         | 2024-05-10T00:10:00.000Z | 0.8176666666666667
+846.3333333333334 | prod            | 2024-05-10T00:20:00.000Z | 0.7463333333333334
+941.6666666666666 | qa              | 2024-05-10T00:20:00.000Z | 0.8416666666666667
+786.0             | staging         | 2024-05-10T00:20:00.000Z | 0.686
+;
+
+clamp_multi_values
+required_capability: ts_command_v0
+TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(clamp(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, time_bucket  | LIMIT 10;
+
+events:long | pod:keyword | time_bucket:datetime
+27          | two         | 2024-05-10T00:08:00.000Z
+27          | one         | 2024-05-10T00:09:00.000Z
+26          | one         | 2024-05-10T00:08:00.000Z
+24          | three       | 2024-05-10T00:06:00.000Z
+24          | three       | 2024-05-10T00:09:00.000Z
+21          | two         | 2024-05-10T00:02:00.000Z
+20          | two         | 2024-05-10T00:09:00.000Z
+18          | one         | 2024-05-10T00:01:00.000Z
+17          | one         | 2024-05-10T00:05:00.000Z
+14          | three       | 2024-05-10T00:00:00.000Z
+;
+
+clamp_null_values
+required_capability: ts_command_v0
+TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(clamp(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, time_bucket  | LIMIT 10;
+
+events:long | pod:keyword | time_bucket:datetime
+null        | one         | 2024-05-10T00:12:00.000Z
+null        | two         | 2024-05-10T00:13:00.000Z
+20          | two         | 2024-05-10T00:14:00.000Z
+18          | two         | 2024-05-10T00:12:00.000Z
+17          | one         | 2024-05-10T00:13:00.000Z
+16          | one         | 2024-05-10T00:14:00.000Z
+11          | one         | 2024-05-10T00:10:00.000Z
+9           | one         | 2024-05-10T00:11:00.000Z
+9           | three       | 2024-05-10T00:13:00.000Z
+7           | two         | 2024-05-10T00:10:00.000Z
+;
+
+clamp_null_values
+required_capability: ts_command_v0
+TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(clamp(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, time_bucket | LIMIT 10;
+
+events:long | pod:keyword | time_bucket:datetime
+null        | one         | 2024-05-10T00:12:00.000Z
+null        | two         | 2024-05-10T00:13:00.000Z
+20          | two         | 2024-05-10T00:14:00.000Z
+18          | two         | 2024-05-10T00:12:00.000Z
+17          | one         | 2024-05-10T00:13:00.000Z
+16          | one         | 2024-05-10T00:14:00.000Z
+11          | one         | 2024-05-10T00:10:00.000Z
+9           | one         | 2024-05-10T00:11:00.000Z
+9           | three       | 2024-05-10T00:13:00.000Z
+7           | two         | 2024-05-10T00:10:00.000Z
+;
+
+clamp_all_value_types
+required_capability: ts_command_v0
+TS k8s | STATS events = sum(clamp(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT events desc, pod, time_bucket | LIMIT 10 ;
+
+events:long | pod:keyword | time_bucket:datetime
+30          | one         | 2024-05-10T00:10:00.000Z
+30          | two         | 2024-05-10T00:10:00.000Z
+29          | one         | 2024-05-10T00:00:00.000Z
+29          | three       | 2024-05-10T00:00:00.000Z
+29          | two         | 2024-05-10T00:00:00.000Z
+28          | three       | 2024-05-10T00:10:00.000Z
+21          | three       | 2024-05-10T00:20:00.000Z
+21          | two         | 2024-05-10T00:20:00.000Z
+19          | one         | 2024-05-10T00:20:00.000Z
+;
+
+clamp_aggregate_metric_double_implicit_casting
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_implicit_casting_in_aggs
+TS k8s* | STATS bytes = sum(clamp(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, time_bucket | LIMIT 10 ;
+
+bytes:double | time_bucket:datetime
+9058.0       | 2024-05-10T00:20:00.000Z
+8070.0       | 2024-05-10T00:10:00.000Z
+7088.0       | 2024-05-09T23:50:00.000Z
+6380.0       | 2024-05-09T23:30:00.000Z
+6095.0       | 2024-05-09T23:40:00.000Z
+4290.0       | 2024-05-10T00:00:00.000Z
+;
+
+clamp_aggregate_metric_double_implicit_casting_grouping
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_implicit_casting_in_aggs
+TS k8s* | STATS bytes = sum(clamp(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, pod, time_bucket | LIMIT 10 ;
+
+bytes:double | pod:keyword | time_bucket:datetime
+3156.0       | one         | 2024-05-10T00:20:00.000Z
+3028.0       | three       | 2024-05-10T00:20:00.000Z
+2874.0       | two         | 2024-05-10T00:20:00.000Z
+2825.0       | one         | 2024-05-10T00:10:00.000Z
+2810.0       | three       | 2024-05-09T23:40:00.000Z
+2710.0       | three       | 2024-05-10T00:10:00.000Z
+2653.0       | three       | 2024-05-09T23:50:00.000Z
+2570.0       | one         | 2024-05-09T23:30:00.000Z
+2535.0       | two         | 2024-05-10T00:10:00.000Z
+2478.0       | one         | 2024-05-09T23:50:00.000Z
+;

@@ -994,14 +994,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Stores the most desirable shard seen so far and compares proposed shards against it using
-         * the {@link ShardMovementPriorityComparator}.
+         * the {@link PrioritiseByShardWriteLoadComparator}.
          */
         private class MostDesirableMovementsTracker implements Predicate<ShardRouting> {
 
             public record StoredMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
 
             private final Map<String, StoredMoveDecision> bestNonPreferredShardsByNode = new HashMap<>();
-            private final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
+            private final Map<String, PrioritiseByShardWriteLoadComparator> comparatorCache = new HashMap<>();
 
             @Override
             public boolean test(ShardRouting shardRouting) {
@@ -1011,7 +1011,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 int comparison = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),
-                    nodeId -> new ShardMovementPriorityComparator(allocation, allocation.routingNodes().node(nodeId))
+                    nodeId -> new PrioritiseByShardWriteLoadComparator(allocation, allocation.routingNodes().node(nodeId))
                 ).compare(shardRouting, currentShardForNode.shardRouting());
                 // Ignore inferior non-preferred moves
                 return comparison > 0;
@@ -1029,10 +1029,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /**
          * Sorts shards by desirability to move, ranking goes (in descending priority order)
          * <ol>
-         *     <li>Shards with write-load in <i>{@link ShardMovementPriorityComparator#threshold}</i> &rarr;
-         *          {@link ShardMovementPriorityComparator#maxWriteLoadOnNode} (exclusive)</li>
-         *     <li>Shards with write-load in <i>{@link ShardMovementPriorityComparator#threshold}</i> &rarr; 0</li>
-         *     <li>Shards with write-load == {@link ShardMovementPriorityComparator#maxWriteLoadOnNode}</li>
+         *     <li>Shards with write-load in <i>{@link PrioritiseByShardWriteLoadComparator#threshold}</i> &rarr;
+         *          {@link PrioritiseByShardWriteLoadComparator#maxWriteLoadOnNode} (exclusive)</li>
+         *     <li>Shards with write-load in <i>{@link PrioritiseByShardWriteLoadComparator#threshold}</i> &rarr; 0</li>
+         *     <li>Shards with write-load == {@link PrioritiseByShardWriteLoadComparator#maxWriteLoadOnNode}</li>
          *     <li>Shards with missing write-load</li>
          * </ol>
          *
@@ -1044,12 +1044,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * </ul>
          */
         // Visible for testing
-        static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
+        static class PrioritiseByShardWriteLoadComparator implements Comparator<ShardRouting> {
 
             /**
              * This is the threshold over which we consider shards to have a "high" write load represented
              * as a ratio of the maximum write-load present on the node.
-             * <p/>
+             * <p>
              * We prefer to move shards that have a write-load close to <b>this value</b> x {@link #maxWriteLoadOnNode}.
              */
             private static final double THRESHOLD_RATIO = 0.5;
@@ -1059,7 +1059,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             private final double threshold;
             private final String nodeId;
 
-            ShardMovementPriorityComparator(RoutingAllocation allocation, RoutingNode routingNode) {
+            PrioritiseByShardWriteLoadComparator(RoutingAllocation allocation, RoutingNode routingNode) {
                 shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
                 double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
                 for (ShardRouting shardRouting : routingNode) {

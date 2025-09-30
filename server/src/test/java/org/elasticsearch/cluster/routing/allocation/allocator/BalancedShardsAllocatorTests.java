@@ -972,7 +972,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), NOOP);
         }
 
-        final var comparator = new BalancedShardsAllocator.Balancer.ShardMovementPriorityComparator(
+        final var comparator = new BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator(
             allocation,
             allocatedRoutingNodes.node(nodeId)
         );

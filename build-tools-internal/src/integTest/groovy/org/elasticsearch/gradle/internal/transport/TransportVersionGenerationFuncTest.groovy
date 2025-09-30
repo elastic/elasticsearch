@@ -420,7 +420,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "upper bounds files must exist for backport branches"() {
         when:
-        def result = runGenerateTask("--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
+        def result = runGenerateTask("--name", "new_tv", "--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
 
         then:
         assertGenerateFailure(result, "Missing upper bounds files for branches [6.0, 7.17, 8.13], known branches are [8.19, 9.0, 9.1, 9.2]")

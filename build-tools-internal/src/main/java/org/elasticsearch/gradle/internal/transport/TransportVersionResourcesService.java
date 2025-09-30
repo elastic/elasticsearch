@@ -12,8 +12,10 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.tasks.Optional;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
@@ -24,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -59,7 +63,12 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         DirectoryProperty getTransportResourcesDirectory();
 
         DirectoryProperty getRootDirectory();
+
+        @Optional
+        Property<String> getUpstreamRefOverride();
     }
+
+    record IdAndDefinition(TransportVersionId id, TransportVersionDefinition definition) {}
 
     @Inject
     public abstract ExecOperations getExecOperations();
@@ -79,6 +88,9 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     public TransportVersionResourcesService(Parameters params) {
         this.transportResourcesDir = params.getTransportResourcesDirectory().get().getAsFile().toPath();
         this.rootDir = params.getRootDirectory().get().getAsFile().toPath();
+        if (params.getUpstreamRefOverride().isPresent()) {
+            upstreamRefName.set(params.getUpstreamRefOverride().get());
+        }
     }
 
     /**
@@ -121,19 +133,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Get the definition names which have local changes relative to upstream */
-    List<String> getChangedReferableDefinitionNames() {
-        List<String> changedDefinitions = new ArrayList<>();
-        // make sure the prefix is git style paths, always forward slashes
-        String referablePrefix = REFERABLE_DIR.toString().replace('\\', '/');
-        for (String changedPath : getChangedResources()) {
-            if (changedPath.contains(referablePrefix) == false) {
-                continue;
-            }
-            int lastSlashNdx = changedPath.lastIndexOf('/');
-            String name = changedPath.substring(lastSlashNdx + 1, changedPath.length() - 4 /* .csv */);
-            changedDefinitions.add(name);
-        }
-        return changedDefinitions;
+    Set<String> getChangedReferableDefinitionNames() {
+        return getChangedNames(REFERABLE_DIR);
     }
 
     /** Test whether the given referable definition exists */
@@ -179,6 +180,27 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getUpstreamFile(resourcePath, (path, contents) -> TransportVersionDefinition.fromString(path, contents, false));
     }
 
+    /** Get all the ids and definitions for a given base id, sorted by the complete id */
+    Map<Integer, List<IdAndDefinition>> getIdsByBase() throws IOException {
+        Map<Integer, List<IdAndDefinition>> idsByBase = new HashMap<>();
+
+        // first collect all ids, organized by base
+        Consumer<TransportVersionDefinition> addToBase = definition -> {
+            for (TransportVersionId id : definition.ids()) {
+                idsByBase.computeIfAbsent(id.base(), k -> new ArrayList<>()).add(new IdAndDefinition(id, definition));
+            }
+        };
+        getReferableDefinitions().values().forEach(addToBase);
+        getUnreferableDefinitions().values().forEach(addToBase);
+
+        // now sort the ids within each base so we can check density later
+        for (var ids : idsByBase.values()) {
+            // first sort the ids list so we can check compactness and quickly lookup the highest id later
+            ids.sort(Comparator.comparingInt(a -> a.id().complete()));
+        }
+        return idsByBase;
+    }
+
     /** Read all upper bound files and return them mapped by their release name */
     Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
         Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();
@@ -210,6 +232,10 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             upperBounds.add(upperBound);
         }
         return upperBounds;
+    }
+
+    Set<String> getChangedUpperBoundNames() {
+        return getChangedNames(UPPER_BOUNDS_DIR);
     }
 
     /** Write the given upper bound to a file in the transport resources */
@@ -307,6 +333,21 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             }
         }
         return changedResources.get();
+    }
+
+    private Set<String> getChangedNames(Path resourcesDir) {
+        Set<String> changedNames = new HashSet<>();
+        // make sure the prefix is git style paths, always forward slashes
+        String resourcesPrefix = resourcesDir.toString().replace('\\', '/');
+        for (String changedPath : getChangedResources()) {
+            if (changedPath.contains(resourcesPrefix) == false) {
+                continue;
+            }
+            int lastSlashNdx = changedPath.lastIndexOf('/');
+            String name = changedPath.substring(lastSlashNdx + 1, changedPath.length() - 4 /* .csv */);
+            changedNames.add(name);
+        }
+        return changedNames;
     }
 
     // Read a transport version resource from the upstream, or return null if it doesn't exist there

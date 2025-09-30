@@ -10,7 +10,6 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,6 +44,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField EXCLUDE_VECTORS_FIELD = new ParseField("exclude_vectors");
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
+
+    private static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM = TransportVersion.fromName(
+        "search_source_exclude_vectors_param"
+    );
+    private static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM = TransportVersion.fromName(
+        "search_source_exclude_inference_fields_param"
+    );
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(
         true,
@@ -131,8 +137,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static FetchSourceContext readFrom(StreamInput in) throws IOException {
         final boolean fetchSource = in.readBoolean();
         final Boolean excludeVectors = isVersionCompatibleWithExcludeVectors(in.getTransportVersion()) ? in.readOptionalBoolean() : null;
-        final Boolean excludeInferenceFields = in.getTransportVersion()
-            .onOrAfter(TransportVersions.SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM) ? in.readOptionalBoolean() : null;
+        final Boolean excludeInferenceFields = in.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)
+            ? in.readOptionalBoolean()
+            : null;
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
         return of(fetchSource, excludeVectors, excludeInferenceFields, includes, excludes);
@@ -144,7 +151,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         if (isVersionCompatibleWithExcludeVectors(out.getTransportVersion())) {
             out.writeOptionalBoolean(excludeVectors);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)) {
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)) {
             out.writeOptionalBoolean(excludeInferenceFields);
         }
         out.writeStringArray(includes);
@@ -152,8 +159,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     private static boolean isVersionCompatibleWithExcludeVectors(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19)
-            || version.onOrAfter(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM);
+        return version.supports(SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM);
     }
 
     public boolean fetchSource() {

@@ -495,13 +495,6 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -509,14 +502,28 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

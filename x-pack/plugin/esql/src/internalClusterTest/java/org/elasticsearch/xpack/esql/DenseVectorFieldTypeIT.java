@@ -19,7 +19,6 @@ import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -35,6 +34,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION;
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
@@ -91,6 +91,8 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     private final Map<Integer, List<Number>> indexedVectors = new HashMap<>();
 
     public void testRetrieveFieldType() {
+        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
+
         var query = """
             FROM test
             | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
@@ -105,6 +107,8 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRetrieveTopNDenseVectorFieldData() {
+        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
+
         var query = """
                 FROM test
                 | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
@@ -133,6 +137,8 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRetrieveDenseVectorFieldData() {
+        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
+
         var query = """
             FROM test
             | EVAL k = v_l2_norm(vector, [1])  // workaround to enable fetching dense_vector
@@ -197,8 +203,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Dense vector type is disabled", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-
         createIndexWithDenseVector("test");
 
         int numDims = randomIntBetween(32, 64) * 2; // min 64, even number

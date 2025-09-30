@@ -107,9 +107,22 @@ It’s also possible to group by multiple values:
 
 :::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
 :::
+
 If all the grouping keys are multivalued then the input row is in all groups:
 
 :::{include} ../examples/stats.csv-spec/multi-mv-group.md
+:::
+
+The input **ROW** is in all groups. The entire row. All the values. Even group
+keys. That means that:
+
+:::{include} ../examples/stats.csv-spec/mv-group-values.md
+:::
+
+The `VALUES` function above sees the whole row - all of the values of the group
+key. If you want to send the group key to the function then `MV_EXPAND` first:
+
+:::{include} ../examples/stats.csv-spec/mv-group-values-expand.md
 :::
 
 Both the aggregating functions and the grouping expressions accept other

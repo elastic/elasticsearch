@@ -713,13 +713,19 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }
             """, XContentType.JSON);
         ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
-        assertThat(
-            exception.getMessage(),
-            containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
-        );
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        if (indexDimensionsTsidStrategyEnabled) {
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
+            assertThat(
+                exception.getMessage(),
+                containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
+            );
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        } else {
+            assertAcked(putMappingFuture.actionGet());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+        }
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
     }
 

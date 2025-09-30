@@ -23,6 +23,7 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
@@ -48,13 +49,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
     }
 
-    public void testSortField() {
-        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
-    }
-
     public void testSortMode() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
@@ -62,10 +56,43 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
+    public void testSortField() {
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
+        var settingsProvider = new IndexMode.IndexModeSettingsProvider();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settingsProvider.provideAdditionalSettings(
+                "test",
+                null,
+                IndexMode.TIME_SERIES,
+                null,
+                null,
+                s,
+                List.of(),
+                null,
+                Settings.builder()
+            )
+        );
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
+    }
+
     public void testSortOrder() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc").build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        var settingsProvider = new IndexMode.IndexModeSettingsProvider();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settingsProvider.provideAdditionalSettings(
+                "test",
+                null,
+                IndexMode.TIME_SERIES,
+                null,
+                null,
+                s,
+                List.of(),
+                null,
+                Settings.builder()
+            )
+        );
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
     }
 

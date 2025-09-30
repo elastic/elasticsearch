@@ -29,6 +29,8 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
@@ -762,10 +764,14 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             settingsBuilder
         );
         result = settingsBuilder.build();
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(7));
         assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(result), contains("host.name", "@timestamp"));
+        assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(result), contains(SortOrder.ASC, SortOrder.DESC));
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MIN));
+        assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(result), contains("_last", "_last"));
         assertThat(newMapperServiceCounter.get(), equalTo(4));
     }
 
@@ -847,11 +853,15 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             settingsBuilder
         );
         result = settingsBuilder.build();
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(8));
         assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
         assertEquals(IndexMode.LOGSDB, IndexSettings.MODE.get(result));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(result), contains("host.name", "@timestamp"));
+        assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(result), contains(SortOrder.ASC, SortOrder.DESC));
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MIN));
+        assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(result), contains("_last", "_last"));
 
         settingsBuilder = builder();
         provider.provideAdditionalSettings(
@@ -1032,7 +1042,11 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateLogsdbSettings(settings, mappings, Version.V_8_17_0);
-        assertTrue(result.isEmpty());
+        assertThat(result.size(), equalTo(4));
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(result), contains("host.name", "@timestamp"));
+        assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(result), contains(SortOrder.ASC, SortOrder.DESC));
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MIN));
+        assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(result), contains("_last", "_last"));
     }
 
     public void testSortAndHostNameKeyword() throws Exception {

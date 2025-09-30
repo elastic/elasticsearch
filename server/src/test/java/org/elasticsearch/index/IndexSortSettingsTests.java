@@ -30,6 +30,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -242,7 +243,7 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build(),
-            IndexVersions.UPGRADE_TO_LUCENE_10_2_2
+            IndexVersionUtils.getPreviousVersion(IndexVersions.EXPLICIT_INDEX_SORTING_DEFAULTS)
         );
         Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
         assertThat(sort.getSort(), arrayWithSize(2));
@@ -258,7 +259,7 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build(),
-            IndexVersions.UPGRADE_TO_LUCENE_10_2_2
+            IndexVersionUtils.getPreviousVersion(IndexVersions.EXPLICIT_INDEX_SORTING_DEFAULTS)
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
         assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
@@ -283,7 +284,10 @@ public class IndexSortSettingsTests extends ESTestCase {
             .putList("index.sort.order", "asc", "desc")
             .putList("index.sort.missing", "_last", "_first")
             .build();
-        IndexSettings indexSettings = indexSettings(settings, IndexVersions.UPGRADE_TO_LUCENE_10_2_2);
+        IndexSettings indexSettings = indexSettings(
+            settings,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.EXPLICIT_INDEX_SORTING_DEFAULTS)
+        );
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
         assertThat(config.sortSpecs.length, equalTo(2));

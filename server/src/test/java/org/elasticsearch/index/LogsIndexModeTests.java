@@ -24,7 +24,11 @@ public class LogsIndexModeTests extends ESTestCase {
     }
 
     public void testDefaultHostNameSortField() {
-        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta(
+            "test",
+            buildSettings(),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.EXPLICIT_INDEX_SORTING_DEFAULTS)
+        );
         assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
         boolean sortOnHostName = randomBoolean();
         final IndexSettings settings = new IndexSettings(
@@ -35,7 +39,11 @@ public class LogsIndexModeTests extends ESTestCase {
     }
 
     public void testDefaultHostNameSortFieldAndMapping() {
-        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta(
+            "test",
+            buildSettings(),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.EXPLICIT_INDEX_SORTING_DEFAULTS)
+        );
         assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
         final IndexSettings settings = new IndexSettings(
             metadata,
@@ -74,7 +82,7 @@ public class LogsIndexModeTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals("index.sort.fields:[] index.sort.order:[desc], size mismatch", exception.getMessage());
+        assertEquals("index.sort.field:[] index.sort.order:[desc], size mismatch", exception.getMessage());
     }
 
     public void testDefaultHostNameSortWithMode() {
@@ -90,7 +98,7 @@ public class LogsIndexModeTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals("index.sort.fields:[] index.sort.mode:[MAX], size mismatch", exception.getMessage());
+        assertEquals("index.sort.field:[] index.sort.mode:[MAX], size mismatch", exception.getMessage());
     }
 
     public void testDefaultHostNameSortWithMissing() {
@@ -106,7 +114,7 @@ public class LogsIndexModeTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals("index.sort.fields:[] index.sort.missing:[_first], size mismatch", exception.getMessage());
+        assertEquals("index.sort.field:[] index.sort.missing:[_first], size mismatch", exception.getMessage());
     }
 
     public void testCustomSortField() {

@@ -210,7 +210,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchAuthorizationService;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsSupplier;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1144,7 +1144,7 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        final CrossProjectSearchAuthorizationService crossProjectSearchAuthorizationService = getCrossProjectSearchAuthorizationService(
+        final AuthorizedProjectsSupplier authorizedProjectsSupplier = getCrossProjectSearchAuthorizationService(
             extensionComponents
         );
         final AuthorizationService authzService = new AuthorizationService(
@@ -1165,9 +1165,9 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            crossProjectSearchAuthorizationService == null
-                ? new CrossProjectSearchAuthorizationService.Default()
-                : crossProjectSearchAuthorizationService
+            authorizedProjectsSupplier == null
+                ? new AuthorizedProjectsSupplier.Default()
+                : authorizedProjectsSupplier
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1352,7 +1352,7 @@ public class Security extends Plugin
         }
     }
 
-    private CrossProjectSearchAuthorizationService getCrossProjectSearchAuthorizationService(
+    private AuthorizedProjectsSupplier getCrossProjectSearchAuthorizationService(
         SecurityExtension.SecurityComponents extensionComponents
     ) {
         return findValueFromExtensions(

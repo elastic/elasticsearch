@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchAuthorizationService;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsSupplier;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -152,7 +152,7 @@ public class AuthorizationService {
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
-    private final CrossProjectSearchAuthorizationService crossProjectSearchAuthzService;
+    private final AuthorizedProjectsSupplier crossProjectSearchAuthzService;
 
     public AuthorizationService(
         Settings settings,
@@ -191,7 +191,7 @@ public class AuthorizationService {
             authorizationDenialMessages,
             linkedProjectConfigService,
             projectResolver,
-            new CrossProjectSearchAuthorizationService.Default()
+            new AuthorizedProjectsSupplier.Default()
         );
     }
 
@@ -213,7 +213,7 @@ public class AuthorizationService {
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
-        CrossProjectSearchAuthorizationService crossProjectSearchAuthorizationService
+        AuthorizedProjectsSupplier authorizedProjectsSupplier
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -222,7 +222,7 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            crossProjectSearchAuthorizationService.enabled()
+            authorizedProjectsSupplier.enabled()
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -244,7 +244,7 @@ public class AuthorizationService {
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
-        this.crossProjectSearchAuthzService = crossProjectSearchAuthorizationService;
+        this.crossProjectSearchAuthzService = authorizedProjectsSupplier;
     }
 
     public void checkPrivileges(
@@ -557,7 +557,7 @@ public class AuthorizationService {
                         projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(authorizedIndices -> {
                             if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsCrossProjectResolution()) {
-                                crossProjectSearchAuthzService.loadAuthorizedProjects(ActionListener.wrap(authorizedProjects -> {
+                                crossProjectSearchAuthzService.getAuthorizedProjects(ActionListener.wrap(authorizedProjects -> {
                                     logger.info("Loaded authorized projects: [{}]", authorizedProjects);
                                     resolvedIndicesListener.onResponse(
                                         indicesAndAliasesResolver.resolve(

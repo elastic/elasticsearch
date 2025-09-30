@@ -622,9 +622,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
+            final boolean resolveCrossProject = resolveCrossProject(request);
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-                request.resolveCrossProject ? lenientIndicesOptionsForFanout(originalIndicesOptions) : originalIndicesOptions,
+                resolveCrossProject ? lenientIndicesOptionsForFanout(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()
             );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -642,7 +643,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
-                        if (request.resolveCrossProject) {
+                        if (resolveCrossProject) {
                             Map<String, LinkedProjectExpressions> linkedProjectExpressions = remoteResponses.entrySet()
                                 .stream()
                                 .collect(
@@ -686,34 +687,50 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         originalIndices.indicesOptions(),
                         EnumSet.noneOf(IndexMode.class),
                         // not a typo - resolveCrossProject determines if the remote call should return resolved expressions
-                        request.resolveCrossProject,
+                        resolveCrossProject,
                         false
                     );
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
-                    }, failure -> {
-                        LOGGER.error("failed to resolve indices on remote cluster [{}]", clusterAlias, failure);
-                        terminalHandler.run();
-                    }));
+                    }, failure -> terminalHandler.run()));
                 }
             } else {
-                if (request.resolveCrossProject) {
-                    try {
-                        CrossProjectSearchErrorHandler.crossProjectFanoutErrorHandling(
-                            request.indicesOptions,
-                            resolvedExpressions,
-                            new RemoteIndexExpressions(Map.of())
-                        );
-                    } catch (Exception ex) {
-                        listener.onFailure(ex);
-                        return;
-                    }
-                }
-                listener.onResponse(
+                onResponse(
+                    request,
+                    listener,
+                    resolveCrossProject,
+                    resolvedExpressions,
                     new Response(indices, aliases, dataStreams, request.includeResolvedExpressions ? resolvedExpressions : null)
                 );
             }
+        }
+
+        private void onResponse(
+            Request request,
+            ActionListener<Response> listener,
+            boolean resolveCrossProject,
+            ResolvedIndexExpressions resolvedExpressions,
+            Response response
+        ) {
+            if (resolveCrossProject) {
+                try {
+                    CrossProjectSearchErrorHandler.crossProjectFanoutErrorHandling(
+                        request.indicesOptions,
+                        resolvedExpressions,
+                        new RemoteIndexExpressions(Map.of())
+                    );
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                    return;
+                }
+            }
+            listener.onResponse(response);
+        }
+
+        private boolean resolveCrossProject(Request request) {
+            // TODO use IndicesOptions instead
+            return request.resolveCrossProject;
         }
 
         /**

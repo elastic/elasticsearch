@@ -299,7 +299,7 @@ class IndicesAndAliasesResolver {
                 getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, projectMetadata)
             );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
-            if (isNoneExpression(replaceable.indices())) {
+            if (replaceable.indices() != null && isNoneExpression(replaceable.indices())) {
                 // If the request has a "none" expression, we can skip all the resolution and authorization logic
                 replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                 resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);

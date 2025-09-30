@@ -51,14 +51,15 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
+    private final boolean allNullsIsNull;
 
     public EvaluatorImplementer(
         Elements elements,
         javax.lang.model.util.Types types,
         ExecutableElement processFunction,
         String extraName,
-        List<TypeMirror> warnExceptions
-    ) {
+        List<TypeMirror> warnExceptions,
+        boolean allNullsIsNull) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = new ProcessFunction(types, processFunction, warnExceptions);
 
@@ -66,7 +67,8 @@ public class EvaluatorImplementer {
             elements.getPackageOf(declarationType).toString(),
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
-        this.processOutputsMultivalued = this.processFunction.hasBlockType && (this.processFunction.builderArg != null);
+        this.processOutputsMultivalued = this.processFunction.hasBlockType;
+        this.allNullsIsNull = allNullsIsNull;
     }
 
     public JavaFile sourceFile() {
@@ -199,7 +201,7 @@ public class EvaluatorImplementer {
 
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
             {
-                if (blockStyle) {
+                if (blockStyle && allNullsIsNull) {
                     if (processOutputsMultivalued == false) {
                         processFunction.args.stream().forEach(a -> a.skipNull(builder));
                     } else {
@@ -223,7 +225,7 @@ public class EvaluatorImplementer {
                 args.add(declarationType);
                 args.add(processFunction.function.getSimpleName());
                 processFunction.args.stream().forEach(a -> {
-                    if (args.size() > 2) {
+                    if (pattern.subSequence(pattern.length() - 1, pattern.length()).equals("(") == false) {
                         pattern.append(", ");
                     }
                     a.buildInvocation(pattern, args, blockStyle);
@@ -231,7 +233,13 @@ public class EvaluatorImplementer {
                 pattern.append(")");
                 String builtPattern;
                 if (processFunction.builderArg == null) {
-                    builtPattern = vectorize ? "result.$L(p, " + pattern + ")" : "result.$L(" + pattern + ")";
+                    if(vectorize) {
+                        builtPattern = "result.$L(p, " + pattern + ")";
+                    } else if(processOutputsMultivalued) {
+                        builtPattern = "result.beginPositionEntry().$L(" + pattern + ").endPositionEntry()";
+                    } else {
+                        builtPattern = "result.$L(" + pattern + ")";
+                    }
                     args.add(0, processFunction.appendMethod());
                 } else {
                     builtPattern = pattern.toString();

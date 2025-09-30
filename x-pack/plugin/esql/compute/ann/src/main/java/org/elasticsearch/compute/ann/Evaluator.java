@@ -42,4 +42,9 @@ public @interface Evaluator {
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
+
+    /**
+     * if we evaluate to null if all blocks are null
+     */
+    boolean allNullsIsNull() default true;
 }

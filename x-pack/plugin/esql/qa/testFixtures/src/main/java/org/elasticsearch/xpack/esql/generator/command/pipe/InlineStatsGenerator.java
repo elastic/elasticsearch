@@ -33,9 +33,8 @@ public class InlineStatsGenerator extends StatsGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-
-        // the -1 is for the additional RENAME, that could drop one column
-        int prevCols = previousColumns.size() - 1;
+        
+        int prevCols = previousColumns.size();
 
         if (previousColumns.stream().anyMatch(x -> x.name().equals("<all-fields-projected>"))) {
             // known bug https://github.com/elastic/elasticsearch/issues/121741

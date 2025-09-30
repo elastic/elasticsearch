@@ -589,7 +589,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx)),
+            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx, mock(InferenceService.class))),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,

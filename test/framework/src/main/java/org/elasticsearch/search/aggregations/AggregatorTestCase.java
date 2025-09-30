@@ -523,7 +523,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(indexShard.indexSettings()).thenReturn(indexSettings);
-        when(indexShard.getSearchOperationListener()).thenReturn(new SearchOperationListener() {});
+        when(indexShard.getSearchOperationListener()).thenReturn(new SearchOperationListener() {
+        });
         when(ctx.indexShard()).thenReturn(indexShard);
         when(ctx.newSourceLoader(null)).thenAnswer(inv -> searchExecutionContext.newSourceLoader(null, false));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());

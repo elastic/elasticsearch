@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -415,13 +416,20 @@ public class MasterService extends AbstractLifecycleComponent {
 
                 @Override
                 public void onFailure(Exception exception) {
-                    if (exception instanceof FailedToCommitClusterStateException || exception instanceof NotMasterException) {
+                    if (exception instanceof FailedToPublishClusterStateException
+                        || exception instanceof FailedToCommitClusterStateException
+                        || exception instanceof NotMasterException) {
                         final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
                         final long version = newClusterState.version();
 
                         if (exception instanceof FailedToCommitClusterStateException) {
                             logger.warn(
                                 () -> format("failing [%s]: failed to commit cluster state version [%s]", summary, version),
+                                exception
+                            );
+                        } else if (exception instanceof FailedToPublishClusterStateException) {
+                            logger.warn(
+                                () -> format("failing [%s]: failed to publish cluster state version [%s]", summary, version),
                                 exception
                             );
                         } else {

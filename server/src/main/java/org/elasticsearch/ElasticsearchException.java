@@ -87,6 +87,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersion.zero();
 
+    private static final TransportVersion FAILED_TO_PUBLISH_CLUSTER_STATE_EXCEPTION_TRANSPORT_VERSION = TransportVersion.fromName(
+        "failed_to_publish_cluster_state_exception"
+    );
+
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
      * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
@@ -2022,6 +2026,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             184,
             TransportVersions.REMOTE_EXCEPTION,
             TransportVersions.REMOTE_EXCEPTION_8_19
+        ),
+        FAILED_TO_PUBLISH_CLUSTER_STATE_EXCEPTION(
+            org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException.class,
+            org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException::new,
+            185,
+            FAILED_TO_PUBLISH_CLUSTER_STATE_EXCEPTION_TRANSPORT_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

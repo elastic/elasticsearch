@@ -534,9 +534,14 @@ public class QueryRewriteContext {
      */
     public void setRangeTimestampFrom(long rangeTimestampFrom) {
         if (trackRangeTimestampFrom) {
+            // if we got a timestamp with nanoseconds precision, round it down to millis
+            if (rangeTimestampFrom > 1_000_000_000_000_000L) {
+                rangeTimestampFrom = rangeTimestampFrom / 1_000_000;
+            }
             if (this.rangeTimestampFrom == null) {
                 this.rangeTimestampFrom = rangeTimestampFrom;
             } else {
+                // if there's more range filters on timestamp, we'll take the lowest of the lower bounds
                 this.rangeTimestampFrom = Math.min(rangeTimestampFrom, this.rangeTimestampFrom);
             }
         }

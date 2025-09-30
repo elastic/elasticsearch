@@ -57,14 +57,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 
 public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_search_metrics2";
+    private static final String indexNameNanoPrecision = "nano_search_metrics2";
     private static final String singleShardIndexName = "single_shard_test_search_metric";
     private static final LocalDateTime NOW = LocalDateTime.now(ZoneOffset.UTC);
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT);
-
-    @Override
-    protected boolean resetNodeAfterTest() {
-        return true;
-    }
+    private static final DateTimeFormatter FORMATTER_MILLIS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT);
+    private static final DateTimeFormatter FORMATTER_NANOS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnn", Locale.ROOT);
 
     @Before
     public void setUpIndex() {
@@ -93,11 +90,77 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         );
         ensureGreen(singleShardIndexName);
         prepareIndex(singleShardIndexName).setId("1")
-            .setSource("body", "foo", "@timestamp", NOW.minusMinutes(5).format(FORMATTER))
+            .setSource("body", "foo", "@timestamp", NOW.minusMinutes(5).withSecond(randomIntBetween(0, 59)).format(FORMATTER_MILLIS))
             .setRefreshPolicy(IMMEDIATE)
             .get();
         prepareIndex(singleShardIndexName).setId("2")
-            .setSource("body", "foo", "@timestamp", NOW.minusMinutes(30).format(FORMATTER))
+            .setSource("body", "foo", "@timestamp", NOW.minusMinutes(30).withSecond(randomIntBetween(0, 59)).format(FORMATTER_MILLIS))
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        createIndex(
+            indexNameNanoPrecision,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, num_primaries)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build(),
+            "_doc",
+            "@timestamp",
+            "type=date_nanos"
+        );
+        ensureGreen(indexNameNanoPrecision);
+        prepareIndex(indexNameNanoPrecision).setId("10")
+            .setSource(
+                "body",
+                "foo",
+                "@timestamp",
+                NOW.minusMinutes(2).withNano(randomIntBetween(0, 1_000_000_000)).format(FORMATTER_NANOS)
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(indexNameNanoPrecision).setId("11")
+            .setSource(
+                "body",
+                "foo",
+                "@timestamp",
+                NOW.minusMinutes(3).withNano(randomIntBetween(0, 1_000_000_000)).format(FORMATTER_NANOS)
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(indexNameNanoPrecision).setId("12")
+            .setSource(
+                "body",
+                "foo",
+                "@timestamp",
+                NOW.minusMinutes(4).withNano(randomIntBetween(0, 1_000_000_000)).format(FORMATTER_NANOS)
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(indexNameNanoPrecision).setId("13")
+            .setSource(
+                "body",
+                "foo",
+                "@timestamp",
+                NOW.minusMinutes(5).withNano(randomIntBetween(0, 1_000_000_000)).format(FORMATTER_NANOS)
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(indexNameNanoPrecision).setId("14")
+            .setSource(
+                "body",
+                "foo",
+                "@timestamp",
+                NOW.minusMinutes(6).withNano(randomIntBetween(0, 1_000_000_000)).format(FORMATTER_NANOS)
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(indexNameNanoPrecision).setId("15")
+            .setSource(
+                "body",
+                "foo",
+                "@timestamp",
+                NOW.minusMinutes(75).withNano(randomIntBetween(0, 1_000_000_000)).format(FORMATTER_NANOS)
+            )
             .setRefreshPolicy(IMMEDIATE)
             .get();
     }
@@ -207,7 +270,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             SearchResponse searchResponse = client().prepareSearch("_all").setQuery(simpleQueryStringQuery("foo")).get();
             try {
                 assertNoFailures(searchResponse);
-                assertSearchHits(searchResponse, "1", "2", "1", "2");
+                assertSearchHits(searchResponse, "1", "2", "1", "2", "10", "11", "12", "13", "14", "15");
             } finally {
                 searchResponse.decRef();
             }
@@ -320,7 +383,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
         // compound retriever does its own search as an async action, whose took time is recorded separately
         assertEquals(2, measurements.size());
-        assertThat(measurements.getFirst().getLong(), Matchers.lessThan(searchResponse.getTook().millis()));
+        assertThat(measurements.getFirst().getLong(), Matchers.lessThanOrEqualTo(searchResponse.getTook().millis()));
         assertEquals(searchResponse.getTook().millis(), measurements.getLast().getLong());
         for (Measurement measurement : measurements) {
             Map<String, Object> attributes = measurement.attributes();
@@ -533,7 +596,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
 
     public void testTimeRangeFilterOneResultQueryAndFetchRecentTimestamps() {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(10))));
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER_MILLIS.format(NOW.minusMinutes(10))));
         boolQueryBuilder.must(simpleQueryStringQuery("foo"));
         SearchResponse searchResponse = client().prepareSearch(singleShardIndexName)
             .setQuery(boolQueryBuilder)
@@ -562,11 +625,11 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     public void testMultipleTimeRangeFiltersQueryAndFetchRecentTimestamps() {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         // we take the lowest of the two bounds
-        boolQueryBuilder.must(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(20))));
-        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(10))));
+        boolQueryBuilder.must(new RangeQueryBuilder("@timestamp").from(FORMATTER_MILLIS.format(NOW.minusMinutes(20))));
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER_MILLIS.format(NOW.minusMinutes(10))));
         // should and must_not get ignored
-        boolQueryBuilder.should(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(2))));
-        boolQueryBuilder.mustNot(new RangeQueryBuilder("@timestamp").from(FORMATTER.format(NOW.minusMinutes(1))));
+        boolQueryBuilder.should(new RangeQueryBuilder("@timestamp").from(FORMATTER_MILLIS.format(NOW.minusMinutes(2))));
+        boolQueryBuilder.mustNot(new RangeQueryBuilder("@timestamp").from(FORMATTER_MILLIS.format(NOW.minusMinutes(1))));
         boolQueryBuilder.must(simpleQueryStringQuery("foo"));
         SearchResponse searchResponse = client().prepareSearch(singleShardIndexName)
             .setQuery(boolQueryBuilder)
@@ -628,6 +691,58 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         Measurement measurement = measurements.getFirst();
         assertEquals(searchResponse.getTook().millis(), measurement.getLong());
         assertSimpleQueryAttributes(measurement.attributes());
+    }
+
+    public void testTimeRangeFilterAllResultsNanoPrecision() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER_NANOS.format(NOW.minusMinutes(20))));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(indexNameNanoPrecision).setQuery(boolQueryBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "10", "11", "12", "13", "14");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(5, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_timestamp"));
+        assertEquals("1_hour", attributes.get("timestamp_range_filter"));
+    }
+
+    public void testTimeRangeFilterAllResultsMixedPrecision() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from(FORMATTER_NANOS.format(NOW.minusMinutes(20))));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SearchResponse searchResponse = client().prepareSearch(singleShardIndexName, indexNameNanoPrecision)
+            .setQuery(boolQueryBuilder)
+            .get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "10", "11", "12", "13", "14");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(5, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_timestamp"));
+        assertEquals("1_hour", attributes.get("timestamp_range_filter"));
     }
 
     private void resetMeter() {

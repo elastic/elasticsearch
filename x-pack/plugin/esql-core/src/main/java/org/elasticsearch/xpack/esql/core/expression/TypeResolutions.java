@@ -77,7 +77,7 @@ public final class TypeResolutions {
     /**
      * @see DataType#isRepresentable(DataType)
      */
-    public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isRepresentableExceptCountersAndDenseVector(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(
             e,
             dt -> isRepresentable(dt) && dt != DENSE_VECTOR,
@@ -87,7 +87,7 @@ public final class TypeResolutions {
         );
     }
 
-    public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isRepresentableExceptCountersSpatialAndDenseVector(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(
             e,
             (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t) && t != DENSE_VECTOR,

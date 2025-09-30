@@ -35,7 +35,6 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING;
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -323,12 +322,7 @@ public enum DataType implements Writeable {
      * Fields with this type are dense vectors, represented as an array of double values.
      */
     DENSE_VECTOR(
-        builder().esType("dense_vector")
-            .estimatedSize(4096)
-            .createdVersion(
-                // Version created just *after* we committed support for dense_vector
-                ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION
-            )
+        builder().esType("dense_vector").estimatedSize(4096).createdVersion(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
     );
 
     /**
@@ -349,8 +343,7 @@ public enum DataType implements Writeable {
      * </ul>
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
+        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG)
     );
 
     private final String typeName;
@@ -954,5 +947,11 @@ public enum DataType implements Writeable {
             this.createdVersion = CreatedVersion.supportedOn(createdVersion);
             return this;
         }
+    }
+
+    private static class DataTypesTransportVersions {
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
     }
 }

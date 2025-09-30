@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 
-/**
- * Version that supports a {@link DataType}.
- */
-public interface CreatedVersion {
+public interface SupportedVersion {
     boolean supports(TransportVersion version);
 
-    CreatedVersion SUPPORTED_ON_ALL_NODES = new CreatedVersion() {
+    SupportedVersion SUPPORTED_ON_ALL_NODES = new SupportedVersion() {
         @Override
         public boolean supports(TransportVersion version) {
             return true;
@@ -27,16 +25,28 @@ public interface CreatedVersion {
         }
     };
 
-    static CreatedVersion supportedOn(TransportVersion createdVersion) {
-        return new CreatedVersion() {
+    SupportedVersion UNDER_CONSTRUCTION = new SupportedVersion() {
+        @Override
+        public boolean supports(TransportVersion version) {
+            return Build.current().isSnapshot();
+        }
+
+        @Override
+        public String toString() {
+            return "UnderConstruction";
+        }
+    };
+
+    static SupportedVersion supportedOn(TransportVersion supportedVersion) {
+        return new SupportedVersion() {
             @Override
             public boolean supports(TransportVersion version) {
-                return version.supports(createdVersion);
+                return Build.current().isSnapshot() || version.supports(supportedVersion);
             }
 
             @Override
             public String toString() {
-                return "SupportedOn[" + createdVersion + "]";
+                return "SupportedOn[" + supportedVersion + "]";
             }
         };
     }

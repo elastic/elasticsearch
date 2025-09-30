@@ -3,7 +3,16 @@
 **Example**
 
 ```esql
-null
+TS k8s
+| STATS tx = sum(delta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute)
 ```
+
+| tx:double | cluster:keyword | time_bucket:datetime |
+| --- | --- | --- |
+| -351.0 | prod | 2024-05-10T00:00:00.000Z |
+| 552.0 | qa | 2024-05-10T00:00:00.000Z |
+| 117.0 | staging | 2024-05-10T00:00:00.000Z |
+| 280.0 | prod | 2024-05-10T00:10:00.000Z |
+| 73.0 | qa | 2024-05-10T00:10:00.000Z |
 
 

@@ -42,7 +42,7 @@
     }
   ],
   "examples" : [
-    null
+    "TS k8s\n| STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

@@ -4,5 +4,6 @@
 Calculates the idelta of a gauge. idelta is the absolute change between the last two data points (it ignores all but the last two data points in each time period). This function is very similar to delta, but is more responsive to recent changes.
 
 ```esql
-null
+TS k8s
+| STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)
 ```

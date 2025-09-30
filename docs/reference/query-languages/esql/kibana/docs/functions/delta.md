@@ -6,5 +6,6 @@ Calculates the absolute change of a gauge field in a time window.
 Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command
 
 ```esql
-null
+TS k8s
+| STATS tx = sum(delta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute)
 ```

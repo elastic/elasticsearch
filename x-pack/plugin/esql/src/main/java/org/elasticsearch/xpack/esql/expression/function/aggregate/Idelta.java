@@ -50,7 +50,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
             + "This function is very similar to delta, but is more responsive to recent changes.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
-        examples = { @Example(file = "k8s-timeseries-idelta", tag = "ts_command_v0") }
+        examples = { @Example(file = "k8s-timeseries-idelta", tag = "idelta") }
     )
     public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));

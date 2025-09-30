@@ -3,7 +3,15 @@
 **Example**
 
 ```esql
-null
+TS k8s
+| STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)
 ```
+
+| events:double | pod:keyword | time_bucket:datetime |
+| --- | --- | --- |
+| 9.0 | one | 2024-05-10T00:10:00.000Z |
+| 7.0 | three | 2024-05-10T00:10:00.000Z |
+| 3.0 | two | 2024-05-10T00:00:00.000Z |
+| 0.0 | two | 2024-05-10T00:20:00.000Z |
 
 

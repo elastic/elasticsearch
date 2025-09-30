@@ -204,7 +204,9 @@ public class SearchContextStats implements SearchStats {
         // Consolidate min for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
         boolean hasDocValueSkipper = fieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
-        if (fieldType == null || (hasDocValueSkipper == false && stat.config.indexed == false) || fieldType instanceof DateFieldType == false) {
+        if (fieldType == null
+            || (hasDocValueSkipper == false && stat.config.indexed == false)
+            || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.min == null) {
@@ -237,7 +239,9 @@ public class SearchContextStats implements SearchStats {
         // Consolidate max for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
         boolean hasDocValueSkipper = fieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
-        if (fieldType == null || (hasDocValueSkipper == false && stat.config.indexed == false) || fieldType instanceof DateFieldType == false) {
+        if (fieldType == null
+            || (hasDocValueSkipper == false && stat.config.indexed == false)
+            || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.max == null) {

@@ -174,10 +174,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private String generateForceMergeMetadata() {
-        return switch (randomIntBetween(0, 3)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> "\"_meta\": { \"downsample.forcemerge.enabled\": false},";
             case 1 -> "\"_meta\": { \"downsample.forcemerge.enabled\": true},";
             case 2 -> "\"_meta\": { \"downsample.forcemerge.enabled\": 4},";
+            case 3 -> "\"_meta\": { \"downsample.forcemerge.enabled\": null},";
             default -> "";
         };
     }

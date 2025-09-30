@@ -301,16 +301,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Short circuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
-        if (canShortCircuit(
-            sourceIndexName,
-            downsampleIndexName,
-            parentTask,
-            request.masterNodeTimeout(),
-            request.getWaitTimeout(),
-            startTime,
-            projectMetadata,
-            listener
-        )) {
+        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), startTime, true, projectMetadata, listener)) {
             logger.info("Skipping downsampling, because a previous execution already completed downsampling");
             return;
         }
@@ -477,73 +468,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             }
         }
         return true;
-    }
-
-    /**
-     * Shortcircuit when another downsample api invocation already completed successfully.
-     */
-    private boolean canShortCircuit(
-        String sourceIndexName,
-        String targetIndexName,
-        TaskId parentTask,
-        TimeValue masterNodeTimeout,
-        TimeValue waitTimeout,
-        long startTime,
-        ProjectMetadata projectMetadata,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
-        IndexMetadata targetIndexMetadata = projectMetadata.index(targetIndexName);
-        if (targetIndexMetadata == null) {
-            return false;
-        }
-
-        var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(targetIndexMetadata.getSettings());
-        if (downsampleStatus == DownsampleTaskStatus.UNKNOWN) {
-            // This isn't a downsample index, so fail:
-            listener.onFailure(new ResourceAlreadyExistsException(targetIndexMetadata.getIndex()));
-            return true;
-        } else if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return true;
-        }
-        // In case the write block has been set on the target index means that the shard level downsampling itself was successful,
-        // but the previous invocation failed later performing settings update, refresh or force merge.
-        // The write block is used a signal to resume from the refresh part of the downsample api invocation.
-        if (targetIndexMetadata.getSettings().get(IndexMetadata.SETTING_BLOCKS_WRITE) != null) {
-            // 1. Extract source index mappings
-            final GetMappingsRequest getMappingsRequest = new GetMappingsRequest(masterNodeTimeout).indices(sourceIndexName);
-            getMappingsRequest.setParentTask(parentTask);
-            client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
-                final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> sourceIndexName.equals(entry.getKey()))
-                    .findFirst()
-                    .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
-                    .orElseThrow(
-                        () -> new IllegalArgumentException("No mapping found for downsample source index [" + sourceIndexName + "]")
-                    );
-                var forceMergeEnabled = isForceMergeEnabled(sourceIndexMappings);
-                var refreshRequest = new RefreshRequest(targetIndexMetadata.getIndex().getName());
-                refreshRequest.setParentTask(parentTask);
-                client.admin()
-                    .indices()
-                    .refresh(
-                        refreshRequest,
-                        new RefreshDownsampleIndexActionListener(
-                            projectMetadata.id(),
-                            delegate,
-                            parentTask,
-                            targetIndexMetadata.getIndex().getName(),
-                            waitTimeout,
-                            startTime,
-                            forceMergeEnabled
-                        )
-                    );
-            }));
-            return true;
-        }
-        return false;
     }
 
     /**

@@ -279,21 +279,12 @@ public class TransportDownsampleActionTests extends ESTestCase {
     }
 
     public void testDownsamplingForceMergeWithShortCircuitAfterCreation() {
-        String mapping = switch (randomIntBetween(0, 2)) {
+        String mapping = switch (randomIntBetween(0, 3)) {
             case 0 -> NO_METADATA_MAPPING;
             case 1 -> OTHER_METADATA_MAPPING;
-            default -> FORCE_MERGE_ENABLED_MAPPING;
+            case 2 -> FORCE_MERGE_ENABLED_MAPPING;
+            default -> FORCE_MERGE_DISABLED_MAPPING;
         };
-        downsampleSkipsForceMergeWithShortCircuitAfterCreation(mapping);
-        verify(indicesAdminClient).forceMerge(any(), any());
-    }
-
-    public void testDownsamplingSkipsForceMergeWithShortCircuitAfterCreation() {
-        downsampleSkipsForceMergeWithShortCircuitAfterCreation(FORCE_MERGE_DISABLED_MAPPING);
-        verify(indicesAdminClient, never()).forceMerge(any(), any());
-    }
-
-    public void downsampleSkipsForceMergeWithShortCircuitAfterCreation(String mapping) {
         mockGetMapping(mapping);
 
         var projectMetadata = ProjectMetadata.builder(projectId)
@@ -323,6 +314,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         );
         safeGet(listener);
         verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+        verify(indicesAdminClient).forceMerge(any(), any());
     }
 
     public void testDownsamplingForceMergeWithShortCircuitDuringCreation() throws IOException {

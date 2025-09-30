@@ -50,7 +50,8 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
         description = "Calculates the absolute increase of a counter field in a time window.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true
     )
     public Increase(
         Source source,

@@ -12,6 +12,7 @@
 | counter_long | boolean |
 | date | boolean |
 | date_nanos | boolean |
+| dense_vector | boolean |
 | double | boolean |
 | geo_point | boolean |
 | geo_shape | boolean |

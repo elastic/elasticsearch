@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +31,10 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
     public static final String TOP_N_DOCS_ONLY = "top_n";
 
     static final HuggingFaceRerankTaskSettings EMPTY_SETTINGS = new HuggingFaceRerankTaskSettings(null, null);
+
+    private static final TransportVersion ML_INFERENCE_HUGGING_FACE_RERANK_ADDED = TransportVersion.fromName(
+        "ml_inference_hugging_face_rerank_added"
+    );
 
     public static HuggingFaceRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -119,13 +122,12 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
+        return ML_INFERENCE_HUGGING_FACE_RERANK_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19);
+        return version.supports(ML_INFERENCE_HUGGING_FACE_RERANK_ADDED);
     }
 
     @Override

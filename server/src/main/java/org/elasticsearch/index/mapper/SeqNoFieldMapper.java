@@ -144,12 +144,17 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType NO_POINT = new SeqNoFieldType(false);
 
         private SeqNoFieldType(boolean indexed) {
-            super(NAME, indexed, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
+            super(NAME, indexed, false, true, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         private static long parse(Object value) {

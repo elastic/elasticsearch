@@ -48,6 +48,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -259,15 +260,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false
         );
-        IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
+        Map<ShardId, Long> shardIdToSharedRam = IndicesQueryCache.getSharedRamForAllShards(indicesService);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(
-                    indicesService.getIndicesQueryCache(),
-                    indexShard.shardId(),
-                    cacheTotals
-                );
+                long sharedRam = shardIdToSharedRam.get(indexShard.shardId());
                 cancellableTask.ensureNotCancelled();
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards

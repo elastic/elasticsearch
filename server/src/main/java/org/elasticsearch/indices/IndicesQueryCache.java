@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -68,6 +69,22 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
+
+    public static Map<ShardId, Long> getSharedRamForAllShards(IndicesService indicesService) {
+        Map<ShardId, Long> shardIdToSharedRam = new HashMap<>();
+        IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(
+                    indicesService.getIndicesQueryCache(),
+                    indexShard.shardId(),
+                    cacheTotals
+                );
+                shardIdToSharedRam.put(indexShard.shardId(), sharedRam);
+            }
+        }
+        return shardIdToSharedRam;
+    }
 
     public long getCacheSizeForShard(ShardId shardId) {
         Stats stats = shardStats.get(shardId);
@@ -105,7 +122,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * @param indicesService
      * @return A CacheTotals object containing the computed total number of items in the cache and the number of shards seen in the cache
      */
-    public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
+    private static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
         IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
         boolean hasQueryCache = queryCache != null;
         long totalItemsInCache = 0L;
@@ -122,6 +139,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return new CacheTotals(totalItemsInCache, shardCount);
     }
 
+    public static long getSharedRamSizeForShard(IndicesService indicesService, ShardId shardId) {
+        IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
+        return getSharedRamSizeForShard(indicesService.getIndicesQueryCache(), shardId, cacheTotals);
+    }
+
     /**
      * This method computes the shared RAM size in bytes for the given indexShard.
      * @param queryCache
@@ -129,7 +151,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * @param cacheTotals Shard totals computed in getCacheTotalsForAllShards()
      * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
-    public static long getSharedRamSizeForShard(IndicesQueryCache queryCache, ShardId shardId, CacheTotals cacheTotals) {
+    private static long getSharedRamSizeForShard(IndicesQueryCache queryCache, ShardId shardId, CacheTotals cacheTotals) {
         long sharedRamBytesUsed = queryCache != null ? queryCache.getSharedRamBytesUsed() : 0L;
         if (sharedRamBytesUsed == 0L) {
             return 0L;
@@ -167,7 +189,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return additionalRamBytesUsed;
     }
 
-    public record CacheTotals(long totalItemsInCache, int shardCount) {}
+    private record CacheTotals(long totalItemsInCache, int shardCount) {}
 
     /** Get usage statistics for the given shard. */
     public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {

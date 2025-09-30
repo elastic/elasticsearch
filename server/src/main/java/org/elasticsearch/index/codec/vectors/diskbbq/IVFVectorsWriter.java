@@ -24,6 +24,7 @@ import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -51,10 +52,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final List<FieldWriter> fieldWriters = new ArrayList<>();
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
+    private final String rawVectorFormatName;
     private final FlatVectorsWriter rawVectorDelegate;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate) throws IOException {
+    protected IVFVectorsWriter(SegmentWriteState state, String rawVectorFormatName, FlatVectorsWriter rawVectorDelegate)
+        throws IOException {
+        this.rawVectorFormatName = rawVectorFormatName;
         this.rawVectorDelegate = rawVectorDelegate;
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -116,6 +120,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             @SuppressWarnings("unchecked")
             final FlatFieldVectorsWriter<float[]> floatWriter = (FlatFieldVectorsWriter<float[]>) rawVectorDelegate;
             fieldWriters.add(new FieldWriter(fieldInfo, floatWriter));
+        } else {
+            // we simply write information that the field is present but we don't do anything with it.
+            fieldWriters.add(new FieldWriter(fieldInfo, null));
         }
         return rawVectorDelegate;
     }
@@ -165,13 +172,18 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
         for (FieldWriter fieldWriter : fieldWriters) {
+            if (fieldWriter.delegate == null) {
+                // field is not float, we just write meta information
+                writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null);
+                continue;
+            }
             final float[] globalCentroid = new float[fieldWriter.fieldInfo.getVectorDimension()];
             // build a float vector values with random access
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues, globalCentroid);
             // wrap centroids with a supplier
-            final CentroidSupplier centroidSupplier = new OnHeapCentroidSupplier(centroidAssignments.centroids());
+            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(centroidAssignments.centroids());
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
             final CentroidOffsetAndLength centroidOffsetAndLength = buildAndWritePostingsLists(
@@ -248,6 +260,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
+        } else {
+            // we simply write information that the field is present but we don't do anything with it.
+            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null);
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -299,8 +314,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
         // so the OS can optimize read ahead in low memory situations.
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.READONCE);
-            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.READONCE)
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
+                tempRawVectorsFileName,
+                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
+            );
+            IndexInput docs = docsFileName == null
+                ? null
+                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
 
@@ -476,6 +496,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException {
         ivfMeta.writeInt(field.number);
+        ivfMeta.writeString(rawVectorFormatName);
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
         ivfMeta.writeInt(numCentroids);
@@ -528,40 +549,4 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
 
-    interface CentroidSupplier {
-        CentroidSupplier EMPTY = new CentroidSupplier() {
-            @Override
-            public int size() {
-                return 0;
-            }
-
-            @Override
-            public float[] centroid(int centroidOrdinal) {
-                throw new IllegalStateException("No centroids");
-            }
-        };
-
-        int size();
-
-        float[] centroid(int centroidOrdinal) throws IOException;
-    }
-
-    // TODO throw away rawCentroids
-    static class OnHeapCentroidSupplier implements CentroidSupplier {
-        private final float[][] centroids;
-
-        OnHeapCentroidSupplier(float[][] centroids) {
-            this.centroids = centroids;
-        }
-
-        @Override
-        public int size() {
-            return centroids.length;
-        }
-
-        @Override
-        public float[] centroid(int centroidOrdinal) throws IOException {
-            return centroids[centroidOrdinal];
-        }
-    }
 }

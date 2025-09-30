@@ -27,7 +27,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -78,7 +77,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -1978,71 +1976,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.fieldUsages(), equalTo(18L));
         // _id: (5,8), f1: (3,5), f1.keyword: (3,5), f2: (3,5), f2.keyword: (3,5), f3: (4,3), f3.keyword: (6,8)
         assertThat(stats.postingsInMemoryBytes(), equalTo(postingsBytesTrackingEnabled ? 66L : 0L));
-        closeShards(shard);
-    }
-
-    public void testShardFieldStatsWithDeletes() throws IOException {
-        Settings settings = Settings.builder()
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-            .build();
-        IndexShard shard = newShard(true, settings);
-        assertNull(shard.getShardFieldStats());
-        recoverShardFromStore(shard);
-        boolean liveDocsTrackingEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-
-        // index some documents
-        int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "_doc", "first_" + i, """
-                {
-                    "f1": "foo",
-                    "f2": "bar"
-                }
-                """);
-        }
-        shard.refresh("test");
-        var stats = shard.getShardFieldStats();
-        assertThat(stats.numSegments(), equalTo(1));
-        assertThat(stats.liveDocsBytes(), equalTo(0L));
-
-        // delete a doc
-        deleteDoc(shard, "first_0");
-
-        // Refresh and fetch new stats:
-        shard.refresh("test");
-        stats = shard.getShardFieldStats();
-        // More segments because delete operation is stored in the new segment for replication purposes.
-        assertThat(stats.numSegments(), equalTo(2));
-        long expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second segment the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
-        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
-
-        // delete another doc:
-        deleteDoc(shard, "first_1");
-        shard.getMinRetainedSeqNo();
-
-        // Refresh and fetch new stats:
-        shard.refresh("test");
-        stats = shard.getShardFieldStats();
-        // More segments because delete operation is stored in the new segment for replication purposes.
-        assertThat(stats.numSegments(), equalTo(3));
-        expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            // First segment with deletes
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second and third segments the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
-        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
-
         closeShards(shard);
     }
 
@@ -4494,6 +4427,66 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.translogStats().getUncommittedOperations(), equalTo(0));
         assertFalse(shard.isActive());
 
+        closeShards(shard);
+    }
+
+    @TestLogging(reason = "testing traces of concurrent flush and engine reset", value = "org.elasticsearch.index.shard.IndexShard:TRACE")
+    public void testFlushOnIdleDoesNotWaitWhileEngineIsReset() throws Exception {
+        final var preparedForReset = new AtomicBoolean();
+        final var shard = newStartedShard(true, Settings.EMPTY, config -> {
+            if (preparedForReset.get()) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
+            } else {
+                return new InternalEngine(config) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {
+                        assertTrue(preparedForReset.compareAndSet(false, true));
+                    }
+                };
+            }
+        });
+        final var engineResetLock = shard.getEngine().getEngineConfig().getEngineResetLock();
+
+        final var release = new CountDownLatch(1);
+        final var reset = new PlainActionFuture<Void>();
+        final var resetEngineThread = new Thread(() -> {
+            try {
+                shard.acquirePrimaryOperationPermit(reset.delegateFailure((l, permit) -> {
+                    try (permit) {
+                        shard.resetEngine(newEngine -> {
+                            assertThat(engineResetLock.isWriteLockedByCurrentThread(), equalTo(true));
+                            assertThat(newEngine, instanceOf(ReadOnlyEngine.class));
+                            safeAwait(release);
+                        });
+                        assertThat(preparedForReset.get(), equalTo(true));
+                        l.onResponse(null);
+                    }
+                }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            } catch (Exception e) {
+                reset.onFailure(e);
+            }
+        });
+        resetEngineThread.start();
+
+        assertBusy(() -> assertThat(engineResetLock.isWriteLocked(), equalTo(true)));
+
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "should see flush on idle returning since it will not wait for the engine reset",
+                    IndexShard.class.getCanonicalName(),
+                    Level.TRACE,
+                    "flush on idle skipped"
+                )
+            );
+            shard.flushOnIdle(0);
+            mockLog.awaitAllExpectationsMatched();
+        }
+
+        release.countDown();
+        safeGet(reset);
+        assertThat(engineResetLock.isWriteLocked(), equalTo(false));
+        resetEngineThread.join();
         closeShards(shard);
     }
 

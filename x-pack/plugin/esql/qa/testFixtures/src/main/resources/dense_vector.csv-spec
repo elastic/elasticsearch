@@ -1,6 +1,7 @@
 retrieveDenseVectorData
 required_capability: dense_vector_field_type
 required_capability: dense_vector_agg_metric_double_if_fns
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
 | EVAL k = v_l2_norm(float_vector, [1])  // workaround to enable fetching dense_vector

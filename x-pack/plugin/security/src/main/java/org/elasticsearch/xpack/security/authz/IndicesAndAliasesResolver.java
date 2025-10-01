@@ -440,12 +440,13 @@ class IndicesAndAliasesResolver {
         if (replaceable.getResolvedIndexExpressions() == null) {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
+            // see https://github.com/elastic/elasticsearch/issues/135799
             assert replaceable.indices() == null || isNoneExpression(replaceable.indices())
                 : "resolved index expressions are already set to ["
                     + replaceable.getResolvedIndexExpressions()
-                    + "] should not reset again. We will not set to ["
+                    + "] and should not be set again. Attempted to set to new expressions ["
                     + Arrays.toString(replaceable.indices())
-                    + "]. Known exception is [*,-*]";
+                    + "].";
         }
     }
 

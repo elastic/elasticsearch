@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetSampleActionIT extends ESIntegTestCase {
 
     public void testGetSample() throws Exception {
+        assumeTrue("Requires the sampling feature flag to be enabled", SamplingService.RANDOM_SAMPLING_FEATURE_FLAG);
         String indexName = randomIdentifier();
         assertEmptySample(indexName);
         addSamplingConfig(indexName);

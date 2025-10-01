@@ -52,7 +52,6 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
         this.samplingService = samplingService;
     }
 
-    @SuppressWarnings("checkstyle:LineLength")
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
         SamplingMetadata samplingMetadata = clusterService.state()

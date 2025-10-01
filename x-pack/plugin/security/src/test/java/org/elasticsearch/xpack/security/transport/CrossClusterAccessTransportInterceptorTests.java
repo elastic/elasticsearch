@@ -92,7 +92,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class CrossClusterAccessTransportInterceptorTests extends ServerTransportInterceptorTests {
+public class CrossClusterAccessTransportInterceptorTests extends AbstractServerTransportInterceptorTests {
 
     private Settings settings;
     private ThreadPool threadPool;
@@ -739,9 +739,9 @@ public class CrossClusterAccessTransportInterceptorTests extends ServerTransport
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), containsInAnyOrder("default", "_remote_cluster"));
-        assertThat(((DefaultServerTransportFilter) profileFilters.get("default")).isExtractClientCert(), is(transportSslEnabled));
+        assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
         assertThat(profileFilters.get("default"), not(instanceOf(CrossClusterAccessServerTransportFilter.class)));
-        assertThat(((DefaultServerTransportFilter) profileFilters.get("_remote_cluster")).isExtractClientCert(), is(false));
+        assertThat(profileFilters.get("_remote_cluster").isExtractClientCert(), is(false));
         assertThat(profileFilters.get("_remote_cluster"), instanceOf(CrossClusterAccessServerTransportFilter.class));
     }
 
@@ -802,7 +802,7 @@ public class CrossClusterAccessTransportInterceptorTests extends ServerTransport
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), contains("default"));
-        assertThat(((DefaultServerTransportFilter) profileFilters.get("default")).isExtractClientCert(), is(transportSslEnabled));
+        assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
     }
 
     public void testGetRemoteProfileTransportFilter() {

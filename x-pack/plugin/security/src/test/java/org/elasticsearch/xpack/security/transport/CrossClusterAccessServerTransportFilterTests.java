@@ -57,7 +57,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class CrossClusterAccessServerTransportFilterTests extends ServerTransportFilterTests {
+public class CrossClusterAccessServerTransportFilterTests extends AbstractServerTransportFilterTests {
 
     private AuthenticationService authcService;
     private AuthorizationService authzService;
@@ -93,7 +93,7 @@ public class CrossClusterAccessServerTransportFilterTests extends ServerTranspor
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
-        DefaultServerTransportFilter filter = getNodeCrossClusterAccessFilter();
+        CrossClusterAccessServerTransportFilter filter = getNodeCrossClusterAccessFilter();
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
@@ -108,7 +108,9 @@ public class CrossClusterAccessServerTransportFilterTests extends ServerTranspor
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
-        DefaultServerTransportFilter filter = getNodeCrossClusterAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
+        CrossClusterAccessServerTransportFilter filter = getNodeCrossClusterAccessFilter(
+            Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS))
+        );
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
         filter.inbound(action, request, channel, listener);
         var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
@@ -140,7 +142,7 @@ public class CrossClusterAccessServerTransportFilterTests extends ServerTranspor
             }
             threadContext.putHeader(headerToInclude, randomAlphaOfLength(42));
         }
-        DefaultServerTransportFilter filter = new CrossClusterAccessServerTransportFilter(
+        CrossClusterAccessServerTransportFilter filter = new CrossClusterAccessServerTransportFilter(
             crossClusterAccessAuthcService,
             authzService,
             threadContext,
@@ -169,7 +171,7 @@ public class CrossClusterAccessServerTransportFilterTests extends ServerTranspor
     }
 
     public void testInboundAuthorizationException() {
-        DefaultServerTransportFilter filter = getNodeCrossClusterAccessFilter();
+        CrossClusterAccessServerTransportFilter filter = getNodeCrossClusterAccessFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         String action = TransportSearchAction.TYPE.name();
@@ -208,7 +210,7 @@ public class CrossClusterAccessServerTransportFilterTests extends ServerTranspor
             callback.onFailure(authE);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        DefaultServerTransportFilter filter = getNodeCrossClusterAccessFilter();
+        CrossClusterAccessServerTransportFilter filter = getNodeCrossClusterAccessFilter();
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             filter.inbound(action, request, channel, future);
@@ -226,7 +228,7 @@ public class CrossClusterAccessServerTransportFilterTests extends ServerTranspor
         final MockLicenseState unsupportedLicenseState = MockLicenseState.createMock();
         Mockito.when(unsupportedLicenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(false);
 
-        DefaultServerTransportFilter crossClusterAccessFilter = getNodeCrossClusterAccessFilter(unsupportedLicenseState);
+        CrossClusterAccessServerTransportFilter crossClusterAccessFilter = getNodeCrossClusterAccessFilter(unsupportedLicenseState);
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
         String action = randomAlphaOfLengthBetween(10, 20);
         crossClusterAccessFilter.inbound(action, mock(TransportRequest.class), channel, listener);

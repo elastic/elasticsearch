@@ -106,7 +106,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             assert profileConfiguration != null : "SSL Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
             profileFilters.put(
                 profileName,
-                new DefaultServerTransportFilter(
+                new ServerTransportFilter(
                     authcService,
                     authzService,
                     threadPool.getThreadContext(),

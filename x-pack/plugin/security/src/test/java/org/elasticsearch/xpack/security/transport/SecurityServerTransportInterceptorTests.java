@@ -68,7 +68,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SecurityServerTransportInterceptorTests extends ServerTransportInterceptorTests {
+public class SecurityServerTransportInterceptorTests extends AbstractServerTransportInterceptorTests {
 
     private Settings settings;
     private ThreadPool threadPool;
@@ -113,7 +113,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new NoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -159,7 +159,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new NoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -199,7 +199,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new NoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor()
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -257,7 +257,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new NoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -321,7 +321,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new NoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor()
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -383,7 +383,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new NoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor()
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -507,7 +507,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
                 (request, channel, task) -> fail("should fail at destructive operations check to trigger listener failure"),
                 Map.of(
                     profileName,
-                    new DefaultServerTransportFilter(null, null, threadContext, randomBoolean(), destructiveOperations, securityContext)
+                    new ServerTransportFilter(null, null, threadContext, randomBoolean(), destructiveOperations, securityContext)
                 ),
                 threadPool
             );
@@ -531,7 +531,7 @@ public class SecurityServerTransportInterceptorTests extends ServerTransportInte
         assertTrue(exceptionSent.get());
     }
 
-    private static class NoopRemoteClusterTransportInterceptor implements RemoteClusterTransportInterceptor {
+    private static class TestNoopRemoteClusterTransportInterceptor implements RemoteClusterTransportInterceptor {
 
         @Override
         public AsyncSender interceptSender(AsyncSender sender) {

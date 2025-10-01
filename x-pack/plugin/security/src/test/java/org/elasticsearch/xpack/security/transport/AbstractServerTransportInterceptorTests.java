@@ -29,7 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class ServerTransportInterceptorTests extends ESTestCase {
+public abstract class AbstractServerTransportInterceptorTests extends ESTestCase {
 
     protected static String[] randomRoles() {
         return generateRandomStringArray(3, 10, false, true);

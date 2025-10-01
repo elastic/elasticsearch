@@ -77,8 +77,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             null,
             clusterSupportsFeature,
             size -> searchRequest.source().size(size),
-            // This endpoint is CPS-enabled.
-            Optional.of(true)
+            // This endpoint is CPS-enabled so propagate the right value.
+            Optional.of(inCpsContext)
         );
 
         // Creates the search template request

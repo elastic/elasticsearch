@@ -1,6 +1,0 @@
-pr: 135697
-summary: Update mechanism for under construction data types
-area: ES|QL
-type: bug
-issues:
- - 135193

@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
@@ -29,7 +28,6 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -152,10 +150,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         } else {
             shape = null;
             indexedShapeId = in.readOptionalString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                String type = in.readOptionalString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc], got [" + type + "]";
-            }
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
             indexedShapeRouting = in.readOptionalString();
@@ -177,9 +171,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             GeometryIO.writeGeometry(out, shape);
         } else {
             out.writeOptionalString(indexedShapeId);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeOptionalString(indexedShapeIndex);
             out.writeOptionalString(indexedShapePath);
             out.writeOptionalString(indexedShapeRouting);

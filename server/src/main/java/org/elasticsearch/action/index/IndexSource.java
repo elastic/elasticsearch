@@ -349,5 +349,6 @@ public class IndexSource implements Writeable, Releasable {
         this.source = source;
         this.bytesSourceSize = source.length();
         this.contentType = contentType;
+        this.structuredSource = null;
     }
 }

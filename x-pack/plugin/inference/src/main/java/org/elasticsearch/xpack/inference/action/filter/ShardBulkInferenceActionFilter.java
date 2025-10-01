@@ -500,7 +500,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return 0;
             }
 
-            final Map<String, Object> docMap = indexRequest.getIndexRequest().sourceAsMap();
+            final Map<String, Object> docMap = indexRequest.getIndexRequest().indexSource().sourceAsMap();
             long inputLength = 0;
             for (var entry : fieldInferenceMap.values()) {
                 String field = entry.getName();
@@ -731,7 +731,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int originalSourceSize = indexSource.byteLength();
             BytesReference originalSource = indexSource.bytes();
             if (useLegacyFormat) {
-                var newDocMap = indexSource.sourceAsMap();
+                var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
                     XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }

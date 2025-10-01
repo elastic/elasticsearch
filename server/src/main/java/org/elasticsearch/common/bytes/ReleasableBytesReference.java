@@ -51,6 +51,13 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, ALWAYS_REFERENCED);
     }
 
+    public static BytesReference unwrap(BytesReference reference) {
+        if (reference instanceof ReleasableBytesReference releasable) {
+            return releasable.delegate;
+        }
+        return reference;
+    }
+
     @Override
     public void incRef() {
         refCounted.incRef();
@@ -278,8 +285,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return delegate.arrayOffset();
     }
 
-    @Override
-    public BytesReference unwrap() {
+    public BytesReference delegate() {
         assert hasReferences();
         return delegate;
     }

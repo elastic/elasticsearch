@@ -22,8 +22,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -626,7 +628,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final BytesReference header = out.bytes();
             Serialized serialized = Serialized.create(
                 header,
-                operation instanceof Index index ? index.source().unwrap() : null,
+                operation instanceof Index index ? ReleasableBytesReference.unwrap(index.source()) : null,
                 new CRC32()
             );
 
@@ -710,6 +712,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 BytesRef headerNext = headerIterator.next();
                 return headerNext != null ? headerNext : sourceIterator != null ? sourceIterator.next() : null;
             };
+        }
+
+        public void writeToTranslogBuffer(RecyclerBytesStreamOutput buffer) throws IOException {
+            header.writeTo(buffer);
+            if (source != null) {
+                source.writeTo(buffer);
+            }
+            buffer.writeInt(checksum);
         }
     }
 

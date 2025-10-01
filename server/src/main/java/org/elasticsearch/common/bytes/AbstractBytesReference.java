@@ -194,4 +194,5 @@ public abstract class AbstractBytesReference implements BytesReference {
         BytesRef bytes = toBytesRef();
         return builder.value(bytes.bytes, bytes.offset, bytes.length);
     }
+
 }

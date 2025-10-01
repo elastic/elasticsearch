@@ -1653,7 +1653,7 @@ public class TranslogTests extends ESTestCase {
             locations.add(location);
             try (TranslogStreamOutput output = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
                 try {
-                    output.writeSerializedOperation(operation);
+                    operation.writeToTranslogBuffer(output);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

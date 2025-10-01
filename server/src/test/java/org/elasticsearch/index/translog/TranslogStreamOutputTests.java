@@ -62,7 +62,7 @@ public class TranslogStreamOutputTests extends ESTestCase {
                 source,
                 new CRC32()
             );
-            fullOperationOutput.writeSerializedOperation(serialized);
+            serialized.writeToTranslogBuffer(fullOperationOutput);
 
             BytesReference actualWithSize = fullOperationOutput.bytes();
             assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalTo(expectedWithoutSize));
@@ -103,7 +103,7 @@ public class TranslogStreamOutputTests extends ESTestCase {
                 null,
                 new CRC32()
             );
-            fullOperationOutput.writeSerializedOperation(serialized);
+            serialized.writeToTranslogBuffer(fullOperationOutput);
 
             BytesReference actualWithSize = fullOperationOutput.bytes();
             assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalTo(expectedWithoutSize));
@@ -142,7 +142,7 @@ public class TranslogStreamOutputTests extends ESTestCase {
                 null,
                 new CRC32()
             );
-            fullOperationOutput.writeSerializedOperation(serialized);
+            serialized.writeToTranslogBuffer(fullOperationOutput);
 
             BytesReference actualWithSize = fullOperationOutput.bytes();
             assertThat(actualWithSize.slice(4 + offset, actualWithSize.length() - offset - 4), equalTo(expectedWithoutSize));

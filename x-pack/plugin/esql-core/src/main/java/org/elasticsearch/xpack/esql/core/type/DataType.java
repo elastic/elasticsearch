@@ -295,6 +295,9 @@ public enum DataType implements Writeable {
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
     // We use INDEX_SOURCE because it's already on Serverless at the time of writing, and it's not in stateful versions before 9.2.0.
+    // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support these types, we'll be missing validation for
+    // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because these types require specific
+    // geo functions to turn up in the query, and those types aren't available before 9.2.0 either.
     GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
     GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
     GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
@@ -317,6 +320,9 @@ public enum DataType implements Writeable {
      * for this field and the segments themselves are sorted on this value.
      */
     // We use INDEX_SOURCE because it's already on Serverless at the time of writing, and it's not in stateful versions before 9.2.0.
+    // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support _tsid, we'll be missing validation for
+    // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because _tsid requires specifically being
+    // used in `FROM idx METADATA _tsid` or in the `TS` command, which both weren't available before 9.2.0.
     TSID_DATA_TYPE(builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues().supportedOn(INDEX_SOURCE)),
     /**
      * Fields with this type are the partial result of running a non-time-series aggregation

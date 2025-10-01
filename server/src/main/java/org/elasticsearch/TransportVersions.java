@@ -264,10 +264,6 @@ public class TransportVersions {
     public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_100_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = def(9_101_0_00);
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
-    /**
-     * Also used for determining when some new ESQL data types were introduced, as a workaround to then-missing proper versioning of data
-     * types. Do not backport without updating that workaround as well, otherwise mixed-version clusters may misbehave.
-     */
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
     public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);
     public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);

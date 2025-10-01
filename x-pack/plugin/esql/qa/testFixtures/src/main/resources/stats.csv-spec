@@ -2299,34 +2299,6 @@ M
 null
 ;
 
-docsStatsMvGroup
-// tag::mv-group[]
-ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC
-// end::mv-group[]
-;
-
-// tag::mv-group-result[]
-MIN(i):integer | a:keyword
-             1 | a
-             1 | b
-// end::mv-group-result[]
-;
-
-docsStatsMultiMvGroup
-// tag::multi-mv-group[]
-ROW i=1, a=["a", "b"], b=[2, 3] | STATS MIN(i) BY a, b | SORT a ASC, b ASC
-// end::multi-mv-group[]
-;
-
-// tag::multi-mv-group-result[]
-MIN(i):integer | a:keyword | b:integer
-             1 | a         | 2
-             1 | a         | 3
-             1 | b         | 2
-             1 | b         | 3
-// end::multi-mv-group-result[]
-;
-
 statsByConstant#[skip:-8.14.1,reason:implemented in 8.14]
 from employees
 | stats m = max(salary), a = round(avg(salary)) by 0
@@ -3162,7 +3134,7 @@ m:datetime               | x:integer | d:boolean
 
 sumWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 FROM employees
 | EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(1)
@@ -3197,7 +3169,7 @@ w_avg1:double | w_avg2:double | w_avg3:double | w_avg4:double | w_avg5:double | 
 
 maxWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3214,7 +3186,7 @@ max1:double | max2:double | max3:integer | max4:integer
 
 minWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3231,7 +3203,7 @@ min1:double | min2:double | min3:integer | min4:integer
 
 countWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3267,7 +3239,7 @@ count1:long | count2:long | count3:long | count4:long
 
 avgWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3337,4 +3309,75 @@ FROM employees
 
 min1:integer | min2:integer   | max1:integer | max2:integer
 10011        | [10011, 10012] | 10079        | [10079, 10078]
+;
+
+sumRowMany
+// tag::mv-group[]
+ROW price = 10, color = ["blue", "pink", "yellow"]
+| STATS SUM(price) BY color
+// end::mv-group[]
+| SORT color ASC
+;
+
+// tag::mv-group-result[]
+SUM(price):long | color:keyword
+             10 | blue
+             10 | pink
+             10 | yellow
+// end::mv-group-result[]
+;
+
+sumRowManyTwo
+// tag::multi-mv-group[]
+ROW price = 10, color = ["blue", "pink", "yellow"], size = ["s", "m", "l"]
+| STATS SUM(price) BY color, size
+// end::multi-mv-group[]
+| SORT color ASC, size ASC
+;
+
+// tag::multi-mv-group-result[]
+SUM(price):long | color:keyword | size:keyword
+             10 | blue          | l
+             10 | blue          | m
+             10 | blue          | s
+             10 | pink          | l
+             10 | pink          | m
+             10 | pink          | s
+             10 | yellow        | l
+             10 | yellow        | m
+             10 | yellow        | s
+// end::multi-mv-group-result[]
+;
+
+valuesRowMany
+// tag::mv-group-values[]
+ROW color = ["blue", "pink", "yellow"]
+| STATS VALUES(color) BY color
+// end::mv-group-values[]
+| SORT color ASC
+;
+
+// tag::mv-group-values-result[]
+VALUES(color):keyword | color:keyword
+ [blue, pink, yellow] | blue
+ [blue, pink, yellow] | pink
+ [blue, pink, yellow] | yellow
+// end::mv-group-values-result[]
+;
+
+valuesRowManyExpand
+// tag::mv-group-values-expand[]
+ROW color = ["blue", "pink", "yellow"]
+| MV_EXPAND color
+| STATS VALUES(color) BY color
+// end::mv-group-values-expand[]
+| SORT color ASC
+;
+
+// tag::mv-group-values-expand-result[]
+VALUES(color):keyword | color:keyword
+                 blue | blue
+                 pink | pink
+               yellow | yellow
+// end::mv-group-values-expand-result[]
 ;

@@ -278,7 +278,11 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
          */
 
         int numberOfShards = 6;
-        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, numberOfShards, 3);
+        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            new String[] { indexName },
+            numberOfShards,
+            3
+        );
         // The number of data nodes the util method above creates is numberOfReplicas+2, and five data nodes are needed for this test.
         assertEquals(5, clusterState.nodes().size());
         assertEquals(1, clusterState.metadata().getTotalNumberOfIndices());

@@ -89,7 +89,7 @@ public class SamplingService implements ClusterStateListener {
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) {
         maybeSample(projectMetadata, indexRequest.index(), indexRequest, () -> {
             /*
-             * The conditional scripts usd by random sampling work off of IngestDocuments, in the same way conditionals do in pipelines. In
+             * The conditional scripts used by random sampling work off of IngestDocuments, in the same way conditionals do in pipelines. In
              * this case, we did not have an IngestDocument (which happens when there are no pipelines). So we construct one with the same
              * fields as this IndexRequest for use in conditionals. It is created in this lambda to avoid the expensive sourceAsMap call
              * if the condition is never executed.

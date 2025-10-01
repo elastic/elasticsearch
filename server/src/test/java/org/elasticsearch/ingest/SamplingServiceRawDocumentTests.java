@@ -48,7 +48,6 @@ public class SamplingServiceRawDocumentTests extends AbstractWireSerializingTest
             case 3 -> xContentType = randomValueOtherThan(xContentType, () -> randomFrom(XContentType.values()));
             default -> throw new IllegalArgumentException("Should never get here");
         }
-        ;
         return new RawDocument(projectId, indexName, source, xContentType);
     }
 }

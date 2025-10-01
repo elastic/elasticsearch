@@ -73,7 +73,6 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
                 : null;
             default -> throw new IllegalArgumentException("Should never get here");
         }
-        ;
         return mutated;
     }
 

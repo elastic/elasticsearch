@@ -23,39 +23,34 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -120,7 +115,7 @@ public class Approximate {
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 100000;
 
-    private static final int BUCKET_COUNT = 3; // 25;
+    private static final int BUCKET_COUNT = 3;
 
     private static final Logger logger = LogManager.getLogger(Approximate.class);
 
@@ -321,6 +316,7 @@ public class Approximate {
 
                 Eval addBucketId = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
                 List<NamedExpression> aggregates = new ArrayList<>();
+                Expression allBucketsNonNull = Literal.TRUE;
                 for (NamedExpression aggOrKey : aggregate.aggregates()) {
                     if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
                         // This is a grouping key, not an aggregate function.
@@ -338,26 +334,25 @@ public class Approximate {
                                 Literal.fromDouble(Source.EMPTY, bucketId == -1 ? sampleProbability : sampleProbability / BUCKET_COUNT)
                               )
                             : bucketedAgg;
-                        Alias correctAggAlias = bucketId == -1
+                        Alias correctedAggAlias = bucketId == -1
                             ? aggAlias.replaceChild(correctedAgg)
                             : new Alias(
                                 Source.EMPTY,
                                 aggOrKey.name() + "$bucket:" + bucketId,
                                 correctedAgg
                             );
-                        aggregates.add(correctAggAlias);
+                        aggregates.add(correctedAggAlias);
                         if (bucketId >= 0) {
-                            bucketedAggs.add(correctAggAlias);
+                            bucketedAggs.add(correctedAggAlias);
                         }
+                        allBucketsNonNull = new And(Source.EMPTY, allBucketsNonNull, new IsNotNull(Source.EMPTY, correctedAggAlias.toAttribute()));
                     }
                     variablesWithConfidenceInterval.put(aggOrKey.id(), bucketedAggs);
                 }
                 plan = aggregate.with(addBucketId, aggregate.groupings(), aggregates);
+                plan = new Filter(Source.EMPTY, plan, allBucketsNonNull);
 
             } else if (encounteredStats.get()) {
-                System.out.println("@@@ UPDATE variablesWithConfidenceInterval");
-                System.out.println("plan = " + plan);
-                System.out.println("vars = " + variablesWithConfidenceInterval);
                 switch (plan) {
                     case Eval eval:
                         List<Alias> newFields = new ArrayList<>(eval.fields());
@@ -390,21 +385,18 @@ public class Approximate {
                         }
                         plan = new Eval(Source.EMPTY, eval.child(), newFields);
                         break;
-//                    case Project project:
-//                        List<NamedExpression> projections = new ArrayList<>(project.projections());
-//                        plan = project.withProjections(projections);
-//                        break;
-                    case Rename rename:
-                        // TODO
+                    case Project project:
+                        for (NamedExpression projection : project.projections()) {
+                            if (projection instanceof Alias alias1 && alias1.child() instanceof NamedExpression named && variablesWithConfidenceInterval.containsKey(named.id())) {
+                                variablesWithConfidenceInterval.put(alias1.id(), variablesWithConfidenceInterval.get(named.id()));
+                            }
+                        }
                         break;
                     default:
                 }
-                System.out.println("vars = " + variablesWithConfidenceInterval);
             }
             return plan;
         });
-
-        System.out.println("### OUTPUT: " + approximatePlan.output());
 
         List<Alias> confidenceIntervals = new ArrayList<>();
         for (Attribute output : logicalPlan.output()) {
@@ -420,9 +412,7 @@ public class Approximate {
                     new ConfidenceInterval(
                         Source.EMPTY,
                         output,
-                        appendedBuckets,
-                        Literal.integer(Source.EMPTY, BUCKET_COUNT),
-                        Literal.fromDouble(Source.EMPTY, 0.0)
+                        appendedBuckets
                     )
                 ));
             }
@@ -445,7 +435,6 @@ public class Approximate {
         );
 
         logger.info("### AFTER APPROXIMATE:\n{}", approximatePlan);
-        System.out.println("### OUTPUT: " + approximatePlan.output());
 
         approximatePlan.setPreOptimized();
         return approximatePlan;

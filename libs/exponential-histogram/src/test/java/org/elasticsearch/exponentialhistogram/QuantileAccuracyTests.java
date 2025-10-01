@@ -67,10 +67,10 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         ExponentialHistogram histogram = createAutoReleasedHistogram(
             b -> b.scale(0).setNegativeBucket(1, 1).setPositiveBucket(1, 1).max(0.00001).min(-0.00002)
         );
-        double p01 = ExponentialHistogramQuantile.getQuantile(histogram, 0.01);
-        double p99 = ExponentialHistogramQuantile.getQuantile(histogram, 0.99);
-        assertThat(p01, equalTo(-0.00002));
-        assertThat(p99, equalTo(0.00001));
+        double p0 = ExponentialHistogramQuantile.getQuantile(histogram, 0.0);
+        double p100 = ExponentialHistogramQuantile.getQuantile(histogram, 1.0);
+        assertThat(p0, equalTo(-0.00002));
+        assertThat(p100, equalTo(0.00001));
     }
 
     public void testMinMaxClampedPercentileAccuracy() {

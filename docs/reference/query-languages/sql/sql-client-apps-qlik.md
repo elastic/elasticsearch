@@ -16,10 +16,9 @@ You can use the {{es}} ODBC driver to access {{es}} data from Qlik Sense Desktop
 Elastic does not endorse, promote or provide support for this application; for native {{es}} integration in this product, reach out to its vendor.
 ::::
 
-
 ## Prerequisites [_prerequisites_8]
 
-* [Qlik Sense Desktop](https://www.qlik.com/us/try-or-buy/download-qlik-sense) November 2018 or higher. You must have a Qlik account to download it.
+* [Qlik Sense Desktop](https://community.qlik.com/t5/Download-Qlik-Products/tkb-p/Downloads) November 2018 or higher. You must have a Qlik account to download it.
 * {{es}} SQL [ODBC driver](sql-odbc.md)
 * A preconfigured User or System DSN (see [Configuration](sql-odbc-setup.md#dsn-configuration) section on how to configure a DSN).
 

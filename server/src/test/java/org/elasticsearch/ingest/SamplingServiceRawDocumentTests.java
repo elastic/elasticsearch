@@ -9,61 +9,44 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.ingest.SamplingService.RawDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class SamplingServiceRawDocumentTests extends AbstractWireSerializingTestCase<SamplingService.RawDocument> {
+public class SamplingServiceRawDocumentTests extends AbstractWireSerializingTestCase<RawDocument> {
     @Override
-    protected Writeable.Reader<SamplingService.RawDocument> instanceReader() {
-        return SamplingService.RawDocument::new;
+    protected Writeable.Reader<RawDocument> instanceReader() {
+        return RawDocument::new;
     }
 
     @Override
-    protected SamplingService.RawDocument createTestInstance() {
-        return new SamplingService.RawDocument(
+    protected RawDocument createTestInstance() {
+        return new RawDocument(
             randomProjectIdOrDefault(),
             randomIdentifier(),
-            randomSource(),
+            randomByteArrayOfLength(randomIntBetween(10, 1000)),
             randomFrom(XContentType.values())
         );
     }
 
-    @Override
-    protected SamplingService.RawDocument mutateInstance(SamplingService.RawDocument instance) throws IOException {
-        return switch (between(0, 3)) {
-            case 0 -> new SamplingService.RawDocument(
-                randomValueOtherThan(instance.projectId(), ESTestCase::randomProjectIdOrDefault),
-                instance.indexName(),
-                instance.source(),
-                instance.contentType()
-            );
-            case 1 -> new SamplingService.RawDocument(
-                instance.projectId(),
-                randomValueOtherThan(instance.indexName(), ESTestCase::randomIdentifier),
-                instance.source(),
-                instance.contentType()
-            );
-            case 2 -> new SamplingService.RawDocument(
-                instance.projectId(),
-                instance.indexName(),
-                randomValueOtherThan(instance.source(), SamplingServiceRawDocumentTests::randomSource),
-                instance.contentType()
-            );
-            case 3 -> new SamplingService.RawDocument(
-                instance.projectId(),
-                instance.indexName(),
-                instance.source(),
-                randomValueOtherThan(instance.contentType(), () -> randomFrom(XContentType.values()))
-            );
-            default -> throw new AssertionError("Illegal randomisation branch");
-        };
-    }
+    protected RawDocument mutateInstance(RawDocument instance) throws IOException {
+        ProjectId projectId = instance.projectId();
+        String indexName = instance.indexName();
+        byte[] source = instance.source();
+        XContentType xContentType = instance.contentType();
 
-    private static byte[] randomSource() {
-        return randomByteArrayOfLength(randomIntBetween(0, 10000));
+        switch (between(0, 3)) {
+            case 0 -> projectId = randomValueOtherThan(projectId, ESTestCase::randomProjectIdOrDefault);
+            case 1 -> indexName = randomValueOtherThan(indexName, ESTestCase::randomIdentifier);
+            case 2 -> source = randomByteArrayOfLength(randomIntBetween(100, 1000));
+            case 3 -> xContentType = randomValueOtherThan(xContentType, () -> randomFrom(XContentType.values()));
+            default -> throw new IllegalArgumentException("Should never get here");
+        }
+        return new RawDocument(projectId, indexName, source, xContentType);
     }
 }

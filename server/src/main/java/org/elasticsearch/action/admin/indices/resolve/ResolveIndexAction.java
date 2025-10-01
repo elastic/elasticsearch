@@ -169,14 +169,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names)
-                && indexModes.equals(request.indexModes)
-                && includeResolvedExpressions == request.includeResolvedExpressions;
+            return Arrays.equals(names, request.names) && indexModes.equals(request.indexModes);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(names), indexModes, includeResolvedExpressions);
+            return Objects.hash(Arrays.hashCode(names), indexModes);
         }
 
         @Override
@@ -531,7 +529,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.indices = in.readCollectionAsList(ResolvedIndex::new);
             this.aliases = in.readCollectionAsList(ResolvedAlias::new);
             this.dataStreams = in.readCollectionAsList(ResolvedDataStream::new);
-            this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+            if (in.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
+                this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+            } else {
+                this.resolvedIndexExpressions = null;
+            }
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -551,7 +553,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             out.writeCollection(indices);
             out.writeCollection(aliases);
             out.writeCollection(dataStreams);
-            out.writeOptionalWriteable(resolvedIndexExpressions);
+            if (out.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
+                out.writeOptionalWriteable(resolvedIndexExpressions);
+            }
         }
 
         @Override

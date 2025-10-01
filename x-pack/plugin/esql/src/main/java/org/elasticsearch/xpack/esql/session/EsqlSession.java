@@ -694,7 +694,7 @@ public class EsqlSession {
         );
         if (preAnalysis.indexPattern() != null) {
             if (executionInfo.clusterAliases().isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
+                // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
                 listener.onResponse(
                     result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
                 );

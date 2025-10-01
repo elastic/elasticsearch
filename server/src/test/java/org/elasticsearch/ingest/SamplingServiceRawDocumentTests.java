@@ -34,6 +34,7 @@ public class SamplingServiceRawDocumentTests extends AbstractWireSerializingTest
         );
     }
 
+    @Override
     protected RawDocument mutateInstance(RawDocument instance) throws IOException {
         ProjectId projectId = instance.projectId();
         String indexName = instance.indexName();

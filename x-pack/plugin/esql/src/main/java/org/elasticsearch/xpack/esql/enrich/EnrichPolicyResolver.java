@@ -141,7 +141,7 @@ public class EnrichPolicyResolver {
         }
 
         final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
+        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, executionInfo, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
             final Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
             for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
@@ -304,6 +304,7 @@ public class EnrichPolicyResolver {
         Collection<String> remoteClusters,
         boolean includeLocal,
         Collection<UnresolvedPolicy> unresolvedPolicies,
+        EsqlExecutionInfo executionInfo,
         ActionListener<Map<String, LookupResponse>> listener
     ) {
         final Map<String, LookupResponse> lookupResponses = ConcurrentCollections.newConcurrentMap();
@@ -315,8 +316,9 @@ public class EnrichPolicyResolver {
             // remote clusters
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
+                    boolean skipOnFailure = executionInfo.shouldSkipOnFailure(cluster);
                     ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
-                    getRemoteConnection(cluster, new ActionListener<Transport.Connection>() {
+                    getRemoteConnection(cluster, skipOnFailure == false, new ActionListener<Transport.Connection>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
                             transportService.sendRequest(
@@ -325,7 +327,7 @@ public class EnrichPolicyResolver {
                                 new LookupRequest(cluster, remotePolicies),
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(
-                                    lookupListener.delegateResponse((l, e) -> failIfSkipUnavailableFalse(e, cluster, l)),
+                                    lookupListener.delegateResponse((l, e) -> failIfSkipUnavailableFalse(e, skipOnFailure, l)),
                                     LookupResponse::new,
                                     threadPool.executor(ThreadPool.Names.SEARCH)
                                 )
@@ -334,7 +336,7 @@ public class EnrichPolicyResolver {
 
                         @Override
                         public void onFailure(Exception e) {
-                            failIfSkipUnavailableFalse(e, cluster, lookupListener);
+                            failIfSkipUnavailableFalse(e, skipOnFailure, lookupListener);
                         }
                     });
                 }
@@ -359,8 +361,8 @@ public class EnrichPolicyResolver {
         }
     }
 
-    private void failIfSkipUnavailableFalse(Exception e, String cluster, ActionListener<LookupResponse> lookupListener) {
-        if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster).orElse(true)) {
+    private void failIfSkipUnavailableFalse(Exception e, boolean skipOnFailure, ActionListener<LookupResponse> lookupListener) {
+        if (ExceptionsHelper.isRemoteUnavailableException(e) && skipOnFailure) {
             lookupListener.onResponse(new LookupResponse(e));
         } else {
             lookupListener.onFailure(e);
@@ -480,11 +482,7 @@ public class EnrichPolicyResolver {
         return projectResolver.getProjectMetadata(clusterService.state()).custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY).getPolicies();
     }
 
-    protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {
-        remoteClusterService.maybeEnsureConnectedAndGetConnection(
-            cluster,
-            remoteClusterService.isSkipUnavailable(cluster).orElse(true) == false,
-            listener
-        );
+    protected void getRemoteConnection(String cluster, boolean ensureConnected, ActionListener<Transport.Connection> listener) {
+        remoteClusterService.maybeEnsureConnectedAndGetConnection(cluster, ensureConnected, listener);
     }
 }

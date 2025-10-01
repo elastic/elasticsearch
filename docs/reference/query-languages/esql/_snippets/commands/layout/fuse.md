@@ -46,7 +46,7 @@ When `fuse_method` is `RRF`, `options` supports the following parameters:
 :   Defaults to `60`. Represents the `rank_constant` used in the RRF formula.
 
 `weights`
-:   Defaults to `{}`. Sets different weights for RRF scores based on `group_column` values. Refer to the [Set custom weights](#set-custom-weights) example.
+:   Defaults to `{}`. Allows you to set different weights for RRF scores based on `group_column` values. Refer to the [Set custom weights](#set-custom-weights) example.
 :::
 
 :::{tab-item} LINEAR
@@ -56,7 +56,7 @@ When `fuse_method` is `LINEAR`, `options` supports the following parameters:
 :   Defaults to `none`. Can be one of `none` or `minmax`. Specifies which score normalization method to apply.
 
 `weights`
-:   Defaults to `{}`. Sets different weights for scores based on `group_column` values. Refer to the [Set custom weights](#set-custom-weights) example.
+:   Defaults to `{}`. Allows you to different weights for scores based on `group_column` values. Refer to the [Set custom weights](#set-custom-weights) example.
 :::
 ::::
 

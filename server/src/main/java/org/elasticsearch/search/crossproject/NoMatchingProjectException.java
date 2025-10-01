@@ -26,4 +26,5 @@ public final class NoMatchingProjectException extends ResourceNotFoundException 
     public NoMatchingProjectException(StreamInput in) throws IOException {
         super(in);
     }
+
 }

@@ -612,8 +612,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 checkCCSVersionCompatibility(request);
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
-            final boolean resolvedCrossProject = resolveCrossProject(request.indicesOptions());
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
+            final boolean resolvedCrossProject = resolveCrossProject(originalIndicesOptions);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 resolvedCrossProject ? lenientIndicesOptionsForCrossProject(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()

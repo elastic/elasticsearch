@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -20,15 +21,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -48,7 +46,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public class ClusterInfo implements ChunkedToXContent, Writeable {
+public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardSizeEstimator.ShardSizeProvider {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
@@ -68,7 +66,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<ShardId, Double> shardWriteLoads;
     // max heap size per node ID
     final Map<String, ByteSizeValue> maxHeapSizePerNode;
-    private final Map<ShardId, Set<String>> shardToNodeIds;
 
     protected ClusterInfo() {
         this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
@@ -110,7 +107,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
         this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
-        this.shardToNodeIds = computeShardToNodeIds(dataPath);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -140,23 +136,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         } else {
             this.maxHeapSizePerNode = Map.of();
         }
-        this.shardToNodeIds = computeShardToNodeIds(dataPath);
-    }
-
-    private static Map<ShardId, Set<String>> computeShardToNodeIds(Map<NodeAndShard, String> dataPath) {
-        if (dataPath.isEmpty()) {
-            return Map.of();
-        }
-        final var shardToNodeIds = new HashMap<ShardId, Set<String>>();
-        for (NodeAndShard nodeAndShard : dataPath.keySet()) {
-            shardToNodeIds.computeIfAbsent(nodeAndShard.shardId, ignore -> new HashSet<>()).add(nodeAndShard.nodeId);
-        }
-        Maps.transformValues(shardToNodeIds, nodeIds -> Collections.unmodifiableSet(nodeIds));
-        return shardToNodeIds;
-    }
-
-    public Set<String> getNodeIdsForShard(ShardId shardId) {
-        return shardToNodeIds.getOrDefault(shardId, Set.of());
     }
 
     @Override
@@ -311,31 +290,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     /**
      * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
      */
+    @Override
     public Long getShardSize(ShardId shardId, boolean primary) {
         return shardSizes.get(shardIdentifierFromRouting(shardId, primary));
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
-     */
-    public Long getShardSize(ShardRouting shardRouting) {
-        return getShardSize(shardRouting.shardId(), shardRouting.primary());
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardRouting shardRouting, long defaultValue) {
-        Long shardSize = getShardSize(shardRouting);
-        return shardSize == null ? defaultValue : shardSize;
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
-        Long shardSize = getShardSize(shardId, primary);
-        return shardSize == null ? defaultValue : shardSize;
     }
 
     /**
@@ -363,16 +320,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public Map<String, ByteSizeValue> getMaxHeapSizePerNode() {
         return this.maxHeapSizePerNode;
-    }
-
-    /**
-     * Return true if the shard has moved since the time ClusterInfo was created.
-     */
-    public boolean hasShardMoved(ShardRouting shardRouting) {
-        // We use dataPath to find out whether a shard is allocated on a node.
-        // TODO: DataPath is sent with disk usages but thread pool usage is sent separately so that local shard allocation
-        // may change between the two calls.
-        return getDataPath(shardRouting) == null;
     }
 
     /**

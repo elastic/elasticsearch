@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
@@ -67,10 +68,13 @@ public class EsqlQueryGenerator {
         ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
+        InlineStatsGenerator.INSTANCE,
         LimitGenerator.INSTANCE,
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
         RenameGenerator.INSTANCE,
+        // awaits fix for https://github.com/elastic/elasticsearch/issues/135336
+        // SampleGenerator.INSTANCE,
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         WhereGenerator.INSTANCE
@@ -293,12 +297,15 @@ public class EsqlQueryGenerator {
                 if (counterField == null) {
                     yield null;
                 }
-                yield "rate(" + counterField + ")";
+                yield switch ((randomIntBetween(0, 2))) {
+                    case 0 -> "rate(" + counterField + ")";
+                    case 1 -> "first_over_time(" + counterField + ")";
+                    default -> "last_over_time(" + counterField + ")";
+                };
             }
             case 2 -> {
                 // numerics except aggregate_metric_double
                 // TODO: add to case 0 when support for aggregate_metric_double is added to these functions
-                // TODO: add to case 1 when support for counters is added
                 String numericFieldName = randomNumericField(previousOutput);
                 if (numericFieldName == null) {
                     yield null;

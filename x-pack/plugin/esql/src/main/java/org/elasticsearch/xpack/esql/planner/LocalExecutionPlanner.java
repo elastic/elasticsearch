@@ -330,33 +330,35 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(fuse.child(), context);
+        Layout layout = source.layout;
 
-        int scorePosition = -1;
-        int discriminatorPosition = -1;
-        int pos = 0;
-
-        for (Attribute attr : fuse.child().output()) {
-            if (attr.name().equals(fuse.discriminator().name())) {
-                discriminatorPosition = pos;
-            }
-            if (attr.name().equals(fuse.score().name())) {
-                scorePosition = pos;
-            }
-
-            pos += 1;
-        }
-
-        if (scorePosition == -1) {
-            throw new IllegalStateException("can't find score attribute position");
-        }
-        if (discriminatorPosition == -1) {
-            throw new IllegalStateException("can't find discriminator attribute position");
-        }
+        int scorePosition = layout.get(fuse.score().id()).channel();
+        int discriminatorPosition = layout.get(fuse.discriminator().id()).channel();
 
         if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
-            return source.with(new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig), source.layout);
+            return source.with(
+                new RrfScoreEvalOperator.Factory(
+                    discriminatorPosition,
+                    scorePosition,
+                    rrfConfig,
+                    fuse.sourceText(),
+                    fuse.sourceLocation().getLineNumber(),
+                    fuse.sourceLocation().getColumnNumber()
+                ),
+                source.layout
+            );
         } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
-            return source.with(new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig), source.layout);
+            return source.with(
+                new LinearScoreEvalOperator.Factory(
+                    discriminatorPosition,
+                    scorePosition,
+                    linearConfig,
+                    fuse.sourceText(),
+                    fuse.sourceLocation().getLineNumber(),
+                    fuse.sourceLocation().getColumnNumber()
+                ),
+                source.layout
+            );
         }
 
         throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");

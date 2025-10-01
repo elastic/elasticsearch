@@ -73,6 +73,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -84,6 +85,7 @@ import javax.net.ssl.SSLSocket;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -629,7 +631,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     ) throws Exception {
         final CyclicBarrier reloadBarrier = new CyclicBarrier(2);
         final SSLService sslService = new SSLService(env);
-        final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        final AtomicBoolean profileReloaded = new AtomicBoolean(false);
+        profile.addReloadListener(p -> {
+            assertThat(p, sameInstance(profile));
+            profileReloaded.set(true);
+        });
         final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
@@ -643,7 +650,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         };
         new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
         // Baseline checks
-        preChecks.accept(sslService.sslContextHolder(config).sslContext());
+        preChecks.accept(sslService.sslContextHolder(profile.configuration()).sslContext());
 
         assertEquals("nothing should have called reload", 0, reloadBarrier.getNumberWaiting());
 
@@ -655,7 +662,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         }
 
         // checks after reload
-        postChecks.accept(sslService.sslContextHolder(config).sslContext());
+        postChecks.accept(sslService.sslContextHolder(profile.configuration()).sslContext());
+        assertThat(profileReloaded.get(), is(true));
     }
 
     private static void atomicMoveIfPossible(Path source, Path target) throws IOException {

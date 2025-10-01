@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFace
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -84,7 +83,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
                     taskSettingsMap,
                     chunkingSettings,
                     serviceSettingsMap,
-                    TaskType.unsupportedTaskTypeErrorMsg(taskType, name()),
                     ConfigurationParseContext.REQUEST
                 )
             );
@@ -123,7 +121,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 secretSettingsMap,
-                parsePersistedConfigErrorMsg(inferenceEntityId, name()),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -147,7 +144,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 null,
-                parsePersistedConfigErrorMsg(inferenceEntityId, name()),
                 ConfigurationParseContext.PERSISTENT
             )
         );

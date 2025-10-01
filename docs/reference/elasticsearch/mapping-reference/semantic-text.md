@@ -633,6 +633,18 @@ POST test-index/_search
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
 
+## Cross-cluster search (CCS) [ccs]
+```{applies_to}
+stack: ga 9.2
+serverless: unavailable
+```
+
+`semantic_text` supports [cross-cluster search](docs-content://solutions/search/cross-cluster-search) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)
+when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search#ccs-network-delays) is set to `true`.
+
+Cross-cluster search on `semantic_text` fields is not yet supported in [ES|QL](/reference/query-languages/esql.md).
+ES|QL support will be added in a future release.
+
 ## Limitations [limitations]
 
 `semantic_text` field types have the following limitations:
@@ -641,5 +653,4 @@ semantic search for `semantic_text` fields.
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
   of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
-* `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
-  Cross-Cluster Replication (CCR).
+* `semantic_text` fields do not support Cross-Cluster Replication (CCR).

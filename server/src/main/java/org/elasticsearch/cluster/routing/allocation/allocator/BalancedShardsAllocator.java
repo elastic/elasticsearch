@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1000,7 +1001,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             public record StoredMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
 
-            private final Map<String, StoredMoveDecision> bestNonPreferredShardsByNode = new HashMap<>();
+            // LinkedHashMap so we iterate in insertion order
+            private final Map<String, StoredMoveDecision> bestNonPreferredShardsByNode = new LinkedHashMap<>();
             private final Map<String, PrioritiseByShardWriteLoadComparator> comparatorCache = new HashMap<>();
 
             @Override

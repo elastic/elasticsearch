@@ -14,6 +14,7 @@ import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
@@ -22,23 +23,31 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentParserFilter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.ingest.ESONXContentParser;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
@@ -307,6 +316,7 @@ public abstract class IndexRouting {
      */
     public abstract static class ExtractFromSource extends IndexRouting {
         protected final XContentParserConfiguration parserConfig;
+        protected final Function<XContentParser, Map<String, Object>> parserFilter;
         private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
         private final boolean addIdWithRoutingHash;
@@ -323,6 +333,7 @@ public abstract class IndexRouting {
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(includePaths), null, true);
+            this.parserFilter = XContentParserFilter.filter(includePaths.toArray(new String[0]));
         }
 
         @Override
@@ -345,6 +356,24 @@ public abstract class IndexRouting {
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
+
+        protected XContentParser parser(IndexSource source) throws IOException {
+            if (source.isStructured()) {
+                try (
+                    ESONXContentParser esonxContentParser = source.structuredSource()
+                        .parser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.IGNORE_DEPRECATIONS, source.contentType())
+                ) {
+                    return new MapXContentParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.IGNORE_DEPRECATIONS,
+                        parserFilter.apply(esonxContentParser),
+                        source.contentType()
+                    );
+                }
+            } else {
+                return XContentHelper.createParserNotCompressed(parserConfig, source.bytes(), source.contentType());
+            }
+        }
 
         private static int defaultOnEmpty() {
             throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
@@ -427,22 +456,23 @@ public abstract class IndexRouting {
 
             @Override
             protected int hashSource(IndexRequest indexRequest) {
-                return hashRoutingFields(indexRequest.getContentType(), indexRequest.source()).buildHash(
-                    IndexRouting.ExtractFromSource::defaultOnEmpty
-                );
+                return hashRoutingFields(indexRequest.indexSource()).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
             }
 
             public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
-                return hashRoutingFields(sourceType, source).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
+                return hashRoutingFields(new IndexSource(sourceType, source)).createId(
+                    suffix,
+                    IndexRouting.ExtractFromSource::defaultOnEmpty
+                );
             }
 
             public RoutingHashBuilder builder() {
                 return new RoutingHashBuilder(isRoutingPath);
             }
 
-            private RoutingHashBuilder hashRoutingFields(XContentType sourceType, BytesReference source) {
+            private RoutingHashBuilder hashRoutingFields(IndexSource indexSource) {
                 RoutingHashBuilder b = builder();
-                try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
+                try (XContentParser parser = parser(indexSource)) {
                     parser.nextToken(); // Move to first token
                     if (parser.currentToken() == null) {
                         throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
@@ -484,15 +514,15 @@ public abstract class IndexRouting {
             protected int hashSource(IndexRequest indexRequest) {
                 BytesRef tsid = indexRequest.tsid();
                 if (tsid == null) {
-                    tsid = buildTsid(indexRequest.getContentType(), indexRequest.indexSource().bytes());
+                    tsid = buildTsid(indexRequest.indexSource());
                     indexRequest.tsid(tsid);
                 }
                 return hash(tsid);
             }
 
-            public BytesRef buildTsid(XContentType sourceType, BytesReference source) {
+            public BytesRef buildTsid(IndexSource indexSource) {
                 TsidBuilder b = new TsidBuilder();
-                try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
+                try (XContentParser parser = parser(indexSource)) {
                     b.add(parser, XContentParserTsidFunnel.get());
                 } catch (IOException | ParsingException e) {
                     throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);

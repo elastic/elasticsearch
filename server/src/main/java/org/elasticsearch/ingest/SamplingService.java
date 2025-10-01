@@ -41,7 +41,7 @@ public class SamplingService implements ClusterStateListener {
         maybeSample(projectMetadata, indexRequest.index(), () -> indexRequest, () -> {
             Map<String, Object> sourceAsMap;
             try {
-                sourceAsMap = indexRequest.sourceAsMap();
+                sourceAsMap = indexRequest.indexSource().sourceAsMap();
             } catch (XContentParseException e) {
                 sourceAsMap = Map.of();
                 logger.trace("Invalid index request source, attempting to sample anyway");

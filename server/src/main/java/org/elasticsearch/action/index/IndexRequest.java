@@ -454,7 +454,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return indexSource.sourceAsMap();
+        // TODO: To fix equality issues in tests.
+        return XContentHelper.convertToMap(indexSource.bytes(), false, indexSource.contentType()).v2();
     }
 
     /**

@@ -1529,7 +1529,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap()
+            request.indexSource().sourceAsMap()
         );
     }
 

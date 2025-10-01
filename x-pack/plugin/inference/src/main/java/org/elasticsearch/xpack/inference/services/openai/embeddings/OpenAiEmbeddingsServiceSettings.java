@@ -50,11 +50,11 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     public static final String NAME = "openai_service_settings";
 
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
+    public static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     // The rate limit for usage tier 1 is 3000 request per minute for the text embedding models
     // To find this information you need to access your account's limits https://platform.openai.com/account/limits
     // 3000 requests per minute
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return switch (context) {

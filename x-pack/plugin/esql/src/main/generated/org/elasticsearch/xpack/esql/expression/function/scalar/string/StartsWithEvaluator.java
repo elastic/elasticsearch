@@ -98,7 +98,9 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(StartsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch)));
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef prefix = prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch);
+        result.appendBoolean(StartsWith.process(str, prefix));
       }
       return result.build();
     }
@@ -110,7 +112,9 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef prefix = prefixVector.getBytesRef(p, prefixScratch);
+        result.appendBoolean(p, StartsWith.process(str, prefix));
       }
       return result.build();
     }

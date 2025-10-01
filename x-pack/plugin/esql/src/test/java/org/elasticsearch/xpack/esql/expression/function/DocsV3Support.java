@@ -1109,7 +1109,7 @@ public abstract class DocsV3Support {
                 builder.field("type", setting.type().typeName());
                 builder.field("serverlessOnly", setting.serverlessOnly());
                 builder.field("preview", setting.preview());
-                builder.field("snapshot_only", setting.snapshotOnly());
+                builder.field("snapshotOnly", setting.snapshotOnly());
                 builder.field("description", setting.description());
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana setting definition for [{}]:\n{}", name, rendered);
@@ -1402,6 +1402,11 @@ public abstract class DocsV3Support {
                     builder.value(loadExample(example.file(), example.tag()));
                 }
                 builder.endArray();
+            } else if (info.operator().isEmpty()) {
+                // CI will fail in Kibana if we add a function with no examples
+                throw new IllegalArgumentException(
+                    "Failed to write Kibana function definition: no examples found for function [" + name + "]."
+                );
             }
             builder.field("preview", info.preview());
             builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));

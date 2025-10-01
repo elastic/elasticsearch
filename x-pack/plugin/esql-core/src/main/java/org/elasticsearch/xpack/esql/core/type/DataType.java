@@ -7,13 +7,17 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -25,13 +29,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -140,12 +142,12 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *         unsupported types.</li>
  * </ul>
  */
-public enum DataType {
+public enum DataType implements Writeable {
     /**
      * Fields of this type are unsupported by any functions and are always
      * rendered as {@code null} in the response.
      */
-    UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
+    UNSUPPORTED(builder().typeName("UNSUPPORTED").estimatedSize(1024)),
     /**
      * Fields that are always {@code null}, usually created with constant
      * {@code null} values.
@@ -238,7 +240,7 @@ public enum DataType {
      * Generally ESQL uses {@code keyword} fields as raw strings. So things like
      * {@code TO_STRING} will make a {@code keyword} field.
      */
-    KEYWORD(builder().esType("keyword").unknownSize().docValues()),
+    KEYWORD(builder().esType("keyword").estimatedSize(50).docValues()),
     /**
      * String fields that are analyzed when the document is received and may be
      * cut into more than one token. Generally ESQL only sees {@code text} fields
@@ -246,7 +248,7 @@ public enum DataType {
      * <strong>without</strong> analysis. The {@code MATCH} operator can be used
      * to query these fields with analysis.
      */
-    TEXT(builder().esType("text").unknownSize()),
+    TEXT(builder().esType("text").estimatedSize(1024)),
     /**
      * Millisecond precision date, stored as a 64-bit signed number.
      */
@@ -267,8 +269,8 @@ public enum DataType {
      */
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),
-    OBJECT(builder().esType("object").unknownSize()),
-    SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
+    OBJECT(builder().esType("object").estimatedSize(1024)),
+    SOURCE(builder().esType(SourceFieldMapper.NAME).estimatedSize(10 * 1024)),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
     // WKB for points is typically 21 bytes.
@@ -298,20 +300,26 @@ public enum DataType {
      * Every document in {@link IndexMode#TIME_SERIES} index will have a single value
      * for this field and the segments themselves are sorted on this value.
      */
-    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
+    TSID_DATA_TYPE(builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues()),
     /**
      * Fields with this type are the partial result of running a non-time-series aggregation
      * inside alongside time-series aggregations. These fields are not parsable from the
      * mapping and should be hidden from users.
      */
-    PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
+    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024)),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+    AGGREGATE_METRIC_DOUBLE(
+        builder().esType("aggregate_metric_double")
+            .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
+            .createdVersion(DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION)
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of double values.
      */
-    DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
+    DENSE_VECTOR(
+        builder().esType("dense_vector").estimatedSize(4096).createdVersion(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
+    );
 
     /**
      * Types that are actively being built. These types are
@@ -330,10 +338,7 @@ public enum DataType {
      *     </li>
      * </ul>
      */
-    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
-    );
+    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries();
 
     private final String typeName;
 
@@ -341,7 +346,7 @@ public enum DataType {
 
     private final String esType;
 
-    private final Optional<Integer> estimatedSize;
+    private final int estimatedSize;
 
     /**
      * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
@@ -375,23 +380,28 @@ public enum DataType {
      */
     private final DataType counter;
 
+    /**
+     * Version that first created this data type.
+     */
+    private final CreatedVersion createdVersion;
+
     DataType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
-        assert builder.estimatedSize != null : "Missing size for type " + typeString;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
         this.name = typeString.toUpperCase(Locale.ROOT);
         this.esType = builder.esType;
-        this.estimatedSize = builder.estimatedSize;
+        this.estimatedSize = Objects.requireNonNull(builder.estimatedSize, "estimated size is required");
         this.isWholeNumber = builder.isWholeNumber;
         this.isRationalNumber = builder.isRationalNumber;
         this.docValues = builder.docValues;
         this.isCounter = builder.isCounter;
         this.widenSmallNumeric = builder.widenSmallNumeric;
         this.counter = builder.counter;
+        this.createdVersion = builder.createdVersion;
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
-        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .filter(d -> d != DOC_DATA_TYPE)
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
@@ -683,10 +693,21 @@ public enum DataType {
     }
 
     /**
-     * @return the estimated size, in bytes, of this data type.  If there's no reasonable way to estimate the size,
-     *         the optional will be empty.
+     * An estimate of the size of values of this type in a Block. All types must have an
+     * estimate, and generally follow the following rules:
+     * <ol>
+     *     <li>
+     *         If you know the precise size of a single element of this type, use that.
+     *         For example {@link #INTEGER} uses {@link Integer#BYTES}.
+     *     </li>
+     *     <li>
+     *         Overestimates are better than under-estimates. Over-estimates make less
+     *         efficient operations, but under-estimates make circuit breaker errors.
+     *     </li>
+     * </ol>
+     * @return the estimated size of this data type in bytes
      */
-    public Optional<Integer> estimatedSize() {
+    public int estimatedSize() {
         return estimatedSize;
     }
 
@@ -717,13 +738,25 @@ public enum DataType {
         return counter;
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, typeName);
+        if (createdVersion.supports(out.getTransportVersion()) == false) {
+            /*
+             * TODO when we implement version aware planning flip this to an IllegalStateException
+             * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
+             * tried to do something like `KNN(dense_vector_field, [1, 2])` against an old node.
+             * Like, during the rolling upgrade that enables KNN or to a remote cluster that has
+             * not yet been upgraded.
+             */
+            throw new IllegalArgumentException(
+                "remote node at version [" + out.getTransportVersion() + "] doesn't understand data type [" + this + "]"
+            );
+        }
+        ((PlanStreamOutput) out).writeCachedString(typeName);
     }
 
     public static DataType readFrom(StreamInput in) throws IOException {
-        // TODO: Use our normal enum serialization pattern
-        return readFrom(readCachedStringWithVersionCheck(in));
+        return readFrom(((PlanStreamInput) in).readCachedString());
     }
 
     /**
@@ -763,11 +796,24 @@ public enum DataType {
         return isString(this) ? KEYWORD : this;
     }
 
+    public DataType noCounter() {
+        return switch (this) {
+            case COUNTER_DOUBLE -> DOUBLE;
+            case COUNTER_INTEGER -> INTEGER;
+            case COUNTER_LONG -> LONG;
+            default -> this;
+        };
+    }
+
     public boolean isDate() {
         return switch (this) {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    public CreatedVersion createdVersion() {
+        return createdVersion;
     }
 
     public static DataType suggestedCast(Set<DataType> originalTypes) {
@@ -802,7 +848,7 @@ public enum DataType {
 
         private String typeName;
 
-        private Optional<Integer> estimatedSize;
+        private Integer estimatedSize;
 
         /**
          * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
@@ -837,6 +883,13 @@ public enum DataType {
          */
         private DataType counter;
 
+        /**
+         * The version when this data type was created. We default to the first
+         * version for which we maintain wire compatibility, which is pretty
+         * much {@code 8.18.0}.
+         */
+        private CreatedVersion createdVersion = CreatedVersion.SUPPORTED_ON_ALL_NODES;
+
         Builder() {}
 
         Builder esType(String esType) {
@@ -849,13 +902,11 @@ public enum DataType {
             return this;
         }
 
+        /**
+         * See {@link DataType#estimatedSize}.
+         */
         Builder estimatedSize(int size) {
-            this.estimatedSize = Optional.of(size);
-            return this;
-        }
-
-        Builder unknownSize() {
-            this.estimatedSize = Optional.empty();
+            this.estimatedSize = size;
             return this;
         }
 
@@ -894,5 +945,20 @@ public enum DataType {
             this.counter = counter;
             return this;
         }
+
+        Builder createdVersion(TransportVersion createdVersion) {
+            this.createdVersion = CreatedVersion.supportedOn(createdVersion);
+            return this;
+        }
+    }
+
+    private static class DataTypesTransportVersions {
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
+
+        public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
+            "esql_aggregate_metric_double_created_version"
+        );
     }
 }

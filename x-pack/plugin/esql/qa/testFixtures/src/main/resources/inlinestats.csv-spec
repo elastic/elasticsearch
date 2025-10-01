@@ -3498,86 +3498,121 @@ warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\]
 2023-10-23T13:53:55.832Z      |2023-10-23T13:53:55.832987654Z|1698069235832987654|19
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_By-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+InlineStatsCountUnionType
+required_capability: inline_stats_with_union_types_in_stub_relation
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date 
+| INLINE STATS c = count(emp_no::long)
+| SORT hire_date DESC
+| LIMIT 10
+;
+
+emp_no:unsupported | hire_date:date_nanos     | c:long
+null               | 1999-04-30T00:00:00.000Z | 200
+null               | 1999-04-30T00:00:00.000Z | 200
+null               | 1997-05-19T00:00:00.000Z | 200
+null               | 1997-05-19T00:00:00.000Z | 200
+null               | 1996-11-05T00:00:00.000Z | 200
+null               | 1996-11-05T00:00:00.000Z | 200
+null               | 1995-12-15T00:00:00.000Z | 200
+null               | 1995-12-15T00:00:00.000Z | 200
+null               | 1995-08-22T00:00:00.000Z | 200
+null               | 1995-08-22T00:00:00.000Z | 200
+;
+
+ImplicitCastingMultiTypedDateTruncInlinestats_By
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | INLINE STATS c = count(emp_no::long) BY yr = DATE_TRUNC(1 year, hire_date)
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-10     | 1995-01-01T00:00:00.000Z
-8      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithFilter-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithFilter
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | INLINE STATS c = count(emp_no::long) where hire_date > "1996-01-01" BY yr = DATE_TRUNC(1 year, hire_date)
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-0      | 1995-01-01T00:00:00.000Z
-0      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEval-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEval
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | EVAL yr = DATE_TRUNC(1 year, hire_date)
 | INLINE STATS c = count(emp_no::long) BY yr
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-10     | 1995-01-01T00:00:00.000Z
-8      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEvalWithFilter-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEvalWithFilter
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | EVAL yr = DATE_TRUNC(1 year, hire_date)
 | INLINE STATS c = count(emp_no::long) where hire_date > "1991-01-01" BY yr
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-10     | 1995-01-01T00:00:00.000Z
-8      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 ;
 
 ImplicitCastingMultiTypedBucketDateNanosByYear
@@ -3913,3 +3948,25 @@ from employees
 10003          |0              |null           
 ;
 
+inlineStatsOnAggregateMetricDouble
+required_capability: inline_stats
+required_capability: aggregate_metric_double_v0
+FROM k8s-downsampled
+| EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)     // Temporary workaround to enable aggregate_metric_double
+| INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx, tx_max
+| LIMIT 9
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double                  | tx_max:double
+2024-05-09T23:30:00.000Z | prod            | one         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}  | 1060.0
+2024-05-09T23:30:00.000Z | prod            | three       | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}   | 824.0
+2024-05-09T23:30:00.000Z | prod            | two         | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}    | 1419.0
+2024-05-09T23:30:00.000Z | qa              | one         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}   | 1060.0
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}    | 824.0
+2024-05-09T23:30:00.000Z | qa              | two         | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10} | 1419.0
+2024-05-09T23:30:00.000Z | staging         | one         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}  | 1060.0
+2024-05-09T23:30:00.000Z | staging         | three       | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}   | 824.0
+2024-05-09T23:30:00.000Z | staging         | two         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}  | 1419.0
+;

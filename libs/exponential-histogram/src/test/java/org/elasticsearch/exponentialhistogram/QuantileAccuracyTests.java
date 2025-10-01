@@ -84,7 +84,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
 
         // The 0.5 percentile linearly interpolates between the two buckets.
         // For the (1, 2] bucket, the point of least relative error will be used (1.33333)
-        // For the (1, 2] bucket, the max of the histogram should be used instead (2.1)
+        // For the (2, 4] bucket, the max of the histogram should be used instead (2.1)
         double expectedResult = (4.0/3 + 2.1) / 2;
         double p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
         assertThat(p50, equalTo(expectedResult));

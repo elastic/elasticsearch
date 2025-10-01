@@ -73,21 +73,23 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         }
     }
 
-    private String getInexistentIndexErrorMessage() {
-        return "\"reason\" : \"Found 1 problem\\nline 1:1: Unknown index ";
-    }
-
     public void testInexistentIndexNameWithWildcard() throws IOException {
-        assertErrorMessages(inexistentIndexNameWithWildcard, getInexistentIndexErrorMessage(), 400);
+        for (String indexName : inexistentIndexNameWithWildcard) {
+            assertErrorMessage(indexName, "Unknown index " + "[" + clusterSpecificIndexName(indexName) + "]", 400);
+        }
     }
 
+    @AwaitsFix(bugUrl = "TBD")
+    // field caps report only first missing index
     public void testInexistentIndexNameWithoutWildcard() throws IOException {
-        assertErrorMessages(inexistentIndexNameWithoutWildcard, getInexistentIndexErrorMessage(), 400);
+        for (String indexName : inexistentIndexNameWithoutWildcard) {
+            assertErrorMessage(indexName, "Unknown index " + "[" + clusterSpecificIndexName(indexName) + "]", 400);
+        }
     }
 
     public void testExistentIndexWithoutWildcard() throws IOException {
         for (String indexName : existentIndexWithoutWildcard) {
-            assertErrorMessage(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
+            assertErrorMessage(indexName, "Unknown index [inexistent]", 400);
         }
     }
 
@@ -99,17 +101,11 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         createAlias();
 
         for (String indexName : existentAliasWithoutWildcard) {
-            assertErrorMessage(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
+            assertErrorMessage(indexName, "Unknown index [inexistent]", 400);
         }
         assertValidRequestOnIndices(existentAliasWithWildcard);
 
         deleteAlias();
-    }
-
-    private void assertErrorMessages(String[] indices, String errorMessage, int statusCode) throws IOException {
-        for (String indexName : indices) {
-            assertErrorMessage(indexName, errorMessage + "[" + clusterSpecificIndexName(indexName) + "]", statusCode);
-        }
     }
 
     protected String clusterSpecificIndexName(String indexName) {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -99,6 +100,8 @@ public class IndexResolver {
                 f -> {
                     if (f instanceof IndexNotFoundException e) {
                         listener.onResponse(IndexResolution.notFound(e.getIndex().getName()));
+                    } else if (f instanceof ElasticsearchSecurityException e) {
+                        listener.onResponse(IndexResolution.notFound(indexWildcard));
                     } else {
                         listener.onFailure(f);
                     }

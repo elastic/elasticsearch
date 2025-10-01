@@ -212,9 +212,9 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
 
         e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("index_not_found_exception"));
-        assertThat(e.getMessage(), containsString("no such index [foo]"));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("verification_exception"));
+        assertThat(e.getMessage(), containsString("Unknown index [foo]"));
 
         // Don't test remote patterns here, we'll test them in the multi-cluster tests
         if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {

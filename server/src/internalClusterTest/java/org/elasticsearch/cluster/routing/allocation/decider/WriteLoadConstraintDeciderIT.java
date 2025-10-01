@@ -73,7 +73,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     @Override
     @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return CollectionUtils.appendToCopyNoNullElements(g
+        return CollectionUtils.appendToCopyNoNullElements(
             super.nodePlugins(),
             MockTransportService.TestPlugin.class,
             TestTelemetryPlugin.class
@@ -128,38 +128,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        MockTransportService.getInstance(harness.firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-                }
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.firstDataNodeName
-                );
-                channel.sendResponse(
-                    instance.new NodeResponse(harness.firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of())
-                );
-            });
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.secondDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.secondDataNodeId, 0, List.of(), List.of()));
-            });
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.thirdDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.thirdDataNodeId, 0, List.of(), List.of()));
-            });
+        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
+        }
+        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
         /**
          * Provoke a ClusterInfo stats refresh, update the cluster settings to make shard assignment to the first node undesired, and
@@ -258,38 +233,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        MockTransportService.getInstance(harness.firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-                }
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.firstDataNodeName
-                );
-                channel.sendResponse(
-                    instance.new NodeResponse(harness.firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of())
-                );
-            });
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.secondDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.secondDataNodeId, 0, List.of(), List.of()));
-            });
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.thirdDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.thirdDataNodeId, 0, List.of(), List.of()));
-            });
+        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
+        }
+        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
         /**
          * Provoke a ClusterInfo stats refresh, update the cluster settings to make shard assignment to the first node undesired and
@@ -381,38 +331,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        MockTransportService.getInstance(harness.firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-                }
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.firstDataNodeName
-                );
-                channel.sendResponse(
-                    instance.new NodeResponse(harness.firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of())
-                );
-            });
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.secondDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.secondDataNodeId, 0, List.of(), List.of()));
-            });
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.thirdDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.thirdDataNodeId, 0, List.of(), List.of()));
-            });
+        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
+        }
+        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
         /**
          * Refresh the ClusterInfo to pull in the new dummy hot-spot stats. Then remove the filter restricting the shards to the first node.
@@ -526,38 +451,13 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        MockTransportService.getInstance(harness.firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-                }
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.firstDataNodeName
-                );
-                channel.sendResponse(
-                    instance.new NodeResponse(harness.firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of())
-                );
-            });
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.secondDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.secondDataNodeId, 0, List.of(), List.of()));
-            });
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(
-                    TransportIndicesStatsAction.class,
-                    harness.thirdDataNodeName
-                );
-                channel.sendResponse(instance.new NodeResponse(harness.thirdDataNodeId, 0, List.of(), List.of()));
-            });
+        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
+        }
+        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
         /**
          * Refresh the ClusterInfo to pull in the new dummy hot-spot stats. Then remove the filter restricting the shards to the first node.
@@ -690,6 +590,14 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                     new NodeUsageStatsForThreadPoolsAction.NodeResponse(node, nodeUsageStats)
                 )
             );
+    }
+
+    private void setUpMockTransportIndicesStatsResponse(DiscoveryNode node, int totalShards, List<ShardStats> shardStats) {
+        MockTransportService.getInstance(node.getName())
+            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, node.getName());
+                channel.sendResponse(instance.new NodeResponse(node.getId(), totalShards, shardStats, List.of()));
+            });
     }
 
     /**

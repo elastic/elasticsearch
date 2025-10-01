@@ -792,7 +792,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(result), contains("host.name", "@timestamp"));
         assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(result), contains(SortOrder.ASC, SortOrder.DESC));
-        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MIN));
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MAX));
         assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(result), contains("_last", "_last"));
         assertThat(newMapperServiceCounter.get(), equalTo(4));
     }
@@ -882,7 +882,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(result), contains("host.name", "@timestamp"));
         assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(result), contains(SortOrder.ASC, SortOrder.DESC));
-        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MIN));
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MAX));
         assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(result), contains("_last", "_last"));
 
         settingsBuilder = builder();
@@ -1004,7 +1004,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
             .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name", "@timestamp")
             .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc")
-            .putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "min")
+            .putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "max")
             .putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last", "_last")
             .build();
 
@@ -1023,7 +1023,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
             .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name", "@timestamp")
             .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc")
-            .putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "min")
+            .putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "max")
             .putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last", "_last")
             .build();
         assertEquals(expected, result);
@@ -1066,8 +1066,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateLogsdbSettings(settings, mappings);
+        assertThat(result.size(), equalTo(6));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
+        assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(result), contains("host.name", "@timestamp"));
+        assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(result), contains(SortOrder.ASC, SortOrder.DESC));
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MAX));
+        assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(result), contains("_last", "_last"));
         assertEquals(1, newMapperServiceCounter.get());
     }
 
@@ -1088,7 +1093,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(result.size(), equalTo(4));
         assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(result), contains("host.name", "@timestamp"));
         assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(result), contains(SortOrder.ASC, SortOrder.DESC));
-        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MIN));
+        assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(result), contains(MultiValueMode.MIN, MultiValueMode.MAX));
         assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(result), contains("_last", "_last"));
     }
 

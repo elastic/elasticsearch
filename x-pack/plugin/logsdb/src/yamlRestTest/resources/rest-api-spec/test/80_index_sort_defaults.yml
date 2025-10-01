@@ -75,7 +75,7 @@ create logsdb data stream with host.name as keyword:
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
   - match: { .$backing_index.settings.index.sort.field: [ "host.name", "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "asc", "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min", "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "min", "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last", "_last" ] }
 
 ---
@@ -126,7 +126,7 @@ create logsdb data stream with host.name as keyword and timestamp as date:
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
   - match: { .$backing_index.settings.index.sort.field: [ "host.name", "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "asc", "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min", "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "min", "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last", "_last" ] }
 
 ---
@@ -177,7 +177,7 @@ create logsdb data stream with host.name as integer and timestamp as date:
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
   - match: { .$backing_index.settings.index.sort.field: [ "host.name", "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "asc", "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min", "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "min", "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last", "_last" ] }
 ---
 
@@ -225,7 +225,7 @@ create logsdb data stream with no host.name and timestamp as date:
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
   - match: { .$backing_index.settings.index.sort.field: [ "host.name", "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "asc", "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min", "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "min", "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last", "_last" ] }
 
 ---
@@ -277,7 +277,7 @@ create logsdb data stream with host as keyword and timestamp as date:
   - match: { .$backing_index.defaults.index.logsdb.sort_on_host_name: "false" }
   - match: { .$backing_index.settings.index.sort.field: [ "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last" ] }
 
 ---
@@ -331,7 +331,7 @@ create logsdb data stream with host as keyword:
   - match: { .$backing_index.defaults.index.logsdb.sort_on_host_name: "false" }
   - match: { .$backing_index.settings.index.sort.field: [ "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last" ] }
 ---
 create logsdb data stream with host as text and multi fields:
@@ -391,7 +391,7 @@ create logsdb data stream with host as text and multi fields:
   - match: { .$backing_index.defaults.index.logsdb.sort_on_host_name: "false" }
   - match: { .$backing_index.settings.index.sort.field: [ "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last" ] }
 
 ---
@@ -448,7 +448,7 @@ create logsdb data stream with host as text:
   - match: { .$backing_index.defaults.index.logsdb.sort_on_host_name: "false" }
   - match: { .$backing_index.settings.index.sort.field: [ "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last" ] }
 ---
 create logsdb data stream with host as text and name as double:
@@ -506,5 +506,5 @@ create logsdb data stream with host as text and name as double:
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
   - match: { .$backing_index.settings.index.sort.field: [ "host.name", "@timestamp" ] }
   - match: { .$backing_index.settings.index.sort.order: [ "asc", "desc" ] }
-  - match: { .$backing_index.settings.index.sort.mode: [ "min", "min" ] }
+  - match: { .$backing_index.settings.index.sort.mode: [ "min", "max" ] }
   - match: { .$backing_index.settings.index.sort.missing: [ "_last", "_last" ] }

@@ -218,14 +218,14 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             DataStreamTimestampFieldMapper.DEFAULT_PATH
         );
         builder.putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc");
-        builder.putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "min");
+        builder.putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "max");
         builder.putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last", "_last");
     }
 
     private static void applyTimestampSort(Settings.Builder builder) {
         builder.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH);
         builder.putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc");
-        builder.putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min");
+        builder.putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "max");
         builder.putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last");
     }
 

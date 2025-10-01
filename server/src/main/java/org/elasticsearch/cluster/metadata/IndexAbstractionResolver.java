@@ -54,7 +54,7 @@ public class IndexAbstractionResolver {
             wildcardSeen = resolveIndexAbstraction(
                 resolvedExpressionsBuilder,
                 originalIndexExpression,
-                originalIndexExpression, // in the case of local resolution, the local expression is alwasy the same as the original
+                originalIndexExpression, // in the case of local resolution, the local expression is always the same as the original
                 indicesOptions,
                 projectMetadata,
                 allAuthorizedAndAvailableBySelector,
@@ -77,7 +77,7 @@ public class IndexAbstractionResolver {
         boolean includeDataStreams
     ) {
         assert targetProjects != TargetProjects.NOT_CROSS_PROJECT
-            : "cannot resolve indices cross project if target set is marked NOT_CROSS_PROJECT";
+            : "cannot resolve indices cross project if target set is NOT_CROSS_PROJECT";
         if (targetProjects.isEmpty()) {
             assert false : "cannot resolve indices cross project if target set is empty";
             throw new IllegalArgumentException("cannot resolve indices cross project if target set is empty");

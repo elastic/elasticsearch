@@ -44,7 +44,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler;
+import org.elasticsearch.search.crossproject.CrossProjectResponseValidator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -71,8 +71,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
-import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.lenientIndicesOptionsForCrossProject;
-import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.resolveCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.lenientIndicesOptionsForCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.resolveCrossProject;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -82,7 +82,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     private static final TransportVersion RESOLVE_INDEX_MODE_ADDED = TransportVersion.fromName("resolve_index_mode_added");
     private static final TransportVersion RESOLVE_INDEX_MODE_FILTER = TransportVersion.fromName("resolve_index_mode_filter");
-    private static final TransportVersion RESOLVED_INDICES_EXPRESSIONS = TransportVersion.fromName("resolve_index_include_resolved_flag");
 
     private ResolveIndexAction() {
         super(NAME);
@@ -143,7 +142,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             } else {
                 this.indexModes = EnumSet.noneOf(IndexMode.class);
             }
-            if (in.getTransportVersion().supports(RESOLVED_INDICES_EXPRESSIONS)) {
+            if (in.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
                 this.includeResolvedExpressions = in.readBoolean();
             } else {
                 this.includeResolvedExpressions = false;
@@ -158,7 +157,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (out.getTransportVersion().supports(RESOLVE_INDEX_MODE_FILTER)) {
                 out.writeEnumSet(indexModes);
             }
-            if (out.getTransportVersion().supports(RESOLVED_INDICES_EXPRESSIONS)) {
+            if (out.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
                 out.writeBoolean(includeResolvedExpressions);
             }
         }
@@ -632,10 +631,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         if (resolvedCrossProject) {
-                            final Exception ex = validateCrossProjectResponses(
-                                request.indicesOptions(),
+                            // TODO temporary fix: we need to properly handle the case where a remote does not return a result due to
+                            // a failure -- in the current version of resolve indices though, these are just silently ignored
+                            if (remoteRequests != remoteResponses.size()) {
+                                listener.onFailure(new IllegalStateException("not all remote clusters responded"));
+                                return;
+                            }
+                            final Exception ex = CrossProjectResponseValidator.validate(
+                                originalIndicesOptions,
                                 primaryResolvedIndexExpressions,
-                                remoteResponses
+                                getResolvedExpressionsByRemote(remoteResponses)
                             );
                             if (ex != null) {
                                 listener.onFailure(ex);
@@ -665,11 +670,20 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
-                    }, failure -> terminalHandler.run()));
+                    }, failure -> {
+                        logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
+                        terminalHandler.run();
+                    }));
                 }
             } else {
                 if (resolvedCrossProject) {
-                    final Exception ex = validateCrossProjectResponses(request.indicesOptions(), primaryResolvedIndexExpressions);
+                    // we still need to call response validation for local results, since qualified expressions like `_origin:index` or
+                    // `<alias-pattern-matching-origin-only>:index` get deferred validation, also
+                    final Exception ex = CrossProjectResponseValidator.validate(
+                        originalIndicesOptions,
+                        primaryResolvedIndexExpressions,
+                        Map.of()
+                    );
                     if (ex != null) {
                         listener.onFailure(ex);
                         return;
@@ -681,43 +695,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        @Nullable
-        private Exception validateCrossProjectResponses(
-            IndicesOptions indicesOptions,
-            ResolvedIndexExpressions primaryResolvedIndexExpressions
-        ) {
-            return validateCrossProjectResponses(indicesOptions, primaryResolvedIndexExpressions, Map.of());
-        }
-
-        @Nullable
-        private Exception validateCrossProjectResponses(
-            IndicesOptions indicesOptions,
-            ResolvedIndexExpressions primaryResolvedIndexExpressions,
-            Map<String, Response> remoteResponses
-        ) {
-            try {
-                CrossProjectSearchErrorHandler.crossProjectFanoutErrorHandling(
-                    indicesOptions,
-                    primaryResolvedIndexExpressions,
-                    remoteResponses.isEmpty() ? Map.of() : getResolvedExpressionsByRemote(remoteResponses)
-                );
-                return null;
-            } catch (Exception ex) {
-                return ex;
-            }
-        }
-
         private Map<String, ResolvedIndexExpressions> getResolvedExpressionsByRemote(Map<String, Response> remoteResponses) {
-            return remoteResponses.entrySet()
-                .stream()
-                .collect(
-                    Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> e.getValue().getResolvedIndexExpressions() == null
-                            ? new ResolvedIndexExpressions(List.of())
-                            : e.getValue().getResolvedIndexExpressions()
-                    )
-                );
+            return remoteResponses.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                final ResolvedIndexExpressions resolvedIndexExpressions = e.getValue().getResolvedIndexExpressions();
+                assert resolvedIndexExpressions != null
+                    : "remote response from cluster [" + e.getKey() + "] is missing resolved index expressions";
+                return resolvedIndexExpressions == null ? new ResolvedIndexExpressions(List.of()) : resolvedIndexExpressions;
+            }));
         }
 
         /**

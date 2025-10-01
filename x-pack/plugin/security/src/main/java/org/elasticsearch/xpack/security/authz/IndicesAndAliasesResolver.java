@@ -54,8 +54,8 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.lenientIndicesOptionsForCrossProject;
-import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.resolveCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.lenientIndicesOptionsForCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.resolveCrossProject;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {

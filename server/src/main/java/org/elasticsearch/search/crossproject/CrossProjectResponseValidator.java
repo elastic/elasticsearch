@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -48,8 +49,8 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
  * error response, throwing {@link IndexNotFoundException} for missing indices or
  * {@link ElasticsearchSecurityException} for authorization failures.
  */
-public class CrossProjectSearchErrorHandler {
-    private static final Logger logger = LogManager.getLogger(CrossProjectSearchErrorHandler.class);
+public class CrossProjectResponseValidator {
+    private static final Logger logger = LogManager.getLogger(CrossProjectResponseValidator.class);
     private static final String WILDCARD = "*";
 
     public static void crossProjectFanoutErrorHandling(
@@ -61,6 +62,23 @@ public class CrossProjectSearchErrorHandler {
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> LinkedProjectExpressions.fromResolvedExpressions(e.getValue())));
         tempCrossProjectFanoutErrorHandling(indicesOptions, primaryResolvedIndexExpressions, remoteLinkedProjectExpressions);
+    }
+
+    public static Exception validate(
+        IndicesOptions indicesOptions,
+        ResolvedIndexExpressions primaryResolvedIndexExpressions,
+        Map<String, ResolvedIndexExpressions> resolvedIndexExpressionsByRemote
+    ) {
+        try {
+            CrossProjectResponseValidator.crossProjectFanoutErrorHandling(
+                indicesOptions,
+                primaryResolvedIndexExpressions,
+                resolvedIndexExpressionsByRemote
+            );
+            return null;
+        } catch (Exception ex) {
+            return ex;
+        }
     }
 
     /**
@@ -135,7 +153,7 @@ public class CrossProjectSearchErrorHandler {
 
     public static boolean resolveCrossProject(IndicesOptions indicesOptions) {
         // TODO this needs to be based on the IndicesOptions flag instead, once available
-        return Boolean.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
+        return Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
     }
 
     public static IndicesOptions lenientIndicesOptionsForCrossProject(IndicesOptions indicesOptions) {

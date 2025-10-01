@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +26,7 @@ import java.util.Set;
  * A collection of {@link ResolvedIndexExpression}.
  */
 public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions) implements Writeable {
+    public static final TransportVersion RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName("resolved_index_expressions");
 
     public ResolvedIndexExpressions(StreamInput in) throws IOException {
         this(in.readCollectionAsList(ResolvedIndexExpression::new));

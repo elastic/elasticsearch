@@ -130,7 +130,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             dimensions
                         );
                         if (dimensions.isEmpty() == false) {
-                            if (matchesAllDimensions && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
+                            if (matchesAllDimensions
+                                && IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED.get(indexTemplateAndCreateRequestSettings)
+                                && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
                                 // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
                                 // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
                                 additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);

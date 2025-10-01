@@ -101,7 +101,7 @@ public class ClusterInfoSimulator {
         var size = getExpectedShardSize(
             shard,
             shard.getExpectedShardSize(),
-            getClusterInfo(),
+            (shardId, primary) -> shardSizes.get(shardIdentifierFromRouting(shardId, primary)),
             allocation.snapshotShardSizeInfo(),
             project,
             allocation.routingTable(project.id())

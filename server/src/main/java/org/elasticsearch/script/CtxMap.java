@@ -10,12 +10,10 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.ingest.MapStructuredSource;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,7 +29,7 @@ import java.util.stream.Collectors;
  */
 public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     protected static final String SOURCE = "_source";
-    protected MapStructuredSource source;
+    protected Map<String, Object> source;
     protected final T metadata;
 
     /**
@@ -40,7 +38,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    public CtxMap(MapStructuredSource source, T metadata) {
+    public CtxMap(Map<String, Object> source, T metadata) {
         this.source = source;
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
@@ -117,7 +115,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
 
         }
         var oldSource = source;
-        source = new MapStructuredSource(castSourceMap(value));
+        source = castSourceMap(value);
         return oldSource;
     }
 
@@ -152,12 +150,10 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     @Override
     public void clear() {
         // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped maps clear
-        for (String key : new ArrayList<>(metadata.keySet())) { // copy the key set to get around the ConcurrentModificationException
+        for (String key : metadata.keySet()) {
             metadata.remove(key);
         }
-        // note: this is actually bogus in the general case, though! for this to work there must be some Metadata or subclass of Metadata
-        // for which all the FieldPoperty properties of the metadata are nullable and therefore could have been removed in the previous
-        // loop -- does such a class even exist? (that is, is there any *real* CtxMap for which the previous loop didn't throw?)
+        // TODO: this is just bogus, there isn't any case where metadata won't trip a failure above?
         source.clear();
     }
 
@@ -195,18 +191,6 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
             }
         }
         return directSourceAccess() ? source.get(key) : (SOURCE.equals(key) ? source : null);
-    }
-
-    @Override
-    public Object getOrDefault(Object key, Object defaultValue) {
-        // uses map directly to avoid Map's implementation that is just get and then containsKey and so could require two isAvailable calls
-        if (key instanceof String str) {
-            if (metadata.isAvailable(str)) {
-                return metadata.getOrDefault(str, defaultValue);
-            }
-            return directSourceAccess() ? source.getOrDefault(key, defaultValue) : (SOURCE.equals(key) ? source : defaultValue);
-        }
-        return defaultValue;
     }
 
     /**

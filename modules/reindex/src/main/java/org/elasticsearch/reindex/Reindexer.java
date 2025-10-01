@@ -52,7 +52,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
-import org.elasticsearch.ingest.MapStructuredSource;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ReindexMetadata;
@@ -417,7 +416,7 @@ public class Reindexer {
                     reindex = scriptService.compile(script, ReindexScript.CONTEXT);
                 }
                 CtxMap<ReindexMetadata> ctxMap = new CtxMap<>(
-                    new MapStructuredSource(source),
+                    source,
                     new ReindexMetadata(
                         doc.getIndex(),
                         doc.getId(),

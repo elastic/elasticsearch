@@ -26,7 +26,6 @@ import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
-import org.elasticsearch.ingest.MapStructuredSource;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Script;
@@ -176,7 +175,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
                 }
                 CtxMap<UpdateByQueryMetadata> ctxMap = new CtxMap<>(
-                    new MapStructuredSource(source),
+                    source,
                     new UpdateByQueryMetadata(
                         doc.getIndex(),
                         doc.getId(),

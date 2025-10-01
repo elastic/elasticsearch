@@ -114,7 +114,6 @@ import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
  *         EsqlDataTypeConverter#commonType, individual function type checking, the
  *         verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
-
  * </ul>
  * There are some additional steps that should be taken when removing the
  * feature flag and getting ready for a release:

@@ -606,6 +606,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
   method: testGroupingAggregate {TestCase=<big positive doubles>}
   issue: https://github.com/elastic/elasticsearch/issues/135755
+- class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
+  method: testFetchDenseVector {pref=null mode=time_series}
+  issue: https://github.com/elastic/elasticsearch/issues/135762
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/135775
 
 # Examples:
 #

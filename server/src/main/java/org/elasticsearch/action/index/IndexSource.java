@@ -185,6 +185,19 @@ public class IndexSource implements Writeable, Releasable {
         return ESONIndexed.fromFlat(structuredSource());
     }
 
+    @Override
+    public boolean equals(Object o) {
+        // TODO: Improve
+        if (o == null || getClass() != o.getClass()) return false;
+        return ((IndexSource) o).bytes().equals(bytes());
+    }
+
+    @Override
+    public int hashCode() {
+        // TODO: Improve
+        return bytes().hashCode();
+    }
+
     /**
      * Index the Map in {@link Requests#INDEX_CONTENT_TYPE} format
      *
@@ -328,6 +341,7 @@ public class IndexSource implements Writeable, Releasable {
     public void structuredSource(ESONIndexed.ESONObject esonSource) {
         assert isClosed == false;
         this.structuredSource = ESONIndexed.flatten(esonSource);
+        this.source = null;
     }
 
     private void setSource(BytesReference source, XContentType contentType) {

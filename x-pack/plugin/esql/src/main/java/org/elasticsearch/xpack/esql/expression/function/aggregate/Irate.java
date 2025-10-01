@@ -48,7 +48,8 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to rate, but is more responsive to recent changes in the rate of increase.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        examples = { @Example(file = "k8s-timeseries", tag = "irate") }
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries-irate", tag = "irate") }
     )
     public Irate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));

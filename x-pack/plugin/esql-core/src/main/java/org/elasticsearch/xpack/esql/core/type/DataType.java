@@ -327,21 +327,13 @@ public enum DataType implements Writeable {
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
-            .supportedOn(
-                // TODO: Use actual version when it's added to TransportVersions
-                INDEX_SOURCE
-            )
+            .supportedOn(DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION)
     ),
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
      */
     DENSE_VECTOR(
-        builder().esType("dense_vector")
-            .estimatedSize(4096)
-            .supportedOn(
-                // TODO: Use actual version when it's added to TransportVersions
-                INDEX_SOURCE
-            )
+        builder().esType("dense_vector").estimatedSize(4096).supportedOn(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
@@ -410,7 +402,7 @@ public enum DataType implements Writeable {
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
-        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .filter(d -> d != DOC_DATA_TYPE)
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
@@ -801,6 +793,15 @@ public enum DataType implements Writeable {
         return isString(this) ? KEYWORD : this;
     }
 
+    public DataType noCounter() {
+        return switch (this) {
+            case COUNTER_DOUBLE -> DOUBLE;
+            case COUNTER_INTEGER -> INTEGER;
+            case COUNTER_LONG -> LONG;
+            default -> this;
+        };
+    }
+
     public boolean isDate() {
         return switch (this) {
             case DATETIME, DATE_NANOS -> true;
@@ -961,5 +962,15 @@ public enum DataType implements Writeable {
             this.supportedVersion = SupportedVersion.UNDER_CONSTRUCTION;
             return this;
         }
+    }
+
+    private static class DataTypesTransportVersions {
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
+
+        public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
+            "esql_aggregate_metric_double_created_version"
+        );
     }
 }

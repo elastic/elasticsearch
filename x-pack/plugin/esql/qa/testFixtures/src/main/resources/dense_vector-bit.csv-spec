@@ -1,5 +1,5 @@
 retrieveBitVectorData
-required_capability: dense_vector_field_type_bit_elements
+required_capability: dense_vector_field_type_released
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
@@ -16,7 +16,7 @@ id:l | bit_vector:dense_vector
 ;
 
 denseBitVectorWithEval
-required_capability: dense_vector_field_type_bit_elements
+required_capability: dense_vector_field_type_released
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
@@ -33,7 +33,7 @@ id:l | v:dense_vector
 ;
 
 denseBitVectorWithRenameAndDrop
-required_capability: dense_vector_field_type_bit_elements
+required_capability: dense_vector_field_type_released
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector

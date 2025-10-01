@@ -88,6 +88,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -986,20 +988,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         double lastWriteLoad = 0.0;
         int currentIndex = 0;
-        logger.info("--> expecting {} missing", numMissing);
-        for (int i = 0; i < numMissing; i++) {
-            final var currentShardId = sortedShards.get(currentIndex++);
-            assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
-        }
-        logger.info("--> expecting {} at max", numAtMax);
-        for (int i = 0; i < numAtMax; i++) {
-            final var currentShardId = sortedShards.get(currentIndex++).shardId();
-            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
-            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
-            assertThat(currentWriteLoad, equalTo(maxWriteLoad));
-        }
-        logger.info("--> expecting {} below low in ascending order", numBelowLow);
-        for (int i = 0; i < numBelowLow; i++) {
+
+        logger.info("--> expecting {} between low and max in ascending order", numBetweenLowAndMax);
+        for (int i = 0; i < numBetweenLowAndMax; i++) {
             final var currentShardId = sortedShards.get(currentIndex++).shardId();
             assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
             final double currentWriteLoad = shardWriteLoads.get(currentShardId);
@@ -1009,8 +1000,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 assertThat(currentWriteLoad, greaterThanOrEqualTo(lastWriteLoad));
             }
         }
-        logger.info("--> expecting {} between low and max in descending order", numBetweenLowAndMax);
-        for (int i = 0; i < numBetweenLowAndMax; i++) {
+        logger.info("--> expecting {} below low in descending order", numBelowLow);
+        for (int i = 0; i < numBelowLow; i++) {
             final var currentShardId = sortedShards.get(currentIndex++).shardId();
             assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
             final double currentWriteLoad = shardWriteLoads.get(currentShardId);
@@ -1019,6 +1010,18 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             } else {
                 assertThat(currentWriteLoad, lessThanOrEqualTo(lastWriteLoad));
             }
+        }
+        logger.info("--> expecting {} at max", numAtMax);
+        for (int i = 0; i < numAtMax; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
+            final double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            assertThat(currentWriteLoad, equalTo(maxWriteLoad));
+        }
+        logger.info("--> expecting {} missing", numMissing);
+        for (int i = 0; i < numMissing; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++);
+            assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
         }
     }
 

@@ -1014,7 +1014,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     nodeId -> new PrioritiseByShardWriteLoadComparator(allocation, allocation.routingNodes().node(nodeId))
                 ).compare(shardRouting, currentShardForNode.shardRouting());
                 // Ignore inferior non-preferred moves
-                return comparison > 0;
+                return comparison < 0;
             }
 
             public void putCurrentMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {
@@ -1027,7 +1027,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Sorts shards by desirability to move, ranking goes (in descending priority order)
+         * Sorts shards by desirability to move, sort order goes:
          * <ol>
          *     <li>Shards with write-load in <i>{@link PrioritiseByShardWriteLoadComparator#threshold}</i> &rarr;
          *          {@link PrioritiseByShardWriteLoadComparator#maxWriteLoadOnNode} (exclusive)</li>
@@ -1038,9 +1038,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *
          * e.g., for any two <code>ShardRouting</code>s, <code>r1</code> and <code>r2</code>,
          * <ul>
-         *     <li><code>compare(r1, r2) &gt; 0</code> when <code>r1</code> is most desirable to move</li>
+         *     <li><code>compare(r1, r2) &gt; 0</code> when <code>r2</code> is more desirable to move</li>
          *     <li><code>compare(r1, r2) == 0</code> when the two shards are equally desirable to move</li>
-         *     <li><code>compare(r1, r2) &lt; 0</code> when <code>r2</code> is most desirable to move</li>
+         *     <li><code>compare(r1, r2) &lt; 0</code> when <code>r1</code> is more desirable to move</li>
          * </ul>
          */
         // Visible for testing
@@ -1099,7 +1099,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     return 0;
                 }
                 if (rhsIsMissing ^ lhsIsMissing) {
-                    return lhsIsMissing ? -1 : 1;
+                    return lhsIsMissing ? 1 : -1;
                 }
 
                 if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
@@ -1107,20 +1107,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     final var rhsOverThreshold = rhsWriteLoad >= threshold;
                     if (lhsOverThreshold && rhsOverThreshold) {
                         // Both values between threshold and maximum, prefer lowest
-                        return Double.compare(rhsWriteLoad, lhsWriteLoad);
+                        return Double.compare(lhsWriteLoad, rhsWriteLoad);
                     } else if (lhsOverThreshold) {
                         // lhs between threshold and maximum, rhs below threshold, prefer lhs
-                        return 1;
+                        return -1;
                     } else if (rhsOverThreshold) {
                         // lhs below threshold, rhs between threshold and maximum, prefer rhs
-                        return -1;
+                        return 1;
                     }
                     // Both values below the threshold, prefer highest
-                    return Double.compare(lhsWriteLoad, rhsWriteLoad);
+                    return Double.compare(rhsWriteLoad, lhsWriteLoad);
                 }
 
                 // prefer the non-max write load if there is one
-                return Double.compare(rhsWriteLoad, lhsWriteLoad);
+                return Double.compare(lhsWriteLoad, rhsWriteLoad);
             }
         }
 

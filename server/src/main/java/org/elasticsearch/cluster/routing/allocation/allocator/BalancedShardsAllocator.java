@@ -807,10 +807,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         public boolean moveShards() {
             boolean shardMoved = false;
+            final MostDesirableMovementsTracker movementsTracker = new MostDesirableMovementsTracker();
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
-            final MostDesirableMovementsTracker movementsTracker = new MostDesirableMovementsTracker();
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
                 final ShardRouting shardRouting = it.next();
                 final ProjectIndex index = projectIndex(shardRouting);

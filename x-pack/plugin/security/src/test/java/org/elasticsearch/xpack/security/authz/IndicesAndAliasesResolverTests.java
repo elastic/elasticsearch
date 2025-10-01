@@ -119,6 +119,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -809,6 +810,29 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 resolvedIndexExpression("foofoo*", Set.of("foofoobar", "foofoo", "foofoo-closed"), SUCCESS)
             )
         );
+    }
+
+    public void testResolveMultipleTimesDoesNotOverwriteExpressions() {
+        SearchRequest request = new SearchRequest("barbaz", "foofoo*");
+        request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+        String[] replacedIndices = new String[] { "barbaz", "foofoobar", "foofoo" };
+        assertThat(indices, hasSize(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+        assertThat(actual, is(notNullValue()));
+        assertThat(
+            actual.expressions(),
+            contains(
+                resolvedIndexExpression("barbaz", Set.of("barbaz"), CONCRETE_RESOURCE_UNAUTHORIZED),
+                resolvedIndexExpression("foofoo*", Set.of("foofoobar", "foofoo"), SUCCESS)
+            )
+        );
+        request.indices("*", "-*");
+        resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
+        assertThat(actual, sameInstance(request.getResolvedIndexExpressions()));
     }
 
     public void testResolveWildcardsExpandOpenAndClosedIgnoreUnavailable() {

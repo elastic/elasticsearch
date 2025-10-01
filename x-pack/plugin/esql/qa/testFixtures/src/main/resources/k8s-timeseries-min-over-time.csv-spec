@@ -373,7 +373,6 @@ events:long | pod:keyword | time_bucket:datetime
 
 min_over_time_null_values
 required_capability: ts_command_v0
-required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(min_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events NULLS FIRST, time_bucket  | LIMIT 10;
 
 events:long | pod:keyword | time_bucket:datetime

@@ -1,6 +1,5 @@
 present_over_time_events_received
 required_capability: ts_command_v0
-required_capability: present_over_time
 
 TS k8s 
 | WHERE cluster == "prod" AND pod == "two" 
@@ -135,8 +134,6 @@ true               | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_keyword
 required_capability: ts_command_v0
-required_capability: present_over_time
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS is_present = max(present_over_time(pod)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime

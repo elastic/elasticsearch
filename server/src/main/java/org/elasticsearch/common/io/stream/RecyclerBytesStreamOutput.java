@@ -234,7 +234,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    public BytesRef attemptDirectPageWrite(int bytes) {
+    /**
+     * Attempt to get one page to perform a write directly into the page. The page will only be returned if the requested bytes can fit.
+     * If requested bytes cannot fit, null will be returned. This will advance the current position in the stream.
+     *
+     * @param bytes the number of bytes for the single write
+     * @return a direct page if there is enough space in current page, otherwise null
+     */
+    public BytesRef tryGetPageForWrite(int bytes) {
         final int beforePageOffset = this.currentPageOffset;
         if (bytes <= (pageSize - beforePageOffset)) {
             BytesRef currentPage = currentBytesRef;

@@ -29,7 +29,7 @@ public final class TranslogHeaderWriter {
     private TranslogHeaderWriter() {}
 
     public static void writeIndexHeader(RecyclerBytesStreamOutput buffer, Translog.Index indexOperation) throws IOException {
-        BytesRef bytesRef = buffer.attemptDirectPageWrite(FIXED_INDEX_HEADER_SIZE);
+        BytesRef bytesRef = buffer.tryGetPageForWrite(FIXED_INDEX_HEADER_SIZE);
         if (bytesRef != null) {
             String routing = indexOperation.routing();
 
@@ -83,7 +83,7 @@ public final class TranslogHeaderWriter {
     }
 
     public static void writeDeleteHeader(RecyclerBytesStreamOutput buffer, Translog.Delete delete) throws IOException {
-        BytesRef bytesRef = buffer.attemptDirectPageWrite(FIXED_DELETE_HEADER_SIZE);
+        BytesRef bytesRef = buffer.tryGetPageForWrite(FIXED_DELETE_HEADER_SIZE);
         if (bytesRef != null) {
             int off = bytesRef.offset;
             byte[] bytes = bytesRef.bytes;
@@ -124,7 +124,7 @@ public final class TranslogHeaderWriter {
     }
 
     public static void writeNoOpHeader(RecyclerBytesStreamOutput buffer, Translog.NoOp noop) throws IOException {
-        BytesRef bytesRef = buffer.attemptDirectPageWrite(FIXED_NO_OP_HEADER_SIZE);
+        BytesRef bytesRef = buffer.tryGetPageForWrite(FIXED_NO_OP_HEADER_SIZE);
         if (bytesRef != null) {
             int off = bytesRef.offset;
             byte[] bytes = bytesRef.bytes;

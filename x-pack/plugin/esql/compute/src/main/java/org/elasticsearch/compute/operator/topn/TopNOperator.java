@@ -251,7 +251,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        boolean sortedInput
     ) implements OperatorFactory {
         public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -270,7 +271,8 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize
+                maxPageSize,
+                sortedInput
             );
         }
 
@@ -327,6 +329,8 @@ public class TopNOperator implements Operator, Accountable {
      */
     private long rowsEmitted;
 
+    private boolean sortedInput;
+
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -334,7 +338,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize
+        int maxPageSize,
+        boolean sortedInput
     ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
@@ -343,6 +348,7 @@ public class TopNOperator implements Operator, Accountable {
         this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.inputQueue = Queue.build(breaker, topCount);
+        this.sortedInput = sortedInput;
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -429,6 +435,17 @@ public class TopNOperator implements Operator, Accountable {
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
+                } else {
+                    // The queue is full
+                    // TODO Nacho Is this correct?
+                    var oldTop = inputQueue.top();
+                    var newSpare = inputQueue.insertWithOverflow(spare);
+
+                    if (sortedInput && oldTop == inputQueue.top()) {
+                        break;
+                    }
+
+                    spare = newSpare;
                 }
             }
         } finally {
@@ -638,6 +655,8 @@ public class TopNOperator implements Operator, Accountable {
             + encoders
             + ", sortOrders="
             + sortOrders
+            + "sortedInput="
+            + sortedInput
             + "]";
     }
 

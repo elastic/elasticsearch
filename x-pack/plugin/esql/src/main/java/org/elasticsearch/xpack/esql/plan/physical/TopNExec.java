@@ -37,12 +37,14 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
      * the stream of pages is consumed.
      */
     private final Integer estimatedRowSize;
+    private final boolean sortedInput;
 
-    public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize) {
+    public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize, boolean sortedInput) {
         super(source, child);
         this.order = order;
         this.limit = limit;
         this.estimatedRowSize = estimatedRowSize;
+        this.sortedInput = sortedInput;
     }
 
     private TopNExec(StreamInput in) throws IOException {
@@ -51,7 +53,8 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalVInt()
+            in.readOptionalVInt(),
+            in.readBoolean()
         );
     }
 
@@ -62,6 +65,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         out.writeCollection(order());
         out.writeNamedWriteable(limit());
         out.writeOptionalVInt(estimatedRowSize());
+        out.writeBoolean(sortedInput);
     }
 
     @Override
@@ -71,12 +75,12 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<TopNExec> info() {
-        return NodeInfo.create(this, TopNExec::new, child(), order, limit, estimatedRowSize);
+        return NodeInfo.create(this, TopNExec::new, child(), order, limit, estimatedRowSize, sortedInput);
     }
 
     @Override
     public TopNExec replaceChild(PhysicalPlan newChild) {
-        return new TopNExec(source(), newChild, order, limit, estimatedRowSize);
+        return new TopNExec(source(), newChild, order, limit, estimatedRowSize, sortedInput);
     }
 
     public Expression limit() {
@@ -102,12 +106,12 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
         size = Math.max(size, 1);
-        return Objects.equals(this.estimatedRowSize, size) ? this : new TopNExec(source(), child(), order, limit, size);
+        return Objects.equals(this.estimatedRowSize, size) ? this : new TopNExec(source(), child(), order, limit, size, sortedInput);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize);
+        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, sortedInput);
     }
 
     @Override
@@ -120,5 +124,9 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize);
         }
         return equals;
+    }
+
+    public boolean sortedInput() {
+        return sortedInput;
     }
 }

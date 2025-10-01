@@ -143,7 +143,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             T nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
+            super(name, indexed, stored, hasDocValues, meta);
             this.nullValue = nullValue;
             this.geometryParser = geometryParser;
         }

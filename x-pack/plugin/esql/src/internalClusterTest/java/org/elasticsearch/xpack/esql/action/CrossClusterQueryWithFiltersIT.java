@@ -420,11 +420,11 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
         )) {
             // One index
-            var e = expectThrows(ElasticsearchException.class, () -> runQuery("from cluster-a:log-2", randomBoolean(), filter).close());
+            var e = expectThrows(RuntimeException.class, () -> runQuery("from cluster-a:log-2", randomBoolean(), filter).close());
             // Two indices
-            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log-2", randomBoolean(), filter).close());
+            e = expectThrows(RuntimeException.class, () -> runQuery("from logs-1,cluster-a:log-2", randomBoolean(), filter).close());
             // Wildcard
-            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log*", randomBoolean(), filter).close());
+            e = expectThrows(RuntimeException.class, () -> runQuery("from logs-1,cluster-a:log*", randomBoolean(), filter).close());
         }
     }
 

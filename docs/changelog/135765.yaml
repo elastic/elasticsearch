@@ -1,0 +1,12 @@
+pr: 135765
+summary: Add deprecation notice for `max_size` rollover condition
+area: "Indices APIs, ILM+SLM"
+type: deprecation
+issues:
+ - 130737
+deprecation:
+  title: Add deprecation notice for `max_size` rollover condition
+  area: "Indices APIs, ILM+SLM"
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

@@ -12,6 +12,9 @@ setup:
           mappings: {}
 ---
 "Test get sample for index with no sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
 
   - do:
       indices.get_sample:

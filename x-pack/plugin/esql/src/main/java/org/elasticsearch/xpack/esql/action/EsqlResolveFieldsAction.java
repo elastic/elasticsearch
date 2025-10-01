@@ -283,11 +283,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                         }
                     }
-                    if (response.minTransportVersion() == null) {
-                        minTransportVersion.set(null);
-                    } else {
-                        minTransportVersion.accumulateAndGet(response.minTransportVersion(), TransportVersion::min);
-                    }
+                    minTransportVersion.accumulateAndGet(response.minTransportVersion(), (lhs, rhs) -> {
+                        if (lhs == null || rhs == null) {
+                            return null;
+                        }
+                        return TransportVersion.min(lhs, rhs);
+                    });
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);

@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -509,7 +510,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             } else {
                 response = new FieldCapabilitiesResponse(List.of(), List.of());
             }
-            threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION).execute(ActionRunnable.supply(listener, () -> (Response) response));
+            threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+                .execute(
+                    ActionRunnable.supply(listener, () -> (Response) new EsqlResolveFieldsResponse(response, TransportVersion.current()))
+                );
         }
     }
 }

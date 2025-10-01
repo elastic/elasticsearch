@@ -6,7 +6,6 @@ stack: preview 9.2.0
 The `FUSE` [processing command](/reference/query-languages/esql/commands/processing-commands.md) merges rows from multiple result sets and assigns
 new relevance scores.
 
-
 `FUSE` enables [hybrid search](/reference/query-languages/esql/esql-search-tutorial.md#perform-hybrid-search) to combine and score results from multiple queries, together with the [`FORK`](/reference/query-languages/esql/commands/fork.md) command.
 
 `FUSE` works by:
@@ -14,6 +13,11 @@ new relevance scores.
 1. Merging rows with matching `<key_columns>` values
 2. Assigning new relevance scores using the specified `<fuse_method>` algorithm
 and the values from the `<group_column>` and `<score_column>`
+
+:::::{tip}
+FUSE is for search use cases: it merges ranked result sets and computes relevance.
+Learn more about [how search works in ES|QL](docs-content://solutions/search/esql-for-search.md#how-search-works-in-esql).
+:::::
 
 ## Syntax
 

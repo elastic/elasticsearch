@@ -1,4 +1,9 @@
 ---
+applies_to:
+  stack:
+  serverless:
+products:
+  - id: elasticsearch
 navigation_title: "Sparse vector"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sparse-vector.html

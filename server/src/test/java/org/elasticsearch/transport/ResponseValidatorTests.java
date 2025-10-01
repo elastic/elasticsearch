@@ -22,13 +22,13 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
-public class CrossProjectErrorsUtilTests extends ESTestCase {
-    CrossProjectErrorsUtil crossProjectErrorsUtil = new CrossProjectErrorsUtil();
+public class ResponseValidatorTests extends ESTestCase {
 
     public void testLenientIndicesOptions() {
         // with lenient IndicesOptions we early terminate without error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getLenientIndicesOptions(), null, null);
+        assertNull(ResponseValidator.validate(getLenientIndicesOptions(), null, null));
     }
 
     public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
@@ -47,7 +47,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched resource locally thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, null);
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null));
     }
 
     public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
@@ -83,7 +83,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote);
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote));
     }
 
     public void testMissingFlatExpressionWithStrictIgnoreUnavailable() {
@@ -117,12 +117,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 )
             )
         );
-
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [P1:logs]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
@@ -157,11 +155,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        expectThrows(
-            ElasticsearchSecurityException.class,
-            containsString("authorization errors while resolving [P1:logs]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(e.getMessage(), containsString("authorization errors while resolving [P1:logs]"));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
@@ -180,7 +177,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched locally thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, null);
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null));
     }
 
     public void testQualifiedOriginExpressionWithStrictIgnoreUnavailableNotMatching() {
@@ -198,11 +195,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [_origin:logs]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, null)
-        );
+        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [_origin:logs]"));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
@@ -238,7 +234,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote);
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote));
     }
 
     public void testMissingQualifiedExpressionWithStrictIgnoreUnavailable() {
@@ -273,11 +269,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [P1:logs]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
     }
 
     public void testUnauthorizedQualifiedExpressionWithStrictIgnoreUnavailable() {
@@ -312,11 +307,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        expectThrows(
-            ElasticsearchSecurityException.class,
-            containsString("authorization errors while resolving [P1:logs]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(e.getMessage(), containsString("authorization errors while resolving [P1:logs]"));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {
@@ -335,7 +329,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched resource locally thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, null);
+        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, null));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {
@@ -371,7 +365,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote);
+        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, remote));
     }
 
     public void testMissingFlatExpressionWithStrictAllowNoIndices() {
@@ -406,11 +400,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [P1:logs*]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
     }
 
     public void testUnauthorizedFlatExpressionWithStrictAllowNoIndices() {
@@ -445,11 +438,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [P1:logs*]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
     }
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {
@@ -468,7 +460,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched locally thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, null);
+        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, null));
     }
 
     public void testQualifiedOriginExpressionWithStrictAllowNoIndicesNotMatching() {
@@ -485,12 +477,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 )
             )
         );
-
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [_origin:logs*]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, null)
-        );
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, null);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [_origin:logs*]"));
     }
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {
@@ -526,7 +516,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote);
+        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, remote));
     }
 
     public void testMissingQualifiedExpressionWithStrictAllowNoIndices() {
@@ -561,11 +551,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [P1:logs*]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
     }
 
     public void testUnauthorizedQualifiedExpressionWithStrictAllowNoIndices() {
@@ -599,12 +588,10 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                 )
             )
         );
-
-        expectThrows(
-            IndexNotFoundException.class,
-            containsString("no such index [P1:logs*]"),
-            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
-        );
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

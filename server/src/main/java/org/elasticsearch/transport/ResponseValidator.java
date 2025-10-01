@@ -45,8 +45,8 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
  * error response, throwing {@link IndexNotFoundException} for missing indices or
  * {@link ElasticsearchSecurityException} for authorization failures.
  */
-public class CrossProjectErrorsUtil {
-    private static final Logger logger = LogManager.getLogger(CrossProjectErrorsUtil.class);
+public class ResponseValidator {
+    private static final Logger logger = LogManager.getLogger(ResponseValidator.class);
     private static final String WILDCARD = "*";
     private static final String ORIGIN = "_origin"; // TODO use available constants
 
@@ -72,14 +72,14 @@ public class CrossProjectErrorsUtil {
      * @throws IndexNotFoundException         If indices are missing and the {@code IndicesOptions} do not allow it
      * @throws ElasticsearchSecurityException If authorization errors occurred during index resolution
      */
-    public void crossProjectFanoutErrorHandling(
+    public static ElasticsearchException validate(
         IndicesOptions indicesOptions,
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
-            return;
+            return null;
         }
 
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
@@ -114,26 +114,41 @@ public class CrossProjectErrorsUtil {
                     } else {
                         // if we have origin we can treat the local resolution as a remote with alias "_origin" to avoid duplicating code.
                         var localAsRemote = Map.of(ORIGIN, localResolvedExpressions);
-                        checkSingleRemoteExpression(localAsRemote, false, originalExpression, new ArrayList<>());
+                        var e = checkSingleRemoteExpression(localAsRemote, false, originalExpression, new ArrayList<>());
+                        if (e != null) {
+                            return e;
+                        }
                     }
                     continue;
                 }
             }
             if (false == indicesOptions.allowNoIndices()) {
-                checkAllowNoIndices(
+                var e = checkAllowNoIndices(
                     resource,
                     originalExpression,
                     localResolvedIndices,
                     remoteResolvedExpressions,
                     isQualifiedResource == false
                 );
+                if (e != null) {
+                    return e;
+                }
             } else if (false == indicesOptions.ignoreUnavailable()) {
-                checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isQualifiedResource == false);
+                var e = checkIndicesOptions(
+                    originalExpression,
+                    localResolvedIndices,
+                    remoteResolvedExpressions,
+                    isQualifiedResource == false
+                );
+                if (e != null) {
+                    return e;
+                }
             }
         }
+        return null;
     }
 
-    private static void checkAllowNoIndices(
+    private static ElasticsearchException checkAllowNoIndices(
         String indexAlias,
         String originalExpression,
         ResolvedIndexExpression localResolvedIndices,
@@ -142,12 +157,12 @@ public class CrossProjectErrorsUtil {
     ) {
         // strict behaviour of allowNoIndices checks if a wildcard expression resolves to no concrete indices.
         if (false == indexAlias.contains(WILDCARD)) {
-            return;
+            return null;
         }
-        checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isFlatWorldResource);
+        return checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isFlatWorldResource);
     }
 
-    private static void checkIndicesOptions(
+    private static ElasticsearchException checkIndicesOptions(
         String originalExpression,
         ResolvedIndexExpression localResolvedIndices,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
@@ -162,7 +177,7 @@ public class CrossProjectErrorsUtil {
                 "Local cluster has canonical expression for original expression [{}], skipping remote existence check",
                 originalExpression
             );
-            return;
+            return null;
         }
         List<ElasticsearchException> exceptions = new ArrayList<>();
         ElasticsearchException localException = localExpressions.exception();
@@ -173,11 +188,15 @@ public class CrossProjectErrorsUtil {
         for (String remoteExpression : localResolvedIndices.remoteExpressions()) {
             assert RemoteClusterAware.isRemoteIndexName(remoteExpression) : "remote expression are always qualified";
 
-            checkSingleRemoteExpression(remoteResolvedExpressions, isFlatWorldResource, remoteExpression, exceptions);
+            var e = checkSingleRemoteExpression(remoteResolvedExpressions, isFlatWorldResource, remoteExpression, exceptions);
+            if (e != null) {
+                return e;
+            }
         }
+        return null;
     }
 
-    private static void checkSingleRemoteExpression(
+    private static ElasticsearchException checkSingleRemoteExpression(
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         boolean isFlatWorldResource,
         String remoteExpression,
@@ -212,7 +231,7 @@ public class CrossProjectErrorsUtil {
                         if (isFlatWorldResource) {
                             exceptions.add(e);
                         } else {
-                            throw e;
+                            return e;
                         }
                     } else if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
                         // we only ever get exceptions if they are security related
@@ -227,7 +246,7 @@ public class CrossProjectErrorsUtil {
                             shouldBeUnAuthException = true;
                         } else {
                             exceptions.forEach(e::addSuppressed);
-                            throw e;
+                            return e;
                         }
                     }
                 }
@@ -245,7 +264,8 @@ public class CrossProjectErrorsUtil {
                 e = new IndexNotFoundException(remoteExpression);
             }
             exceptions.forEach(e::addSuppressed);
-            throw e;
+            return e;
         }
+        return null;
     }
 }

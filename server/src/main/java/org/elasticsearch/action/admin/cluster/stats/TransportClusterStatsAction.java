@@ -264,7 +264,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                long sharedRam = shardIdToSharedRam.get(indexShard.shardId());
+                // get the shared ram for this shard id (or zero if there's nothing in the map)
+                long sharedRam = shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L);
                 cancellableTask.ensureNotCancelled();
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards

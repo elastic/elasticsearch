@@ -80,10 +80,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                     indexShard.shardId(),
                     cacheTotals
                 );
-                shardIdToSharedRam.put(indexShard.shardId(), sharedRam);
+                // as a size optimization, only store non-zero values in the map
+                if (sharedRam > 0L) {
+                    shardIdToSharedRam.put(indexShard.shardId(), sharedRam);
+                }
             }
         }
-        return shardIdToSharedRam;
+        return Collections.unmodifiableMap(shardIdToSharedRam);
     }
 
     public long getCacheSizeForShard(ShardId shardId) {

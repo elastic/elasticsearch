@@ -349,15 +349,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         MockLog.awaitLogger(() -> {
             logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
             refreshClusterInfo();
-        },
-            DesiredBalanceShardsAllocator.class,
-            new MockLog.SeenEventExpectation(
-                "desired balance computation ran and completed",
-                DesiredBalanceShardsAllocator.class.getName(),
-                Level.DEBUG,
-                "Desired balance computation for * is completed, scheduling reconciliation"
-            )
-        );
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         // Wait for the DesiredBalance to be recomputed as a result of the settings change.
         MockLog.awaitLogger(() -> {
@@ -366,15 +358,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             );
             // Updating the cluster settings will trigger a reroute request.
             updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
-        },
-            DesiredBalanceShardsAllocator.class,
-            new MockLog.SeenEventExpectation(
-                "desired balance computation ran and completed",
-                DesiredBalanceShardsAllocator.class.getName(),
-                Level.DEBUG,
-                "Desired balance computation for * is completed, scheduling reconciliation"
-            )
-        );
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         try {
             // Now check that all the shards remain on the first node because the other two nodes have too high write thread pool
@@ -469,15 +453,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         MockLog.awaitLogger(() -> {
             logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
             refreshClusterInfo();
-        },
-            DesiredBalanceShardsAllocator.class,
-            new MockLog.SeenEventExpectation(
-                "desired balance computation ran and completed",
-                DesiredBalanceShardsAllocator.class.getName(),
-                Level.DEBUG,
-                "Desired balance updated for *"
-            )
-        );
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         // Wait for the DesiredBalance to be recomputed as a result of the settings change.
         MockLog.awaitLogger(() -> {
@@ -486,15 +462,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             );
             // Updating the cluster settings will trigger a reroute request.
             updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
-        },
-            DesiredBalanceShardsAllocator.class,
-            new MockLog.SeenEventExpectation(
-                "desired balance computation ran and completed",
-                DesiredBalanceShardsAllocator.class.getCanonicalName(),
-                Level.DEBUG,
-                "Desired balance updated for *"
-            )
-        );
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
 
         try {
             // Now check that all a single shard was moved off of the first node to address the queuing, but the rest of the shards remain.
@@ -728,6 +696,18 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, peakWriteLoad)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
+    }
+
+    /**
+     * Creates a MockLog.SeenEventExpectation for a log message indicating that the balancer computation has converged / finalized.
+     */
+    private MockLog.SeenEventExpectation createBalancerConvergedSeenEvent() {
+        return new MockLog.SeenEventExpectation(
+            "desired balance computation ran and completed",
+            DesiredBalanceShardsAllocator.class.getCanonicalName(),
+            Level.DEBUG,
+            "Desired balance computation for * is completed, scheduling reconciliation"
+        );
     }
 
     /**

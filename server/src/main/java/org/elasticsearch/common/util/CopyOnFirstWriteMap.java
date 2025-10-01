@@ -19,8 +19,6 @@ import java.util.Set;
 /**
  * This map is designed to be constructed from an immutable map and be copied only if a (rare) mutation operation occurs.
  * It should be converted back to an immutable map using `org.elasticsearch.common.util.LazyCopyOnWriteMap#toImmutableMap()`.
- * Note the returned immutable map is backed by the original map. Thus any updates to the original map will be reflected in the
- * immutable map.
  */
 public class CopyOnFirstWriteMap<K, V> implements Map<K, V> {
 
@@ -44,7 +42,7 @@ public class CopyOnFirstWriteMap<K, V> implements Map<K, V> {
     }
 
     public Map<K, V> toImmutableMap() {
-        return wasCopied ? Collections.unmodifiableMap(getForRead()) : getForRead();
+        return Map.copyOf(getForRead());
     }
 
     @Override

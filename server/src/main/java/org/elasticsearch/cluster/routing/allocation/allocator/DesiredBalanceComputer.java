@@ -519,7 +519,7 @@ public class DesiredBalanceComputer {
         if (startedShards.isEmpty()) {
             return;
         }
-        logger.info(
+        logger.debug(
             "Found [{}] started shards not accounted in ClusterInfo. The first one is {}",
             startedShards.size(),
             startedShards.getFirst()

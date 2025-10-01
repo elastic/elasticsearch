@@ -630,6 +630,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
   method: testGroupingAggregate {TestCase=<small positive doubles>}
   issue: https://github.com/elastic/elasticsearch/issues/135757
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
+  method: testGroupingAggregate {TestCase=<big positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/135756
 
 # Examples:
 #

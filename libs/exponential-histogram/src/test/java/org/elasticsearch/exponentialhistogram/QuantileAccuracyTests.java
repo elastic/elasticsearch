@@ -73,7 +73,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         assertThat(p99, equalTo(0.00001));
     }
 
-    public void testMinMaxClampedPercentileaccurace() {
+    public void testMinMaxClampedPercentileAccuracy() {
         ExponentialHistogram histogram = createAutoReleasedHistogram(
             b -> b.scale(0)
                 .setPositiveBucket(0, 1) // bucket 0 covers (1, 2]

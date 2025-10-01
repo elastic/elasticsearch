@@ -67,7 +67,7 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
             this.maxSize = maxSize;
         }
 
-        public List<SamplingService.RawDocument> getSamples() {
+        public List<SamplingService.RawDocument> getSample() {
             return getNodes().stream().map(n -> n.sample).filter(Objects::nonNull).flatMap(Collection::stream).limit(maxSize).toList();
         }
 
@@ -91,7 +91,7 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
                 chunk((builder, p) -> builder.startObject().startArray("sample")),
-                Iterators.flatMap(getSamples().iterator(), rawDocument -> single((builder, params1) -> {
+                Iterators.flatMap(getSample().iterator(), rawDocument -> single((builder, params1) -> {
                     builder.startObject();
                     builder.field("index", rawDocument.indexName());
                     Map<String, Object> sourceAsMap = XContentHelper.convertToMap(

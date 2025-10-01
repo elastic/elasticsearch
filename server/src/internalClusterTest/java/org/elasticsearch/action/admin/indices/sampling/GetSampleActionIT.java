@@ -9,20 +9,89 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetSampleActionIT extends ESIntegTestCase {
 
-    public void testGetSample() {
-        GetSampleAction.Request request = new GetSampleAction.Request(ProjectId.DEFAULT, new String[] { "test_index" });
+    public void testGetSample() throws Exception {
+        String indexName = randomIdentifier();
+        assertEmptySample(indexName);
+        addSamplingConfig(indexName);
+        assertEmptySample(indexName);
+        int docsToIndex = randomIntBetween(1, 20);
+        for (int i = 0; i < docsToIndex; i++) {
+            indexDoc(indexName, randomIdentifier(), randomAlphanumericOfLength(10), randomAlphanumericOfLength(10));
+        }
+        GetSampleAction.Request request = new GetSampleAction.Request(ProjectId.DEFAULT, new String[] { indexName });
         GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
-        List<SamplingService.RawDocument> sample = response.getSamples();
+        List<SamplingService.RawDocument> sample = response.getSample();
+        assertThat(sample.size(), equalTo(docsToIndex));
+        for (int i = 0; i < docsToIndex; i++) {
+            assertRawDocument(sample.get(i), indexName);
+        }
+    }
+
+    private void assertRawDocument(SamplingService.RawDocument rawDocument, String indexName) {
+        assertThat(rawDocument.projectId(), equalTo(ProjectId.DEFAULT));
+        assertThat(rawDocument.indexName(), equalTo(indexName));
+    }
+
+    private void assertEmptySample(String indexName) {
+        GetSampleAction.Request request = new GetSampleAction.Request(ProjectId.DEFAULT, new String[] { indexName });
+        GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
+        List<SamplingService.RawDocument> sample = response.getSample();
         assertThat(sample, equalTo(List.of()));
+    }
+
+    @SuppressWarnings("deprecation")
+    private void addSamplingConfig(String indexName) throws Exception {
+        final CountDownLatch blockingClusterStateUpdateTaskExecuting = new CountDownLatch(1);
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        clusterService.submitUnbatchedStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(
+                    currentState.projectState(ProjectId.DEFAULT).metadata()
+                );
+                SamplingMetadata samplingMetadata = new SamplingMetadata(
+                    Map.of(indexName, new SamplingConfiguration(1.0d, 100, null, null, null))
+                );
+                projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, samplingMetadata);
+                ClusterState newState = new ClusterState.Builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
+                blockingClusterStateUpdateTaskExecuting.countDown();
+                return newState;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                blockingClusterStateUpdateTaskExecuting.countDown();
+                assert false : e.getMessage();
+            }
+        });
+        blockingClusterStateUpdateTaskExecuting.await(10, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            SamplingMetadata samplingMetadata = clusterService.state()
+                .projectState(ProjectId.DEFAULT)
+                .metadata()
+                .custom(SamplingMetadata.TYPE);
+            assertThat(samplingMetadata, not(nullValue()));
+            assertThat(samplingMetadata.getIndexToSamplingConfigMap().get(indexName), not(nullValue()));
+        });
     }
 }

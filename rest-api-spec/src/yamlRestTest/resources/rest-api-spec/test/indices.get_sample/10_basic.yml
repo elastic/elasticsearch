@@ -7,7 +7,7 @@
   - do:
       indices.get_sample:
         index: non_existent
-  - match: { sample: []}
+      catch: missing
 
   - do:
       indices.create:
@@ -16,4 +16,4 @@
   - do:
       indices.get_sample:
         index: no_config
-  - match: { sample: []}
+      catch: missing

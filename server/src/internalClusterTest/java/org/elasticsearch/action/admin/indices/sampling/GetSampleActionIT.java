@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -32,8 +33,13 @@ public class GetSampleActionIT extends ESIntegTestCase {
     public void testGetSample() throws Exception {
         assumeTrue("Requires the sampling feature flag to be enabled", SamplingService.RANDOM_SAMPLING_FEATURE_FLAG);
         String indexName = randomIdentifier();
-        assertEmptySample(indexName);
+        // the index doesn't exist, so getting its sample will throw an exception:
+        assertGetSampleThrowsResourceNotFoundException(indexName);
+        createIndex(indexName);
+        // the index exists but there is no sampling configuration for it, so getting its sample will throw an exception:
+        assertGetSampleThrowsResourceNotFoundException(indexName);
         addSamplingConfig(indexName);
+        // There is now a sampling configuration, but no data has been ingested:
         assertEmptySample(indexName);
         int docsToIndex = randomIntBetween(1, 20);
         for (int i = 0; i < docsToIndex; i++) {
@@ -58,6 +64,11 @@ public class GetSampleActionIT extends ESIntegTestCase {
         GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
         List<SamplingService.RawDocument> sample = response.getSample();
         assertThat(sample, equalTo(List.of()));
+    }
+
+    private void assertGetSampleThrowsResourceNotFoundException(String indexName) {
+        GetSampleAction.Request request = new GetSampleAction.Request(ProjectId.DEFAULT, new String[] { indexName });
+        assertThrows(ResourceNotFoundException.class, () -> client().execute(GetSampleAction.INSTANCE, request).actionGet());
     }
 
     @SuppressWarnings("deprecation")

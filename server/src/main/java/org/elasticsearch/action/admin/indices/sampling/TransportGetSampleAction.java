@@ -9,9 +9,11 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,6 +33,7 @@ import static org.elasticsearch.action.admin.indices.sampling.GetSampleAction.Re
 import static org.elasticsearch.action.admin.indices.sampling.GetSampleAction.Response;
 
 public class TransportGetSampleAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SamplingService samplingService;
 
     @Inject
@@ -39,6 +42,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         SamplingService samplingService
     ) {
         super(
@@ -49,11 +53,26 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.samplingService = samplingService;
     }
 
     @Override
+    protected Void createActionContext(Task task, Request request) {
+        String indexName = request.indices()[0];
+        SamplingMetadata samplingMetadata = clusterService.state()
+            .projectState(request.getProjectId())
+            .metadata()
+            .custom(SamplingMetadata.TYPE);
+        if (samplingMetadata == null || samplingMetadata.getIndexToSamplingConfigMap().get(indexName) == null) {
+            throw new ResourceNotFoundException("No sampling configuration found for [" + indexName + "]");
+        }
+        return null;
+    }
+
+    @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
+        indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request);
         SamplingMetadata samplingMetadata = clusterService.state()
             .projectState(request.getProjectId())
             .metadata()

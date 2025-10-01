@@ -189,6 +189,11 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
                         + Arrays.stream(this.indices()).collect(Collectors.joining(", ", "[", "]"))
                 );
             }
+            if (this.indices()[0].contains("*")) {
+                return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
+                    "Wildcards are not supported, but found [" + this.indices()[0] + "]"
+                );
+            }
             return null;
         }
 

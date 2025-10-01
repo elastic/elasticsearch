@@ -113,6 +113,7 @@ public class DirectIOIT extends ESIntegTestCase {
     }
 
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/134479")
     public void testDirectIOUsed() {
         try (MockLog mockLog = MockLog.capture(FsDirectoryFactory.class)) {
             // we're just looking for some evidence direct IO is used (or not)

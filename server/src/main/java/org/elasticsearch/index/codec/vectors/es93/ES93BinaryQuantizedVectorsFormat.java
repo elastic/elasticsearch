@@ -25,7 +25,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
@@ -87,7 +86,7 @@ import java.io.IOException;
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat implements DirectIOCapableFlatVectorsFormat {
+public class ES93BinaryQuantizedVectorsFormat extends DirectIOCapableFlatVectorsFormat {
 
     public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 

@@ -45,6 +45,7 @@ import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
@@ -79,13 +80,14 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.search.crossproject.IndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 
 /**
  * A base class for all elasticsearch exceptions.
  */
 public class ElasticsearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
-    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersions.ZERO;
+    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersion.zero();
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
@@ -2022,6 +2024,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             184,
             TransportVersions.REMOTE_EXCEPTION,
             TransportVersions.REMOTE_EXCEPTION_8_19
+        ),
+        NO_MATCHING_PROJECT_EXCEPTION(
+            NoMatchingProjectException.class,
+            NoMatchingProjectException::new,
+            185,
+            NO_MATCHING_PROJECT_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

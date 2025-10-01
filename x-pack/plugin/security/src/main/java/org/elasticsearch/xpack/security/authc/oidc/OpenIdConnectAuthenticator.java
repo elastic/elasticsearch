@@ -80,7 +80,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
@@ -93,6 +92,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.jwt.JwtUtil;
 
@@ -707,11 +707,12 @@ public class OpenIdConnectAuthenticator {
                     IOReactorConfig.custom().setSoKeepAlive(realmConfig.getSetting(HTTP_TCP_KEEP_ALIVE)).build()
                 );
                 final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-                final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-                final SSLContext clientContext = sslService.sslContext(sslConfiguration);
-                final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
+                final SslProfile sslProfile = sslService.profile(sslKey);
+                final SSLContext clientContext = sslProfile.sslContext();
+                final HostnameVerifier verifier = sslProfile.hostnameVerifier();
                 Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
                     .register("http", NoopIOSessionStrategy.INSTANCE)
+                    // TODO: Should this use profile.ioSessionStrategy4 ?
                     .register("https", new SSLIOSessionStrategy(clientContext, verifier))
                     .build();
                 PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);

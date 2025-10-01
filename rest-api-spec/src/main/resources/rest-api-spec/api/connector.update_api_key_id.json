@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-api-key-id",
       "description": "Update the connector API key ID"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

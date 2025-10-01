@@ -112,7 +112,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     }
 
     public MappedFieldType getMappedFieldType() {
-        return new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        return new MappedFieldType("field", false, false, false, Collections.emptyMap()) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {

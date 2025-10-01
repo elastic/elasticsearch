@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,9 +58,9 @@ class AuthenticatorChain {
         AnonymousUser anonymousUser,
         AuthenticationContextSerializer authenticationSerializer,
         Tracer tracer,
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
-        PluggableApiKeyAuthenticator pluggableApiKeyAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
         RealmsAuthenticator realmsAuthenticator
     ) {
@@ -70,13 +72,15 @@ class AuthenticatorChain {
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
         this.tracer = tracer;
-        this.allAuthenticators = List.of(
-            serviceAccountAuthenticator,
-            oAuth2TokenAuthenticator,
-            pluggableApiKeyAuthenticator,
-            apiKeyAuthenticator,
-            realmsAuthenticator
-        );
+        List<Authenticator> authenticators = new ArrayList<>();
+        if (pluggableAuthenticatorChain.hasCustomAuthenticators()) {
+            authenticators.add(pluggableAuthenticatorChain);
+        }
+        authenticators.add(serviceAccountAuthenticator);
+        authenticators.add(oAuth2TokenAuthenticator);
+        authenticators.add(apiKeyAuthenticator);
+        authenticators.add(realmsAuthenticator);
+        this.allAuthenticators = Collections.unmodifiableList(authenticators);
     }
 
     void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {

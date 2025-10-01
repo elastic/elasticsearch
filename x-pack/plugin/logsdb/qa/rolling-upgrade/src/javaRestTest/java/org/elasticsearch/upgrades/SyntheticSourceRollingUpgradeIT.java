@@ -22,12 +22,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.createTemplate;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.formatInstant;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.getIndexSettingsWithDefaults;
 import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.startTrial;
+import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
+import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,6 +71,7 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractRollingUpgradeWithS
     }
 
     public void testIndexing() throws Exception {
+        assumeTrue("requires storing leaf array offsets", oldClusterHasFeature("gte_v9.1.0"));
         String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {
             startTrial();

@@ -246,7 +246,7 @@ steps:
       image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$/
+    if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

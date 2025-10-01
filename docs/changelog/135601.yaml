@@ -6,7 +6,7 @@ issues: []
 breaking:
   title: ES|QL Empty index resolution
   area: ES|QL
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: Changes index resolution so that `FROM empty*` resolves to empty set of indices (opposed to error today)
+    and becomes consistent with `GET /empty*/_search`.
+  impact: Makes a valid query check a bit more permissive in case when pattern is resolved to empty set of indices.
   notable: false

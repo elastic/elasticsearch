@@ -36,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -1651,7 +1652,7 @@ public class TranslogTests extends ESTestCase {
         OperationListener listener = (operation, seqNo, location) -> {
             seqNos.add(seqNo);
             locations.add(location);
-            try (TranslogStreamOutput output = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
                 try {
                     operation.writeToTranslogBuffer(output);
                 } catch (IOException e) {

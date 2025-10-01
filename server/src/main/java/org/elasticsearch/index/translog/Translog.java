@@ -623,7 +623,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        try (TranslogStreamOutput out = new TranslogStreamOutput(bigArrays.bytesRefRecycler())) {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
             Serialized serialized = Serialized.create(
@@ -1766,11 +1766,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
-    public static void writeHeaderWithSize(TranslogStreamOutput out, Translog.Operation op) throws IOException {
+    public static void writeHeaderWithSize(RecyclerBytesStreamOutput out, Translog.Operation op) throws IOException {
         switch (op) {
-            case Index index -> out.writeIndexHeader(index);
-            case Delete delete -> out.writeDeleteHeader(delete);
-            case NoOp noOp -> out.writeNoOpHeader(noOp);
+            case Index index -> TranslogHeaderWriter.writeIndexHeader(out, index);
+            case Delete delete -> TranslogHeaderWriter.writeDeleteHeader(out, delete);
+            case NoOp noOp -> TranslogHeaderWriter.writeNoOpHeader(out, noOp);
         }
     }
 

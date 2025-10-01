@@ -12,6 +12,7 @@ package org.elasticsearch.index.translog;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 
@@ -24,11 +25,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests to ensure that the multistep optimized TranslogStreamOutput serialization matches the standard
  * StreamOutput version.
  */
-public class TranslogStreamOutputTests extends ESTestCase {
+public class TranslogHeaderWriterTests extends ESTestCase {
 
     public void testIndexOperationSerializationMatches() throws IOException {
-        TranslogStreamOutput headerOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        TranslogStreamOutput fullOperationOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        RecyclerBytesStreamOutput headerOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        RecyclerBytesStreamOutput fullOperationOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
 
         for (int i = 0; i < 30; i++) {
             // Test both the fast path (single page) and slow page (cross page)
@@ -55,7 +56,7 @@ public class TranslogStreamOutputTests extends ESTestCase {
             Translog.writeOperationNoSize(output, index);
             BytesReference expectedWithoutSize = bytesStreamOutput.bytes();
 
-            headerOutput.writeIndexHeader(index);
+            TranslogHeaderWriter.writeIndexHeader(headerOutput, index);
             BytesReference headerBytes = headerOutput.bytes();
             Translog.Serialized serialized = Translog.Serialized.create(
                 headerBytes.slice(offset, headerBytes.length() - offset),
@@ -71,8 +72,8 @@ public class TranslogStreamOutputTests extends ESTestCase {
     }
 
     public void testDeleteOperationSerializationMatches() throws IOException {
-        TranslogStreamOutput headerOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        TranslogStreamOutput fullOperationOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        RecyclerBytesStreamOutput headerOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        RecyclerBytesStreamOutput fullOperationOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
 
         for (int i = 0; i < 30; i++) {
             // Test both the fast path (single page) and slow page (cross page)
@@ -96,7 +97,7 @@ public class TranslogStreamOutputTests extends ESTestCase {
             Translog.writeOperationNoSize(output, delete);
             BytesReference expectedWithoutSize = bytesStreamOutput.bytes();
 
-            headerOutput.writeDeleteHeader(delete);
+            TranslogHeaderWriter.writeDeleteHeader(headerOutput, delete);
             BytesReference headerBytes = headerOutput.bytes();
             Translog.Serialized serialized = Translog.Serialized.create(
                 headerBytes.slice(offset, headerBytes.length() - offset),
@@ -111,8 +112,8 @@ public class TranslogStreamOutputTests extends ESTestCase {
     }
 
     public void testNoOpOperationSerializationMatches() throws IOException {
-        TranslogStreamOutput headerOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        TranslogStreamOutput fullOperationOutput = new TranslogStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        RecyclerBytesStreamOutput headerOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        RecyclerBytesStreamOutput fullOperationOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
 
         for (int i = 0; i < 30; i++) {
             // Test both the fast path (single page) and slow page (cross page)
@@ -135,7 +136,7 @@ public class TranslogStreamOutputTests extends ESTestCase {
             Translog.writeOperationNoSize(output, noOp);
             BytesReference expectedWithoutSize = bytesStreamOutput.bytes();
 
-            headerOutput.writeNoOpHeader(noOp);
+            TranslogHeaderWriter.writeNoOpHeader(headerOutput, noOp);
             BytesReference headerBytes = headerOutput.bytes();
             Translog.Serialized serialized = Translog.Serialized.create(
                 headerBytes.slice(offset, headerBytes.length() - offset),

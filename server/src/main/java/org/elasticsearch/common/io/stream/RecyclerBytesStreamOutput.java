@@ -238,8 +238,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         final int beforePageOffset = this.currentPageOffset;
         if (bytes <= (pageSize - beforePageOffset)) {
             BytesRef currentPage = currentBytesRef;
+            BytesRef bytesRef = new BytesRef(currentPage.bytes, currentPage.offset + beforePageOffset, bytes);
             this.currentPageOffset = beforePageOffset + bytes;
-            return new BytesRef(currentPage.bytes, currentPage.offset + beforePageOffset, bytes);
+            return bytesRef;
         } else {
             return null;
         }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -81,7 +82,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
-    private TranslogStreamOutput buffer;
+    private RecyclerBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -245,7 +246,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new TranslogStreamOutput(bigArrays.bytesRefRecycler());
+                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
@@ -548,7 +549,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private synchronized ReleasableBytesReference pollOpsToWrite() {
         ensureOpen();
         if (this.buffer != null) {
-            try (TranslogStreamOutput toWrite = this.buffer) {
+            try (RecyclerBytesStreamOutput toWrite = this.buffer) {
 
                 this.buffer = null;
                 this.bufferedBytes = 0;

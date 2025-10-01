@@ -33,10 +33,16 @@ public class MvAppendErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        if (signature.getFirst() == DataType.DENSE_VECTOR
-            || signature.getFirst() == DataType.NULL && signature.get(1) == DataType.DENSE_VECTOR) {
+        var unsupportedTypes = List.of(DataType.AGGREGATE_METRIC_DOUBLE, DataType.DENSE_VECTOR);
+        if (unsupportedTypes.contains(signature.getFirst())
+            || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
             return containsString(
-                typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types or dense_vector")
+                typeErrorMessage(
+                    false,
+                    validPerPosition,
+                    signature,
+                    (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double"
+                )
             );
         } else {
             return equalTo(

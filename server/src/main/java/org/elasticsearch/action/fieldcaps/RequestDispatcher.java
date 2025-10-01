@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -105,16 +106,16 @@ public final class RequestDispatcher {
         ProjectState project = projectResolver.getProjectState(clusterState);
 
         for (String index : indices) {
-            final List<ShardIterator> shardIts;
+            final List<SearchShardRouting> searchShards;
             try {
-                shardIts = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
+                searchShards = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
             } catch (Exception e) {
                 onIndexFailure.accept(index, e);
                 continue;
             }
             final IndexSelector indexResult = new IndexSelector(
                 fieldCapsRequest.clusterAlias(),
-                shardIts,
+                searchShards,
                 fieldCapsRequest.indexFilter(),
                 nowInMillis,
                 coordinatorRewriteContextProvider
@@ -270,14 +271,15 @@ public final class RequestDispatcher {
 
         IndexSelector(
             String clusterAlias,
-            List<ShardIterator> shardIts,
+            List<SearchShardRouting> searchShards,
             QueryBuilder indexFilter,
             long nowInMillis,
             CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
         ) {
-            for (ShardIterator shardIt : shardIts) {
+            for (SearchShardRouting routing : searchShards) {
                 boolean canMatch = true;
-                final ShardId shardId = shardIt.shardId();
+                ShardIterator iterator = routing.iterator();
+                final ShardId shardId = iterator.shardId();
                 if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
                     var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
                     if (coordinatorRewriteContext != null) {
@@ -291,7 +293,7 @@ public final class RequestDispatcher {
                     }
                 }
                 if (canMatch) {
-                    for (ShardRouting shard : shardIt) {
+                    for (ShardRouting shard : iterator) {
                         nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
                     }
                 } else {

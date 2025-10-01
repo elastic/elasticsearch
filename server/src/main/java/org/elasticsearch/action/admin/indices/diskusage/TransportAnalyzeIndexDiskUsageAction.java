@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -220,15 +221,17 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     @Override
     protected List<ShardIterator> shards(ClusterState clusterState, AnalyzeIndexDiskUsageRequest request, String[] concreteIndices) {
         ProjectState project = projectResolver.getProjectState(clusterState);
-        final List<ShardIterator> groups = clusterService.operationRouting().searchShards(project, concreteIndices, null, null);
+        final List<SearchShardRouting> groups = clusterService.operationRouting().searchShards(project, concreteIndices, null, null);
 
-        for (ShardIterator group : groups) {
+        var shardIterators = new ArrayList<ShardIterator>(groups.size());
+        for (SearchShardRouting group : groups) {
             // fails fast if any non-active groups
-            if (group.size() == 0) {
-                throw new NoShardAvailableActionException(group.shardId());
+            if (group.iterator().size() == 0) {
+                throw new NoShardAvailableActionException(group.iterator().shardId());
             }
+            shardIterators.add(group.iterator());
         }
-        return groups;
+        return shardIterators;
     }
 
     @Override

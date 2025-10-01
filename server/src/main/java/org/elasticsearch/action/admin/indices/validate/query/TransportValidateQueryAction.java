@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -180,7 +181,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             routing,
             request.indices()
         );
-        return clusterService.operationRouting().searchShards(project, concreteIndices, routingMap, "_local");
+        return clusterService.operationRouting()
+            .searchShards(project, concreteIndices, routingMap, "_local")
+            .stream()
+            .map(SearchShardRouting::iterator)
+            .toList();
     }
 
     @Override

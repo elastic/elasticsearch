@@ -65,6 +65,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
         private final ShardSearchContextId readerId;
         private final TimeValue keepAlive;
         private final long waitForCheckpoint;
+        private final int reshardSplitShardCountSummary;
 
         public Shard(
             String[] indices,
@@ -74,7 +75,8 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             float indexBoost,
             ShardSearchContextId readerId,
             TimeValue keepAlive,
-            long waitForCheckpoint
+            long waitForCheckpoint,
+            int reshardSplitShardCountSummary
         ) {
             this.indices = indices;
             this.shardId = shardId;
@@ -85,6 +87,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             this.keepAlive = keepAlive;
             this.waitForCheckpoint = waitForCheckpoint;
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+            this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
         }
 
         public Shard(StreamInput in) throws IOException {
@@ -97,6 +100,11 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             keepAlive = in.readOptionalTimeValue();
             waitForCheckpoint = in.readLong();
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+            if (in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
+                reshardSplitShardCountSummary = in.readVInt();
+            } else {
+                reshardSplitShardCountSummary = 0;
+            }
         }
 
         @Override
@@ -109,6 +117,9 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
             out.writeLong(waitForCheckpoint);
+            if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
+                out.writeVInt(reshardSplitShardCountSummary);
+            }
         }
 
         public int getShardRequestIndex() {
@@ -234,7 +245,8 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             r.keepAlive,
             r.waitForCheckpoint,
             waitForCheckpointsTimeout,
-            false
+            false,
+            r.reshardSplitShardCountSummary
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

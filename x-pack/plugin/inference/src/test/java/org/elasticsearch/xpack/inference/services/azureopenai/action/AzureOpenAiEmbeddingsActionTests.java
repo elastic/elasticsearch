@@ -88,7 +88,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         );
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {

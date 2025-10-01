@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -582,6 +584,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
+        private static final Logger logger = LogManager.getLogger(TransportAction.class);
 
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
@@ -612,9 +615,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
-            final boolean resolvedCrossProject = resolveCrossProject(originalIndicesOptions);
+            final boolean resolveCrossProject = resolveCrossProject(originalIndicesOptions);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-                resolvedCrossProject ? lenientIndicesOptionsForCrossProject(originalIndicesOptions) : originalIndicesOptions,
+                resolveCrossProject ? lenientIndicesOptionsForCrossProject(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()
             );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -630,11 +633,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
-                        if (resolvedCrossProject) {
+                        if (resolveCrossProject) {
                             // TODO temporary fix: we need to properly handle the case where a remote does not return a result due to
                             // a failure -- in the current version of resolve indices though, these are just silently ignored
                             if (remoteRequests != remoteResponses.size()) {
-                                listener.onFailure(new IllegalStateException("not all remote clusters responded"));
+                                listener.onFailure(
+                                    new IllegalStateException(
+                                        "expected [" + remoteRequests + "] remote responses but got only [" + remoteResponses.size() + "]"
+                                    )
+                                );
                                 return;
                             }
                             final Exception ex = CrossProjectResponseValidator.validate(
@@ -665,7 +672,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         originalIndices.indices(),
                         originalIndices.indicesOptions(),
                         EnumSet.noneOf(IndexMode.class),
-                        resolvedCrossProject
+                        resolveCrossProject
                     );
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
@@ -676,7 +683,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     }));
                 }
             } else {
-                if (resolvedCrossProject) {
+                if (resolveCrossProject) {
                     // we still need to call response validation for local results, since qualified expressions like `_origin:index` or
                     // `<alias-pattern-matching-origin-only>:index` get deferred validation, also
                     final Exception ex = CrossProjectResponseValidator.validate(

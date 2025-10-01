@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -48,7 +49,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public class ClusterInfo implements ChunkedToXContent, Writeable {
+public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardSizeEstimator.ShardSizeProvider {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
@@ -362,31 +363,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     /**
      * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
      */
+    @Override
     public Long getShardSize(ShardId shardId, boolean primary) {
         return shardSizes.get(shardIdentifierFromRouting(shardId, primary));
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
-     */
-    public Long getShardSize(ShardRouting shardRouting) {
-        return getShardSize(shardRouting.shardId(), shardRouting.primary());
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardRouting shardRouting, long defaultValue) {
-        Long shardSize = getShardSize(shardRouting);
-        return shardSize == null ? defaultValue : shardSize;
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
-        Long shardSize = getShardSize(shardId, primary);
-        return shardSize == null ? defaultValue : shardSize;
     }
 
     /**

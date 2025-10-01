@@ -468,19 +468,27 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                 DOWNSAMPLING_IN_HOT_POLICY,
                 Map.of(
                     "hot",
-                    new Phase("hot", TimeValue.ZERO, Map.of("downsample", new DownsampleAction(DateHistogramInterval.MINUTE, null)))
+                    new Phase(
+                        "hot",
+                        TimeValue.ZERO,
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.MINUTE, null, randomBoolean()))
+                    )
                 )
             ),
             new LifecyclePolicy(
                 DOWNSAMPLING_IN_WARM_COLD_POLICY,
                 Map.of(
                     "warm",
-                    new Phase("warm", TimeValue.ZERO, Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null))),
+                    new Phase(
+                        "warm",
+                        TimeValue.ZERO,
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, randomBoolean()))
+                    ),
                     "cold",
                     new Phase(
                         "cold",
                         TimeValue.timeValueDays(3),
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, randomBoolean()))
                     )
                 )
             ),

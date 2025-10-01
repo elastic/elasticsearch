@@ -15,7 +15,7 @@ new relevance scores.
 and the values from the `<group_column>` and `<score_column>`
 
 :::::{tip}
-FUSE is for search use cases: it merges ranked result sets and computes relevance.
+`FUSE` is for search use cases: it merges ranked result sets and computes relevance.
 Learn more about [how search works in ES|QL](docs-content://solutions/search/esql-for-search.md#how-search-works-in-esql).
 :::::
 

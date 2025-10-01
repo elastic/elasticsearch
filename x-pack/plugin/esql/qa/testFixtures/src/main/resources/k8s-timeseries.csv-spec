@@ -559,3 +559,22 @@ cnt:long | cluster:keyword | pod:keyword
 1        | prod            | two
 1        | prod            | three
 ;
+
+Max of Rate with Bucket
+TS k8s
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+Max of Rate with Bucket, Rename Timestamp
+TS k8s
+| RENAME `@timestamp` AS newTs
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;

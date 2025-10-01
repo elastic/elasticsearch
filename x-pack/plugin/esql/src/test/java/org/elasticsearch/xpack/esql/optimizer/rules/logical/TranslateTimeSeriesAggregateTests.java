@@ -79,7 +79,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
      * }</pre>
      */
     public void testMaxOverTime() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | STATS count(max_over_time(network.cost)) BY time_bucket = BUCKET(@timestamp, 1 minute)
@@ -94,7 +94,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
     }
 
     public void testMaxOfRate() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY time_bucket = BUCKET(@timestamp, 1 minute)
@@ -126,7 +126,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
      * }</pre>
      */
     public void testAvgOfAvgOverTime() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | STATS avg_cost=avg(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
@@ -141,5 +141,32 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         TimeSeriesAggregate innerStats = as(innerEval.child(), TimeSeriesAggregate.class);
         Eval bucketEval = as(innerStats.child(), Eval.class); // compute the tbucket
         EsRelation relation = as(bucketEval.child(), EsRelation.class);
+    }
+
+    public void testRenameTimestampWithRate() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | RENAME `@timestamp` AS newTs
+            | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)
+            """);
+    }
+
+    public void testRenameTimestampWithOverTimeFunction() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | RENAME `@timestamp` AS newTs
+            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
+            """);
+    }
+
+    public void testRenameTimestampWithOverTimeFunctionWithTbucket() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | RENAME `@timestamp` AS newTs
+            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)
+            """);
     }
 }

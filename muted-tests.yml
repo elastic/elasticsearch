@@ -624,6 +624,9 @@ tests:
 - class: org.elasticsearch.ingest.SamplingServiceTests
   method: testMaybeSampleMaxSamples
   issue: https://github.com/elastic/elasticsearch/issues/135811
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
+  method: testGroupingAggregate {TestCase=<positive ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/135814
 
 # Examples:
 #

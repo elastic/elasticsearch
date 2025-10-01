@@ -46,6 +46,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.BOOLEAN,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.INTEGER,
             DataType.LONG,

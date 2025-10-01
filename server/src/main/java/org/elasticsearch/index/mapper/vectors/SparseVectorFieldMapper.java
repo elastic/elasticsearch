@@ -224,7 +224,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             @Nullable SparseVectorIndexOptions indexOptions
         ) {
-            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, true, isStored, false, meta);
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
         }
@@ -241,6 +241,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isVectorEmbedding() {
             return true;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_ONLY;
         }
 
         @Override

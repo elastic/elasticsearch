@@ -167,10 +167,7 @@ public class ExponentialHistogramQuantile {
         }
 
         ValueAndPreviousValue clampTo(double min, double max) {
-            return  new ValueAndPreviousValue(
-                Math.clamp(valueAtPreviousRank, min, max),
-                Math.clamp(valueAtRank, min, max)
-            );
+            return new ValueAndPreviousValue(Math.clamp(valueAtPreviousRank, min, max), Math.clamp(valueAtRank, min, max));
         }
     }
 }

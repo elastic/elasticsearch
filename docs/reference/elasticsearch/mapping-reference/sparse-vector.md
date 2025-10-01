@@ -288,7 +288,7 @@ POST /my-index/_update/1
 }
 ```
 
-This same merging behavior also applies to [`rank_features` fields](/reference/mapping-reference/rank-features.md), as they are also object-like structures.
+This same merging behavior also applies to [`rank_features` fields](/reference/elasticsearch/mapping-reference/rank-features.md), as they are also object-like structures.
 
 ## Important notes and limitations
 

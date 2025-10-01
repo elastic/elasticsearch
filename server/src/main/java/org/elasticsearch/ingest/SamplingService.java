@@ -427,26 +427,24 @@ public class SamplingService implements ClusterStateListener {
 
         public SampleStats combine(SampleStats other) {
             SampleStats result = new SampleStats();
-            result.potentialSamples.add(this.potentialSamples.longValue());
-            result.potentialSamples.add(other.potentialSamples.longValue());
-            result.samplesRejectedForMaxSamplesExceeded.add(this.samplesRejectedForMaxSamplesExceeded.longValue());
-            result.samplesRejectedForMaxSamplesExceeded.add(other.samplesRejectedForMaxSamplesExceeded.longValue());
-            result.samplesRejectedForCondition.add(this.samplesRejectedForCondition.longValue());
-            result.samplesRejectedForCondition.add(other.samplesRejectedForCondition.longValue());
-            result.samplesRejectedForRate.add(this.samplesRejectedForRate.longValue());
-            result.samplesRejectedForRate.add(other.samplesRejectedForRate.longValue());
-            result.samplesRejectedForException.add(this.samplesRejectedForException.longValue());
-            result.samplesRejectedForException.add(other.samplesRejectedForException.longValue());
-            result.samples.add(this.samples.longValue());
-            result.samples.add(other.samples.longValue());
-            result.timeSampling.add(this.timeSampling.longValue());
-            result.timeSampling.add(other.timeSampling.longValue());
-            result.timeEvaluatingCondition.add(this.timeEvaluatingCondition.longValue());
-            result.timeEvaluatingCondition.add(other.timeEvaluatingCondition.longValue());
-            result.timeCompilingCondition.add(this.timeCompilingCondition.longValue());
-            result.timeCompilingCondition.add(other.timeCompilingCondition.longValue());
-            result.lastException = this.lastException != null ? this.lastException : other.lastException;
+            addAllFields(this, result);
+            addAllFields(other, result);
             return result;
+        }
+
+        private static void addAllFields(SampleStats source, SampleStats dest) {
+            dest.potentialSamples.add(source.potentialSamples.longValue());
+            dest.samplesRejectedForMaxSamplesExceeded.add(source.samplesRejectedForMaxSamplesExceeded.longValue());
+            dest.samplesRejectedForCondition.add(source.samplesRejectedForCondition.longValue());
+            dest.samplesRejectedForRate.add(source.samplesRejectedForRate.longValue());
+            dest.samplesRejectedForException.add(source.samplesRejectedForException.longValue());
+            dest.samples.add(source.samples.longValue());
+            dest.timeSampling.add(source.timeSampling.longValue());
+            dest.timeEvaluatingCondition.add(source.timeEvaluatingCondition.longValue());
+            dest.timeCompilingCondition.add(source.timeCompilingCondition.longValue());
+            if (dest.lastException == null) {
+                dest.lastException = source.lastException;
+            }
         }
 
         @Override

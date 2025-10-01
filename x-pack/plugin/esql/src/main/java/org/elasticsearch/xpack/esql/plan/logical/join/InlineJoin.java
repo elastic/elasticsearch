@@ -55,7 +55,7 @@ public class InlineJoin extends Join {
      * Replaces the source of the target plan with a stub preserving the output of the source plan.
      */
     public static LogicalPlan stubSource(UnaryPlan sourcePlan, LogicalPlan target) {
-        return sourcePlan.replaceChild(new StubRelation(sourcePlan.source(), target.output()));
+        return sourcePlan.replaceChild(new StubRelation(sourcePlan.source(), StubRelation.computeOutput(sourcePlan, target)));
     }
 
     /**

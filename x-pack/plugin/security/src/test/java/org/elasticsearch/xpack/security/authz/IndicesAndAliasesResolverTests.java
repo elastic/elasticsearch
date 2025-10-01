@@ -112,6 +112,7 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -830,7 +831,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 resolvedIndexExpression("foofoo*", Set.of("foofoobar", "foofoo"), SUCCESS)
             )
         );
-        request.indices("*", "-*");
+        request.indices(NO_INDICES_OR_ALIASES_ARRAY);
         resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
         assertThat(actual, sameInstance(request.getResolvedIndexExpressions()));
     }
@@ -1836,7 +1837,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.aliases("bar*");
         request.indices("*bar");
         resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME));
-        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.aliases(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     public void testResolveAliasesExclusionWildcardsGetAliasesRequest() {
@@ -1893,7 +1894,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME));
         assertThat(resolvedIndices.getLocal(), contains("non_existing"));
         assertThat(Arrays.asList(request.indices()), contains("non_existing"));
-        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.aliases(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     /**

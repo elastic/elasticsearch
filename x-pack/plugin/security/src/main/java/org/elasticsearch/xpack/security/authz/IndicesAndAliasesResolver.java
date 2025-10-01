@@ -441,6 +441,7 @@ class IndicesAndAliasesResolver {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
             // see https://github.com/elastic/elasticsearch/issues/135799
+            // we are excepting `*,-*` below since we've observed this already -- keeping this assertion catch other cases
             assert replaceable.indices() == null || isNoneExpression(replaceable.indices())
                 : "resolved index expressions are already set to ["
                     + replaceable.getResolvedIndexExpressions()

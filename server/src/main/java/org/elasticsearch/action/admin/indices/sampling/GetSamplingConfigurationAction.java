@@ -9,24 +9,46 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
- * Action type for retrieving sampling configurations.
+ * Action type for retrieving sampling configuration for a specific index.
  * <p>
- * This action allows clients to get the current sampling configurations
- * that have been set on one or more indices. The response contains a mapping
- * from index names to their corresponding {@link SamplingConfiguration} objects.
+ * This action allows clients to get the current sampling configuration
+ * that has been set on a specific index. Unlike {@link GetSamplingConfigurationsAction}
+ * which retrieves all sampling configurations for the entire cluster, this action
+ * targets a single index and returns its configuration in a structured format.
  * </p>
+ * The response format matches:
+ *  <pre>
+ *  [
+ *      {
+ *      "index": "logs",
+ *      "configuration": {
+ *          "rate": "5%",
+ *          "if": "ctx?.network?.name == 'Guest'"
+ *      }
+ *      }
+ *  ]
+ *  </pre>
  *
  * @see SamplingConfiguration
+ * @see GetSamplingConfigurationsAction
  * @see PutSamplingConfigurationAction
  */
 public class GetSamplingConfigurationAction extends ActionType<GetSamplingConfigurationAction.Response> {
@@ -48,99 +70,182 @@ public class GetSamplingConfigurationAction extends ActionType<GetSamplingConfig
     }
 
     /**
-     * Response object containing a map from index names to their sampling configurations.
+     * Request object for getting the sampling configuration of a specific index.
      * <p>
-     * This response encapsulates a map where keys are index names and values are
-     * their corresponding sampling configurations. If an index has no sampling
-     * configuration, it will not be present in the map.
+     * This request specifies which index's sampling configuration should be retrieved.
+     * The index name must be provided and cannot be null or empty.
      * </p>
      */
-    public static class Response extends ActionResponse {
-        private final Map<String, SamplingConfiguration> indexToSamplingConfigMap;
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+        private String index;
 
         /**
-         * Constructs a new Response with the given index-to-configuration mapping.
+         * Constructs a new request for the specified index.
          *
-         * @param indexToSamplingConfigMap a map from index names to their sampling configurations.
+         * @param index the name of the index to get the sampling configuration for.
+         *              Must not be null or empty.
          */
-        public Response(Map<String, SamplingConfiguration> indexToSamplingConfigMap) {
-            this.indexToSamplingConfigMap = indexToSamplingConfigMap;
+        public Request(String index) {
+            this.index = index;
+        }
+
+        /**
+         * Constructs a new request by deserializing from a StreamInput.
+         *
+         * @param in the stream input to read from
+         * @throws IOException if an I/O error occurs during deserialization
+         */
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.index = in.readString();
+        }
+
+        /**
+         * Gets the index name for which to retrieve the sampling configuration.
+         *
+         * @return the index name
+         */
+        public String getIndex() {
+            return index;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { index };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            if (indices == null || indices.length != 1) {
+                throw new IllegalArgumentException("GetSamplingConfigurationAction.Request requires exactly one index");
+            }
+            this.index = indices[0];
+            return this;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = null;
+            if (Strings.isNullOrEmpty(index)) {
+                validationException = addValidationError("index name is required", validationException);
+            }
+            return validationException;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(index);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(index, request.index);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(index);
+        }
+    }
+
+    /**
+     * Response object containing the sampling configuration for a specific index.
+     * <p>
+     * This response contains the index name and its associated sampling configuration.
+     * The response is designed to match the expected JSON format with an array containing
+     * a single object with "index" and "configuration" fields.
+     * </p>
+     */
+    public static class Response extends ActionResponse implements ToXContentObject {
+        private final String index;
+        private final SamplingConfiguration configuration;
+
+        /**
+         * Constructs a new Response with the given index and configuration.
+         *
+         * @param index the index name
+         * @param configuration the sampling configuration for the index, or null if no configuration exists
+         */
+        public Response(String index, SamplingConfiguration configuration) {
+            this.index = index;
+            this.configuration = configuration;
         }
 
         /**
          * Constructs a new Response by deserializing from a StreamInput.
-         * <p>
-         * This constructor is used during deserialization when the response is received
-         * over the transport layer. It reads the map of index names to sampling configurations
-         * from the input stream.
-         * </p>
          *
          * @param in the stream input to read from
          * @throws IOException if an I/O error occurs during deserialization
          */
         public Response(StreamInput in) throws IOException {
-            this.indexToSamplingConfigMap = in.readMap(StreamInput::readString, SamplingConfiguration::new);
+            this.index = in.readString();
+            this.configuration = in.readOptionalWriteable(SamplingConfiguration::new);
         }
 
         /**
-         * Returns the mapping of index names to their sampling configurations.
-         * <p>
-         * The returned map contains all indices that have sampling configurations.
-         * Indices without sampling configurations will not be present in this map.
-         * </p>
+         * Gets the index name.
          *
-         * @return the index-to-sampling-configuration map
+         * @return the index name
          */
-        public Map<String, SamplingConfiguration> getIndexToSamplingConfigMap() {
-            return indexToSamplingConfigMap;
+        public String getIndex() {
+            return index;
         }
 
         /**
-         * Serializes this response to a StreamOutput.
-         * <p>
-         * This method writes the index-to-configuration map to the output stream
-         * so it can be transmitted over the transport layer. Each index name is
-         * written as a string, followed by its corresponding sampling configuration.
-         * </p>
+         * Gets the sampling configuration for the index.
          *
-         * @param out the stream output to write to
-         * @throws IOException if an I/O error occurs during serialization
+         * @return the sampling configuration, or null if no configuration exists for this index
          */
+        public SamplingConfiguration getConfiguration() {
+            return configuration;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(indexToSamplingConfigMap, StreamOutput::writeString, (stream, config) -> config.writeTo(stream));
+            out.writeString(index);
+            out.writeOptionalWriteable(configuration);
         }
 
-        /**
-         * Determines whether this response is equal to another object.
-         * <p>
-         * Two Response objects are considered equal if they contain the same
-         * index-to-sampling-configuration mappings.
-         * </p>
-         *
-         * @param o the object to compare with this response
-         * @return true if the objects are equal, false otherwise
-         */
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startArray();
+            builder.startObject();
+            builder.field("index", index);
+            if (configuration != null) {
+                builder.field("configuration", configuration);
+            } else {
+                builder.nullField("configuration");
+            }
+            builder.endObject();
+            builder.endArray();
+            return builder;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(indexToSamplingConfigMap, that.indexToSamplingConfigMap);
+            Response response = (Response) o;
+            return Objects.equals(index, response.index) && Objects.equals(configuration, response.configuration);
         }
 
-        /**
-         * Returns the hash code for this response.
-         * <p>
-         * The hash code is computed based on the index-to-sampling-configuration map,
-         * ensuring that equal responses have the same hash code.
-         * </p>
-         *
-         * @return the hash code value for this response
-         */
         @Override
         public int hashCode() {
-            return Objects.hash(indexToSamplingConfigMap);
+            return Objects.hash(index, configuration);
         }
     }
 }

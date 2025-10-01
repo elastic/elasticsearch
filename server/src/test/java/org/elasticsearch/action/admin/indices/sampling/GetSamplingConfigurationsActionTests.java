@@ -21,20 +21,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class GetSamplingConfigurationActionTests extends AbstractWireSerializingTestCase<GetSamplingConfigurationAction.Response> {
+public class GetSamplingConfigurationsActionTests extends AbstractWireSerializingTestCase<GetSamplingConfigurationsAction.Response> {
 
     @Override
-    protected Writeable.Reader<GetSamplingConfigurationAction.Response> instanceReader() {
-        return GetSamplingConfigurationAction.Response::new;
+    protected Writeable.Reader<GetSamplingConfigurationsAction.Response> instanceReader() {
+        return GetSamplingConfigurationsAction.Response::new;
     }
 
     @Override
-    protected GetSamplingConfigurationAction.Response createTestInstance() {
+    protected GetSamplingConfigurationsAction.Response createTestInstance() {
         return createRandomResponse();
     }
 
     @Override
-    protected GetSamplingConfigurationAction.Response mutateInstance(GetSamplingConfigurationAction.Response instance) {
+    protected GetSamplingConfigurationsAction.Response mutateInstance(GetSamplingConfigurationsAction.Response instance) {
         Map<String, SamplingConfiguration> originalMap = instance.getIndexToSamplingConfigMap();
 
         // Create a mutated map by either adding, removing, or changing entries
@@ -53,10 +53,10 @@ public class GetSamplingConfigurationActionTests extends AbstractWireSerializing
             mutatedMap.put(keyToChange, createRandomSamplingConfiguration());
         }
 
-        return new GetSamplingConfigurationAction.Response(mutatedMap);
+        return new GetSamplingConfigurationsAction.Response(mutatedMap);
     }
 
-    private GetSamplingConfigurationAction.Response createRandomResponse() {
+    private GetSamplingConfigurationsAction.Response createRandomResponse() {
         Map<String, SamplingConfiguration> indexToConfigMap = new HashMap<>();
 
         int numEntries = randomIntBetween(0, 5);
@@ -66,7 +66,7 @@ public class GetSamplingConfigurationActionTests extends AbstractWireSerializing
             indexToConfigMap.put(indexName, config);
         }
 
-        return new GetSamplingConfigurationAction.Response(indexToConfigMap);
+        return new GetSamplingConfigurationsAction.Response(indexToConfigMap);
     }
 
     private SamplingConfiguration createRandomSamplingConfiguration() {
@@ -80,12 +80,12 @@ public class GetSamplingConfigurationActionTests extends AbstractWireSerializing
     }
 
     public void testActionName() {
-        assertThat(GetSamplingConfigurationAction.NAME, equalTo("indices:admin/sampling/config/get"));
-        assertThat(GetSamplingConfigurationAction.INSTANCE.name(), equalTo(GetSamplingConfigurationAction.NAME));
+        assertThat(GetSamplingConfigurationsAction.NAME, equalTo("indices:admin/sampling/config/getAll"));
+        assertThat(GetSamplingConfigurationsAction.INSTANCE.name(), equalTo(GetSamplingConfigurationsAction.NAME));
     }
 
     public void testActionInstance() {
-        assertThat(GetSamplingConfigurationAction.INSTANCE, notNullValue());
-        assertThat(GetSamplingConfigurationAction.INSTANCE, sameInstance(GetSamplingConfigurationAction.INSTANCE));
+        assertThat(GetSamplingConfigurationsAction.INSTANCE, notNullValue());
+        assertThat(GetSamplingConfigurationsAction.INSTANCE, sameInstance(GetSamplingConfigurationsAction.INSTANCE));
     }
 }

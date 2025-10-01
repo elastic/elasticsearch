@@ -138,74 +138,76 @@ public class SamplingService implements ClusterStateListener {
         }
         SamplingConfiguration samplingConfig = samplingMetadata.getIndexToSamplingConfigMap().get(indexName);
         ProjectId projectId = projectMetadata.id();
-        if (samplingConfig != null) {
-            SoftReference<SampleInfo> sampleInfoReference = samples.compute(
-                new ProjectIndex(projectId, indexName),
-                (k, v) -> v == null || v.get() == null
-                    ? new SoftReference<>(
-                        new SampleInfo(samplingConfig.maxSamples(), samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong())
-                    )
-                    : v
-            );
-            SampleInfo sampleInfo = sampleInfoReference.get();
-            if (sampleInfo != null) {
-                SampleStats stats = sampleInfo.stats;
-                stats.potentialSamples.increment();
-                try {
-                    if (sampleInfo.hasCapacity()) {
-                        if (random.nextDouble() < samplingConfig.rate()) {
-                            String condition = samplingConfig.condition();
-                            if (condition != null) {
-                                if (sampleInfo.script == null || sampleInfo.factory == null) {
-                                    // We don't want to pay for synchronization because worst case, we compile the script twice
-                                    long compileScriptStartTime = statsTimeSupplier.getAsLong();
-                                    try {
-                                        if (sampleInfo.compilationFailed) {
-                                            // we don't want to waste time -- if the script failed to compile once it will just fail again
-                                            stats.samplesRejectedForException.increment();
-                                            return;
-                                        } else {
-                                            Script script = getScript(condition);
-                                            sampleInfo.setScript(script, scriptService.compile(script, IngestConditionalScript.CONTEXT));
-                                        }
-                                    } catch (Exception e) {
-                                        sampleInfo.compilationFailed = true;
-                                        throw e;
-                                    } finally {
-                                        stats.timeCompilingCondition.add((statsTimeSupplier.getAsLong() - compileScriptStartTime));
-                                    }
-                                }
-                            }
-                            if (condition == null
-                                || evaluateCondition(ingestDocumentSupplier, sampleInfo.script, sampleInfo.factory, sampleInfo.stats)) {
-                                RawDocument sample = getRawDocumentForIndexRequest(projectId, indexName, indexRequest);
-                                if (sampleInfo.offer(sample)) {
-                                    stats.samples.increment();
-                                    logger.trace("Sampling " + indexRequest);
-                                } else {
-                                    stats.samplesRejectedForMaxSamplesExceeded.increment();
-                                }
-                            } else {
-                                stats.samplesRejectedForCondition.increment();
-                            }
+        if (samplingConfig == null) {
+            return;
+        }
+        SoftReference<SampleInfo> sampleInfoReference = samples.compute(
+            new ProjectIndex(projectId, indexName),
+            (k, v) -> v == null || v.get() == null
+                ? new SoftReference<>(
+                    new SampleInfo(samplingConfig.maxSamples(), samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong())
+                )
+                : v
+        );
+        SampleInfo sampleInfo = sampleInfoReference.get();
+        if (sampleInfo == null) {
+            return;
+        }
+        SampleStats stats = sampleInfo.stats;
+        stats.potentialSamples.increment();
+        try {
+            if (sampleInfo.hasCapacity() == false) {
+                stats.samplesRejectedForMaxSamplesExceeded.increment();
+                return;
+            }
+            if (random.nextDouble() >= samplingConfig.rate()) {
+                stats.samplesRejectedForRate.increment();
+                return;
+            }
+            String condition = samplingConfig.condition();
+            if (condition != null) {
+                if (sampleInfo.script == null || sampleInfo.factory == null) {
+                    // We don't want to pay for synchronization because worst case, we compile the script twice
+                    long compileScriptStartTime = statsTimeSupplier.getAsLong();
+                    try {
+                        if (sampleInfo.compilationFailed) {
+                            // we don't want to waste time -- if the script failed to compile once it will just fail again
+                            stats.samplesRejectedForException.increment();
+                            return;
                         } else {
-                            stats.samplesRejectedForRate.increment();
+                            Script script = getScript(condition);
+                            sampleInfo.setScript(script, scriptService.compile(script, IngestConditionalScript.CONTEXT));
                         }
-                    } else {
-                        stats.samplesRejectedForMaxSamplesExceeded.increment();
+                    } catch (Exception e) {
+                        sampleInfo.compilationFailed = true;
+                        throw e;
+                    } finally {
+                        stats.timeCompilingCondition.add((statsTimeSupplier.getAsLong() - compileScriptStartTime));
                     }
-                } catch (Exception e) {
-                    stats.samplesRejectedForException.increment();
-                    /*
-                     * We potentially overwrite a previous exception here. But the thinking is that the user will pretty rapidly iterate on
-                     * exceptions as they come up, and this avoids the overhead and complexity of keeping track of multiple exceptions.
-                     */
-                    stats.lastException = e;
-                    logger.debug("Error performing sampling for " + indexName, e);
-                } finally {
-                    stats.timeSampling.add((statsTimeSupplier.getAsLong() - startTime));
                 }
             }
+            if (condition != null
+                && evaluateCondition(ingestDocumentSupplier, sampleInfo.script, sampleInfo.factory, sampleInfo.stats) == false) {
+                stats.samplesRejectedForCondition.increment();
+                return;
+            }
+            RawDocument sample = getRawDocumentForIndexRequest(projectId, indexName, indexRequest);
+            if (sampleInfo.offer(sample)) {
+                stats.samples.increment();
+                logger.trace("Sampling " + indexRequest);
+            } else {
+                stats.samplesRejectedForMaxSamplesExceeded.increment();
+            }
+        } catch (Exception e) {
+            stats.samplesRejectedForException.increment();
+            /*
+             * We potentially overwrite a previous exception here. But the thinking is that the user will pretty rapidly iterate on
+             * exceptions as they come up, and this avoids the overhead and complexity of keeping track of multiple exceptions.
+             */
+            stats.lastException = e;
+            logger.debug("Error performing sampling for " + indexName, e);
+        } finally {
+            stats.timeSampling.add((statsTimeSupplier.getAsLong() - startTime));
         }
     }
 

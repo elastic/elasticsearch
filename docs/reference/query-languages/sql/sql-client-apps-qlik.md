@@ -19,7 +19,7 @@ Elastic does not endorse, promote or provide support for this application; for n
 
 ## Prerequisites [_prerequisites_8]
 
-* [Qlik Sense Desktop](https://www.qlik.com/us/try-or-buy/download-qlik-sense) November 2018 or higher
+* [Qlik Sense Desktop](https://www.qlik.com/us/try-or-buy/download-qlik-sense) November 2018 or higher. You must have a Qlik account to download it.
 * {{es}} SQL [ODBC driver](sql-odbc.md)
 * A preconfigured User or System DSN (see [Configuration](sql-odbc-setup.md#dsn-configuration) section on how to configure a DSN).
 

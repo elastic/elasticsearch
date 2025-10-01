@@ -45,3 +45,16 @@ The following chapters aim to cover everything from usage, to syntax and drivers
 
 [ODBC](sql/sql-odbc.md)
 :   ODBC driver for {{es}}.
+
+[Client Applications](sql/sql-client-apps.md)
+:   Setup various SQL/BI tools with Elasticsearch SQL.
+
+[SQL Language](sql/sql-spec.md)
+:   Overview of the Elasticsearch SQL language, such as supported data types, commands and syntax.
+
+[Functions and Operators](sql/sql-functions.md)
+:   List of functions and operators supported.
+
+[Limitations](sql/sql-limitations.md)
+:   Elasticsearch SQL current limitations.
+

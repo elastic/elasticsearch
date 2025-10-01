@@ -8,7 +8,7 @@ products:
   - id: elasticsearch
 ---
 
-# SquirreL SQL [sql-client-apps-squirrel]
+# SQuirreL SQL [sql-client-apps-squirrel]
 
 You can use the {{es}} JDBC driver to access {{es}} data from SQuirreL SQL.
 

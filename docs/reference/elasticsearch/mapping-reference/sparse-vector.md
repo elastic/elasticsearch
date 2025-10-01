@@ -288,11 +288,11 @@ POST /my-index/_update/1
 }
 ```
 
-This same merging behavior also applies to [`rank_features` fields](/mapping-reference/rank-feature.md), as they are also object-like structures.
+This same merging behavior also applies to [`rank_features` fields](/reference/mapping-reference/rank-feature.md), as they are also object-like structures.
 
 ## Important notes and limitations
 
-- `sparse_vector` fields can not be included in indices that were **created** on Elasticsearch versions between 8.0 and 8.10
+- `sparse_vector` fields can not be included in indices that were **created** on {{es}} versions between 8.0 and 8.10
 - `sparse_vector` fields only support strictly positive values. Negative values will be rejected.
-- `sparse_vector` fields do not support [analyzers](https://www.elastic.co/docs/manage-data/data-store/text-analysis), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-sparse-vector-query) queries. They may also be used within legacy [`text_expansion`](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-text-expansion-query) queries.
+- `sparse_vector` fields do not support [analyzers](docs-content://manage-data/data-store/text-analysis.md), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) queries. They may also be used within legacy [`text_expansion`](/reference/query-languages/query-dsl/query-dsl-text-expansion-query.md) queries.
 - `sparse_vector` fields only preserve 9 significant bits for the precision, which translates to a relative error of about 0.4%.

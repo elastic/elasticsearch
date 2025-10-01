@@ -45,9 +45,15 @@ public interface SupportedVersion {
      *         messages.
      *     </li>
      * </ul>
-     * Snapshot builds treat these as supported. Mixed/multi cluster tests with older nodes
-     * have to just be skipped using capabilites, as always.
+     * <p>
+     *     Snapshot builds treat these as always supported so that we can write tests before actually
+     *     turning on the support for the type. Mixed/multi cluster tests with older nodes have to be skipped
+     *     based on capabilites, as always.
      */
+    // We used to have a feature-flag based override, so that in-development types could be
+    // turned on for testing in release builds. If needed, it's fine to bring this back, but we
+    // need to make sure that other checks for types being under construction are also overridden.
+    // Check usage of this constant to be sure.
     SupportedVersion UNDER_CONSTRUCTION = new SupportedVersion() {
         @Override
         public boolean supports(TransportVersion version) {
@@ -60,6 +66,14 @@ public interface SupportedVersion {
         }
     };
 
+    /**
+     * Types that are supported starting with the given version.
+     * <p>
+     *     Snapshot builds treat these as always supported, so that any existing tests using them
+     *     continue to work. Otherwise, we'd have to
+     *     update bwc tests to skip older versions based on a capability check, which can be error-prone
+     *     and risks turning off an unrelated bwc test.
+     */
     static SupportedVersion supportedOn(TransportVersion supportedVersion) {
         return new SupportedVersion() {
             @Override

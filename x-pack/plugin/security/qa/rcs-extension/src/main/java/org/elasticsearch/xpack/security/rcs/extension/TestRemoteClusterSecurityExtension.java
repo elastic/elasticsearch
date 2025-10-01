@@ -55,7 +55,6 @@ public class TestRemoteClusterSecurityExtension implements RemoteClusterSecurity
 
             @Override
             public Optional<ServerTransportFilter> getRemoteProfileTransportFilter(
-                String profileName,
                 SslProfile sslProfile,
                 DestructiveOperations destructiveOperations
             ) {

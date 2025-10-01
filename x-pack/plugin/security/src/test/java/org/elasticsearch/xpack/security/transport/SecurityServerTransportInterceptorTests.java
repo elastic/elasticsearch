@@ -545,7 +545,6 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
 
         @Override
         public Optional<ServerTransportFilter> getRemoteProfileTransportFilter(
-            String profileName,
             SslProfile sslProfile,
             DestructiveOperations destructiveOperations
         ) {

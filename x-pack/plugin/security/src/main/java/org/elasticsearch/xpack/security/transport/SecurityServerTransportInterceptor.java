@@ -92,7 +92,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final SslProfile sslProfile = entry.getValue();
             if (profileName.equals(REMOTE_CLUSTER_PROFILE)) {
                 var remoteProfileTransportFilter = this.remoteClusterTransportInterceptor.getRemoteProfileTransportFilter(
-                    profileName,
                     sslProfile,
                     destructiveOperations
                 );

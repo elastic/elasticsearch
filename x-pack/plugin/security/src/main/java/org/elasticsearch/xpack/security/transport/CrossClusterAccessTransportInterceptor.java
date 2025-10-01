@@ -53,7 +53,6 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 
@@ -325,13 +324,11 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
     @Override
     public Optional<ServerTransportFilter> getRemoteProfileTransportFilter(
-        String profileName,
         SslProfile sslProfile,
         DestructiveOperations destructiveOperations
     ) {
-        assert REMOTE_CLUSTER_PROFILE.equals(profileName) : "should only be called for remote cluster transport profiles";
         final SslConfiguration profileConfiguration = sslProfile.configuration();
-        assert profileConfiguration != null : "SSL Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
+        assert profileConfiguration != null : "SSL Profile [" + sslProfile + "] has a null configuration";
         final boolean remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
         if (remoteClusterServerEnabled) {

@@ -46,11 +46,7 @@ public interface RemoteClusterTransportInterceptor {
      * @return a custom {@link ServerTransportFilter}s for the given transport profile,
      *         or an empty optional to fall back to the default transport filter
      */
-    Optional<ServerTransportFilter> getRemoteProfileTransportFilter(
-        String profileName,
-        SslProfile sslProfile,
-        DestructiveOperations destructiveOperations
-    );
+    Optional<ServerTransportFilter> getRemoteProfileTransportFilter(SslProfile sslProfile, DestructiveOperations destructiveOperations);
 
     /**
      * Returns {@code true} if any of the remote cluster access headers are in the security context.

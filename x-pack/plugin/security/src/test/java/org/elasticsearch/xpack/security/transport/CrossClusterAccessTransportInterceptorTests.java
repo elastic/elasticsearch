@@ -849,7 +849,6 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
         );
 
         final Optional<ServerTransportFilter> remoteProfileTransportFilter = interceptor.getRemoteProfileTransportFilter(
-            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
             remoteProfile,
             destructiveOperations
         );
@@ -901,7 +900,6 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
         );
 
         final Optional<ServerTransportFilter> remoteProfileTransportFilter = interceptor.getRemoteProfileTransportFilter(
-            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
             remoteProfile,
             destructiveOperations
         );

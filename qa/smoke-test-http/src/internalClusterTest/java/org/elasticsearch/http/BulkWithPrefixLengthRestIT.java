@@ -43,7 +43,7 @@ public class BulkWithPrefixLengthRestIT extends HttpSmokeTestCase {
     public BulkWithPrefixLengthRestIT() {
         xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
         options = RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Bulk-Format", "prefix-length")
+            .addHeader("X-Bulk-Format", "prefix-length")
             .addHeader("Content-Type", randomFrom(xContentType.headerValues()).v1())
             .build();
     }

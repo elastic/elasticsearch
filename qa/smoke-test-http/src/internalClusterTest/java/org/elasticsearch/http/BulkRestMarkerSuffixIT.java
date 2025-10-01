@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class BulkRestMarkerSuffixIT extends HttpSmokeTestCase {
 
-    private final RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Bulk-Format", "marker-suffix").build();
+    private final RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("X-Bulk-Format", "marker-suffix").build();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

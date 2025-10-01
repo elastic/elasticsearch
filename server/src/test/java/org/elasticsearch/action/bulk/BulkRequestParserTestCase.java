@@ -317,57 +317,6 @@ public abstract class BulkRequestParserTestCase extends ESTestCase {
         );
     }
 
-    // public void testBarfOnLackOfTrailingNewline() throws IOException {
-    // BytesArray request = buildBulk(List.of("""
-    // { "index":{ "_id": "bar" } }
-    // """,
-    // """
-    // {}"""));
-    // BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, RestApiVersion.current());
-    // IllegalArgumentException e = expectThrows(
-    // IllegalArgumentException.class,
-    // () -> parser.parse(
-    // request,
-    // "foo",
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // false,
-    // contentType(),
-    // bulkFormat(),
-    // (req, type) -> fail(),
-    // req -> fail(),
-    // req -> fail()
-    // )
-    // );
-    // assertEquals("The bulk request must be terminated by a newline [\\n]", e.getMessage());
-    //
-    // BulkRequestParser.IncrementalParser incrementalParser = parser.incrementalParser(
-    // "foo",
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // false,
-    // contentType(),
-    // bulkFormat(),
-    // (req, type) -> {},
-    // req -> {},
-    // req -> {}
-    // );
-    //
-    // // Should not throw because not last
-    // incrementalParser.parse(request, false);
-    //
-    // IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> incrementalParser.parse(request, true));
-    // assertEquals("The bulk request must be terminated by a newline [\\n]", e2.getMessage());
-    // }
-
     public void testFailOnExplicitIndex() throws IOException {
         BytesArray request = buildBulk(List.of("""
             { "index":{ "_index": "foo", "_id": "bar" } }
@@ -481,37 +430,6 @@ public abstract class BulkRequestParserTestCase extends ESTestCase {
         );
     }
 
-    // public void testFailMissingCloseBrace() throws IOException {
-    // BytesArray request = buildBulk(List.of("""
-    // { "index":{ }
-    // """,
-    // """
-    // {}
-    // """));
-    // BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, randomFrom(REST_API_VERSIONS_POST_V8));
-    //
-    // IllegalArgumentException ex = expectThrows(
-    // IllegalArgumentException.class,
-    // () -> parser.parse(
-    // request,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // false,
-    // contentType(),
-    // bulkFormat(),
-    // (req, type) -> fail("expected failure before we got this far"),
-    // req -> fail("expected failure before we got this far"),
-    // req -> fail("expected failure before we got this far")
-    // )
-    // );
-    // assertEquals("[1:14] Unexpected end of file", ex.getMessage());
-    // }
-
     public void testFailExtraKeys() throws IOException {
         BytesArray request = buildBulk(List.of("""
             { "index":{ }, "something": "unexpected" }
@@ -541,37 +459,6 @@ public abstract class BulkRequestParserTestCase extends ESTestCase {
         );
         assertEquals("Malformed action/metadata line [1], expected END_OBJECT but found [FIELD_NAME]", ex.getMessage());
     }
-
-    // public void testFailContentAfterClosingBrace() throws IOException {
-    // BytesArray request = buildBulk(List.of("""
-    // { "index":{ } } { "something": "unexpected" }
-    // """,
-    // """
-    // {}
-    // """));
-    // BulkRequestParser parser = new BulkRequestParser(randomBoolean(), true, randomFrom(REST_API_VERSIONS_POST_V8));
-    //
-    // IllegalArgumentException ex = expectThrows(
-    // IllegalArgumentException.class,
-    // () -> parser.parse(
-    // request,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // null,
-    // false,
-    // contentType(),
-    // bulkFormat(),
-    // (req, type) -> fail("expected failure before we got this far"),
-    // req -> fail("expected failure before we got this far"),
-    // req -> fail("expected failure before we got this far")
-    // )
-    // );
-    // assertEquals("Malformed action/metadata line [1], unexpected data after the closing brace", ex.getMessage());
-    // }
 
     public void testListExecutedPipelines() throws IOException {
         BytesArray request = buildBulk(List.of("""
@@ -624,5 +511,4 @@ public abstract class BulkRequestParserTestCase extends ESTestCase {
             assertFalse(indexRequest.getListExecutedPipelines());
         }, req -> fail(), req -> fail());
     }
-
 }

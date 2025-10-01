@@ -66,7 +66,7 @@ public class RestBulkAction extends BaseRestHandler {
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
     public static final String PREFIX_LENGTH_FORMAT_CAPABILITY = "prefix_length_format";
 
-    private static final String BULK_FORMAT_HEADER = "Bulk-Format";
+    private static final String BULK_FORMAT_HEADER = "X-Bulk-Format";
 
     public enum BulkFormat {
         PREFIX_LENGTH,

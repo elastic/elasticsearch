@@ -73,6 +73,23 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         assertThat(p99, equalTo(0.00001));
     }
 
+    public void testMinMaxClampedPercentileaccurace() {
+        ExponentialHistogram histogram = createAutoReleasedHistogram(
+            b -> b.scale(0)
+                .setPositiveBucket(0, 1) // bucket 0 covers (1, 2]
+                .setPositiveBucket(1, 1) // bucket 1 covers (2, 4]
+                .min(1.1)
+                .max(2.1)
+        );
+
+        // The 0.5 percentile linearly interpolates between the two buckets.
+        // For the (1, 2] bucket, the point of least relative error will be used (1.33333)
+        // For the (1, 2] bucket, the max of the histogram should be used instead (2.1)
+        double expectedResult = (4.0/3 + 2.1) / 2;
+        double p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
+        assertThat(p50, equalTo(expectedResult));
+    }
+
     public void testUniformDistribution() {
         testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(randomInt()), 0, 100));
     }

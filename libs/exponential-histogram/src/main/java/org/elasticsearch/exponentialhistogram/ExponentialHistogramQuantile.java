@@ -61,6 +61,8 @@ public class ExponentialHistogramQuantile {
         double upperFactor = exactRank - lowerRank;
 
         ValueAndPreviousValue values = getElementAtRank(histo, upperRank);
+        // Ensure we don't return values outside the histogram's range
+        values = values.clampTo(histo.min(), histo.max());
 
         double result;
         if (lowerRank == upperRank) {
@@ -68,7 +70,7 @@ public class ExponentialHistogramQuantile {
         } else {
             result = values.valueAtPreviousRank() * (1 - upperFactor) + values.valueAtRank() * upperFactor;
         }
-        return removeNegativeZero(Math.clamp(result, histo.min(), histo.max()));
+        return removeNegativeZero(result);
     }
 
     private static double removeNegativeZero(double result) {
@@ -159,8 +161,16 @@ public class ExponentialHistogramQuantile {
      * @param valueAtRank         the value at the desired rank
      */
     private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank) {
+
         ValueAndPreviousValue negateAndSwap() {
             return new ValueAndPreviousValue(-valueAtRank, -valueAtPreviousRank);
+        }
+
+        ValueAndPreviousValue clampTo(double min, double max) {
+            return  new ValueAndPreviousValue(
+                Math.clamp(valueAtPreviousRank, min, max),
+                Math.clamp(valueAtRank, min, max)
+            );
         }
     }
 }

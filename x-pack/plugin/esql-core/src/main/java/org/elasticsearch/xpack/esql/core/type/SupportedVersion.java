@@ -45,6 +45,8 @@ public interface SupportedVersion {
      *         messages.
      *     </li>
      * </ul>
+     * Snapshot builds treat these as supported. Mixed/multi cluster tests with older nodes
+     * have to just be skipped using capabilites, as always.
      */
     SupportedVersion UNDER_CONSTRUCTION = new SupportedVersion() {
         @Override

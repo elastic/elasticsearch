@@ -365,6 +365,10 @@ public class EsqlQueryGenerator {
         if (name == null) {
             return "count(*)";
         }
+        if (randomBoolean()) {
+            String exp = expression(previousOutput, false);
+            name = exp == null ? name : exp;
+        }
         return switch (randomIntBetween(0, 5)) {
             case 0 -> "count(*)";
             case 1 -> "count(" + name + ")";
@@ -427,9 +431,50 @@ public class EsqlQueryGenerator {
         return items.get(randomIntBetween(0, items.size() - 1));
     }
 
-    public static String expression(List<Column> previousOutput) {
-        // TODO improve!!!
-        return constantExpression();
+    /**
+     * @param previousOutput columns that can be used in the expression
+     * @param allowConstants if set to true, this will never return a constant expression.
+     *                       If no expression can be generated, it will return null
+     * @return an expression or null
+     */
+    public static String expression(List<Column> previousOutput, boolean allowConstants) {
+        if (randomBoolean() && allowConstants) {
+            return constantExpression();
+        }
+        if (randomBoolean()) {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < randomIntBetween(1, 3); i++) {
+                String field = randomNumericField(previousOutput);
+                if (field == null) {
+                    return allowConstants ? constantExpression() : null;
+                }
+                if (i > 0) {
+                    result.append(" + ");
+                }
+                result.append(field);
+            }
+            return result.toString();
+        }
+        if (randomBoolean()) {
+            String field = randomKeywordField(previousOutput);
+            if (field == null) {
+                return allowConstants ? constantExpression() : null;
+            }
+            return switch (randomIntBetween(0, 3)) {
+                case 0 -> "substring(" + field + ", 1, 3)";
+                case 1 -> "to_lower(" + field + ")";
+                case 2 -> "to_upper(" + field + ")";
+                default -> "length(" + field + ")";
+            };
+        }
+        if (randomBoolean() || allowConstants == false) {
+            String field = randomStringField(previousOutput);
+            if (field == null || randomBoolean()) {
+                field = randomNumericOrDateField(previousOutput);
+            }
+            return field;
+        }
+        return allowConstants ? constantExpression() : null;
     }
 
     public static String indexPattern(String indexName) {

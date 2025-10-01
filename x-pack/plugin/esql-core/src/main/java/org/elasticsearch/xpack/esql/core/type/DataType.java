@@ -457,6 +457,7 @@ public enum DataType implements Writeable {
 
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
+        // Ensure that under construction types are not used in non-snapshot builds.
         if (type == null || type.supportedVersion().supportedLocally() == false) {
             return UNSUPPORTED;
         }

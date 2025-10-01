@@ -32,12 +32,13 @@ public class AbsentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        assert false : "All checked types must work";
-        return null;
+        return equalTo(
+            "argument of [dense_vector] must be [any type except counter types or dense_vector], found value [] type [dense_vector]"
+        );
     }
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(0));
+        assertThat(checked, equalTo(1));
     }
 }

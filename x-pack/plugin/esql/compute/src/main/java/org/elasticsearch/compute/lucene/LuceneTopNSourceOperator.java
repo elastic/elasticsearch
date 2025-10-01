@@ -213,7 +213,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 perShardCollector = newPerShardCollector(scorer.shardContext(), sorts, needsScore, limit);
             }
             var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
-            scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), maxPageSize);
+            scorer.scoreNextRange(
+                leafCollector,
+                scorer.leafReaderContext().reader().getLiveDocs(),
+                scorer.leafReaderContext().reader().maxDoc()
+            );
         } catch (CollectionTerminatedException cte) {
             // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
             scorer.markAsDone();

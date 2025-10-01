@@ -624,7 +624,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (TranslogStreamOutput out = new TranslogStreamOutput(bigArrays.bytesRefRecycler())) {
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
-            Serialized serialized = Serialized.create(header, operation instanceof Index index ? index.source() : null, new CRC32());
+            Serialized serialized = Serialized.create(
+                header,
+                operation instanceof Index index ? index.source().unwrap() : null,
+                new CRC32()
+            );
 
             readLock.lock();
             try {

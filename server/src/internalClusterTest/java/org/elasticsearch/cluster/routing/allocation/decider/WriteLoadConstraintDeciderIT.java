@@ -73,7 +73,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     @Override
     @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return CollectionUtils.appendToCopyNoNullElements(
+        return CollectionUtils.appendToCopyNoNullElements(g
             super.nodePlugins(),
             MockTransportService.TestPlugin.class,
             TestTelemetryPlugin.class
@@ -114,28 +114,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             0
         );
 
-        MockTransportService.getInstance(harness.firstDataNodeName).<
-            NodeUsageStatsForThreadPoolsAction
-                .NodeRequest>addRequestHandlingBehavior(
-                    TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                    (handler, request, channel, task) -> channel.sendResponse(
-                        new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
-                    )
-                );
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats)
-                )
-            );
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats)
-                )
-            );
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats);
 
         /**
          * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
@@ -263,28 +244,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             0
         );
 
-        MockTransportService.getInstance(harness.firstDataNodeName).<
-            NodeUsageStatsForThreadPoolsAction
-                .NodeRequest>addRequestHandlingBehavior(
-                    TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                    (handler, request, channel, task) -> channel.sendResponse(
-                        new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
-                    )
-                );
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats)
-                )
-            );
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats)
-                )
-            );
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats);
 
         /**
          * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
@@ -405,31 +367,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             0
         );
 
-        MockTransportService.getInstance(harness.firstDataNodeName).<
-            NodeUsageStatsForThreadPoolsAction
-                .NodeRequest>addRequestHandlingBehavior(
-                    TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                    (handler, request, channel, task) -> channel.sendResponse(
-                        new NodeUsageStatsForThreadPoolsAction.NodeResponse(
-                            harness.firstDiscoveryNode,
-                            firstNodeUtilHotSpottingAndQueuingNodeStats
-                        )
-                    )
-                );
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.secondDiscoveryNode, secondNodeUtilHotSpottingNodeStats)
-                )
-            );
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.thirdDiscoveryNode, thirdNodeUtilHotSpottingNodeStats)
-                )
-            );
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeUtilHotSpottingAndQueuingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeUtilHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeUtilHotSpottingNodeStats);
 
         /**
          * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
@@ -572,31 +512,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             0
         );
 
-        MockTransportService.getInstance(harness.firstDataNodeName).<
-            NodeUsageStatsForThreadPoolsAction
-                .NodeRequest>addRequestHandlingBehavior(
-                    TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                    (handler, request, channel, task) -> channel.sendResponse(
-                        new NodeUsageStatsForThreadPoolsAction.NodeResponse(
-                            harness.firstDiscoveryNode,
-                            firstNodeUtilHotSpottingAndQueuingNodeStats
-                        )
-                    )
-                );
-        MockTransportService.getInstance(harness.secondDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats)
-                )
-            );
-        MockTransportService.getInstance(harness.thirdDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(harness.thirdDiscoveryNode, thirdNodeNonHotSpottingNodeStats)
-                )
-            );
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeUtilHotSpottingAndQueuingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeNonHotSpottingNodeStats);
 
         /**
          * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
@@ -762,6 +680,16 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             }
         }
         return measurements;
+    }
+
+    private void setUpMockTransportNodeUsageStatsResponse(DiscoveryNode node, NodeUsageStatsForThreadPools nodeUsageStats) {
+        MockTransportService.getInstance(node.getName())
+            .addRequestHandlingBehavior(
+                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
+                (handler, request, channel, task) -> channel.sendResponse(
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(node, nodeUsageStats)
+                )
+            );
     }
 
     /**

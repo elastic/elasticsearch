@@ -12,7 +12,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.LinkedProjectExpressions;
-import org.elasticsearch.action.RemoteIndexExpressions;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -67,20 +66,19 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
                     )
                 )
             )
+
         );
 
         // we matched the flat resource in a linked project thus no error
@@ -102,17 +100,15 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
                     )
                 )
             )
@@ -140,17 +136,15 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchException("logs")
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                        new ElasticsearchException("logs")
                     )
                 )
             )
@@ -197,17 +191,15 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of("logs"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
                     )
                 )
             )
@@ -232,17 +224,15 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
                     )
                 )
             )
@@ -270,17 +260,15 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchException("logs")
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                        new ElasticsearchException("logs")
                     )
                 )
             )
@@ -319,7 +307,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                     "logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
                         null
                     ),
                     Set.of("P1:logs*")
@@ -327,17 +315,15 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of("logs-es"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs-es"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
                     )
                 )
             )
@@ -354,7 +340,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                     "logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
                         null
                     ),
                     Set.of("P1:logs*")
@@ -362,18 +348,12 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
-                        )
-                    )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, null)
                 )
             )
         );
@@ -392,33 +372,27 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                     "logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                        new ElasticsearchException("logs*")
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
                     ),
                     Set.of("P1:logs*")
                 )
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchException("logs*")
-                        )
-                    )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, null)
                 )
             )
         );
 
         expectThrows(
-            ElasticsearchSecurityException.class,
-            containsString("authorization errors while resolving [P1:logs*]"),
+            IndexNotFoundException.class,
+            containsString("no such index [P1:logs*]"),
             () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
         );
     }
@@ -449,7 +423,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                     "P1:logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
                         null
                     ),
                     Set.of("P1:logs*")
@@ -457,17 +431,15 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of("logs-es"),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                            null
-                        )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs-es"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
                     )
                 )
             )
@@ -484,7 +456,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                     "P1:logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
                         null
                     ),
                     Set.of("P1:logs*")
@@ -492,18 +464,12 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                            null
-                        )
-                    )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, null)
                 )
             )
         );
@@ -522,7 +488,7 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
                     "P1:logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
                         null
                     ),
                     Set.of("P1:logs*")
@@ -530,25 +496,19 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
             )
         );
 
-        RemoteIndexExpressions remote = new RemoteIndexExpressions(
-            Map.of(
-                "P1",
-                new LinkedProjectExpressions(
-                    Map.of(
-                        "logs*",
-                        new ResolvedIndexExpression.LocalExpressions(
-                            Set.of(),
-                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchException("logs*")
-                        )
-                    )
+        var remote = Map.of(
+            "P1",
+            new LinkedProjectExpressions(
+                Map.of(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, null)
                 )
             )
         );
 
         expectThrows(
-            ElasticsearchSecurityException.class,
-            containsString("authorization errors while resolving [P1:logs*]"),
+            IndexNotFoundException.class,
+            containsString("no such index [P1:logs*]"),
             () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, remote)
         );
     }

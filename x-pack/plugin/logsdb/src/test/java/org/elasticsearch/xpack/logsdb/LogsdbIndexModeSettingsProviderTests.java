@@ -1002,6 +1002,10 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)
             .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
             .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name", "@timestamp")
+            .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc")
+            .putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "min")
+            .putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last", "_last")
             .build();
 
         for (String mapping : patternTextLicenceCheckedFieldMappings) {
@@ -1017,6 +1021,10 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)
             .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
             .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name", "@timestamp")
+            .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc")
+            .putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "min")
+            .putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last", "_last")
             .build();
         assertEquals(expected, result);
     }

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -119,6 +120,26 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
         this.currentPageOffset = currentPageOffset;
         this.currentBytesRef = currentPage;
+    }
+
+    public void writeBytesRefIterator(BytesRefIterator refIterator, int length) throws IOException {
+        final int preWritePageOffset = this.currentPageOffset;
+        if (length <= (pageSize - preWritePageOffset)) {
+            BytesRef currentPage = currentBytesRef;
+            int offset = currentPage.offset + preWritePageOffset;
+            byte[] pageBytes = currentPage.bytes;
+            BytesRef ref;
+            while ((ref = refIterator.next()) != null) {
+                System.arraycopy(ref.bytes, ref.offset, pageBytes, offset, ref.length);
+                offset += ref.length;
+            }
+            this.currentPageOffset = preWritePageOffset + length;
+        } else {
+            BytesRef next;
+            while ((next = refIterator.next()) != null) {
+                writeBytes(next.bytes, next.offset, next.length);
+            }
+        }
     }
 
     @Override

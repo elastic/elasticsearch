@@ -59,7 +59,7 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
         if (FIXED_INDEX_HEADER_SIZE <= (pageSize - currentPageOffset)) {
             String routing = indexOperation.routing();
 
-            BytesRef currentPage = pages.get(this.pageIndex).v();
+            BytesRef currentPage = currentBytesRef;
             int off = currentPage.offset + currentPageOffset;
             byte[] localBytesRef = currentPage.bytes;
             localBytesRef[off + 4] = Translog.Operation.Type.INDEX.id();
@@ -113,7 +113,7 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
     public void writeDeleteHeader(Translog.Delete delete) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (FIXED_DELETE_HEADER_SIZE <= (pageSize - currentPageOffset)) {
-            BytesRef currentPage = pages.get(this.pageIndex).v();
+            BytesRef currentPage = currentBytesRef;
             int off = currentPage.offset + currentPageOffset;
             byte[] localBytesRef = currentPage.bytes;
             localBytesRef[off + 4] = Translog.Operation.Type.DELETE.id();
@@ -156,7 +156,7 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
     public void writeNoOpHeader(Translog.NoOp noop) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (FIXED_NO_OP_HEADER_SIZE <= (pageSize - currentPageOffset)) {
-            BytesRef currentPage = pages.get(this.pageIndex).v();
+            BytesRef currentPage = currentBytesRef;
             int off = currentPage.offset + currentPageOffset;
             byte[] localBytesRef = currentPage.bytes;
             localBytesRef[off + 4] = Translog.Operation.Type.NO_OP.id();

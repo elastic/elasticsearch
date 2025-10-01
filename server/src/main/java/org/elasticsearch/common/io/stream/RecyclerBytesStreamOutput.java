@@ -39,9 +39,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     protected static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     private final Recycler<BytesRef> recycler;
-    protected ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
+    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     protected final int pageSize;
-    protected int pageIndex = -1;
+    private int pageIndex = -1;
     private int currentCapacity = 0;
 
     protected BytesRef currentBytesRef;

@@ -250,7 +250,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += bytesToAdd;
-            buffer.writeSerializedOperation(operation);
+            // buffer.writeSerializedOperation(operation);
+            operation.header().writeTo(buffer);
+            if (operation.source() != null) {
+                operation.source().writeTo(buffer);
+            }
+            buffer.writeInt(operation.checksum());
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;

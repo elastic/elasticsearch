@@ -600,6 +600,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
   method: testGroupingAggregate {TestCase=<positive ints>}
   issue: https://github.com/elastic/elasticsearch/issues/135753
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/135754
 
 # Examples:
 #

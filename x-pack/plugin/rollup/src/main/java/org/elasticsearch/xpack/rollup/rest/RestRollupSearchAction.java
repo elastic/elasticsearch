@@ -54,6 +54,7 @@ public class RestRollupSearchAction extends BaseRestHandler {
                 parser,
                 clusterSupportsFeature,
                 size -> searchRequest.source().size(size),
+                // This endpoint is not CPS-enabled.
                 Optional.empty()
             )
         );

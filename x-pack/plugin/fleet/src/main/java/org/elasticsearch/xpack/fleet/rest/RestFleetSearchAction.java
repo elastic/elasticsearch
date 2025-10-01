@@ -78,6 +78,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
+                // This endpoint is not CPS-enabled.
                 Optional.empty()
             );
             String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);

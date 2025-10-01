@@ -31,12 +31,13 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -44,8 +45,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
-        String mapping = """
+        String mapping = String.format(Locale.ROOT, """
             {
+              %s
               "properties": {
                 "attributes": {
                   "type": "passthrough",
@@ -64,7 +66,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
               }
             }
-            """;
+            """, generateForceMergeMetadata());
 
         // Create data stream by indexing documents
         final Instant now = Instant.now();
@@ -169,6 +171,16 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         safeAwait(listener);
 
         assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
+    }
+
+    private String generateForceMergeMetadata() {
+        return switch (randomIntBetween(0, 4)) {
+            case 0 -> "\"_meta\": { \"downsample.forcemerge.enabled\": false},";
+            case 1 -> "\"_meta\": { \"downsample.forcemerge.enabled\": true},";
+            case 2 -> "\"_meta\": { \"downsample.forcemerge.enabled\": 4},";
+            case 3 -> "\"_meta\": { \"downsample.forcemerge.enabled\": null},";
+            default -> "";
+        };
     }
 
     public void testAggMetricInEsqlTSAfterDownsampling() throws Exception {
@@ -285,11 +297,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         };
         bulkIndex(dataStreamName, nextSourceSupplier, 100);
 
-        // check that TS command is available
+        // check that aggregate metric double is available
         var response = clusterAdmin().nodesCapabilities(
             new NodesCapabilitiesRequest().method(RestRequest.Method.POST)
                 .path("/_query")
-                .capabilities(AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.capabilityName())
+                .capabilities(AGGREGATE_METRIC_DOUBLE_V0.capabilityName())
         ).actionGet();
         assumeTrue("Require aggregate_metric_double casting", response.isSupported().orElse(Boolean.FALSE));
 

@@ -219,7 +219,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             }
             return clusterService.operationRouting()
                 .searchShards(project, new String[] { index }, null, Preference.LOCAL.type())
-                .getFirst();
+                .getFirst()
+                .iterator();
         }
 
         @Override

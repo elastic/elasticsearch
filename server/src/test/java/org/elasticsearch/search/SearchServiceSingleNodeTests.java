@@ -2459,7 +2459,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            0
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2495,7 +2496,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            0
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2533,7 +2535,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            0
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2570,7 +2573,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            0
         );
         service.executeQueryPhase(request, task, future);
 

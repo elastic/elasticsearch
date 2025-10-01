@@ -277,7 +277,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
          * Create the ClusterState for multiple nodes and multiple index shards.
          */
 
-        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, 5, 3);
+        int numberOfShards = 6;
+        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, numberOfShards, 3);
         // The number of data nodes the util method above creates is numberOfReplicas+2, and five data nodes are needed for this test.
         assertEquals(5, clusterState.nodes().size());
         assertEquals(1, clusterState.metadata().getTotalNumberOfIndices());
@@ -304,7 +305,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         IndexMetadata testIndexMetadata = indexIterator.next();
         assertFalse(indexIterator.hasNext());
         Index testIndex = testIndexMetadata.getIndex();
-        assertEquals(5, testIndexMetadata.getNumberOfShards());
+        assertEquals(numberOfShards, testIndexMetadata.getNumberOfShards());
         ShardId testShardId1 = new ShardId(testIndex, 0);
         ShardId testShardId2 = new ShardId(testIndex, 1);
         ShardId testShardId3NoWriteLoad = new ShardId(testIndex, 2);
@@ -355,6 +356,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             shardIdToWriteLoadEstimate.put(testShardId6Unassigned, randomDoubleBetween(0.0, 2.0, true));
         }
+        assertEquals(numberOfShards, shardIdToWriteLoadEstimate.size());
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(nodeIdToNodeUsageStatsForThreadPools)

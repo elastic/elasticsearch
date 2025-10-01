@@ -144,6 +144,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
     }
 
     private void sendResponse() {
+        context.recordPhaseTookTime(getName());
         context.sendSearchResponse(searchResponse, queryResults);
     }
 }

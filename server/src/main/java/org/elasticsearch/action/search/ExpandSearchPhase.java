@@ -182,6 +182,7 @@ class ExpandSearchPhase extends SearchPhase {
     }
 
     private void onPhaseDone() {
+        context.recordPhaseTookTime(getName());
         context.executeNextPhase(NAME, this::nextPhase);
     }
 }

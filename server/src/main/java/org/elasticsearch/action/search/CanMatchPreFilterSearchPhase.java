@@ -184,6 +184,7 @@ final class CanMatchPreFilterSearchPhase {
     private void runCoordinatorRewritePhase() {
         // TODO: the index filter (i.e, `_index:patten`) should be prefiltered on the coordinator
         assert assertSearchCoordinationThread();
+        final long coordinatorStartTimeNanos = timeProvider.relativeCurrentNanosProvider().getAsLong();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(

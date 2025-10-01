@@ -57,6 +57,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         "node_usage_stats_for_thread_pools_in_cluster_info"
     );
     private static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = TransportVersion.fromName("shard_write_load_in_cluster_info");
+    private static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "max_heap_size_per_node_in_cluster_info"
+    );
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -164,7 +167,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         } else {
             this.shardWriteLoads = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
             this.maxHeapSizePerNode = in.readImmutableMap(ByteSizeValue::readFrom);
         } else {
             this.maxHeapSizePerNode = Map.of();
@@ -228,7 +231,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         if (out.getTransportVersion().supports(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
             out.writeMap(this.shardWriteLoads, StreamOutput::writeWriteable, StreamOutput::writeDouble);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
             out.writeMap(this.maxHeapSizePerNode, StreamOutput::writeWriteable);
         }
     }

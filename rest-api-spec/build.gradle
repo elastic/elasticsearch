@@ -12,15 +12,6 @@ restResources {
   }
 }
 
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- */
-
 // REST API specifications are published under the Apache 2.0 License
 ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
 licenseFile.set(layout.settingsDirectory.file('licenses/APACHE-LICENSE-2.0.txt').asFile)

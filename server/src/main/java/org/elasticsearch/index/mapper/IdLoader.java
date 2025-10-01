@@ -17,6 +17,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * @return returns an {@link IdLoader} instance that syn synthesizes _id from routing, _tsid and @timestamp fields.
      */
-    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths) {
         return new TsIdLoader(indexRouting, routingPaths);
     }
 
@@ -58,19 +59,19 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     final class TsIdLoader implements IdLoader {
 
-        private final IndexRouting.ExtractFromSource indexRouting;
+        private final IndexRouting.ExtractFromSource.ForRoutingPath indexRouting;
         private final List<String> routingPaths;
 
-        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+        TsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths) {
             this.routingPaths = routingPaths;
             this.indexRouting = indexRouting;
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            IndexRouting.ExtractFromSource.RoutingHashBuilder[] builders = null;
+            RoutingHashBuilder[] builders = null;
             if (indexRouting != null) {
                 // this branch is for legacy indices before IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID
-                builders = new IndexRouting.ExtractFromSource.RoutingHashBuilder[docIdsInLeaf.length];
+                builders = new RoutingHashBuilder[docIdsInLeaf.length];
                 for (int i = 0; i < builders.length; i++) {
                     builders[i] = indexRouting.builder();
                 }

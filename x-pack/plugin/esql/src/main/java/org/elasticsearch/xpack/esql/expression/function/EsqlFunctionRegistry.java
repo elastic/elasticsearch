@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -412,7 +414,10 @@ public class EsqlFunctionRegistry {
                 def(Substring.class, Substring::new, "substring"),
                 def(ToLower.class, ToLower::new, "to_lower"),
                 def(ToUpper.class, ToUpper::new, "to_upper"),
-                def(Trim.class, Trim::new, "trim") },
+                def(Trim.class, Trim::new, "trim"),
+                def(UrlEncode.class, UrlEncode::new, "url_encode"),
+                def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
+                def(UrlDecode.class, UrlDecode::new, "url_decode") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),
@@ -461,6 +466,7 @@ public class EsqlFunctionRegistry {
                 def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
                 def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
+                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToGeohash.class, ToGeohash::new, "to_geohash"),
                 def(ToGeotile.class, ToGeotile::new, "to_geotile"),
@@ -500,6 +506,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
                 def(Kql.class, uni(Kql::new), "kql"),
+                def(Knn.class, tri(Knn::new), "knn"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr"),
@@ -509,6 +516,7 @@ public class EsqlFunctionRegistry {
                 def(Rate.class, uni(Rate::new), "rate"),
                 def(Irate.class, uni(Irate::new), "irate"),
                 def(Idelta.class, uni(Idelta::new), "idelta"),
+                def(Delta.class, uni(Delta::new), "delta"),
                 def(Increase.class, uni(Increase::new), "increase"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
@@ -533,17 +541,13 @@ public class EsqlFunctionRegistry {
                 def(Last.class, bi(Last::new), "last"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
-                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
-                def(Knn.class, tri(Knn::new), "knn"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
-                def(UrlEncode.class, UrlEncode::new, "url_encode"),
-                def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") } };
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

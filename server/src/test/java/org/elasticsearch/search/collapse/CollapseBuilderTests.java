@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
@@ -216,7 +215,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "some_type";

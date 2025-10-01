@@ -45,9 +45,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         String indexName = "test-index";
         var testHarness = createClusterStateAndRoutingAllocation(indexName);
 
-        // The write load decider is disabled by default.
-
-        var writeLoadDecider = createWriteLoadConstraintDecider(Settings.builder().build());
+        var writeLoadDecider = createWriteLoadConstraintDecider(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
+                )
+                .build()
+        );
 
         assertEquals(
             Decision.Type.YES,
@@ -111,7 +116,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
             ),
-            Decision.Type.NO,
+            Decision.Type.NOT_PREFERRED,
             "Node [*] with write thread pool utilization [0.99] already exceeds the high utilization threshold of [0.900000]. "
                 + "Cannot allocate shard [[test-index][1]] to node without risking increased write latencies."
         );
@@ -144,10 +149,11 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertDecisionMatches(
             "Assigning a new shard that would cause the node to exceed capacity should fail",
             writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.nearThresholdRoutingNode, testHarness.routingAllocation),
-            Decision.Type.NO,
+            Decision.Type.NOT_PREFERRED,
             "The high utilization threshold of [0.900000] would be exceeded on node [*] with utilization [0.89] "
                 + "if shard [[test-index][0]] with estimated additional utilisation [0.06250] (write load [0.50000] / threads [8]) were "
                 + "assigned to it. Cannot allocate shard to node without risking increased write latencies."
+
         );
     }
 

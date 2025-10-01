@@ -621,6 +621,9 @@ tests:
 - class: org.elasticsearch.ingest.SamplingServiceTests
   method: testMaybeSample
   issue: https://github.com/elastic/elasticsearch/issues/135809
+- class: org.elasticsearch.ingest.SamplingServiceTests
+  method: testMaybeSampleWithCondition
+  issue: https://github.com/elastic/elasticsearch/issues/135810
 
 # Examples:
 #

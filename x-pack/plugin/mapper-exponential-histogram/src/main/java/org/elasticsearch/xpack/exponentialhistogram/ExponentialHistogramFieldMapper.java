@@ -34,7 +34,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.CopyingXContentParser;
@@ -228,7 +227,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     static class ExponentialHistogramFieldType extends MappedFieldType {
 
         ExponentialHistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
+            super(name, false, false, true, meta);
         }
 
         @Override

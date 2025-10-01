@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -140,7 +142,7 @@ import static java.util.stream.Collectors.toMap;
  *         unsupported types.</li>
  * </ul>
  */
-public enum DataType {
+public enum DataType implements Writeable {
     /**
      * Fields of this type are unsupported by any functions and are always
      * rendered as {@code null} in the response.
@@ -306,12 +308,18 @@ public enum DataType {
      */
     PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024)),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+    AGGREGATE_METRIC_DOUBLE(
+        builder().esType("aggregate_metric_double")
+            .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
+            .createdVersion(DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION)
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of double values.
      */
-    DENSE_VECTOR(builder().esType("dense_vector").estimatedSize(4096));
+    DENSE_VECTOR(
+        builder().esType("dense_vector").estimatedSize(4096).createdVersion(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
+    );
 
     /**
      * Types that are actively being built. These types are
@@ -330,10 +338,7 @@ public enum DataType {
      *     </li>
      * </ul>
      */
-    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
-    );
+    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries();
 
     private final String typeName;
 
@@ -375,6 +380,11 @@ public enum DataType {
      */
     private final DataType counter;
 
+    /**
+     * Version that first created this data type.
+     */
+    private final CreatedVersion createdVersion;
+
     DataType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
@@ -387,10 +397,11 @@ public enum DataType {
         this.isCounter = builder.isCounter;
         this.widenSmallNumeric = builder.widenSmallNumeric;
         this.counter = builder.counter;
+        this.createdVersion = builder.createdVersion;
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
-        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .filter(d -> d != DOC_DATA_TYPE)
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
@@ -727,7 +738,20 @@ public enum DataType {
         return counter;
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (createdVersion.supports(out.getTransportVersion()) == false) {
+            /*
+             * TODO when we implement version aware planning flip this to an IllegalStateException
+             * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user
+             * tried to do something like `KNN(dense_vector_field, [1, 2])` against an old node.
+             * Like, during the rolling upgrade that enables KNN or to a remote cluster that has
+             * not yet been upgraded.
+             */
+            throw new IllegalArgumentException(
+                "remote node at version [" + out.getTransportVersion() + "] doesn't understand data type [" + this + "]"
+            );
+        }
         ((PlanStreamOutput) out).writeCachedString(typeName);
     }
 
@@ -772,11 +796,24 @@ public enum DataType {
         return isString(this) ? KEYWORD : this;
     }
 
+    public DataType noCounter() {
+        return switch (this) {
+            case COUNTER_DOUBLE -> DOUBLE;
+            case COUNTER_INTEGER -> INTEGER;
+            case COUNTER_LONG -> LONG;
+            default -> this;
+        };
+    }
+
     public boolean isDate() {
         return switch (this) {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    public CreatedVersion createdVersion() {
+        return createdVersion;
     }
 
     public static DataType suggestedCast(Set<DataType> originalTypes) {
@@ -846,6 +883,13 @@ public enum DataType {
          */
         private DataType counter;
 
+        /**
+         * The version when this data type was created. We default to the first
+         * version for which we maintain wire compatibility, which is pretty
+         * much {@code 8.18.0}.
+         */
+        private CreatedVersion createdVersion = CreatedVersion.SUPPORTED_ON_ALL_NODES;
+
         Builder() {}
 
         Builder esType(String esType) {
@@ -901,5 +945,20 @@ public enum DataType {
             this.counter = counter;
             return this;
         }
+
+        Builder createdVersion(TransportVersion createdVersion) {
+            this.createdVersion = CreatedVersion.supportedOn(createdVersion);
+            return this;
+        }
+    }
+
+    private static class DataTypesTransportVersions {
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
+
+        public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
+            "esql_aggregate_metric_double_created_version"
+        );
     }
 }

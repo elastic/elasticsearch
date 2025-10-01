@@ -525,3 +525,37 @@ true                     | two         | 2024-05-10T00:18:00.000Z
 false                    | two         | 2024-05-10T00:20:00.000Z
 false                    | two         | 2024-05-10T00:22:00.000Z
 ;
+
+tsidMetadataAttributeCount
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+
+TS k8s METADATA _tsid
+| STATS cnt = count_distinct(_tsid)
+;
+
+cnt:long
+9
+;
+
+tsidMetadataAttributeAggregation
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+
+TS k8s METADATA _tsid
+| STATS cnt = count_distinct(_tsid) BY cluster, pod
+| SORT cluster
+;
+ignoreOrder:true
+
+cnt:long | cluster:keyword | pod:keyword
+1        | staging         | one
+1        | staging         | two
+1        | staging         | three
+1        | qa              | one
+1        | qa              | two
+1        | qa              | three
+1        | prod            | one
+1        | prod            | two
+1        | prod            | three
+;

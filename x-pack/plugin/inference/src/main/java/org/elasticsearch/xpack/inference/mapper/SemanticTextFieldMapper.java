@@ -58,7 +58,6 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -798,7 +797,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             boolean useLegacyFormat,
             Map<String, String> meta
         ) {
-            super(name, true, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, meta);
             this.inferenceId = inferenceId;
             this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;
@@ -1279,7 +1278,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
-                    false
+                    false,
+                    List.of()
                 );
 
                 configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);

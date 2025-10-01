@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -618,8 +617,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(queueLatencyThresholdMillis)
             )
-            // Essentially disable rebalancing so that testing can see Decider change outcomes.
-            .put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 1000f)
+            // Disable rebalancing so that testing can see Decider change outcomes only.
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
             .build();
     }
 

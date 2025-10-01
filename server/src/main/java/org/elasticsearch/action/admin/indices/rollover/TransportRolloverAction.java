@@ -49,6 +49,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -76,6 +78,7 @@ import java.util.stream.Collectors;
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportRolloverAction.class);
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
@@ -201,6 +204,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         assert task instanceof CancellableTask;
         final var projectState = projectResolver.getProjectState(clusterState);
         ProjectMetadata projectMetadata = projectState.metadata();
+
+        // Check for deprecated conditions
+        if (rolloverRequest.getConditions().getMaxSize() != null) {
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.API,
+                "rollover-max-size-condition",
+                "Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition"
+            );
+        }
 
         // Parse the rollover request's target since the expression it may contain a selector on it
         ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(

@@ -733,6 +733,14 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
+        if (maxSize != null) {
+            request.setOptions(
+                expectWarnings(
+                    "Use of the [max_size] rollover condition in phase [hot] has been deprecated in favour of"
+                        + " the [max_primary_shard_size] condition"
+                )
+            );
+        }
         assertOK(client().performRequest(request));
     }
 

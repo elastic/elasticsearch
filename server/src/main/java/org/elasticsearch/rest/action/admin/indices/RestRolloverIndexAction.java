@@ -42,7 +42,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of("return-404-on-missing-target", "index_expression_selectors");
+        return Set.of("return-404-on-missing-target", "index_expression_selectors", "max_size_deprecation");
     }
 
     @Override

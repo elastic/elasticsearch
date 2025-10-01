@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -34,9 +36,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
@@ -57,6 +61,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
 public class PutLifecycleMetadataService {
 
     private static final Logger logger = LogManager.getLogger(PutLifecycleMetadataService.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PutLifecycleMetadataService.class);
 
     private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;
@@ -97,6 +102,24 @@ public class PutLifecycleMetadataService {
 
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
         request.getPolicy().maybeAddDeprecationWarningForFreezeAction(request.getPolicy().getName());
+
+        // Check for deprecated rollover conditions
+        for (Phase phase : request.getPolicy().getPhases().values()) {
+            for (LifecycleAction actionObj : phase.getActions().values()) {
+                if (actionObj instanceof RolloverAction rolloverAction) {
+                    if (rolloverAction.getConditions().getMaxSize() != null) {
+                        DEPRECATION_LOGGER.warn(
+                            DeprecationCategory.API,
+                            "rollover-max-size-condition",
+                            "Use of the [max_size] rollover condition in phase [{}] has been deprecated in favour of the "
+                                + "[max_primary_shard_size] condition",
+                            phase.getName()
+                        );
+                    }
+                }
+            }
+        }
+
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         {
             IndexLifecycleMetadata lifecycleMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);

@@ -1,12 +1,13 @@
 ---
 "Rollover with max_size condition":
   - requires:
+      test_runner_features: [ capabilities ]
+  - skip:
       capabilities:
         - method: POST
           path: /logs_search/_rollover
           capabilities: [ max_size_deprecation ]
-      test_runner_features: [ warnings, capabilities ]
-      reason: Capability required to run test
+      reason: Capability must be missing to run test
 
   # create index with alias and replica
   - do:
@@ -27,8 +28,6 @@
 
   # perform alias rollover with a large max_size, no action.
   - do:
-      warnings:
-        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition'
       indices.rollover:
         alias: "logs_search"
         wait_for_active_shards: 1
@@ -41,8 +40,6 @@
 
   # perform alias rollover with a small max_size, got action.
   - do:
-      warnings:
-        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition'
       indices.rollover:
         alias: "logs_search"
         wait_for_active_shards: 1
@@ -55,8 +52,6 @@
 
   # perform alias rollover on an empty index, no action.
   - do:
-      warnings:
-        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition'
       indices.rollover:
         alias: "logs_search"
         wait_for_active_shards: 1

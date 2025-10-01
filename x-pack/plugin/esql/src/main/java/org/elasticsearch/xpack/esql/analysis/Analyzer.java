@@ -777,10 +777,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // rewrite the join into an equi-join between the field with the same name between left and right
             if (type == JoinTypes.LEFT) {
                 // the lookup cannot be resolved, bail out
-                if (Expressions.anyMatch(join.config().leftFields(), c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
-                    return join;
-                }
-                if (Expressions.anyMatch(join.config().rightFields(), c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                if (Expressions.anyMatch(
+                    join.references().stream().toList(),
+                    c -> c instanceof UnresolvedAttribute ua && ua.customMessage()
+                )) {
                     return join;
                 }
                 List<Attribute> leftKeys = new ArrayList<>();

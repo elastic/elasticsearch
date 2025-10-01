@@ -128,7 +128,7 @@ public class IndexSource implements Writeable, Releasable {
 
     public boolean hasSource() {
         assert isClosed == false;
-        return source != null;
+        return source != null || structuredSource != null;
     }
 
     public int byteLength() {

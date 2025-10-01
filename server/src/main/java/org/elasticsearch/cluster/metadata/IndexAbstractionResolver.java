@@ -76,8 +76,12 @@ public class IndexAbstractionResolver {
         TargetProjects targetProjects,
         boolean includeDataStreams
     ) {
-        assert targetProjects != TargetProjects.NOT_CROSS_PROJECT : "TargetProjects.NOT_CROSS_PROJECT is not allowed here";
-        targetProjects.assertNonEmptyTargets();
+        assert targetProjects != TargetProjects.NOT_CROSS_PROJECT
+            : "cannot resolve indices cross project if target set is marked NOT_CROSS_PROJECT";
+        if (targetProjects.isEmpty()) {
+            assert false : "cannot resolve indices cross project if target set is empty";
+            throw new IllegalArgumentException("cannot resolve indices cross project if target set is empty");
+        }
 
         final String originProjectAlias = targetProjects.originProjectAlias();
         final Set<String> linkedProjectAliases = targetProjects.allProjectAliases();

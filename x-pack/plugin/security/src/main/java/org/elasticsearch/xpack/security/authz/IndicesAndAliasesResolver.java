@@ -342,6 +342,7 @@ class IndicesAndAliasesResolver {
                     throw new UnsupportedSelectorException(originalIndexExpression);
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
+                    // TODO implement CPS index rewriting for all indices requests
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
                     for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
@@ -362,12 +363,11 @@ class IndicesAndAliasesResolver {
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.
             } else {
-                if (replaceable.crossProjectResolvable() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT) {
+                if (shouldResolveCrossProject(replaceable, authorizedProjects)) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
                     assert recordResolvedIndexExpressions : "cross-project requests must record resolved index expressions";
-                    assert false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())
-                        : "expression list is *,-* which effectively means a request that requests no indices";
-
+                    assert IndexNameExpressionResolver.isNoneExpression(replaceable.indices())
+                        : "none expressions should be handled by local resolution logic";
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
                         lenientIndicesOptionsForFanout(indicesOptions),
@@ -469,6 +469,12 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    private static boolean shouldResolveCrossProject(IndicesRequest.Replaceable replaceable, TargetProjects authorizedProjects) {
+        return replaceable.crossProjectResolvable() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT
+        // a none expression should not go through the cross-project resolution -- fall back to local resolution logic
+            && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices());
     }
 
     private static void setResolvedIfNull(String action, IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {

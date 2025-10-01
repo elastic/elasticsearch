@@ -29,6 +29,7 @@ public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<Pr
     }
 
     public Set<String> allProjectAliases() {
+        // TODO consider caching this
         final Set<String> allProjectAliases = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
         if (originProject != null) {
             allProjectAliases.add(originProject.projectAlias());
@@ -36,7 +37,12 @@ public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<Pr
         return Collections.unmodifiableSet(allProjectAliases);
     }
 
-    public void assertNonEmptyTargets() {
-        assert originProject != null || false == linkedProjects.isEmpty() : "At least one target project must be specified";
+    public boolean isEmpty() {
+        return originProject == null && linkedProjects.isEmpty();
+    }
+
+    public void assertNonEmpty() {
+        assert originProject != null || false == linkedProjects.isEmpty()
+            : "either origin project or linked projects must be in project target set";
     }
 }

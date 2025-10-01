@@ -177,8 +177,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
+    // TODO: Also add a test for _tsid once we can determine the minimum transport version of all nodes.
     public final void testFetchAll() throws IOException {
-        // TODO: add _tsid on newer setups
         Map<String, Object> response = esql("""
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
@@ -456,7 +456,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static boolean supportedInIndex(DataType t) {
         return switch (t) {
             // These are supported but implied by the index process.
-            // TODO: tsid
+            // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 // Internal only
                 UNSUPPORTED, PARTIAL_AGG,

@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
     KnnVectorQueryBuilder> {
 
-    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptions");
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {

@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class InterceptedInferenceMatchQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<MatchQueryBuilder> {
 
-    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptions");
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
 
     @Override
     protected MatchQueryBuilder createQueryBuilder(String field) {

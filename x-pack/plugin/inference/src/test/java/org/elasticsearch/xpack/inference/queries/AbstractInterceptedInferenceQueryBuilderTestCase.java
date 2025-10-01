@@ -106,7 +106,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DENSE_INFERENCE_ID_SETTINGS
     );
 
-    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptions");
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
 
     private NamedWriteableRegistry namedWriteableRegistry = null;
 

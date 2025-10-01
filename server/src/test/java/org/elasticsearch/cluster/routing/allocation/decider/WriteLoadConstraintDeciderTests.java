@@ -360,7 +360,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             shardIdToWriteLoadEstimate.put(testShardId6Unassigned, randomDoubleBetween(0.0, 2.0, true));
         }
-        assertEquals(numberOfShards, shardIdToWriteLoadEstimate.size());
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(nodeIdToNodeUsageStatsForThreadPools)

@@ -603,6 +603,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
   method: testGroupingAggregate {TestCase=<positive longs>}
   issue: https://github.com/elastic/elasticsearch/issues/135754
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
+  method: testGroupingAggregate {TestCase=<big positive doubles>}
+  issue: https://github.com/elastic/elasticsearch/issues/135755
 
 # Examples:
 #

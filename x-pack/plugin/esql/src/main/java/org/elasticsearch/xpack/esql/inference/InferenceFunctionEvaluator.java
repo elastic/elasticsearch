@@ -170,8 +170,7 @@ public class InferenceFunctionEvaluator {
      * Factory for creating {@link InferenceFunctionEvaluator} instances.
      */
     public static class Factory {
-        private Factory() {
-        }
+        private Factory() {}
 
         /**
          * Creates a new inference function evaluator.

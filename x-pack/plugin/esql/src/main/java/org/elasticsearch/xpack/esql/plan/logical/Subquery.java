@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,7 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Subquery extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, SortAgnostic {
+public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Subquery", Subquery::new);
 
     // subquery alias/qualifier could be added in the future if needed
@@ -30,7 +28,6 @@ public class Subquery extends UnaryPlan implements PostAnalysisVerificationAware
         super(source, subqueryPlan);
     }
 
-    // TODO does Subquery need to be Serializable?
     private Subquery(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
     }
@@ -63,7 +60,6 @@ public class Subquery extends UnaryPlan implements PostAnalysisVerificationAware
 
     @Override
     public boolean expressionsResolved() {
-        // TODO add if needed
         return true;
     }
 
@@ -91,30 +87,7 @@ public class Subquery extends UnaryPlan implements PostAnalysisVerificationAware
         return nodeName() + "[]";
     }
 
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        // TODO add verification if needed
-    }
-
     public LogicalPlan plan() {
         return child();
-    }
-
-    public boolean canMerge() {
-        // if the subquery contains from/eval/where/subquery, it can be merged
-        LogicalPlan child = child();
-        if (child instanceof UnionAll unionAll) {
-            for (LogicalPlan subPlan : unionAll.children()) {
-                if (canMerge(subPlan) == false) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    // more plan types could be added if needed, non-pipeline breakers
-    private boolean canMerge(LogicalPlan plan) {
-        return plan instanceof Subquery || plan instanceof Filter || plan instanceof EsRelation;
     }
 }

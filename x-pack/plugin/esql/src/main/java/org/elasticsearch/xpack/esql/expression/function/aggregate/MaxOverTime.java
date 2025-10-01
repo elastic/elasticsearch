@@ -41,6 +41,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
         description = "Calculates the maximum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "max_over_time") }
     )
     public MaxOverTime(

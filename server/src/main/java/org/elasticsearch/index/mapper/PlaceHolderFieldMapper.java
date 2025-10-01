@@ -101,7 +101,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         private String type;
 
         public PlaceHolderFieldType(String name, String type, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, false, false, false, meta);
             this.type = type;
         }
 

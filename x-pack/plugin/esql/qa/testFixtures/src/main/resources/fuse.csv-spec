@@ -363,8 +363,7 @@ fuseWithLinearAndL2Norm
 
 required_capability: fork_v9
 required_capability: fuse_v6
-required_capability: semantic_text_field_caps
-required_capability: metadata_score
+required_capability: fuse_l2_norm
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -658,6 +657,7 @@ id_0.0      | 0.0
 fuseWithRowLinearAndL2Norm
 
 required_capability: fuse_v6
+required_capability: fuse_l2_norm
 
 ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | MV_EXPAND my_score
@@ -759,9 +759,11 @@ id_4.0      | 0.01563         | foo
 fuseWithRowLinearL2NormAndZeroScores
 
 required_capability: fuse_v6
+required_capability: fuse_l2_norm
 
 ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | MV_EXPAND _id
+| LIMIT 10
 | FUSE LINEAR GROUP BY my_fork WITH { "normalizer": "l2_norm" }
 | SORT _id
 | KEEP _id, _score
@@ -779,6 +781,7 @@ required_capability: fuse_v6
 
 ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | MV_EXPAND _id
+| LIMIT 10
 | FUSE LINEAR GROUP BY my_fork WITH { "normalizer": "minmax" }
 | SORT _id
 | KEEP _id, _score

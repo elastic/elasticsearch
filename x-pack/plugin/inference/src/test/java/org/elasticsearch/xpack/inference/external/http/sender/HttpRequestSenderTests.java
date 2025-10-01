@@ -24,6 +24,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -36,9 +38,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,7 +65,10 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class HttpRequestSenderTests extends ESTestCase {
@@ -102,20 +109,145 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testCreateSender_CanCallStartMultipleTimes() throws Exception {
-        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
+        var mockManager = createMockHttpClientManager();
+
+        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), mockManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-            sender.start();
-            sender.start();
+            sender.startSynchronously();
+            sender.startSynchronously();
+            sender.startSynchronously();
         }
+
+        verify(mockManager, times(1)).start();
+    }
+
+    private HttpClientManager createMockHttpClientManager() {
+        var mockManager = mock(HttpClientManager.class);
+        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+
+        return mockManager;
+    }
+
+    public void testStart_ThrowsExceptionWaitingForStartToComplete_WhenAnErrorOccurs() throws IOException {
+        var mockManager = createMockHttpClientManager();
+        doThrow(new Error("failed")).when(mockManager).start();
+
+        var senderFactory = new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mockManager,
+            mockClusterServiceEmpty()
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var exception = expectThrows(Error.class, sender::startSynchronously);
+
+            assertThat(exception.getMessage(), is("failed"));
+        }
+    }
+
+    public void testStart_ThrowsExceptionWaitingForStartToComplete() {
+        var mockManager = createMockHttpClientManager();
+        doThrow(new IllegalArgumentException("failed")).when(mockManager).start();
+
+        // Force the startup to never complete
+        var latch = new CountDownLatch(1);
+        var sender = new HttpRequestSender(
+            threadPool,
+            mockManager,
+            mock(RequestSender.class),
+            mock(RequestExecutor.class),
+            latch,
+            // Override the wait time so we don't block the test for too long
+            TimeValue.timeValueMillis(1)
+        );
+
+        var exception = expectThrows(IllegalStateException.class, sender::startSynchronously);
+
+        assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
+    }
+
+    public void testStartAsync_WaitsAsyncForStartToComplete_ThrowsWhenItTimesOut_ThenSucceeds() {
+        var mockManager = createMockHttpClientManager();
+        var latch = new CountDownLatch(1);
+        var sender = new HttpRequestSender(
+            threadPool,
+            mockManager,
+            mock(RequestSender.class),
+            mock(RequestExecutor.class),
+            latch,
+            // Override the wait time so we don't block the test for too long
+            TimeValue.timeValueMillis(1)
+        );
+
+        var listener = new PlainActionFuture<Void>();
+        sender.startAsynchronously(listener);
+
+        var exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
+
+        // simulate the start completing
+        latch.countDown();
+
+        var listenerCompleted = new PlainActionFuture<Void>();
+        sender.startAsynchronously(listenerCompleted);
+        assertNull(listenerCompleted.actionGet(TIMEOUT));
+
+        verify(mockManager, times(1)).start();
+    }
+
+    public void testCreateSender_CanCallStartAsyncMultipleTimes() throws Exception {
+        var mockManager = createMockHttpClientManager();
+        var asyncCalls = 3;
+        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), mockManager, mockClusterServiceEmpty());
+
+        try (var sender = createSender(senderFactory)) {
+            var listenerList = new ArrayList<PlainActionFuture<Void>>();
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                listenerList.add(listener);
+                sender.startAsynchronously(listener);
+            }
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = listenerList.get(i);
+                assertNull(listener.actionGet(TIMEOUT));
+            }
+        }
+
+        verify(mockManager, times(1)).start();
+    }
+
+    public void testCreateSender_CanCallStartAsyncAndSyncMultipleTimes() throws Exception {
+        var mockManager = createMockHttpClientManager();
+        var asyncCalls = 3;
+        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), mockManager, mockClusterServiceEmpty());
+
+        try (var sender = createSender(senderFactory)) {
+            var listenerList = new ArrayList<PlainActionFuture<Void>>();
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                listenerList.add(listener);
+                sender.startAsynchronously(listener);
+                sender.startSynchronously();
+            }
+
+            for (int i = 0; i < asyncCalls; i++) {
+                PlainActionFuture<Void> listener = listenerList.get(i);
+                assertNull(listener.actionGet(TIMEOUT));
+            }
+        }
+
+        verify(mockManager, times(1)).start();
     }
 
     public void testCreateSender_SendsRequestAndReceivesResponse() throws Exception {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -167,7 +299,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = createSenderFactory(clientManager, threadRef);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -240,7 +372,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
         try (var sender = senderFactory.createSender()) {
             assertThat(sender, instanceOf(HttpRequestSender.class));
-            sender.start();
+            sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
@@ -253,8 +385,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testHttpRequestSenderWithTimeout_Throws_WhenATimeoutOccurs() throws Exception {
-        var mockManager = mock(HttpClientManager.class);
-        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+        var mockManager = createMockHttpClientManager();
 
         var senderFactory = new HttpRequestSender.Factory(
             ServiceComponentsTests.createWithEmptySettings(threadPool),
@@ -263,7 +394,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
+            sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
@@ -276,8 +407,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testSendWithoutQueuingWithTimeout_Throws_WhenATimeoutOccurs() throws Exception {
-        var mockManager = mock(HttpClientManager.class);
-        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+        var mockManager = createMockHttpClientManager();
 
         var senderFactory = new HttpRequestSender.Factory(
             ServiceComponentsTests.createWithEmptySettings(threadPool),
@@ -286,7 +416,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
+            sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.sendWithoutQueuing(

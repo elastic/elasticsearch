@@ -33,7 +33,7 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         MatchQueryBuilder originalQuery,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
-        return new InterceptedInferenceMatchQueryBuilder(new InterceptedInferenceMatchQueryBuilder(originalQuery), inferenceResultsMap);
+        return new InterceptedInferenceMatchQueryBuilder(originalQuery, inferenceResultsMap);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         QueryBuilder rewritten,
         TransportVersion transportVersion,
         QueryRewriteContext queryRewriteContext
-    ) {
+    ) throws Exception {
         assertThat(original, instanceOf(MatchQueryBuilder.class));
         if (transportVersion.onOrAfter(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
             assertThat(rewritten, instanceOf(InterceptedInferenceMatchQueryBuilder.class));
@@ -69,7 +69,16 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
                 original
             );
             QueryBuilder expectedLegacyRewritten = rewriteAndFetch(expectedLegacyIntercepted, queryRewriteContext);
-            assertThat(rewritten, equalTo(expectedLegacyRewritten));
+
+            // Run the expected query through a serialization cycle to align the inference results map representations
+            QueryBuilder expectedLegacySerialized = copyNamedWriteable(
+                expectedLegacyRewritten,
+                writableRegistry(),
+                QueryBuilder.class,
+                transportVersion
+            );
+
+            assertThat(rewritten, equalTo(expectedLegacySerialized));
         }
     }
 
@@ -98,7 +107,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
                 testIndex3.semanticTextFields()
             ),
             Map.of(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
         QueryBuilder coordinatorRewritten = rewriteAndFetch(matchQuery, queryRewriteContext);
 

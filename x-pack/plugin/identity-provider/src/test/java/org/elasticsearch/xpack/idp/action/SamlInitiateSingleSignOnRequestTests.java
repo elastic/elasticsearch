@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +26,8 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
 
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES = TransportVersion.fromName("idp_custom_saml_attributes");
+
     public void testSerializationCurrentVersion() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
         request.setSpEntityId("https://kibana_url");
@@ -43,11 +44,7 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
             out.setTransportVersion(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19,
-                    TransportVersion.current()
-                )
+                TransportVersionUtils.randomVersionBetween(random(), IDP_CUSTOM_SAML_ATTRIBUTES, TransportVersion.current())
             );
         }
         request.writeTo(out);
@@ -83,7 +80,7 @@ public class SamlInitiateSingleSignOnRequestTests extends ESTestCase {
             TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersion.minimumCompatible(),
-                TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19)
+                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES)
             )
         );
         request.writeTo(out);

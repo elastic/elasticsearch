@@ -16,43 +16,63 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.test.AbstractQueryVectorBuilderTestCase.randomVector;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextExpansionQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
     private static final int NUM_TOKENS = 10;
+
+    // This is a hack so that we can control when the client returns valid and invalid results
+    // to test both the success and failure paths
+    private final AtomicBoolean shouldProduceDenseVectorResults = new AtomicBoolean();
+
+    @Before
+    public void setUpFailure() {
+        shouldProduceDenseVectorResults.set(false);
+    }
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
@@ -100,6 +120,29 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
         assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, request.getRequestModelType());
 
+        InferModelAction.Response response;
+        if (shouldProduceDenseVectorResults.get()) {
+            response = createDenseVectorResults(request.getModelId());
+        } else {
+            response = createTextExpansionResults(request.getModelId());
+        }
+
+        @SuppressWarnings("unchecked")  // We matched the method above.
+        ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) args[2];
+        listener.onResponse(response);
+        return null;
+    }
+
+    private static InferModelAction.Response createDenseVectorResults(String modelId) {
+        float[] resultFloats = randomVector(randomIntBetween(10, 1024));
+        double[] resultDoubles = new double[resultFloats.length];
+        for (int i = 0; i < resultDoubles.length; i++) {
+            resultDoubles[i] = resultFloats[i];
+        }
+        return new InferModelAction.Response(List.of(new MlTextEmbeddingResults("foo", resultDoubles, randomBoolean())), modelId, true);
+    }
+
+    private static InferModelAction.Response createTextExpansionResults(String modelId) {
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
         var tokens = new ArrayList<WeightedToken>();
@@ -107,14 +150,10 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
             tokens.add(new WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
         }
 
-        var response = InferModelAction.Response.builder()
-            .setId(request.getModelId())
+        return InferModelAction.Response.builder()
+            .setId(modelId)
             .addInferenceResults(List.of(new TextExpansionResults("foo", tokens, randomBoolean())))
             .build();
-        @SuppressWarnings("unchecked")  // We matched the method above.
-        ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) args[2];
-        listener.onResponse(response);
-        return null;
     }
 
     @Override
@@ -294,4 +333,32 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
             assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
         }
     }
+
+    public void testFailure() {
+        // Tells the client to return invalid results to trigger a failure
+        shouldProduceDenseVectorResults.set(true);
+
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        TextExpansionQueryBuilder queryBuilder = createTestQueryBuilderNoPruning();
+
+        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TimeValue.timeValueSeconds(30)));
+        assertThat(
+            exception.getMessage(),
+            containsString("expected a result of type [text_expansion_result] received [text_embedding_result]")
+        );
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    private static TextExpansionQueryBuilder createTestQueryBuilderNoPruning() {
+        return new TextExpansionQueryBuilder(
+            RANK_FEATURES_FIELD,
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
+        );
+    }
+
 }

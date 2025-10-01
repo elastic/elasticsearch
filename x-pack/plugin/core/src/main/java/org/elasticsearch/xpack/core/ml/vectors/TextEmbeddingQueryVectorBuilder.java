@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.core.ml.vectors;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -132,14 +134,15 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
-                throw new IllegalStateException(
+                throw new ElasticsearchStatusException(
                     "expected a result of type ["
                         + MlTextEmbeddingResults.NAME
                         + "] received ["
                         + response.getInferenceResults().get(0).getWriteableName()
                         + "]. Is ["
                         + modelId
-                        + "] a text embedding model?"
+                        + "] a text embedding model?",
+                    RestStatus.BAD_REQUEST
                 );
             }
         }, listener::onFailure));

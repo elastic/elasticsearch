@@ -74,7 +74,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     private String indexVectors(boolean directIO) {
         String indexName = "test-vectors-" + directIO;
-        String type = randomFrom("bbq_hnsw", "bbq_disk");
+        String type = randomFrom("bbq_hnsw"/*, "bbq_disk"*/);
         assertAcked(
             prepareCreate(indexName).setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
                 .setMapping(Strings.format("""

@@ -23,25 +23,21 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectorsFormat {
 
     public static final String NAME = "ES93HnswBinaryQuantizedVectorsFormat";
 
-    private static final FlatVectorsFormat defaultFlatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(false);
-    private static final FlatVectorsFormat directIOFlatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(true);
+    private static final FlatVectorsFormat flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat();
 
-    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(
-        defaultFlatVectorsFormat.getName(),
-        defaultFlatVectorsFormat,
-        directIOFlatVectorsFormat.getName(),
-        directIOFlatVectorsFormat
-    );
+    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(flatVectorsFormat.getName(), flatVectorsFormat);
+
+    private final boolean useDirectIO;
 
     /** Constructs a format using default graph construction parameters */
     public ES93HnswBinaryQuantizedVectorsFormat() {
         super(NAME);
+        useDirectIO = false;
     }
 
     /**
@@ -52,6 +48,19 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectors
      */
     public ES93HnswBinaryQuantizedVectorsFormat(int maxConn, int beamWidth) {
         super(NAME, maxConn, beamWidth);
+        useDirectIO = false;
+    }
+
+    /**
+     * Constructs a format using the given graph construction parameters.
+     *
+     * @param maxConn the maximum number of connections to a node in the HNSW graph
+     * @param beamWidth the size of the queue maintained during graph construction.
+     * @param useDirectIO whether direct IO should be used for reads for data written using this format
+     */
+    public ES93HnswBinaryQuantizedVectorsFormat(int maxConn, int beamWidth, boolean useDirectIO) {
+        super(NAME, maxConn, beamWidth);
+        this.useDirectIO = useDirectIO;
     }
 
     /**
@@ -66,24 +75,17 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends ES93GenericHnswVectors
      */
     public ES93HnswBinaryQuantizedVectorsFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService mergeExec) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-    }
-
-    private final AtomicReference<FlatVectorsFormat> writeFormat = new AtomicReference<>();
-
-    public void useDirectIO() {
-        if (writeFormat.compareAndSet(null, directIOFlatVectorsFormat) == false) {
-            throw new IllegalStateException("Flat format has already been set");
-        }
+        useDirectIO = false;
     }
 
     @Override
     protected FlatVectorsFormat writeFlatVectorsFormat() {
-        var format = writeFormat.get();
-        if (format == null) {
-            format = defaultFlatVectorsFormat;
-            writeFormat.set(defaultFlatVectorsFormat);
-        }
-        return format;
+        return flatVectorsFormat;
+    }
+
+    @Override
+    protected boolean useDirectIOReads() {
+        return useDirectIO;
     }
 
     @Override

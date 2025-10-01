@@ -33,7 +33,8 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     private final FlatVectorsWriter rawVectorWriter;
 
     @SuppressWarnings("this-escape")
-    ES93GenericFlatVectorsWriter(String knnFormatName, SegmentWriteState state, FlatVectorsWriter rawWriter) throws IOException {
+    ES93GenericFlatVectorsWriter(String knnFormatName, boolean useDirectIOReads, SegmentWriteState state, FlatVectorsWriter rawWriter)
+        throws IOException {
         super(rawWriter.getFlatVectorScorer());
         this.rawVectorWriter = rawWriter;
         final String metaFileName = IndexFileNames.segmentFileName(
@@ -46,6 +47,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
             CodecUtil.writeIndexHeader(metaOut, META_CODEC_NAME, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
             // write the format name used for this segment
             metaOut.writeString(knnFormatName);
+            metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
             throw t;

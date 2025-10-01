@@ -28,6 +28,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,16 +62,19 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
 
     protected abstract FlatVectorsFormat writeFlatVectorsFormat();
 
+    protected abstract boolean useDirectIOReads();
+
     protected abstract Map<String, FlatVectorsFormat> supportedReadFlatVectorsFormats();
 
     @Override
     public final KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         var flatFormat = writeFlatVectorsFormat();
+        boolean directIO = useDirectIOReads();
         return new Lucene99HnswVectorsWriter(
             state,
             maxConn,
             beamWidth,
-            new ES93GenericFlatVectorsWriter(flatFormat.getName(), state, flatFormat.fieldsWriter(state)),
+            new ES93GenericFlatVectorsWriter(flatFormat.getName(), directIO, state, flatFormat.fieldsWriter(state)),
             numMergeWorkers,
             mergeExec
         );
@@ -79,10 +83,16 @@ public abstract class ES93GenericHnswVectorsFormat extends AbstractHnswVectorsFo
     @Override
     public final KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         var readFormats = supportedReadFlatVectorsFormats();
-        return new Lucene99HnswVectorsReader(state, new ES93GenericFlatVectorsReader(state, f -> {
+        return new Lucene99HnswVectorsReader(state, new ES93GenericFlatVectorsReader(state, (f, dio) -> {
             var format = readFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state);
+
+            if (format instanceof DirectIOCapableFlatVectorsFormat diof) {
+                return diof.fieldsReader(state, dio);
+            } else {
+                assert dio == false : format + " is not DirectIO capable";
+                return format.fieldsReader(state);
+            }
         }));
     }
 

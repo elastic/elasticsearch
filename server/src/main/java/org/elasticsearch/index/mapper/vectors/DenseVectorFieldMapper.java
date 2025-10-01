@@ -2044,10 +2044,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            var format = new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction);
-            if (onDiskRescore) {
-                format.useDirectIO();
-            }
+            var format = new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, onDiskRescore);
             return format;
         }
 
@@ -2178,11 +2175,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            var format = new ES920DiskBBQVectorsFormat(clusterSize, ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
-            if (onDiskRescore) {
-                format.useDirectIO();
-            }
-            return format;
+            return new ES920DiskBBQVectorsFormat(clusterSize, ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
         }
 
         @Override

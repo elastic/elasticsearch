@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 
@@ -35,7 +34,12 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
 
     private final FlatVectorsReader vectorsReader;
 
-    ES93GenericFlatVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+    @FunctionalInterface
+    interface GetFormatReader {
+        FlatVectorsReader getReader(String formatName, boolean useDirectIO) throws IOException;
+    }
+
+    ES93GenericFlatVectorsReader(SegmentReadState state, GetFormatReader getFormatReader) throws IOException {
         super(null);    // Hacks ahoy!
         // read in the meta information
         final String metaFileName = IndexFileNames.segmentFileName(
@@ -57,9 +61,12 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
                     state.segmentSuffix
                 );
                 String innerFormatName = metaIn.readString();
-                reader = getFormatReader.apply(innerFormatName);
+                byte useDirectIO = metaIn.readByte();
+                reader = getFormatReader.getReader(innerFormatName, useDirectIO == 1);
                 if (reader == null) {
-                    throw new IllegalStateException("Cannot find knn vector format: " + innerFormatName);
+                    throw new IllegalStateException(
+                        "Cannot find knn vector format [" + innerFormatName + "]" + (useDirectIO == 1 ? " with directIO" : "")
+                    );
                 }
             } catch (Throwable exception) {
                 priorE = exception;

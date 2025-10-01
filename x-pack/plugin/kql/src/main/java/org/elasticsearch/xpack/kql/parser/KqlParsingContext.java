@@ -156,7 +156,6 @@ public class KqlParsingContext {
             return this;
         }
 
-
         public Builder timeZone(ZoneId timeZone) {
             this.timeZone = timeZone;
             return this;

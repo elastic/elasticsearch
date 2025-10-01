@@ -47,8 +47,8 @@ public interface SupportedVersion {
      * </ul>
      * <p>
      *     Snapshot builds treat these as always supported so that we can write tests before actually
-     *     turning on the support for the type. Mixed/multi cluster tests with older nodes have to be skipped
-     *     based on capabilites, as always.
+     *     turning on the support for the type. Mixed/multi cluster tests with older nodes have to be
+     *     skipped based on capabilites, as always.
      */
     // We used to have a feature-flag based override, so that in-development types could be
     // turned on for testing in release builds. If needed, it's fine to bring this back, but we
@@ -70,9 +70,8 @@ public interface SupportedVersion {
      * Types that are supported starting with the given version.
      * <p>
      *     Snapshot builds treat these as always supported, so that any existing tests using them
-     *     continue to work. Otherwise, we'd have to
-     *     update bwc tests to skip older versions based on a capability check, which can be error-prone
-     *     and risks turning off an unrelated bwc test.
+     *     continue to work. Otherwise, we'd have to update bwc tests to skip older versions based
+     *     on a capability check, which can be error-prone and risks turning off an unrelated bwc test.
      */
     static SupportedVersion supportedOn(TransportVersion supportedVersion) {
         return new SupportedVersion() {

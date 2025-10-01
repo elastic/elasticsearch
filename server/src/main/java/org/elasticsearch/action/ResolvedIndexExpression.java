@@ -64,6 +64,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
      * Failures can be due to concrete resources not being visible (either missing or not visible due to indices options)
      * or unauthorized concrete resources.
      * A wildcard expression resolving to nothing is still considered a successful resolution.
+     * The NONE result indicates that no local resolution was attempted, because the expression is known to be remote-only.
      */
     public enum LocalIndexResolutionResult {
         NONE,
@@ -85,6 +86,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
                 : "If the local resolution result is SUCCESS, exception must be null";
         }
 
+        // Singleton for the case where all expressions in a ResolvedIndexExpression instance are remote
         public static final LocalExpressions NONE = new LocalExpressions(Set.of(), LocalIndexResolutionResult.NONE, null);
 
         public LocalExpressions(StreamInput in) throws IOException {

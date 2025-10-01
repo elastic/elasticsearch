@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -36,9 +34,6 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
 public class IndexAbstractionResolver {
-
-    private static final Logger logger = LogManager.getLogger(IndexAbstractionResolver.class);
-
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public IndexAbstractionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -55,18 +50,18 @@ public class IndexAbstractionResolver {
     ) {
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
         boolean wildcardSeen = false;
-        for (String index : indices) {
+        for (String originalIndexExpression : indices) {
             wildcardSeen = resolveIndexAbstraction(
                 resolvedExpressionsBuilder,
-                index,
-                index,
+                originalIndexExpression,
+                originalIndexExpression, // in the case of local resolution, the local expression is alwasy the same as the original
                 indicesOptions,
                 projectMetadata,
                 allAuthorizedAndAvailableBySelector,
                 isAuthorized,
                 includeDataStreams,
-                wildcardSeen,
-                new HashSet<>()
+                Set.of(),
+                wildcardSeen
             );
         }
         return resolvedExpressionsBuilder.build();
@@ -81,44 +76,40 @@ public class IndexAbstractionResolver {
         TargetProjects targetProjects,
         boolean includeDataStreams
     ) {
-        // TODO preflight checks and assertions (e.g., no *,-* expression)
+        assert targetProjects != TargetProjects.NOT_CROSS_PROJECT : "TargetProjects.NOT_CROSS_PROJECT is not allowed here";
+        targetProjects.assertNonEmptyTargets();
+
         final String originProjectAlias = targetProjects.originProjectAlias();
         final Set<String> linkedProjectAliases = targetProjects.allProjectAliases();
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
         boolean wildcardSeen = false;
-        for (String index : indices) {
+        for (String originalIndexExpression : indices) {
             final IndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = IndexExpressionsRewriter.rewriteIndexExpression(
-                index,
+                originalIndexExpression,
                 originProjectAlias,
                 linkedProjectAliases
             );
-            logger.info(
-                "[{}] rewritten index expression [{}] to local [{}] and remote [{}]",
-                originProjectAlias,
-                index,
-                indexRewriteResult.localExpression(),
-                indexRewriteResult.remoteExpressions()
-            );
 
-            if (indexRewriteResult.localExpression() == null) {
-                resolvedExpressionsBuilder.addRemoteExpressions(index, Set.copyOf(indexRewriteResult.remoteExpressions()));
+            final String localIndexExpression = indexRewriteResult.localExpression();
+            if (localIndexExpression == null) {
+                // nothing to resolve locally so skip resolve abstraction call
+                resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
                 continue;
             }
 
             wildcardSeen = resolveIndexAbstraction(
                 resolvedExpressionsBuilder,
-                index,
-                indexRewriteResult.localExpression(),
+                originalIndexExpression,
+                localIndexExpression,
                 indicesOptions,
                 projectMetadata,
                 allAuthorizedAndAvailableBySelector,
                 isAuthorized,
                 includeDataStreams,
-                wildcardSeen,
-                Set.copyOf(indexRewriteResult.remoteExpressions())
+                indexRewriteResult.remoteExpressions(),
+                wildcardSeen
             );
         }
-
         return resolvedExpressionsBuilder.build();
     }
 
@@ -131,8 +122,8 @@ public class IndexAbstractionResolver {
         final Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
         final BiPredicate<String, IndexComponentSelector> isAuthorized,
         final boolean includeDataStreams,
-        boolean wildcardSeen,
-        Set<String> remoteExpressions
+        final Set<String> remoteExpressions,
+        boolean wildcardSeen
     ) {
         String indexAbstraction;
         boolean minus = false;

@@ -94,6 +94,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         }
 
         public ResolvedIndexExpressions build() {
+            // TODO make all sets on `expressions` immutable
             return new ResolvedIndexExpressions(expressions);
         }
     }

@@ -35,4 +35,8 @@ public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<Pr
         }
         return Collections.unmodifiableSet(allProjectAliases);
     }
+
+    public void assertNonEmptyTargets() {
+        assert originProject != null || false == linkedProjects.isEmpty() : "At least one target project must be specified";
+    }
 }

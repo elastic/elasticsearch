@@ -11,6 +11,7 @@ The text family includes the following field types:
 
 * [`text`](#text-field-type), the traditional field type for full-text content such as the body of an email or the description of a product.
 * [`match_only_text`](#match-only-text-field-type), a space-optimized variant of `text` that disables scoring and performs slower on queries that need positions. It is best suited for indexing log messages.
+* [`pattern_text`](#pattern-text-text-field-type), a variant of `text` with improved space efficiency when storing log messages.
 
 
 ## Text field type [text-field-type]
@@ -340,4 +341,82 @@ The following mapping parameters are accepted:
 [`meta`](/reference/elasticsearch/mapping-reference/mapping-field-meta.md)
 :   Metadata about the field.
 
+
+## Pattern text field type [pattern-text-field-type]
+::::{warning}
+
+This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+::::
+
+A variant of [`text`](#text-field-type) with improved space efficiency for log data.
+Internally, it decomposed values into static parts that are likely to be shared between many values, and dynamic parts that tend to vary between values.
+The static parts will usually come from the explanatory text of a log message, and the dynamic parts will be the variables which were interpolated into the logs.
+This decomposition allows for improved compression on log-like data.
+
+We call the static portion of the value, the `template`.
+Though the `template` cannot be accessed directly, a separate field called `<field_name>.template_id` is accessible.
+This field is a hash of the `template` and can be used to group similar values.
+As this feature is in technical preview, the internal structure of the `template` is subject to change.
+Because of this, the `template_id` is also subject to future changes.
+
+Unlike most mapping types, `pattern_text` does not support multiple values for a given field per document.
+If a document is created with multiple values for a pattern text field, an error will be returned.
+
+Analysis is configurable, but defaults to a delimiter-based analyzer.
+This analyzer applies a lowercase filter then splits on whitespace, and the followings delimiters: `=, ?, :, [, ], {, }, ", \, '`.
+
+[span queries](/reference/query-languages/query-dsl/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
+
+Like `text`, `pattern_text` does not support sorting and has only limited support for aggregations.
+
+### Phrase matching
+Pattern text supports an `index_options` parameter with valid values of `docs` and `positions`.
+The default values is `docs`, which makes `pattern_text` behave similarly to `match_only_text` for phrase queries.
+Specifically, positions are not stored, which reduces the index size at the cost of slowing down phrase queries.
+If `index_options` is set to `positions`, positions are stored and `pattern_text` will support fast phrase queries.
+In both case, all queries return a constant score of 1.0.
+
+### Index sorting for improved compression
+
+The compression provided by `pattern_text` can be improved significantly if the index is sorted by the `template_id`.
+For example, of typical approach would be to sort first by `message.template_id`, then by `@timestamp`, as in the following example.
+
+
+```console
+PUT logs
+{
+  "settings": {
+    "index": {
+        "sort": {
+            "field": ["message.template_id", "@timestamp"],
+            "order": ["asc", "desc"]
+        }
+    }
+  }
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "message": {
+        "type": "pattern_text"
+      }
+    }
+  }
+}
+```
+
+
+### Parameters for pattern text fields [pattern-text-params]
+
+The following mapping parameters are accepted:
+
+[`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md)
+:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for the `text` field, both at index-time and at search-time (unless overridden by the  [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to a custom delimiter-based analyzer. This analyzer applies a lowercase filter then splits on whitespace, and the followings character: `=, ?, :, [, ], {, }, ", \, '`.
+
+[`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
+:   What information should be stored in the index, for search and highlighting purposes. Valid values are `docs` and `positions`. Defaults to `docs`.
+
+[`meta`](/reference/elasticsearch/mapping-reference/mapping-field-meta.md)
+:   Metadata about the field.
 

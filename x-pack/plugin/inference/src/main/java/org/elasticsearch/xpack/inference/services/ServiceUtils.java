@@ -314,6 +314,18 @@ public final class ServiceUtils {
         return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
+    /**
+     * Extracts an optional URI from the map. If the field is not present, null is returned. If the field is present but invalid,
+     * @param map the map to extract the URI from
+     * @param fieldName the field name to extract
+     * @param validationException the validation exception to add errors to
+     * @return the extracted URI or null if not present
+     */
+    public static URI extractOptionalUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
+        String parsedUrl = extractOptionalString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    }
+
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
             return createOptionalUri(url);
@@ -1067,11 +1079,27 @@ public final class ServiceUtils {
         E apply(String name) throws IllegalArgumentException;
     }
 
-    public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {
+    /**
+     * Create an exception for when the task type is not valid for the service.
+     */
+    public static ElasticsearchStatusException createInvalidTaskTypeException(
+        String inferenceEntityId,
+        String serviceName,
+        TaskType taskType,
+        ConfigurationParseContext parseContext
+    ) {
+        var message = parseContext == ConfigurationParseContext.PERSISTENT
+            ? parsePersistedConfigErrorMsg(inferenceEntityId, serviceName, taskType)
+            : TaskType.unsupportedTaskTypeErrorMsg(taskType, serviceName);
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName, TaskType taskType) {
         return format(
-            "Failed to parse stored model [%s] for [%s] service, please delete and add the service again",
+            "Failed to parse stored model [%s] for [%s] service, error: [%s]. Please delete and add the service again",
             inferenceEntityId,
-            serviceName
+            serviceName,
+            TaskType.unsupportedTaskTypeErrorMsg(taskType, serviceName)
         );
     }
 

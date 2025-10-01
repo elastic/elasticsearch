@@ -1,6 +1,7 @@
 retrieveDenseVectorData
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: dense_vector_agg_metric_double_if_fns
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
 | EVAL k = v_l2_norm(float_vector, [1])  // workaround to enable fetching dense_vector
@@ -16,7 +17,7 @@ id:l | float_vector:dense_vector
 ;
 
 denseVectorWithEval
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
@@ -34,7 +35,7 @@ id:l | v:dense_vector
 ;
 
 denseVectorWithRenameAndDrop
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector 
@@ -53,7 +54,7 @@ id:l | new_vector:dense_vector
 ;
 
 convertIntsToDenseVector
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: to_dense_vector_function
 
 // tag::to_dense_vector-ints[]
@@ -70,7 +71,7 @@ vector:dense_vector
 ;
 
 convertLongsToDenseVector
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: to_dense_vector_function
 
 row longs = [5013792, 2147483647, 501379200000]
@@ -83,7 +84,7 @@ vector:dense_vector
 ;
 
 convertDoublesToDenseVector
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: to_dense_vector_function
 
 row doubles = [123.4, 567.8, 901.2]
@@ -96,7 +97,7 @@ vector:dense_vector
 ;
 
 convertHexStringToDenseVector
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: to_dense_vector_function
 
 row hex_str = "0102030405060708090a0b0c0d0e0f"

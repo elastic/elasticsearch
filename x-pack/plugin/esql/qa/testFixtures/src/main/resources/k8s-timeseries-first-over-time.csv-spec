@@ -126,3 +126,42 @@ events:long | pod:keyword | time_bucket:datetime
 6           | two         | 2024-05-10T00:20:00.000Z
 ;
 
+first_over_time_counter_double
+required_capability: ts_command_v0
+required_capability: first_last_over_time_counter_support
+TS k8s
+| STATS sum = sum(first_over_time(network.total_cost)) by pod, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, pod
+;
+
+sum:double | pod:keyword | time_bucket:datetime
+35.75      | one         | 2024-05-10T00:00:00.000Z
+34.375     | three       | 2024-05-10T00:00:00.000Z
+30.375     | two         | 2024-05-10T00:00:00.000Z
+96.5       | one         | 2024-05-10T00:10:00.000Z
+191.75     | three       | 2024-05-10T00:10:00.000Z
+163.25     | two         | 2024-05-10T00:10:00.000Z
+224.875    | one         | 2024-05-10T00:20:00.000Z
+142.875    | three       | 2024-05-10T00:20:00.000Z
+163.625    | two         | 2024-05-10T00:20:00.000Z
+;
+
+first_over_time_counter_long
+required_capability: ts_command_v0
+required_capability: first_last_over_time_counter_support
+TS k8s
+| STATS max = max(first_over_time(network.total_bytes_in)) by pod, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, pod
+;
+
+max:long | pod:keyword | time_bucket:datetime
+1103     | one         | 2024-05-10T00:00:00.000Z
+1441     | three       | 2024-05-10T00:00:00.000Z
+1395     | two         | 2024-05-10T00:00:00.000Z
+6077     | one         | 2024-05-10T00:10:00.000Z
+4200     | three       | 2024-05-10T00:10:00.000Z
+3478     | two         | 2024-05-10T00:10:00.000Z
+10207    | one         | 2024-05-10T00:20:00.000Z
+9969     | three       | 2024-05-10T00:20:00.000Z
+8709     | two         | 2024-05-10T00:20:00.000Z
+;

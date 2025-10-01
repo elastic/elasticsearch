@@ -257,9 +257,7 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
                 "settings": {
                   "index": {
                     "routing_path": [ "hostname" ],
-                    "mode": "time_series",
-                    "sort.field": [],
-                    "sort.order": []
+                    "mode": "time_series"
                   }
                 },
                 "mappings": {

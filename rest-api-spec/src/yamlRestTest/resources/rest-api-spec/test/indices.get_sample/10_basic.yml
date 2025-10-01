@@ -1,16 +1,4 @@
 ---
-setup:
-  - do:
-      indices.create:
-        index: test_1
-        body:
-          mappings: {}
-  - do:
-      indices.create:
-        index: test_2
-        body:
-          mappings: {}
----
 "Test get sample for index with no sample config":
   - requires:
       cluster_features: [ "random_sampling" ]

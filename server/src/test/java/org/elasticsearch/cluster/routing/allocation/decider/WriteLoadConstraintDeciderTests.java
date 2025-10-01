@@ -119,7 +119,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             "Unassigned shard should always be accepted",
             writeLoadDecider.canAllocate(
                 testHarness.unassignedShardRouting,
-                testHarness.exceedingThresholdRoutingNode,
+                randomFrom(testHarness.exceedingThresholdRoutingNode, testHarness.belowThresholdRoutingNode),
                 testHarness.routingAllocation
             ),
             Decision.Type.YES,
@@ -239,6 +239,9 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         shardIdToWriteLoadEstimate.put(testShardId1, 0.5);
         shardIdToWriteLoadEstimate.put(testShardId2, 0.5);
         shardIdToWriteLoadEstimate.put(testShardId3NoWriteLoad, 0d);
+        if (randomBoolean()) {
+            shardIdToWriteLoadEstimate.put(testShardId4Unassigned, randomDoubleBetween(0.0, 2.0, true));
+        }
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(nodeIdToNodeUsageStatsForThreadPools)
@@ -298,8 +301,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         RoutingNode nearThresholdRoutingNode = RoutingNodesHelper.routingNode(
             nearThresholdDiscoveryNode3.getId(),
-            nearThresholdDiscoveryNode3,
-            new ShardRouting[] {}
+            nearThresholdDiscoveryNode3
         );
 
         return new TestHarness(

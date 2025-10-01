@@ -159,7 +159,7 @@ public class ClusterInfoSimulator {
         return new ClusterInfo(
             leastAvailableSpaceUsage,
             mostAvailableSpaceUsage,
-            shardSizes.toImmutableMap(),
+            shardSizes,
             shardDataSetSizes,
             dataPath,
             Map.of(),

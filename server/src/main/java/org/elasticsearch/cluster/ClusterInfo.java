@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -98,7 +99,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
-        this.shardSizes = Map.copyOf(shardSizes);
+        this.shardSizes = Collections.unmodifiableMap(shardSizes); // intentional use unmodifiableMap to avoid expensive copying
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);

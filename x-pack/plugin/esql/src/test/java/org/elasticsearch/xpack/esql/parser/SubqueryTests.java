@@ -756,6 +756,36 @@ public class SubqueryTests extends AbstractStatementParserTests {
         assertEquals(0, metadata.size());
     }
 
+    public void testSubqueryWithRemoteCluster() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var mainRemoteIndexPattern = randomIndexPatterns(CROSS_CLUSTER);
+        var mainIndexPattern = randomIndexPatterns(without(CROSS_CLUSTER));
+        var combinedMainIndexPattern = unquoteIndexPattern(mainRemoteIndexPattern) + "," + unquoteIndexPattern(mainIndexPattern);
+        var subqueryRemoteIndexPattern = randomIndexPatterns(CROSS_CLUSTER);
+        var subqueryIndexPattern = randomIndexPatterns(without(CROSS_CLUSTER));
+        var combinedSubqueryIndexPattern = unquoteIndexPattern(subqueryRemoteIndexPattern)
+            + ","
+            + unquoteIndexPattern(subqueryIndexPattern);
+        String query = LoggerMessageFormat.format(null, """
+             FROM {}, {}, (FROM {}, {} | WHERE a > 10)
+             | STATS cnt = COUNT(*) BY a
+            """, mainRemoteIndexPattern, mainIndexPattern, subqueryRemoteIndexPattern, subqueryIndexPattern);
+
+        LogicalPlan plan = statement(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        UnionAll unionAll = as(aggregate.child(), UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(2, children.size());
+        // main query
+        UnresolvedRelation mainRelation = as(children.get(0), UnresolvedRelation.class);
+        assertEquals(combinedMainIndexPattern, mainRelation.indexPattern().indexPattern());
+        // subquery
+        Subquery subquery = as(children.get(1), Subquery.class);
+        Filter filter = as(subquery.plan(), Filter.class);
+        UnresolvedRelation unresolvedRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals(combinedSubqueryIndexPattern, unresolvedRelation.indexPattern().indexPattern());
+    }
+
     public void testTimeSeriesWithSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var mainIndexPattern = randomIndexPatterns();

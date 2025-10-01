@@ -103,11 +103,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             node.nodeId(),
             newWriteThreadPoolUtilization
         );
-
-        if (logger.isTraceEnabled()) {
-            logger.trace(explanation);
-        }
-
+        logger.trace(explanation);
         return allocation.decision(Decision.YES, NAME, explanation);
     }
 
@@ -155,11 +151,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
             nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2)
         );
-
-        if (logger.isTraceEnabled()) {
-            logger.trace(explanation);
-        }
-
+        logger.trace(explanation);
         return allocation.decision(Decision.YES, NAME, explanation);
     }
 

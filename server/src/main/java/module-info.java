@@ -400,7 +400,8 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
-            org.elasticsearch.internal.security;
+            org.elasticsearch.internal.security,
+            org.elasticsearch.gpu;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
@@ -486,9 +487,10 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
-    exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn, org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
     exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
+    exports org.elasticsearch.search.crossproject;
 }

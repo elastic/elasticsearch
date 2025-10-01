@@ -39,10 +39,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final Settings settings;
+    private final boolean inCpsContext;
 
     public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.clusterSupportsFeature = clusterSupportsFeature;
         this.settings = settings;
+        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     @Override
@@ -62,7 +64,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        if (inCpsContext) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
@@ -75,7 +77,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             null,
             clusterSupportsFeature,
             size -> searchRequest.source().size(size),
-            Optional.empty()
+            // This endpoint is CPS-enabled.
+            Optional.of(true)
         );
 
         // Creates the search template request

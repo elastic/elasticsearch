@@ -77,6 +77,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         if (inCpsContext) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
+            submit.getSearchRequest().setCcsMinimizeRoundtrips(true);
         }
 
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);

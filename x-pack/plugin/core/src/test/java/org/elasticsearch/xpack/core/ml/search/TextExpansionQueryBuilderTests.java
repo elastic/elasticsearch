@@ -334,7 +334,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         }
     }
 
-    public void testFailure() {
+    public void testReceiving_TextEmbeddingResults_ThrowsBadRequestException() {
         // Tells the client to return invalid results to trigger a failure
         shouldProduceDenseVectorResults.set(true);
 

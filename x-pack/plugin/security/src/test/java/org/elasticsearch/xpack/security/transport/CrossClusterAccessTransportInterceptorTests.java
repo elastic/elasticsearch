@@ -805,4 +805,107 @@ public class CrossClusterAccessTransportInterceptorTests extends ServerTransport
         assertThat(((DefaultServerTransportFilter) profileFilters.get("default")).isExtractClientCert(), is(transportSslEnabled));
     }
 
+    public void testGetRemoteProfileTransportFilter() {
+        final boolean remoteClusterSslEnabled = randomBoolean();
+        final Settings.Builder builder = Settings.builder()
+            .put(this.settings)
+            .put("remote_cluster_server.enabled", true)
+            .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
+
+        final SslProfile remoteProfile = mock(SslProfile.class);
+        when(remoteProfile.configuration()).thenReturn(
+            new SslConfiguration(
+                "xpack.security.remote_cluster_server.ssl",
+                randomBoolean(),
+                mock(SslTrustConfig.class),
+                mock(SslKeyConfig.class),
+                randomFrom(SslVerificationMode.values()),
+                SslClientAuthenticationMode.NONE,
+                List.of(Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_256_GCM_SHA384" : "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"),
+                List.of("TLSv1.2"),
+                randomLongBetween(1, 100000)
+            )
+        );
+
+        final SSLService sslService = mock(SSLService.class);
+        when(sslService.profile("xpack.security.remote_cluster_server.ssl.")).thenReturn(remoteProfile);
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .profile("xpack.security.remote_cluster_client.ssl.");
+
+        final AuthenticationService authcService = mock(AuthenticationService.class);
+        final AuthorizationService authzService = mock(AuthorizationService.class);
+        CrossClusterAccessTransportInterceptor interceptor = new CrossClusterAccessTransportInterceptor(
+            builder.build(),
+            threadPool,
+            authcService,
+            authzService,
+            securityContext,
+            mock(CrossClusterAccessAuthenticationService.class),
+            crossClusterApiKeySignatureManager,
+            mockLicenseState
+        );
+
+        final Optional<ServerTransportFilter> remoteProfileTransportFilter = interceptor.getRemoteProfileTransportFilter(
+            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
+            remoteProfile,
+            destructiveOperations
+        );
+        assertThat(remoteProfileTransportFilter.isPresent(), is(true));
+        assertThat(remoteProfileTransportFilter.get(), instanceOf(CrossClusterAccessServerTransportFilter.class));
+    }
+
+    public void testGetRemoteProfileTransportFilterWhenRemoteClusterServerIsDisabled() {
+        final boolean remoteClusterSslEnabled = randomBoolean();
+        final Settings.Builder builder = Settings.builder()
+            .put(this.settings)
+            .put("remote_cluster_server.enabled", false)
+            .put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
+        if (randomBoolean()) {
+            builder.put("xpack.security.remote_cluster_client.ssl.enabled", randomBoolean());  // client SSL won't be processed
+        }
+
+        final SslProfile remoteProfile = mock(SslProfile.class);
+        when(remoteProfile.configuration()).thenReturn(
+            new SslConfiguration(
+                "xpack.security.remote_cluster_server.ssl",
+                randomBoolean(),
+                mock(SslTrustConfig.class),
+                mock(SslKeyConfig.class),
+                randomFrom(SslVerificationMode.values()),
+                SslClientAuthenticationMode.NONE,
+                List.of(Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_256_GCM_SHA384" : "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"),
+                List.of("TLSv1.2"),
+                randomLongBetween(1, 100000)
+            )
+        );
+
+        final SSLService sslService = mock(SSLService.class);
+        when(sslService.profile("xpack.security.remote_cluster_server.ssl.")).thenReturn(remoteProfile);
+        doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
+            .profile("xpack.security.remote_cluster_client.ssl.");
+
+        final AuthenticationService authcService = mock(AuthenticationService.class);
+        final AuthorizationService authzService = mock(AuthorizationService.class);
+        CrossClusterAccessTransportInterceptor interceptor = new CrossClusterAccessTransportInterceptor(
+            builder.build(),
+            threadPool,
+            authcService,
+            authzService,
+            securityContext,
+            mock(CrossClusterAccessAuthenticationService.class),
+            crossClusterApiKeySignatureManager,
+            mockLicenseState
+        );
+
+        final Optional<ServerTransportFilter> remoteProfileTransportFilter = interceptor.getRemoteProfileTransportFilter(
+            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
+            remoteProfile,
+            destructiveOperations
+        );
+        assertThat(remoteProfileTransportFilter.isPresent(), is(false));
+    }
+
 }

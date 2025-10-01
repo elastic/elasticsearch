@@ -94,7 +94,7 @@ public class AuthenticationService {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
-        CustomApiKeyAuthenticator customApiKeyAuthenticator,
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
         TelemetryProvider telemetryProvider
     ) {
         this.realms = realms;

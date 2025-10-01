@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.SinglePhaseAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -25,7 +26,8 @@ import java.util.List;
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
 
     private static final List<RuleExecutor.Batch<PhysicalPlan>> RULES = List.of(
-        new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns())
+        new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns()),
+        new Batch<>("Single aggregation", Limiter.ONCE, new SinglePhaseAggregate())
     );
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;

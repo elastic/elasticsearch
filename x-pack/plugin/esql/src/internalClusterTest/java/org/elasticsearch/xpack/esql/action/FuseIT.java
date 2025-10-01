@@ -28,7 +28,6 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
         createAndPopulateIndex();
     }
 

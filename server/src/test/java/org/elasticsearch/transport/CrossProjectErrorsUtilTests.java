@@ -183,6 +183,28 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
         crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, null);
     }
 
+    public void testQualifiedOriginExpressionWithStrictIgnoreUnavailableNotMatching() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "_origin:logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+
+        expectThrows(
+            IndexNotFoundException.class,
+            containsString("no such index [_origin:logs]"),
+            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictIgnoreUnavailable(), local, null)
+        );
+    }
+
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
@@ -447,6 +469,28 @@ public class CrossProjectErrorsUtilTests extends ESTestCase {
 
         // we matched locally thus no error
         crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, null);
+    }
+
+    public void testQualifiedOriginExpressionWithStrictAllowNoIndicesNotMatching() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "_origin:logs*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+
+        expectThrows(
+            IndexNotFoundException.class,
+            containsString("no such index [_origin:logs*]"),
+            () -> crossProjectErrorsUtil.crossProjectFanoutErrorHandling(getStrictAllowNoIndices(), local, null)
+        );
     }
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {

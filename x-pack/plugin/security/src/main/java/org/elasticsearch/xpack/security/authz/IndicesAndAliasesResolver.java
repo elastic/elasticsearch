@@ -54,7 +54,7 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.lenientIndicesOptionsForCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.lenientIndicesOptions;
 import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.resolveCrossProject;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -371,7 +371,7 @@ class IndicesAndAliasesResolver {
                         : "none expressions should be handled by local resolution logic";
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
-                        lenientIndicesOptionsForCrossProject(indicesOptions),
+                        lenientIndicesOptions(indicesOptions),
                         projectMetadata,
                         authorizedIndices::all,
                         authorizedIndices::check,

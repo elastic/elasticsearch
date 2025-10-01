@@ -156,7 +156,7 @@ public class CrossProjectResponseValidator {
         return Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
     }
 
-    public static IndicesOptions lenientIndicesOptionsForCrossProject(IndicesOptions indicesOptions) {
+    public static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
         return IndicesOptions.builder(indicesOptions)
             .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
             .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())

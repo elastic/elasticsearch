@@ -22,6 +22,8 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
@@ -50,6 +52,17 @@ public class CrossProjectSearchErrorHandler {
     private static final Logger logger = LogManager.getLogger(CrossProjectSearchErrorHandler.class);
     private static final String WILDCARD = "*";
 
+    public static void crossProjectFanoutErrorHandling(
+        IndicesOptions indicesOptions,
+        ResolvedIndexExpressions primaryResolvedIndexExpressions,
+        Map<String, ResolvedIndexExpressions> resolvedIndexExpressionsByRemote
+    ) {
+        Map<String, LinkedProjectExpressions> remoteLinkedProjectExpressions = resolvedIndexExpressionsByRemote.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> LinkedProjectExpressions.fromResolvedExpressions(e.getValue())));
+        tempCrossProjectFanoutErrorHandling(indicesOptions, primaryResolvedIndexExpressions, remoteLinkedProjectExpressions);
+    }
+
     /**
      * Validates the results of cross-project index resolution and throws appropriate exceptions based on the provided
      * {@link IndicesOptions}.
@@ -72,10 +85,10 @@ public class CrossProjectSearchErrorHandler {
      * @throws IndexNotFoundException         If indices are missing and the {@code IndicesOptions} do not allow it
      * @throws ElasticsearchSecurityException If authorization errors occurred during index resolution
      */
-    public static void crossProjectFanoutErrorHandling(
+    private static void tempCrossProjectFanoutErrorHandling(
         IndicesOptions indicesOptions,
         ResolvedIndexExpressions localResolvedExpressions,
-        RemoteIndexExpressions remoteResolvedExpressions
+        Map<String, LinkedProjectExpressions> remoteResolvedExpressions
     ) {
         logger.info(
             "Checking cross-project index resolution results for [{}] and [{}]",
@@ -120,7 +133,12 @@ public class CrossProjectSearchErrorHandler {
         }
     }
 
-    public static IndicesOptions lenientIndicesOptionsForFanout(IndicesOptions indicesOptions) {
+    public static boolean resolveCrossProject(IndicesOptions indicesOptions) {
+        // TODO this needs to be based on the IndicesOptions flag instead, once available
+        return Boolean.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
+    }
+
+    public static IndicesOptions lenientIndicesOptionsForCrossProject(IndicesOptions indicesOptions) {
         return IndicesOptions.builder(indicesOptions)
             .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
             .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
@@ -131,7 +149,7 @@ public class CrossProjectSearchErrorHandler {
         String indexAlias,
         String originalExpression,
         ResolvedIndexExpression localResolvedIndices,
-        RemoteIndexExpressions remoteResolvedExpressions,
+        Map<String, LinkedProjectExpressions> remoteResolvedExpressions,
         boolean isFlatWorldResource
     ) {
         // strict behaviour of allowNoIndices checks if a wildcard expression resolves to no concrete indices.
@@ -144,7 +162,7 @@ public class CrossProjectSearchErrorHandler {
     private static void checkIndicesOptions(
         String originalExpression,
         ResolvedIndexExpression localResolvedIndices,
-        RemoteIndexExpressions remoteResolvedExpressions,
+        Map<String, LinkedProjectExpressions> remoteResolvedExpressions,
         boolean isFlatWorldResource
     ) {
         ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
@@ -194,7 +212,7 @@ public class CrossProjectSearchErrorHandler {
                         + "]";
                 String projectAlias = splitResource[0];
                 String resource = splitResource[1];
-                LinkedProjectExpressions linkedProjectExpressions = remoteResolvedExpressions.expressions().get(projectAlias);
+                LinkedProjectExpressions linkedProjectExpressions = remoteResolvedExpressions.get(projectAlias);
                 assert linkedProjectExpressions != null : "we should always have linked expressions from remote";
 
                 ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
@@ -221,7 +239,7 @@ public class CrossProjectSearchErrorHandler {
                 }
             } else {
                 boolean foundFlat = false;
-                for (var linkedProjectExpressions : remoteResolvedExpressions.expressions().values()) {
+                for (var linkedProjectExpressions : remoteResolvedExpressions.values()) {
                     ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = linkedProjectExpressions.resolvedExpressions()
                         .get(remoteExpression);
                     if (resolvedRemoteExpression != null

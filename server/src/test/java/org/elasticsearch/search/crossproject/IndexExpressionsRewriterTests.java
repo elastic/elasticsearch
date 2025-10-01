@@ -377,7 +377,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
     private static List<String> resultAsList(IndexExpressionsRewriter.IndexRewriteResult result) {
         if (result.localExpression() == null) {
-            return result.remoteExpressions();
+            return List.copyOf(result.remoteExpressions());
         }
         List<String> all = new ArrayList<>();
         all.add(result.localExpression());

@@ -70,8 +70,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
                 : Arrays.stream(modeParam.split(","))
                     .map(IndexMode::fromString)
                     .collect(() -> EnumSet.noneOf(IndexMode.class), EnumSet::add, EnumSet::addAll),
-            false,
-            crossProjectMode
+            false
         );
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }

@@ -40,9 +40,4 @@ public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<Pr
     public boolean isEmpty() {
         return originProject == null && linkedProjects.isEmpty();
     }
-
-    public void assertNonEmpty() {
-        assert originProject != null || false == linkedProjects.isEmpty()
-            : "either origin project or linked projects must be in project target set";
-    }
 }

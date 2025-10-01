@@ -214,13 +214,5 @@ public class IndexExpressionsRewriter {
         public IndexRewriteResult(String localExpression) {
             this(localExpression, Set.of());
         }
-
-        public boolean hasLocalExpression() {
-            return localExpression != null;
-        }
-
-        public boolean hasRemoteExpressions() {
-            return remoteExpressions.isEmpty() == false;
-        }
     }
 }

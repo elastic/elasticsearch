@@ -54,7 +54,8 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.lenientIndicesOptionsForFanout;
+import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.lenientIndicesOptionsForCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectSearchErrorHandler.resolveCrossProject;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -342,7 +343,7 @@ class IndicesAndAliasesResolver {
                     throw new UnsupportedSelectorException(originalIndexExpression);
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    // TODO implement CPS index rewriting for all indices requests
+                    // TODO implement CPS index rewriting for all-indices requests
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
                     for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
@@ -366,11 +367,11 @@ class IndicesAndAliasesResolver {
                 if (shouldResolveCrossProject(replaceable, authorizedProjects)) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
                     assert recordResolvedIndexExpressions : "cross-project requests must record resolved index expressions";
-                    assert IndexNameExpressionResolver.isNoneExpression(replaceable.indices())
+                    assert false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())
                         : "none expressions should be handled by local resolution logic";
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
-                        lenientIndicesOptionsForFanout(indicesOptions),
+                        lenientIndicesOptionsForCrossProject(indicesOptions),
                         projectMetadata,
                         authorizedIndices::all,
                         authorizedIndices::check,
@@ -472,8 +473,10 @@ class IndicesAndAliasesResolver {
     }
 
     private static boolean shouldResolveCrossProject(IndicesRequest.Replaceable replaceable, TargetProjects authorizedProjects) {
-        return replaceable.crossProjectResolvable() && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT
-        // a none expression should not go through the cross-project resolution -- fall back to local resolution logic
+        return replaceable.crossProjectResolvable()
+            && authorizedProjects != TargetProjects.NOT_CROSS_PROJECT
+            && resolveCrossProject(replaceable.indicesOptions())
+            // a none expression should not go through the cross-project resolution -- fall back to local resolution logic
             && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices());
     }
 

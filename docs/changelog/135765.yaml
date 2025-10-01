@@ -1,12 +1,11 @@
 pr: 135765
 summary: Add deprecation notice for `max_size` rollover condition
-area: "Indices APIs, ILM+SLM"
+area: "ILM+SLM"
 type: deprecation
 issues:
  - 130737
 deprecation:
   title: Add deprecation notice for `max_size` rollover condition
-  area: "Indices APIs, ILM+SLM"
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: "REST API"
+  details: We have deprecated the `max_size` rollover condition when used in the Put ILM Lifecycle endpoints and the index rollover endpoints
+  impact: Users can continue to use this condition however a warning will be issued via the response headers and in the server logs. The condition may be removed fully in a later version of Elasticsearch.

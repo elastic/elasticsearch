@@ -11,6 +11,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -671,13 +672,14 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     private static void putILMPolicy(String name, String maxSize, Integer maxDocs, TimeValue maxAge) throws IOException {
         final Request request = new Request("PUT", "_ilm/policy/" + name);
         XContentBuilder builder = jsonBuilder();
+        String phase = "hot";
         builder.startObject();
         {
             builder.startObject("policy");
             {
                 builder.startObject("phases");
                 {
-                    builder.startObject("hot");
+                    builder.startObject(phase);
                     {
                         builder.startObject("actions");
                         {
@@ -736,8 +738,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if (maxSize != null) {
             request.setOptions(
                 expectWarnings(
-                    "Use of the [max_size] rollover condition in phase [hot] has been deprecated in favour of"
-                        + " the [max_primary_shard_size] condition"
+                    ParameterizedMessage.format(PutLifecycleMetadataService.MAX_SIZE_DEPRECATION_MESSAGE, new Object[] { phase })
                 )
             );
         }

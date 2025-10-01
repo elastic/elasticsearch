@@ -79,6 +79,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportRolloverAction.class);
+    public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition has been deprecated in favour of "
+        + "the [max_primary_shard_size] condition and will be removed in a later version";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
@@ -207,11 +209,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         // Check for deprecated conditions
         if (rolloverRequest.getConditions().getMaxSize() != null) {
-            DEPRECATION_LOGGER.warn(
-                DeprecationCategory.API,
-                "rollover-max-size-condition",
-                "Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition"
-            );
+            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "rollover-max-size-condition", MAX_SIZE_DEPRECATION_MESSAGE);
         }
 
         // Parse the rollover request's target since the expression it may contain a selector on it

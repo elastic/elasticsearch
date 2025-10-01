@@ -28,7 +28,7 @@
   # perform alias rollover with a large max_size, no action.
   - do:
       warnings:
-        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition'
+        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
       indices.rollover:
         alias: "logs_search"
         wait_for_active_shards: 1
@@ -42,7 +42,7 @@
   # perform alias rollover with a small max_size, got action.
   - do:
       warnings:
-        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition'
+        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
       indices.rollover:
         alias: "logs_search"
         wait_for_active_shards: 1
@@ -56,7 +56,7 @@
   # perform alias rollover on an empty index, no action.
   - do:
       warnings:
-        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition'
+        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
       indices.rollover:
         alias: "logs_search"
         wait_for_active_shards: 1

@@ -62,6 +62,8 @@ public class PutLifecycleMetadataService {
 
     private static final Logger logger = LogManager.getLogger(PutLifecycleMetadataService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PutLifecycleMetadataService.class);
+    public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition found in phase [{}]. This"
+        + " condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version";
 
     private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;
@@ -111,8 +113,7 @@ public class PutLifecycleMetadataService {
                         DEPRECATION_LOGGER.warn(
                             DeprecationCategory.API,
                             "rollover-max-size-condition",
-                            "Use of the [max_size] rollover condition in phase [{}] has been deprecated in favour of the "
-                                + "[max_primary_shard_size] condition",
+                            MAX_SIZE_DEPRECATION_MESSAGE,
                             phase.getName()
                         );
                     }

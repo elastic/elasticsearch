@@ -418,7 +418,7 @@ setup:
 
   - do:
       warnings:
-        - 'Use of the [max_size] rollover condition in phase [hot] has been deprecated in favour of the [max_primary_shard_size] condition'
+        - 'Use of the [max_size] rollover condition found in phase [hot]. This condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
         body: |
@@ -482,7 +482,7 @@ setup:
   # Update the policy to add max_size and check for deprecation warning
   - do:
       warnings:
-        - 'Use of the [max_size] rollover condition in phase [hot] has been deprecated in favour of the [max_primary_shard_size] condition'
+        - 'Use of the [max_size] rollover condition found in phase [hot]. This condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
         body: |

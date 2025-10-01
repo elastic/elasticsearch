@@ -128,11 +128,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-        }
-        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
@@ -233,11 +233,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-        }
-        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
@@ -331,11 +331,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-        }
-        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
@@ -451,11 +451,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getMetadata()
             .getProject()
             .index(harness.indexName);
-        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-            shardStats.add(createShardStats(indexMetadata, i, harness.randomShardWriteLoad, harness.firstDataNodeId));
-        }
-        setUpMockTransportIndicesStatsResponse(harness.firstDiscoveryNode, indexMetadata.getNumberOfShards(), shardStats);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
         setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
         setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
@@ -689,6 +689,21 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         );
 
         return new NodeUsageStatsForThreadPools(discoveryNode.getId(), threadPoolUsageMap);
+    }
+
+    /**
+     * Helper to create a list of dummy {@link ShardStats} for the given index, each shard reporting a {@code peakShardWriteLoad} stat.
+     */
+    private List<ShardStats> createShardStatsResponseForIndex(
+        IndexMetadata indexMetadata,
+        float peakShardWriteLoad,
+        String assignedShardNodeId
+    ) {
+        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+            shardStats.add(createShardStats(indexMetadata, i, peakShardWriteLoad, assignedShardNodeId));
+        }
+        return shardStats;
     }
 
     /**

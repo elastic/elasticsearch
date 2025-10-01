@@ -71,7 +71,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.INDE
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

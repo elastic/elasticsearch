@@ -93,6 +93,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
+                // This endpoint is CPS-enabled so propagate the right value.
                 Optional.of(inCpsContext)
             )
         );

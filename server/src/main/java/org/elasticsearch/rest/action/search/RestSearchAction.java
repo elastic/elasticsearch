@@ -138,6 +138,7 @@ public class RestSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
+                // This endpoint is CPS-enabled so propagate the right value.
                 Optional.of(inCpsContext)
             )
         );

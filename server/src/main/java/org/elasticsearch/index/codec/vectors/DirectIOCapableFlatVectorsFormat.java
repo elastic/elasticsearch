@@ -14,6 +14,10 @@ import org.apache.lucene.index.SegmentReadState;
 
 import java.io.IOException;
 
-public interface DirectIOCapableFlatVectorsFormat {
-    FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException;
+public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVectorsFormat {
+    protected DirectIOCapableFlatVectorsFormat(String name) {
+        super(name);
+    }
+
+    public abstract FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException;
 }

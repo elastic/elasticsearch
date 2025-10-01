@@ -28,7 +28,7 @@ import org.elasticsearch.index.store.FsDirectoryFactory;
 import java.io.IOException;
 import java.util.Set;
 
-public class DirectIOCapableLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat implements DirectIOCapableFlatVectorsFormat {
+public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
 
     static final String NAME = "Lucene99FlatVectorsFormat";
 

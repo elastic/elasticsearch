@@ -10,20 +10,17 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -34,19 +31,14 @@ import java.util.Objects;
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
-    private static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-    private static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
-    private static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-    private static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
-
-    private final Recycler<BytesRef> recycler;
     private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
-    protected final int pageSize;
+    private final Recycler<BytesRef> recycler;
+    private final int pageSize;
     private int pageIndex = -1;
     private int currentCapacity = 0;
 
-    protected BytesRef currentBytesRef;
-    protected int currentPageOffset;
+    private BytesRef currentBytesRef;
+    private int currentPageOffset;
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
@@ -122,26 +114,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.currentBytesRef = currentPage;
     }
 
-    public void writeBytesRefIterator(BytesRefIterator refIterator, int length) throws IOException {
-        final int preWritePageOffset = this.currentPageOffset;
-        if (length <= (pageSize - preWritePageOffset)) {
-            BytesRef currentPage = currentBytesRef;
-            int offset = currentPage.offset + preWritePageOffset;
-            byte[] pageBytes = currentPage.bytes;
-            BytesRef ref;
-            while ((ref = refIterator.next()) != null) {
-                System.arraycopy(ref.bytes, ref.offset, pageBytes, offset, ref.length);
-                offset += ref.length;
-            }
-            this.currentPageOffset = preWritePageOffset + length;
-        } else {
-            BytesRef next;
-            while ((next = refIterator.next()) != null) {
-                writeBytes(next.bytes, next.offset, next.length);
-            }
-        }
-    }
-
     @Override
     public void writeVInt(int i) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
@@ -198,7 +170,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeInt(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeIntBE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 4;
         }
     }
@@ -210,7 +182,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeIntLE(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_LE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeIntLE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 4;
         }
     }
@@ -222,7 +194,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeLong(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_BE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeLongBE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 8;
         }
     }
@@ -234,7 +206,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             super.writeLongLE(i);
         } else {
             BytesRef currentPage = currentBytesRef;
-            VH_LE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            ByteUtils.writeLongLE(i, currentPage.bytes, currentPage.offset + currentPageOffset);
             this.currentPageOffset = currentPageOffset + 8;
         }
     }
@@ -259,6 +231,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 size -= writeSize;
                 tmpPage++;
             }
+        }
+    }
+
+    public BytesRef attemptDirectPageWrite(int bytes) {
+        final int beforePageOffset = this.currentPageOffset;
+        if (bytes <= (pageSize - beforePageOffset)) {
+            BytesRef currentPage = currentBytesRef;
+            this.currentPageOffset = beforePageOffset + bytes;
+            return new BytesRef(currentPage.bytes, currentPage.offset + beforePageOffset, bytes);
+        } else {
+            return null;
         }
     }
 

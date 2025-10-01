@@ -86,7 +86,8 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(expression);
-        final String evaluatorName = getBaseEvaluatorName() + "Evaluator"
+        final String evaluatorName = getBaseEvaluatorName()
+            + "Evaluator"
             + "[left=ConstantVectorProvider[vector="
             + testCase.getData().getFirst().getValue()
             + "],"
@@ -114,7 +115,8 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
-        final String evaluatorName = getBaseEvaluatorName() + "Evaluator"
+        final String evaluatorName = getBaseEvaluatorName()
+            + "Evaluator"
             + "[left=ConstantVectorProvider[vector="
             + testCase.getData().getFirst().getValue()
             + "],"

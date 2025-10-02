@@ -44,6 +44,7 @@ public class GetSampleActionIT extends ESIntegTestCase {
         GetSampleAction.Request request = new GetSampleAction.Request(new String[] { indexName });
         GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
         List<SamplingService.RawDocument> sample = response.getSample();
+        // The sampling config created by addSamplingConfig samples at 100%, so we expect everything to be sampled:
         assertThat(sample.size(), equalTo(docsToIndex));
         for (int i = 0; i < docsToIndex; i++) {
             assertRawDocument(sample.get(i), indexName);
@@ -95,8 +96,8 @@ public class GetSampleActionIT extends ESIntegTestCase {
         });
         awaitClusterState(state -> {
             SamplingMetadata samplingMetadata = clusterService.state()
-                .projectState(ProjectId.DEFAULT)
                 .metadata()
+                .getProject(ProjectId.DEFAULT)
                 .custom(SamplingMetadata.TYPE);
             return samplingMetadata != null && samplingMetadata.getIndexToSamplingConfigMap().get(indexName) != null;
         });

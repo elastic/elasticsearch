@@ -415,6 +415,7 @@ public class TopNOperator implements Operator, Accountable {
                 // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
 
+                // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
                 if (inputQueue.size() < inputQueue.topCount) {
                     // Heap not yet full, just add elements
                     rowFiller.writeValues(i, spare);

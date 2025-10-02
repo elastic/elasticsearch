@@ -1468,6 +1468,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
+        boolean asc = randomBoolean();
         try (
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
@@ -1475,7 +1476,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 10,
                 types,
                 encoders,
-                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
                 randomPageSize()
             )
         ) {
@@ -1491,8 +1492,8 @@ public class TopNOperatorTests extends OperatorTestCase {
 
             // 105 are from the objects
             // 1 is for the min-heap itself
-            // could be less than because we don't always insert
-            assertThat(breaker.getMemoryRequestCount(), lessThanOrEqualTo(106L));
+            // -1 IF we're sorting ascending. We encode one less value.
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 105L : 106L));
         }
     }
 

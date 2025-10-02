@@ -64,10 +64,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     @Override
     protected Void createActionContext(Task task, Request request) {
         String indexName = request.indices()[0];
-        SamplingMetadata samplingMetadata = clusterService.state()
-            .projectState(projectResolver.getProjectId())
-            .metadata()
-            .custom(SamplingMetadata.TYPE);
+        SamplingMetadata samplingMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(SamplingMetadata.TYPE);
         if (samplingMetadata == null || samplingMetadata.getIndexToSamplingConfigMap().get(indexName) == null) {
             throw new ResourceNotFoundException("No sampling configuration found for [" + indexName + "]");
         }
@@ -77,10 +74,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
         indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request);
-        SamplingMetadata samplingMetadata = clusterService.state()
-            .projectState(projectResolver.getProjectId())
-            .metadata()
-            .custom(SamplingMetadata.TYPE);
+        SamplingMetadata samplingMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(SamplingMetadata.TYPE);
         final int maxSamples;
         if (samplingMetadata == null) {
             maxSamples = 0;

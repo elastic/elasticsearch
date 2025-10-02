@@ -1,0 +1,5 @@
+pr: 135845
+summary: Defer Semantic Text Failures on Pre-8.11 Indices
+area: Relevance
+type: bug
+issues: []

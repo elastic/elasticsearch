@@ -21,54 +21,50 @@ import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
 
-
-
-    /*
-        Happy path test scenario
-
-        3 ingestion node
-
-        5 shards index ,
-                A       1
-                B       2
-                C       2
-
-              Propose Allocation to move shard from B to C  -> Not preferred
-
-        Enable this decider
-        put very strict load skew tolerance basically ideal
-        with this in place the end result should be all not exceeding ideal
-
-
-        What happes
-
-        So basically first
-
-
-     */
-
-
-    /**
-     * Happy path -
-     *
-     *
-     *
-     *
-     *
-     */
     public void testIndexShardCountExceedsAverageAllocation() {
+        var testHarness = setUpThreeHealthyDataNodesAndVerifyIndexShardsBalancedDistributed();
 
-        var testHarness = setUpIndex();
+        /**
+         * Exclude assignment of shards to the first data nodes via the {@link FilterAllocationDecider} settings.
+         * This triggers the balancer to work out a new routing.
+         */
+        logger.info("---> Remove shard assignments of node " + testHarness.firstDataNodeName + " by excluding first data node.");
+        updateClusterSettings(
+            Settings.builder().put("cluster.routing.allocation.exclude._name", testHarness.firstDataNodeName)
+        );
 
+        refreshClusterInfo();
 
+        int lowerThreshold = testHarness.randomNumberOfShards / 2;
+        int upperThreshold = (int)Math.ceil((double) testHarness.randomNumberOfShards / 2);
 
+        var verifyShardCountBalanceListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            var indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(testHarness.indexName);
+            if (indexRoutingTable == null) {
+                return false;
+            }
+            if (indexRoutingTable.numberOfNodesShardsAreAllocatedOn() != 2) {
+                return false;
+            }
 
+            Index index = indexRoutingTable.getIndex();
+            assertThat(indexRoutingTable.numberOfNodesShardsAreAllocatedOn(), equalTo(2));
+            clusterState.getRoutingNodes().stream().forEach(node -> {
+                if (node.hasIndex(index)) {
+                    assert node.numberOfOwningShardsForIndex(index) >= lowerThreshold;
+                    assert node.numberOfOwningShardsForIndex(index) <= upperThreshold;
+                }
+            });
+            return true;
+        });
+
+        safeAwait(verifyShardCountBalanceListener);
     }
-
 
     private boolean checkShardAssignment(
         RoutingNodes routingNodes,
@@ -96,7 +92,7 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
             && thirdDataNodeRealNumberOfShards >= lowerLimitThirdDataNode;
     }
 
-    private TestHarness setUpIndex() {
+    private TestHarness setUpThreeHealthyDataNodesAndVerifyIndexShardsBalancedDistributed() {
         Settings settings = Settings.builder()
             .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING.getKey(),
                 IndexShardCountConstraintSettings.IndexShardCountDeciderStatus.ENABLED

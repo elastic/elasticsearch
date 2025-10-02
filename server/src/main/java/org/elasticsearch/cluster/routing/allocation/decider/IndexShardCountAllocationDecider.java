@@ -101,9 +101,4 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
         return Decision.single(Decision.Type.YES, NAME, "canRemain() is not yet implemented");
     }
 
-
-
-
-
-
 }

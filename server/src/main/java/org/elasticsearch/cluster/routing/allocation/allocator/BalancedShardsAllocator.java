@@ -874,9 +874,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Decide whether to move a started shard to another node.
-         * Unconditional version of {@link #decideMove(ProjectIndex, ShardRouting, Predicate)}
+         * Makes a decision on whether to move a started shard to another node.
+         * <p>
+         * This overload will always assess move options for non-preferred allocations.
          *
+         * @see #decideMove(ProjectIndex, ShardRouting, Predicate)
          * @param index The index that the shard being considered belongs to
          * @param shardRouting The shard routing being considered for movement
          * @return The {@link MoveDecision} for the shard

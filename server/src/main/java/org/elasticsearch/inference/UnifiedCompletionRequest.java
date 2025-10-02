@@ -104,10 +104,7 @@ public record UnifiedCompletionRequest(
      * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxTokens(Params params) {
-        return new DelegatingMapParams(
-            Map.ofEntries(Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD)),
-            params
-        );
+        return new DelegatingMapParams(Map.ofEntries(Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD)), params);
     }
 
     /**
@@ -134,10 +131,7 @@ public record UnifiedCompletionRequest(
      */
     public static Params withMaxTokensAndSkipStreamOptionsField(Params params) {
         return new DelegatingMapParams(
-            Map.ofEntries(
-                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
-                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
-            ),
+            Map.ofEntries(Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD), Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())),
             params
         );
     }

@@ -201,6 +201,9 @@ public class EsqlCCSUtils {
         IndexResolution indexResolution,
         boolean usedFilter
     ) {
+        if (executionInfo.clusterInfo.isEmpty()) {
+            return;
+        }
         // Get the clusters which are still running, and we will check whether they have any matching indices.
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getClusterStates(Cluster.Status.RUNNING)

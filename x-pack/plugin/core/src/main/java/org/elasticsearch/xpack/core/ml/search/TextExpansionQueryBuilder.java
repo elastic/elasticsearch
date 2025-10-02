@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -25,7 +24,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -190,15 +188,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(
+                            new IllegalArgumentException(
                                 "expected a result of type ["
                                     + TextExpansionResults.NAME
                                     + "] received ["
                                     + inferenceResponse.getInferenceResults().get(0).getWriteableName()
                                     + "]. Is ["
                                     + modelId
-                                    + "] a compatible model?",
-                                RestStatus.BAD_REQUEST
+                                    + "] a compatible model?"
                             )
                         );
                     }

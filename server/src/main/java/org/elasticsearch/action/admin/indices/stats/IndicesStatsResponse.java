@@ -55,8 +55,6 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
-        // where we only had health and state available.
         indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
         indexStateMap = in.readMap(IndexMetadata.State::readFrom);
     }

@@ -28,21 +28,22 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
 /**
- * Utility class for handling errors in cross-project index operations.
+ * Utility class for validating index resolution results in cross-project operations.
  * <p>
  * This class provides consistent error handling for scenarios where index resolution
  * spans multiple projects, taking into account the provided {@link IndicesOptions}.
  * It handles:
  * <ul>
- *   <li>Validation of index existence in the merged project view based on IndicesOptions (ignoreUnavailable,
- *   allowNoIndices)</li>
- *   <li>Authorization issues during cross-project index resolution</li>
- *   <li>Both flat (unqualified) and qualified index expressions</li>
+ *   <li>Validation of index existence in both origin and linked projects based on IndicesOptions
+ *       (ignoreUnavailable, allowNoIndices)</li>
+ *   <li>Authorization issues during cross-project index resolution, returning appropriate
+ *       {@link ElasticsearchSecurityException} responses</li>
+ *   <li>Both flat (unqualified) and qualified index expressions (including "_origin:" prefixed indices)</li>
  *   <li>Wildcard index patterns that may resolve differently across projects</li>
  * </ul>
  * <p>
- * The utility examines both local and remote resolution results to determine the appropriate
- * error response, throwing {@link IndexNotFoundException} for missing indices or
+ * The validator examines both local and remote resolution results to determine the appropriate
+ * error response, returning {@link IndexNotFoundException} for missing indices or
  * {@link ElasticsearchSecurityException} for authorization failures.
  */
 public class ResponseValidator {
@@ -51,26 +52,25 @@ public class ResponseValidator {
     private static final String ORIGIN = "_origin"; // TODO use available constants
 
     /**
-     * Validates the results of cross-project index resolution and throws appropriate exceptions based on the provided
+     * Validates the results of cross-project index resolution and returns appropriate exceptions based on the provided
      * {@link IndicesOptions}.
      * <p>
      * This method handles error scenarios when resolving indices across multiple projects:
      * <ul>
-     *   <li>If both {@code ignoreUnavailable} and {@code allowNoIndices} are true, the method returns without validation
+     *   <li>If both {@code ignoreUnavailable} and {@code allowNoIndices} are true, the method returns null without validation
      *       (lenient mode)</li>
      *   <li>For wildcard patterns that resolve to no indices, validates against {@code allowNoIndices}</li>
      *   <li>For concrete indices that don't exist, validates against {@code ignoreUnavailable}</li>
-     *   <li>For indices with authorization issues, throws security exceptions</li>
+     *   <li>For indices with authorization issues, returns security exceptions</li>
      * </ul>
      * <p>
      * The method considers both flat (unqualified) and qualified index expressions, as well as
-     * local and linked project resolution results when determining whether to throw exceptions.
+     * local and linked project resolution results when determining the appropriate error response.
      *
      * @param indicesOptions            Controls error behavior for missing indices
      * @param localResolvedExpressions  Resolution results from the origin project
      * @param remoteResolvedExpressions Resolution results from linked projects
-     * @throws IndexNotFoundException         If indices are missing and the {@code IndicesOptions} do not allow it
-     * @throws ElasticsearchSecurityException If authorization errors occurred during index resolution
+     * @return a {@link ElasticsearchException} if validation fails, null if validation passes
      */
     public static ElasticsearchException validate(
         IndicesOptions indicesOptions,
@@ -91,20 +91,13 @@ public class ResponseValidator {
             boolean isQualifiedResource = RemoteClusterAware.isRemoteIndexName(resource);
             if (isQualifiedResource) {
                 // handle qualified resource eg. P1:logs*
-                String[] splitResource = RemoteClusterAware.splitIndexName(resource);
-                assert splitResource.length == 2
-                    : "Expected two strings (project and indexExpression) for a qualified resource ["
-                        + resource
-                        + "], but found ["
-                        + splitResource.length
-                        + "]";
+                String[] splitResource = splitQualifiedResource(resource);
                 String projectAlias = splitResource[0];
                 resource = splitResource[1];
 
                 if (projectAlias.equals(ORIGIN)) {
                     ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-                    boolean resourceFoundLocally = false == localExpressions.expressions().isEmpty()
-                        && localExpressions.localIndexResolutionResult() == SUCCESS;
+                    boolean resourceFoundLocally = isResourceFoundLocally(localExpressions);
 
                     if (resourceFoundLocally && localExpressions.expressions().size() == 1) {
                         logger.debug(
@@ -114,7 +107,14 @@ public class ResponseValidator {
                     } else {
                         // if we have origin we can treat the local resolution as a remote with alias "_origin" to avoid duplicating code.
                         var localAsRemote = Map.of(ORIGIN, localResolvedExpressions);
-                        var e = checkSingleRemoteExpression(localAsRemote, false, originalExpression, new ArrayList<>());
+                        var e = checkSingleRemoteExpression(
+                            localAsRemote,
+                            false,
+                            projectAlias,
+                            resource,
+                            originalExpression,
+                            new ArrayList<>()
+                        );
                         if (e != null) {
                             return e;
                         }
@@ -169,8 +169,7 @@ public class ResponseValidator {
         boolean isFlatWorldResource
     ) {
         ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-        boolean resourceFoundLocally = false == localExpressions.expressions().isEmpty()
-            && localExpressions.localIndexResolutionResult() == SUCCESS;
+        boolean resourceFoundLocally = isResourceFoundLocally(localExpressions);
 
         if (resourceFoundLocally && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
             logger.debug(
@@ -187,11 +186,23 @@ public class ResponseValidator {
 
         for (String remoteExpression : localResolvedIndices.remoteExpressions()) {
             assert RemoteClusterAware.isRemoteIndexName(remoteExpression) : "remote expression are always qualified";
-
-            var e = checkSingleRemoteExpression(remoteResolvedExpressions, isFlatWorldResource, remoteExpression, exceptions);
+            String[] splitResource = splitQualifiedResource(remoteExpression);
+            String projectAlias = splitResource[0];
+            String resource = splitResource[1];
+            var e = checkSingleRemoteExpression(
+                remoteResolvedExpressions,
+                isFlatWorldResource,
+                projectAlias,
+                resource,
+                remoteExpression,
+                exceptions
+            );
             if (e != null) {
                 return e;
             }
+        }
+        if (false == exceptions.isEmpty()) {
+            return exceptions.get(0);
         }
         return null;
     }
@@ -199,73 +210,89 @@ public class ResponseValidator {
     private static ElasticsearchException checkSingleRemoteExpression(
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         boolean isFlatWorldResource,
+        String projectAlias,
+        String resource,
         String remoteExpression,
         List<ElasticsearchException> exceptions
     ) {
-        // remote expressions are always qualified
-        String[] splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+        // Get resolution results from the linked project
+        ResolvedIndexExpressions resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
+        assert resolvedExpressionsInProject != null : "We should always have resolved expressions from linked project";
+
+        // Find the matching expression in the linked project
+        ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
+        if (matchingExpression == null) {
+            return createNotFoundException(remoteExpression, exceptions);
+        }
+
+        // Check resolution result
+        if (matchingExpression.localIndexResolutionResult() == SUCCESS) {
+            // Successfully found if there are concrete expressions
+            return matchingExpression.expressions().isEmpty() ? createNotFoundException(remoteExpression, exceptions) : null;
+        }
+
+        // Handle authorization and visibility failures
+        return handleResolutionFailure(matchingExpression.localIndexResolutionResult(), remoteExpression, isFlatWorldResource, exceptions);
+    }
+
+    private static String[] splitQualifiedResource(String resource) {
+        String[] splitResource = RemoteClusterAware.splitIndexName(resource);
         assert splitResource.length == 2
             : "Expected two strings (project and indexExpression) for a qualified resource ["
-                + remoteExpression
+                + resource
                 + "], but found ["
                 + splitResource.length
                 + "]";
-        String projectAlias = splitResource[0];
-        String resource = splitResource[1];
+        return splitResource;
+    }
 
-        ResolvedIndexExpressions resolvedIndexExpressionsInLinkedProject = remoteResolvedExpressions.get(projectAlias);
-        assert resolvedIndexExpressionsInLinkedProject != null : "We should always have resolved expressions from linked project";
-        boolean successfullyFoundInLinkedProject = false;
-        boolean shouldBeUnAuthException = false;
-        for (ResolvedIndexExpression resolvedRemoteExpressions : resolvedIndexExpressionsInLinkedProject.expressions()) {
-            if (resolvedRemoteExpressions.original().equals(resource)) {
-                ResolvedIndexExpression.LocalExpressions resolvedRemoteExpression = resolvedRemoteExpressions.localExpressions();
-                if (resolvedRemoteExpression.localIndexResolutionResult() == SUCCESS) {
-                    if (false == resolvedRemoteExpression.expressions().isEmpty()) {
-                        successfullyFoundInLinkedProject = true;
-                    }
-                    break;
-                } else {
-                    if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_NOT_VISIBLE) {
-                        var e = new IndexNotFoundException(remoteExpression);
-                        if (isFlatWorldResource) {
-                            exceptions.add(e);
-                        } else {
-                            return e;
-                        }
-                    } else if (resolvedRemoteExpression.localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                        // we only ever get exceptions if they are security related
-                        // back and forth on whether a mix or security and non-security (missing indices) exceptions should report
-                        // as 403 or 404
-                        var e = new ElasticsearchSecurityException(
-                            "authorization errors while resolving [" + remoteExpression + "]",
-                            RestStatus.FORBIDDEN
-                        );
-                        if (isFlatWorldResource) {
-                            exceptions.add(e);
-                            shouldBeUnAuthException = true;
-                        } else {
-                            exceptions.forEach(e::addSuppressed);
-                            return e;
-                        }
-                    }
-                }
-            }
+    private static boolean isResourceFoundLocally(ResolvedIndexExpression.LocalExpressions localExpressions) {
+        return false == localExpressions.expressions().isEmpty() && localExpressions.localIndexResolutionResult() == SUCCESS;
+    }
 
+    private static ResolvedIndexExpression.LocalExpressions findMatchingExpression(
+        ResolvedIndexExpressions projectExpressions,
+        String resource
+    ) {
+        return projectExpressions.expressions()
+            .stream()
+            .filter(expr -> expr.original().equals(resource))
+            .map(ResolvedIndexExpression::localExpressions)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private static ElasticsearchException createNotFoundException(String expression, List<ElasticsearchException> exceptions) {
+        ElasticsearchException exception = new IndexNotFoundException(expression);
+        exceptions.forEach(exception::addSuppressed);
+        return exception;
+    }
+
+    private static ElasticsearchException handleResolutionFailure(
+        ResolvedIndexExpression.LocalIndexResolutionResult result,
+        String expression,
+        boolean isFlatWorldResource,
+        List<ElasticsearchException> exceptions
+    ) {
+        ElasticsearchException exception;
+
+        if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
+            exception = new IndexNotFoundException(expression);
+        } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
+            exception = new ElasticsearchSecurityException(
+                "authorization errors while resolving [" + expression + "]",
+                RestStatus.FORBIDDEN
+            );
+        } else {
+            return null;
         }
-        if (false == successfullyFoundInLinkedProject) {
-            ElasticsearchException e;
-            if (shouldBeUnAuthException) {
-                e = new ElasticsearchSecurityException(
-                    "authorization errors while resolving [" + remoteExpression + "]",
-                    RestStatus.FORBIDDEN
-                );
-            } else {
-                e = new IndexNotFoundException(remoteExpression);
-            }
-            exceptions.forEach(e::addSuppressed);
-            return e;
+
+        if (isFlatWorldResource) {
+            exceptions.add(exception);
+            return null;
+        } else {
+            exceptions.forEach(exception::addSuppressed);
+            return exception;
         }
-        return null;
     }
 }

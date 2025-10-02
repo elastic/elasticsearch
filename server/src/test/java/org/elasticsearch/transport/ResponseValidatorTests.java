@@ -131,7 +131,7 @@ public class ResponseValidatorTests extends ESTestCase {
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of(),
                         ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                        new ElasticsearchException("logs")
+                        new ElasticsearchSecurityException("authorization errors while resolving [logs]")
                     ),
                     Set.of("P1:logs")
                 )
@@ -147,7 +147,7 @@ public class ResponseValidatorTests extends ESTestCase {
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of(),
                             ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
-                            new ElasticsearchException("logs")
+                            new ElasticsearchSecurityException("authorization errors while resolving [logs]")
                         ),
                         Set.of()
                     )
@@ -158,7 +158,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(e.getMessage(), containsString("authorization errors while resolving [P1:logs]"));
+        assertThat(e.getMessage(), containsString("authorization errors while resolving [logs]"));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {

@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -106,24 +105,20 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class NodeRequest extends AbstractTransportRequest implements IndicesRequest {
-        private final ProjectId projectId;
         private final String index;
 
-        public NodeRequest(ProjectId projectId, String index) {
-            this.projectId = projectId;
+        public NodeRequest(String index) {
             this.index = index;
         }
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            this.projectId = ProjectId.readFrom(in);
             this.index = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            projectId.writeTo(out);
             out.writeString(index);
         }
 
@@ -132,21 +127,17 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
             return true;
         }
 
-        public ProjectId getProjectId() {
-            return projectId;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeRequest other = (NodeRequest) o;
-            return Objects.equals(projectId, other.projectId) && Objects.equals(index, other.index);
+            return Objects.equals(index, other.index);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(projectId, index);
+            return Objects.hash(index);
         }
 
         @Override

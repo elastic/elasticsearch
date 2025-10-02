@@ -14,7 +14,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -87,7 +86,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
 
     @Override
     protected NodeRequest newNodeRequest(Request request) {
-        return new NodeRequest(projectResolver.getProjectId(), request.indices()[0]);
+        return new NodeRequest(request.indices()[0]);
     }
 
     @Override
@@ -97,9 +96,8 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        ProjectId projectId = request.getProjectId();
         String index = request.indices()[0];
-        List<SamplingService.RawDocument> sample = samplingService.getLocalSample(projectId, index);
+        List<SamplingService.RawDocument> sample = samplingService.getLocalSample(projectResolver.getProjectId(), index);
         return new NodeResponse(transportService.getLocalNode(), sample == null ? List.of() : sample);
     }
 }

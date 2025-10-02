@@ -390,8 +390,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return new BBQHnswIndexOptions(
                     Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                     Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                    new RescoreVector(DEFAULT_OVERSAMPLE),
-                    false
+                    new RescoreVector(DEFAULT_OVERSAMPLE)
                 );
             } else if (defaultInt8Hnsw) {
                 return new Int8HnswIndexOptions(
@@ -1459,7 +1458,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
-
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
@@ -1467,12 +1465,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                     }
                 }
-
-                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
-
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, onDiskRescore);
+                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector);
             }
 
             @Override
@@ -1527,12 +1521,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         );
                     }
                 }
-
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 if (rescoreVector == null) {
                     rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                 }
-
                 Object visitPercentageNode = indexOptionsMap.remove("default_visit_percentage");
                 double visitPercentage = 0d;
                 if (visitPercentageNode != null) {
@@ -1547,12 +1539,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         );
                     }
                 }
-
-                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
-
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, rescoreVector, onDiskRescore);
+                return new BBQIVFIndexOptions(clusterSize, visitPercentage, rescoreVector);
             }
 
             @Override
@@ -2032,13 +2020,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
-        private final boolean onDiskRescore;
 
-        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean onDiskRescore) {
+        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
-            this.onDiskRescore = onDiskRescore;
         }
 
         @Override
@@ -2056,15 +2042,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         boolean doEquals(DenseVectorIndexOptions other) {
             BBQHnswIndexOptions that = (BBQHnswIndexOptions) other;
-            return m == that.m
-                && efConstruction == that.efConstruction
-                && Objects.equals(rescoreVector, that.rescoreVector)
-                && onDiskRescore == that.onDiskRescore;
+            return m == that.m && efConstruction == that.efConstruction && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, rescoreVector, onDiskRescore);
+            return Objects.hash(m, efConstruction, rescoreVector);
         }
 
         @Override
@@ -2080,9 +2063,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("ef_construction", efConstruction);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
-            }
-            if (onDiskRescore) {
-                builder.field("on_disk_rescore", true);
             }
             builder.endObject();
             return builder;
@@ -2162,13 +2142,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static class BBQIVFIndexOptions extends QuantizedIndexOptions {
         final int clusterSize;
         final double defaultVisitPercentage;
-        final boolean onDiskRescore;
 
-        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector, boolean onDiskRescore) {
+        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
-            this.onDiskRescore = onDiskRescore;
         }
 
         @Override
@@ -2187,13 +2165,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
             return clusterSize == that.clusterSize
                 && defaultVisitPercentage == that.defaultVisitPercentage
-                && Objects.equals(rescoreVector, that.rescoreVector)
-                && onDiskRescore == that.onDiskRescore;
+                && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector, onDiskRescore);
+            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector);
         }
 
         @Override
@@ -2209,9 +2186,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("default_visit_percentage", defaultVisitPercentage);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
-            }
-            if (onDiskRescore) {
-                builder.field("on_disk_rescore", true);
             }
             builder.endObject();
             return builder;

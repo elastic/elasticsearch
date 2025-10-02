@@ -5349,8 +5349,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPlanSanityCheckWithBinaryPlans() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         var plan = optimizedPlan("""
               FROM test
             | RENAME languages AS language_code
@@ -6265,7 +6263,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP abbrev, *scalerank
             | LIMIT 5
             """;
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         if (releaseBuildForInlineStats(query)) {
             return;
         }
@@ -7053,8 +7050,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -7098,8 +7093,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -7144,8 +7137,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -7193,8 +7184,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -7247,8 +7236,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
               FROM test
             | RENAME languages AS language_code
@@ -7301,8 +7288,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLookupJoinKeepNoLookupFields() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String commandDiscardingFields = randomBoolean() ? "| KEEP languages" : """
             | DROP _meta_field, emp_no, first_name, gender, language_code,
                    language_name, last_name, salary, hire_date, job, job.raw, long_noidx
@@ -7346,8 +7331,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleLookupShadowing() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = """
             FROM test
             | EVAL language_code = languages
@@ -8112,8 +8095,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnJoin() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         var plan = optimizedPlan("""
               FROM test
             | SORT languages

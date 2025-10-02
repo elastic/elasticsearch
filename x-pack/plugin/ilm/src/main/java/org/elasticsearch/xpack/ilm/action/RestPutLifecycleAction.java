@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
-import org.elasticsearch.xpack.ilm.PutLifecycleMetadataService;
 
 import java.io.IOException;
 import java.util.List;

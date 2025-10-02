@@ -119,6 +119,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
+    // We use the same value as the INITIAL_INTERVAL from CancellableBulkScorer
+    private static final int NUM_DOCS_INTERVAL = 1 << 12;
+
     private final CircuitBreaker breaker;
     private final List<SortBuilder<?>> sorts;
     private final long estimatedPerRowSortSize;
@@ -202,7 +205,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 perShardCollector = newPerShardCollector(scorer.shardContext(), sorts, needsScore, limit);
             }
             var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
-            scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), maxPageSize);
+            scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), NUM_DOCS_INTERVAL);
         } catch (CollectionTerminatedException cte) {
             // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
             scorer.markAsDone();

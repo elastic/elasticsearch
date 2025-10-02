@@ -41,7 +41,7 @@ public class GetSampleActionIT extends ESIntegTestCase {
         for (int i = 0; i < docsToIndex; i++) {
             indexDoc(indexName, randomIdentifier(), randomAlphanumericOfLength(10), randomAlphanumericOfLength(10));
         }
-        GetSampleAction.Request request = new GetSampleAction.Request(new String[] { indexName });
+        GetSampleAction.Request request = new GetSampleAction.Request(indexName);
         GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
         List<SamplingService.RawDocument> sample = response.getSample();
         // The sampling config created by addSamplingConfig samples at 100%, so we expect everything to be sampled:
@@ -57,14 +57,14 @@ public class GetSampleActionIT extends ESIntegTestCase {
     }
 
     private void assertEmptySample(String indexName) {
-        GetSampleAction.Request request = new GetSampleAction.Request(new String[] { indexName });
+        GetSampleAction.Request request = new GetSampleAction.Request(indexName);
         GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
         List<SamplingService.RawDocument> sample = response.getSample();
         assertThat(sample, equalTo(List.of()));
     }
 
     private void assertGetSampleThrowsResourceNotFoundException(String indexName) {
-        GetSampleAction.Request request = new GetSampleAction.Request(new String[] { indexName });
+        GetSampleAction.Request request = new GetSampleAction.Request(indexName);
         assertThrows(ResourceNotFoundException.class, () -> client().execute(GetSampleAction.INSTANCE, request).actionGet());
     }
 

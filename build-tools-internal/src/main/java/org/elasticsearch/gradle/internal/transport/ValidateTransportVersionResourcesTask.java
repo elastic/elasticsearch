@@ -153,7 +153,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             }
         }
         // validate any modifications
-        TransportVersionDefinition originalDefinition = getResources().get().getReferableDefinitionFromUpstream(definition.name());
+        TransportVersionDefinition originalDefinition = getResources().get().getReferableDefinitionFromGitBase(definition.name());
         if (originalDefinition != null) {
             validateIdenticalPrimaryId(definition, originalDefinition);
             for (int i = 1; i < originalDefinition.ids().size(); ++i) {
@@ -178,7 +178,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     }
 
     private void validateUnreferableDefinition(TransportVersionDefinition definition) {
-        TransportVersionDefinition originalDefinition = getResources().get().getUnreferableDefinitionFromUpstream(definition.name());
+        TransportVersionDefinition originalDefinition = getResources().get().getUnreferableDefinitionFromGitBase(definition.name());
         if (originalDefinition != null) {
             validateIdenticalPrimaryId(definition, originalDefinition);
         }
@@ -240,7 +240,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             );
         }
 
-        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromUpstream(upperBound.name());
+        TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromGitBase(upperBound.name());
         if (existingUpperBound != null && getShouldValidatePrimaryIdNotPatch().get()) {
             if (upperBound.definitionId().patch() != 0 && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
                 throwUpperBoundFailure(

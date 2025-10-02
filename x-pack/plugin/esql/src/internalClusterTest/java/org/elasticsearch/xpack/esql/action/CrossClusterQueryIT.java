@@ -20,7 +20,6 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.test.FailingFieldPlugin;
@@ -133,15 +132,10 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
 
         {
             String q = "FROM nomatch," + localIndex;
-            IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> runQuery(q, false));
-            assertThat(e.getDetailedMessage(), containsString("no such index [nomatch]"));
+            expectThrows(VerificationException.class, containsString("Unknown index [nomatch]"), () -> runQuery(q, false));
 
-            // MP TODO: am I able to fix this from the field-caps call? Yes, if we detect concrete vs. wildcard expressions in user query
-            // TODO bug - this does not throw; uncomment this test once this is fixed:
-            // AwaitsFix https://github.com/elastic/elasticsearch/issues/114495
-            // String limit0 = q + " | LIMIT 0";
-            // VerificationException ve = expectThrows(VerificationException.class, () -> runQuery(limit0, false));
-            // assertThat(ve.getDetailedMessage(), containsString("No matching indices for [nomatch]"));
+            String limit0 = q + " | LIMIT 0";
+            expectThrows(VerificationException.class, containsString("Unknown index [nomatch]"), () -> runQuery(limit0, false));
         }
 
         {
@@ -166,11 +160,6 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String q = "FROM nomatch";
             String expectedError = "Unknown index [nomatch]";
-            expectVerificationExceptionForQuery(q, expectedError, false);
-        }
-        {
-            String q = "FROM nomatch*";
-            String expectedError = "Unknown index [nomatch*]";
             expectVerificationExceptionForQuery(q, expectedError, false);
         }
     }
@@ -234,10 +223,6 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testSearchesAgainstNonMatchingIndices() throws Exception {
-        testSearchesAgainstNonMatchingIndices(true);
-    }
-
-    protected void testSearchesAgainstNonMatchingIndices(boolean exceptionWithSkipUnavailableFalse) throws Exception {
         int numClusters = 3;
         Map<String, Object> testClusterInfo = setupClusters(numClusters);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -264,11 +249,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String q = "FROM logs*,cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            if (exceptionWithSkipUnavailableFalse) {
-                setSkipUnavailable(REMOTE_CLUSTER_1, false);
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-                setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            }
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
             try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -370,14 +353,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String q = "FROM cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-        }
-
-        // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
-        {
-            String q = "FROM cluster-a:nomatch*";
-            String expectedError = "Unknown index [cluster-a:nomatch*]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);// TODO this must contain the remote cluster alias
         }
 
         // an error is thrown if there is a concrete index that does not match
@@ -412,11 +388,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             String remote2IndexName = randomFrom(remote2Index, IDX_ALIAS, FILTERED_IDX_ALIAS);
             String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndexName, REMOTE_CLUSTER_2, remote2IndexName);
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            if (exceptionWithSkipUnavailableFalse) {
-                setSkipUnavailable(REMOTE_CLUSTER_1, false);
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-                setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            }
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
             try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -452,12 +426,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
      * extra processing step to ensure that ESQL coordinator-only operations throw the same VerificationError.
      */
     protected void expectVerificationExceptionForQuery(String query, String error, Boolean requestIncludeMeta) {
-        VerificationException e = expectThrows(VerificationException.class, () -> runQuery(query, requestIncludeMeta));
-        assertThat(e.getDetailedMessage(), containsString(error));
-
-        String limit0 = query + " | LIMIT 0";
-        e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
-        assertThat(e.getDetailedMessage(), containsString(error));
+        expectThrows(VerificationException.class, containsString(error), () -> runQuery(query, requestIncludeMeta));
+        expectThrows(VerificationException.class, containsString(error), () -> runQuery(query + " | LIMIT 0", requestIncludeMeta));
     }
 
     public void assertExpectedClustersForMissingIndicesTests(EsqlExecutionInfo executionInfo, List<ExpectedCluster> expected) {

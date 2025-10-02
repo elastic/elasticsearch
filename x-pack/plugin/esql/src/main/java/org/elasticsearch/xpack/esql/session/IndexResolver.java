@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -97,7 +98,8 @@ public class IndexResolver {
                     mergedMappings(indexWildcard, new FieldsInfo(r, supportsAggregateMetricDouble, supportsDenseVector))
                 ),
                 f -> {
-                    if (f instanceof IndexNotFoundException e) {
+                    var cause = ExceptionsHelper.unwrapCause(f);
+                    if (cause instanceof IndexNotFoundException e) {
                         listener.onResponse(IndexResolution.notFound(e.getIndex().getName()));
                     } else {
                         listener.onFailure(f);

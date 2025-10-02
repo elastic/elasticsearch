@@ -100,6 +100,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
@@ -590,16 +591,33 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         }
+
+        SemanticTextField semanticTextField;
         boolean isWithinLeaf = context.path().isWithinLeafObject();
         try {
             context.path().setWithinLeafObject(true);
-            return SemanticTextField.parse(
+            semanticTextField = SemanticTextField.parse(
                 context.parser(),
                 new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType())
             );
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
+
+        IndexVersion indexCreatedVersion = context.indexSettings().getIndexVersionCreated();
+        if (semanticTextField != null
+            && semanticTextField.inference().modelSettings() != null
+            && indexCreatedVersion.before(NEW_SPARSE_VECTOR)) {
+            // Explicitly fail to parse semantic text fields that meet the following criteria:
+            // - Are in pre 8.11 indices
+            // - Have model settings, indicating that they have embeddings to be indexed
+            //
+            // We can't fail earlier than this because it causes pre 8.11 indices with semantic text fields to either be in red state or
+            // cause Elasticsearch to not launch.
+            throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
+        }
+
+        return semanticTextField;
     }
 
     void parseCreateFieldFromContext(DocumentParserContext context, SemanticTextField field, XContentLocation xContentLocation)
@@ -1250,10 +1268,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat
     ) {
-        if (indexVersionCreated.before(IndexVersions.NEW_SPARSE_VECTOR)) {
-            throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
-        }
-
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
@@ -1307,13 +1321,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions
     ) {
-        SimilarityMeasure similarity = modelSettings.similarity();
-        if (similarity != null) {
-            switch (similarity) {
-                case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
-                case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
-                case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
-                default -> throw new IllegalArgumentException("Unknown similarity measure in model_settings [" + similarity.name() + "]");
+        // Skip setting similarity on pre 8.11 indices. It causes dense vector field creation to fail because similarity can only be set
+        // on indexed fields, which is not done by default prior to 8.11. The fact that the dense vector field is partially configured is
+        // moot because we will explicitly fail to index docs into this semantic text field anyways.
+        if (indexVersionCreated.onOrAfter(NEW_SPARSE_VECTOR)) {
+            SimilarityMeasure similarity = modelSettings.similarity();
+            if (similarity != null) {
+                switch (similarity) {
+                    case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
+                    case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
+                    case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
+                    default -> throw new IllegalArgumentException(
+                        "Unknown similarity measure in model_settings [" + similarity.name() + "]"
+                    );
+                }
             }
         }
 

@@ -48,6 +48,7 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
         Index index = shardRouting.index();
         if (node.hasIndex(index)) {
             var nodeShutdowns = allocation.metadata().nodeShutdowns().getAll().size();
+
             var allNodes = allocation.nodes().size();
             var availableNodes = allNodes - nodeShutdowns;
 
@@ -64,7 +65,7 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
                 String rationale = """
                     For index [%s] with [%d] shards, Node [%s] is expected to hold [%.0f] shards for index [%s], based on the total of [%d]
                     nodes available. The configured load skew tolerance is [%.2f], which yields an allocation threshold of
-                    Math.ceil([%0.f] × [%.2f]) = [%d] shards. Currently, node [%s] is assigned [%d] shards of index [%s]. Therefore,
+                    Math.ceil([%.0f] × [%.2f]) = [%d] shards. Currently, node [%s] is assigned [%d] shards of index [%s]. Therefore,
                     assigning additional shards is not preferred.
                     """;
 

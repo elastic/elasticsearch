@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.allocation.IndexShardCountConstraintSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -61,7 +62,7 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
      */
     public void testIndexShardCountExceedsAverageAllocation() {
 
-        setUpIndex();
+        var testHarness = setUpIndex();
 
 
 
@@ -75,20 +76,37 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
         String firstDataNodeId,
         String secondDataNodeId,
         String thirdDataNodeId,
-        int shards
-    ) {
+        int upperLimitFirstDataNode,
+        int lowerLimitFirstDataNode,
+        int upperLimitSecondDataNode,
+        int lowerLimitSecondDataNode,
+        int upperLimitThirdDataNode,
+        int lowerLimitThirdDataNode
+        ) {
 
         int firstDataNodeRealNumberOfShards = routingNodes.node(firstDataNodeId).numberOfOwningShardsForIndex(index);
         int secondDataNodeRealNumberOfShards = routingNodes.node(secondDataNodeId).numberOfOwningShardsForIndex(index);
         int thirdDataNodeRealNumberOfShards = routingNodes.node(thirdDataNodeId).numberOfOwningShardsForIndex(index);
 
-        return firstDataNodeRealNumberOfShards + secondDataNodeRealNumberOfShards + thirdDataNodeRealNumberOfShards == shards;
+        return firstDataNodeRealNumberOfShards <= upperLimitFirstDataNode
+            && firstDataNodeRealNumberOfShards >= lowerLimitFirstDataNode
+            && secondDataNodeRealNumberOfShards <= upperLimitSecondDataNode
+            && secondDataNodeRealNumberOfShards >= lowerLimitSecondDataNode
+            && thirdDataNodeRealNumberOfShards <= upperLimitThirdDataNode
+            && thirdDataNodeRealNumberOfShards >= lowerLimitThirdDataNode;
     }
 
 
     private TestHarness setUpIndex() {
 
-        Settings settings = Settings.builder().build();
+        Settings settings = Settings.builder()
+            .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING.getKey(),
+                IndexShardCountConstraintSettings.IndexShardCountDeciderStatus.ENABLED
+            )
+            .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_LOAD_SKEW_TOLERANCE.getKey(),
+                1.0d
+            )
+            .build();
         internalCluster().startMasterOnlyNode(settings);
 
         final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
@@ -104,34 +122,39 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
         final DiscoveryNode firstDiscoveryNode =  internalCluster().getInstance(TransportService.class, firstDataNodeName).getLocalNode();
         final DiscoveryNode secondDiscoveryNode = internalCluster().getInstance(TransportService.class, secondDataNodeName).getLocalNode();
         final DiscoveryNode thirdDiscoveryNode = internalCluster().getInstance(TransportService.class, thirdDataNodeName).getLocalNode();
-        int randomNumberOfShards = randomIntBetween(10, 20);
 
-        String indexName = "test1";
-        int numberOfShards = 4;
-
+        String format = """
+              ---> first node NAME %s and ID %s; second node NAME %s and ID %s; third node NAME %s and ID %s;
+            """;
         logger.info(
-            "---> first node name "
-                + firstDataNodeName
-                + " and ID "
-                + firstDataNodeId
-                + "; second node name "
-                + secondDataNodeName
-                + " and ID "
-                + secondDataNodeId
-                + "; third node name "
-                + thirdDataNodeName
-                + " and ID "
-                + thirdDataNodeId
+            String.format(format,
+                firstDataNodeName, firstDataNodeId,
+                secondDataNodeName, secondDataNodeId,
+                thirdDataNodeName, thirdDataNodeId)
         );
+
+        int randomNumberOfShards = randomIntBetween(15, 20);
+        String indexName = randomIdentifier();
+        int lowerThreshold = randomNumberOfShards / 3;
+        int upperThreshold = (int)Math.ceil((double) randomNumberOfShards / 3);
 
         var verifyShardAllocationListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             var indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(indexName);
             if (indexRoutingTable == null) {
                 return false;
             }
-            return checkShardAssignment(clusterState.getRoutingNodes(), indexRoutingTable.getIndex(),
-                firstDataNodeId, secondDataNodeId, thirdDataNodeId, numberOfShards);
-
+            return checkShardAssignment(clusterState.getRoutingNodes(),
+                indexRoutingTable.getIndex(),
+                firstDataNodeId,
+                secondDataNodeId,
+                thirdDataNodeId,
+                upperThreshold,
+                lowerThreshold,
+                upperThreshold,
+                lowerThreshold,
+                upperThreshold,
+                lowerThreshold
+                );
         });
 
         createIndex(
@@ -142,14 +165,32 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
         logger.info("---> wait for  [" + randomNumberOfShards + "] shards to be assigned to node ");
 
         safeAwait(verifyShardAllocationListener);
-        return new TestHarness(indexName);
+        return new TestHarness(
+            firstDataNodeName,
+            secondDataNodeName,
+            thirdDataNodeName,
+            firstDataNodeId,
+            secondDataNodeId,
+            thirdDataNodeName,
+            firstDiscoveryNode,
+            secondDiscoveryNode,
+            thirdDiscoveryNode,
+            indexName,
+            randomNumberOfShards
+        );
     }
 
-
     record TestHarness(
-        String indexName
+        String firstDataNodeName,
+        String secondDataNodeName,
+        String thirdDataNodeName,
+        String firstDataNodeId,
+        String secondDataNodeId,
+        String thirdDataNodeId,
+        DiscoveryNode firstDiscoveryNode,
+        DiscoveryNode secondDiscoveryNode,
+        DiscoveryNode thirdDiscoveryNode,
+        String indexName,
+        int randomNumberOfShards
     ) {};
-
-
-
 }

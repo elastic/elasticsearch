@@ -421,15 +421,15 @@ public class MasterService extends AbstractLifecycleComponent {
 
                         if (exception instanceof FailedToCommitClusterStateException) {
                             logger.warn(
-                                () -> format("failing [%s]: failed to commit cluster state version [%s]", summary, version),
+                                () -> format("Failing [%s]: failed to commit cluster state version [%s]", summary, version),
                                 exception
                             );
                         } else {
                             logger.debug(
                                 () -> format(
-                                    "node is no longer the master prior to publication of cluster state version [%s]: [%s]",
-                                    version,
-                                    summary
+                                    "Failing [%s]: node is no longer the master. The cluster state update has not been published [%s]",
+                                    summary,
+                                    version
                                 ),
                                 exception
                             );
@@ -1003,6 +1003,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void onPublishFailure(Exception e) {
+            assert e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException;
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 var taskFailure = failure;

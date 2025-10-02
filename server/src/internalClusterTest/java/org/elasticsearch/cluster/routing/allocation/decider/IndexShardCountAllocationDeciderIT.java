@@ -96,9 +96,7 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
             && thirdDataNodeRealNumberOfShards >= lowerLimitThirdDataNode;
     }
 
-
     private TestHarness setUpIndex() {
-
         Settings settings = Settings.builder()
             .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING.getKey(),
                 IndexShardCountConstraintSettings.IndexShardCountDeciderStatus.ENABLED

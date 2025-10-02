@@ -13,6 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.IndexShardCountConstraintSettings;
@@ -20,6 +22,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * For an index of n shards hosted by a cluster of m nodes, a node should not host
@@ -47,16 +52,17 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
 
         Index index = shardRouting.index();
         if (node.hasIndex(index)) {
-            var nodeShutdowns = allocation.metadata().nodeShutdowns().getAll().size();
+            var dataNodes = allocation.nodes().stream()
+                .filter(DiscoveryNode::canContainData).map(DiscoveryNode::getId).collect(Collectors.toSet());
+            var nodesShuttingDown = allocation.metadata().nodeShutdowns().getAll().values().stream()
+                .map(SingleNodeShutdownMetadata::getNodeId).collect(Collectors.toSet());
+            var availableDataNodes = dataNodes.stream().filter(Predicate.not(nodesShuttingDown::contains)).collect(Collectors.toSet());
 
-            var allNodes = allocation.nodes().size();
-            var availableNodes = allNodes - nodeShutdowns;
-
-            assert availableNodes > 0;
+            assert availableDataNodes.isEmpty() == false;
             assert allocation.getClusterState().routingTable(ProjectId.DEFAULT).hasIndex(index);
 
             var totalShards = allocation.getClusterState().routingTable(ProjectId.DEFAULT).index(index).size();
-            var idealAllocation = Math.ceil((double) totalShards / availableNodes);
+            var idealAllocation = Math.ceil((double) totalShards / availableDataNodes.size());
             var threshold =  (int) Math.ceil(idealAllocation * indexShardCountConstraintSettings.getLoadSkewTolerance());
             var currentAllocation = node.numberOfOwningShardsForIndex(index);
 
@@ -70,7 +76,7 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
                     """;
 
                 String explanation = Strings.format(rationale,
-                    index, totalShards, node.nodeId(), idealAllocation, index, availableNodes,
+                    index, totalShards, node.nodeId(), idealAllocation, index, availableDataNodes.size(),
                     indexShardCountConstraintSettings.getLoadSkewTolerance(), idealAllocation,
                     indexShardCountConstraintSettings.getLoadSkewTolerance(), threshold, node.nodeId(), currentAllocation, index);
 

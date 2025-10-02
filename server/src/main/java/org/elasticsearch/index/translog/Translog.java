@@ -704,16 +704,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         }
 
-        public BytesRefIterator iterator() {
-            final BytesRefIterator headerIterator = this.header.iterator();
-            final BytesRefIterator sourceIterator = this.source != null ? this.source.iterator() : null;
-
-            return () -> {
-                BytesRef headerNext = headerIterator.next();
-                return headerNext != null ? headerNext : sourceIterator != null ? sourceIterator.next() : null;
-            };
-        }
-
         public void writeToTranslogBuffer(RecyclerBytesStreamOutput buffer) throws IOException {
             header.writeTo(buffer);
             if (source != null) {

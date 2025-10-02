@@ -304,12 +304,10 @@ public class VerifierTests extends ESTestCase {
             );
         }
 
-        if (EsqlCapabilities.Cap.FUSE_V6.isEnabled()) {
-            assertEquals(
-                "1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.",
-                error("from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE", analyzer)
-            );
-        }
+        assertEquals(
+            "1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.",
+            error("from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE", analyzer)
+        );
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -2230,8 +2228,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinDataTypeMismatch() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
         assertEquals(
@@ -2241,7 +2237,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinExpressionAmbiguousRight() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -2259,7 +2254,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinExpressionAmbiguousLeft() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -2277,7 +2271,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinExpressionAmbiguousBoth() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -2558,8 +2551,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
         query(queryPrefix + " | fuse");

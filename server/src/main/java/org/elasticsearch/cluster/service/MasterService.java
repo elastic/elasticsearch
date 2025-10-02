@@ -427,7 +427,7 @@ public class MasterService extends AbstractLifecycleComponent {
                         } else {
                             logger.debug(
                                 () -> format(
-                                    "Failing [%s]: node is no longer the master. The cluster state update has not been published [%s]",
+                                    "Failing [%s]: node is no longer the master. Failed to publish cluster state version [%s]",
                                     summary,
                                     version
                                 ),

@@ -836,13 +836,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             // If we get here, attempt to move one of the best not-preferred shards that we identified earlier
-            for (var potentialMove : bestNonPreferredShardMovementsTracker.getBestShardMovements()) {
-                final var shardRouting = potentialMove.shardRouting();
+            for (var storedShardMovement : bestNonPreferredShardMovementsTracker.getBestShardMovements()) {
+                final var shardRouting = storedShardMovement.shardRouting();
                 final var index = projectIndex(shardRouting);
                 // If `shardMoved` is true, there may have been moves that have made our previous move decision
                 // invalid, so we must call `decideMove` again. If not, we know we haven't made any moves, and we
                 // can use the cached decision.
-                final var moveDecision = shardMoved ? decideMove(index, shardRouting) : potentialMove.moveDecision();
+                final var moveDecision = shardMoved ? decideMove(index, shardRouting) : storedShardMovement.moveDecision();
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // Return after a single move so that the change can be simulated before further moves are made.
@@ -1003,10 +1003,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private class BestShardMovementsTracker {
 
-            public record StoredMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
+            public record StoredShardMovement(ShardRouting shardRouting, MoveDecision moveDecision) {}
 
             // LinkedHashMap so we iterate in insertion order
-            private final Map<String, StoredMoveDecision> bestShardMovementsByNode = new LinkedHashMap<>();
+            private final Map<String, StoredShardMovement> bestShardMovementsByNode = new LinkedHashMap<>();
             private final Map<String, PrioritiseByShardWriteLoadComparator> comparatorCache = new HashMap<>();
 
             /**
@@ -1030,10 +1030,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             public void putBestMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {
-                bestShardMovementsByNode.put(shardRouting.currentNodeId(), new StoredMoveDecision(shardRouting, moveDecision));
+                bestShardMovementsByNode.put(shardRouting.currentNodeId(), new StoredShardMovement(shardRouting, moveDecision));
             }
 
-            public Iterable<StoredMoveDecision> getBestShardMovements() {
+            public Iterable<StoredShardMovement> getBestShardMovements() {
                 return bestShardMovementsByNode.values();
             }
         }

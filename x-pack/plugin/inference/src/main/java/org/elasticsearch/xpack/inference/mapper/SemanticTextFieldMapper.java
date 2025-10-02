@@ -126,6 +126,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
+
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -150,6 +151,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
+
+    public static final String UNSUPPORTED_INDEX_MESSAGE = "["
+        + CONTENT_TYPE
+        + "] is available on indices created with 8.11 or higher. Please create a new index to use ["
+        + CONTENT_TYPE
+        + "]";
 
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
@@ -1243,6 +1250,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat
     ) {
+        if (indexVersionCreated.before(IndexVersions.NEW_SPARSE_VECTOR)) {
+            throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
+        }
+
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(

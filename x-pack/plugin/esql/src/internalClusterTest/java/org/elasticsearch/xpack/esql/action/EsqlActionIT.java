@@ -164,11 +164,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryRequest request = syncEsqlQueryRequest();
         request.query("ROW " + value + " | EVAL x==NULL");
         request.filter(randomQueryFilter());
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown column [x]"),
-            () -> run(request)
-        );
+        expectThrows(VerificationException.class, containsString("Unknown column [x]"), () -> run(request));
     }
 
     private static QueryBuilder randomQueryFilter() {

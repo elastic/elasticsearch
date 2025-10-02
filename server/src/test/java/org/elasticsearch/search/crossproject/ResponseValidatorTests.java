@@ -120,7 +120,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
+        assertThat(e.getMessage(), containsString("no such index [logs]"));
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
@@ -158,7 +158,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(e.getMessage(), containsString("authorization errors while resolving [logs]"));
+        assertThat(e.getMessage(), containsString("user cannot access [logs]"));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
@@ -203,17 +203,7 @@ public class ResponseValidatorTests extends ESTestCase {
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(
-                new ResolvedIndexExpression(
-                    "P1:logs",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
-                    ),
-                    Set.of("P1:logs")
-                )
-            )
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
         );
 
         var remote = Map.of(
@@ -277,17 +267,7 @@ public class ResponseValidatorTests extends ESTestCase {
 
     public void testUnauthorizedQualifiedExpressionWithStrictIgnoreUnavailable() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(
-                new ResolvedIndexExpression(
-                    "P1:logs",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
-                    ),
-                    Set.of("P1:logs")
-                )
-            )
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
         );
 
         var remote = Map.of(
@@ -310,7 +290,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(e.getMessage(), containsString("authorization errors while resolving [P1:logs]"));
+        assertThat(e.getMessage(), containsString("user cannot access [P1:logs]"));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {
@@ -330,6 +310,43 @@ public class ResponseValidatorTests extends ESTestCase {
 
         // we matched resource locally thus no error
         assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, null));
+    }
+
+    public void testAllowNoIndicesFoundEmptyResultsOnOriginAndLinked() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "shared-index-missing*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of("P1:shared-index-missing*")
+                )
+            )
+        );
+
+        var remote = Map.of(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "shared-index-missing*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        ElasticsearchException ex = ResponseValidator.validate(getIndicesOptions(false, false), local, remote);
+        assertNotNull(ex);
+        assertThat(ex, instanceOf(IndexNotFoundException.class));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {
@@ -403,7 +420,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
+        assertThat(e.getMessage(), containsString("no such index [logs*]"));
     }
 
     public void testUnauthorizedFlatExpressionWithStrictAllowNoIndices() {
@@ -441,7 +458,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
+        assertThat(e.getMessage(), containsString("no such index [logs*]"));
     }
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {
@@ -504,17 +521,7 @@ public class ResponseValidatorTests extends ESTestCase {
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(
-                new ResolvedIndexExpression(
-                    "P1:logs*",
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
-                    Set.of("P1:logs*")
-                )
-            )
+            List.of(new ResolvedIndexExpression("P1:logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs*")))
         );
 
         var remote = Map.of(

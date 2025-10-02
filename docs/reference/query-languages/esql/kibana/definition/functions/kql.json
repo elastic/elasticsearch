@@ -20,6 +20,25 @@
       "params" : [
         {
           "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Query string in KQL query string format."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, America/New_York], description='Time zone to use when parsing date values. Defaults to UTC.'}, {name='case_insensitive', values=[true, false], description='If true, the query is case insensitive. Defaults to false.'}, {name='default_field', values=[_all, title], description='Default field to search when no field is specified in the query.'}",
+          "optional" : true,
+          "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "query",
           "type" : "text",
           "optional" : false,
           "description" : "Query string in KQL query string format."
@@ -27,10 +46,30 @@
       ],
       "variadic" : false,
       "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Query string in KQL query string format."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, America/New_York], description='Time zone to use when parsing date values. Defaults to UTC.'}, {name='case_insensitive', values=[true, false], description='If true, the query is case insensitive. Defaults to false.'}, {name='default_field', values=[_all, title], description='Default field to search when no field is specified in the query.'}",
+          "optional" : true,
+          "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
     }
   ],
   "examples" : [
-    "FROM books\n| WHERE KQL(\"author: Faulkner\")"
+    "FROM books\n| WHERE KQL(\"author: Faulkner\")",
+    null
   ],
   "preview" : false,
   "snapshot_only" : false

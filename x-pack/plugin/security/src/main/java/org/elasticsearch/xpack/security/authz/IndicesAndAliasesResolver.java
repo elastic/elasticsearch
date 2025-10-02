@@ -56,6 +56,7 @@ import java.util.function.BiPredicate;
 
 import static org.elasticsearch.search.crossproject.ResponseValidator.lenientIndicesOptions;
 import static org.elasticsearch.search.crossproject.ResponseValidator.shouldResolveCrossProject;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -379,7 +380,7 @@ class IndicesAndAliasesResolver {
                         authorizedProjects,
                         indicesRequest.includeDataStreams()
                     );
-                    setResolvedIfNull(action, replaceable, resolved);
+                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else {
@@ -401,13 +402,12 @@ class IndicesAndAliasesResolver {
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them
                     if (recordResolvedIndexExpressions) {
-                        setResolvedIfNull(action, replaceable, resolved);
+                        setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(split.getRemote());
                 }
             }
-
             if (resolvedIndicesBuilder.isEmpty()) {
                 if (indicesOptions.allowNoIndices()) {
                     // this is how we tell es core to return an empty response, we can let the request through being sure
@@ -473,16 +473,21 @@ class IndicesAndAliasesResolver {
         return resolvedIndicesBuilder.build();
     }
 
-    private static void setResolvedIfNull(String action, IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
+    private static void setResolvedIndexExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
         if (replaceable.getResolvedIndexExpressions() == null) {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
-            logger.info(
-                "resolved index expressions [{}] already set on request [{}], not overwriting with [{}]",
-                replaceable.getResolvedIndexExpressions(),
-                action,
-                resolved
-            );
+            // see https://github.com/elastic/elasticsearch/issues/135799
+            String message = "resolved index expressions are already set to ["
+                + replaceable.getResolvedIndexExpressions()
+                + "] and should not be set again. Attempted to set to new expressions ["
+                + resolved
+                + "] for ["
+                + replaceable.getClass().getName()
+                + "]";
+            logger.debug(message);
+            // we are excepting `*,-*` below since we've observed this already -- keeping this assertion to catch other cases
+            assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
         }
     }
 

@@ -10,7 +10,8 @@ applies_to:
 # KQL query [query-dsl-kql-query]
 
 Returns documents matching a provided KQL expression. The value of the `query` parameter is parsed using the
-[Kibana Query Language (KQL)](docs-content://query-languages/kql.md) and rewritten into standard Query DSL.
+[Kibana Query Language (KQL)](/reference/query-languages/kql.md) and rewritten
+into standard Query DSL.
 
 Use this query when you want to accept KQL input (for example from a Kibana search bar) directly in Elasticsearch.
 
@@ -33,7 +34,8 @@ GET /_search
 
 `query`
 :   (Required, string) The KQL expression to parse. See the
-    [KQL language reference](docs-content://query-languages/kql.md) for supported syntax.
+[KQL language reference](/reference/query-languages/kql.md) for supported
+syntax.
 
 `case_insensitive`
 :   (Optional, boolean) If `true`, performs case-insensitive matching for field names and keyword / text terms.
@@ -67,7 +69,8 @@ GET /_search
 
 The `kql` query accepts a single KQL expression string in the `query` parameter. All language elements (field matching,
 wildcards, boolean logic, ranges, nested scoping) are defined in the
-[KQL language reference](docs-content://query-languages/kql.md). This page does not duplicate that syntax.
+[KQL language reference](/reference/query-languages/kql.md). This page does not
+duplicate that syntax.
 
 ## Additional examples [kql-examples]
 
@@ -144,5 +147,5 @@ or [`simple_query_string`](./query-dsl-simple-query-string-query.md) when those 
 
 ## See also [kql-see-also]
 
-* [KQL language reference](docs-content://query-languages/kql.md)
+* [KQL language reference](/reference/query-languages/kql.md)
 * [Default field setting](/reference/elasticsearch/index-settings/index-modules.md#index-query-default-field)

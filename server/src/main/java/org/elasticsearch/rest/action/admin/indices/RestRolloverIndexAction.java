@@ -10,8 +10,11 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -29,6 +32,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestRolloverIndexAction extends BaseRestHandler {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportRolloverAction.class);
+    public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition has been deprecated in favour of "
+        + "the [max_primary_shard_size] condition and will be removed in a later version";
 
     @Override
     public List<Route> routes() {
@@ -55,6 +62,12 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+
+        // Check for deprecated conditions
+        if (rolloverIndexRequest.getConditions().getMaxSize() != null) {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "rollover-max-size-condition", MAX_SIZE_DEPRECATION_MESSAGE);
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));

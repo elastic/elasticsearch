@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitUntilTimeSeriesEndTimePassesStep;
+import org.elasticsearch.xpack.ilm.action.RestPutLifecycleAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIndexLifecycleIT.class);
+    private static final String TEST_PHASE = "hot";
     private static final String TSDB_INDEX_TEMPLATE = """
         {
             "index_patterns": ["%s*"],
@@ -672,14 +674,13 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     private static void putILMPolicy(String name, String maxSize, Integer maxDocs, TimeValue maxAge) throws IOException {
         final Request request = new Request("PUT", "_ilm/policy/" + name);
         XContentBuilder builder = jsonBuilder();
-        String phase = "hot";
         builder.startObject();
         {
             builder.startObject("policy");
             {
                 builder.startObject("phases");
                 {
-                    builder.startObject(phase);
+                    builder.startObject(TEST_PHASE);
                     {
                         builder.startObject("actions");
                         {
@@ -738,7 +739,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if (maxSize != null) {
             request.setOptions(
                 expectWarnings(
-                    ParameterizedMessage.format(PutLifecycleMetadataService.MAX_SIZE_DEPRECATION_MESSAGE, new Object[] { phase })
+                    ParameterizedMessage.format(RestPutLifecycleAction.MAX_SIZE_DEPRECATION_MESSAGE, new Object[] { TEST_PHASE })
                 )
             );
         }

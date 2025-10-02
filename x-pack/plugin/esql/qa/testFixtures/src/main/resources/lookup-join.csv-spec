@@ -5287,6 +5287,21 @@ null           | null             | corge          | null           | null
 null           | null             | fred           | null           | null
 ;
 
+lookupAfterDropAllColumns
+required_capability: fix_no_columns
+required_capability: join_lookup_v12
+FROM languages
+| DROP language_code
+| EVAL language_code = 3
+| LOOKUP JOIN languages_lookup ON language_code
+| LIMIT 3
+;
+
+ language_code:integer | language_name:keyword 
+3                      |Spanish
+3                      |Spanish
+3                      |Spanish
+;
 
 lookupJoinWithPushableFilterOnRight
 required_capability: join_lookup_v12

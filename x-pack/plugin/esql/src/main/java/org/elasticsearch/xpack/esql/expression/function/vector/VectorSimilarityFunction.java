@@ -85,21 +85,21 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     @Override
     @SuppressWarnings("unchecked")
     public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        VectorValueProviderBuilder leftVectorProviderBuilder;
-        VectorValueProviderBuilder rightVectorProviderBuilder;
+        VectorValueProviderFactory leftVectorProviderFactory;
+        VectorValueProviderFactory rightVectorProviderFactory;
         if (left() instanceof Literal) {
-            leftVectorProviderBuilder = new VectorValueProviderBuilder((ArrayList<Float>) ((Literal) left()).value(), null);
+            leftVectorProviderFactory = new ConstantVectorProvider.Factory((ArrayList<Float>) ((Literal) left()).value());
         } else {
-            leftVectorProviderBuilder = new VectorValueProviderBuilder(null, toEvaluator.apply(left()));
+            leftVectorProviderFactory = new ExpressionVectorProvider.Factory(toEvaluator.apply(left()));
         }
         if (right() instanceof Literal) {
-            rightVectorProviderBuilder = new VectorValueProviderBuilder((ArrayList<Float>) ((Literal) right()).value(), null);
+            rightVectorProviderFactory = new ConstantVectorProvider.Factory((ArrayList<Float>) ((Literal) right()).value());
         } else {
-            rightVectorProviderBuilder = new VectorValueProviderBuilder(null, toEvaluator.apply(right()));
+            rightVectorProviderFactory = new ExpressionVectorProvider.Factory(toEvaluator.apply(right()));
         }
         return new SimilarityEvaluatorFactory(
-            leftVectorProviderBuilder,
-            rightVectorProviderBuilder,
+            leftVectorProviderFactory,
+            rightVectorProviderFactory,
             getSimilarityFunction(),
             getClass().getSimpleName() + "Evaluator"
         );
@@ -111,8 +111,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     protected abstract SimilarityEvaluatorFunction getSimilarityFunction();
 
     private record SimilarityEvaluatorFactory(
-        VectorValueProviderBuilder leftVectorProviderBuilder,
-        VectorValueProviderBuilder rightVectorProviderBuilder,
+        VectorValueProviderFactory leftVectorProviderFactory,
+        VectorValueProviderFactory rightVectorProviderFactory,
         SimilarityEvaluatorFunction similarityFunction,
         String evaluatorName
     ) implements EvalOperator.ExpressionEvaluator.Factory {
@@ -121,8 +121,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             // TODO check whether to use this custom evaluator or reuse / define an existing one
             return new SimilarityEvaluator(
-                leftVectorProviderBuilder.build(context),
-                rightVectorProviderBuilder.build(context),
+                leftVectorProviderFactory.build(context),
+                rightVectorProviderFactory.build(context),
                 similarityFunction,
                 evaluatorName,
                 context.blockFactory()
@@ -131,7 +131,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
         @Override
         public String toString() {
-            return evaluatorName() + "[left=" + leftVectorProviderBuilder + ", right=" + rightVectorProviderBuilder + "]";
+            return evaluatorName() + "[left=" + leftVectorProviderFactory + ", right=" + rightVectorProviderFactory + "]";
         }
     }
 
@@ -203,28 +203,6 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         }
     }
 
-    private record VectorValueProviderBuilder(
-        ArrayList<Float> vector,
-        EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory
-    ) {
-        VectorValueProvider build(DriverContext context) {
-            if (vector != null) {
-                return new ConstantVectorProvider(vector);
-            } else {
-                return new ExpressionVectorProvider(expressionEvaluatorFactory.get(context));
-            }
-        }
-
-        @Override
-        public String toString() {
-            if (vector != null) {
-                return ConstantVectorProvider.class.getSimpleName() + "[vector=" + Arrays.toString(vector.toArray()) + "]";
-            } else {
-                return ExpressionVectorProvider.class.getSimpleName() + "[expressionEvaluator=[" + expressionEvaluatorFactory + "]]";
-            }
-        }
-    }
-
     interface VectorValueProvider extends Releasable {
 
         void eval(Page page);
@@ -238,7 +216,22 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         long baseRamBytesUsed();
     }
 
+    interface VectorValueProviderFactory {
+        VectorValueProvider build(DriverContext context);
+    }
+
     private static class ConstantVectorProvider implements VectorValueProvider {
+
+        record Factory(List<Float> vector) implements VectorValueProviderFactory {
+            public VectorValueProvider build(DriverContext context) {
+                return new ConstantVectorProvider(vector);
+            }
+
+            @Override
+            public String toString() {
+                return ConstantVectorProvider.class.getSimpleName() + "[vector=" + Arrays.toString(vector.toArray()) + "]";
+            }
+        }
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantVectorProvider.class);
 
@@ -289,6 +282,17 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     private static class ExpressionVectorProvider implements VectorValueProvider {
+
+        record Factory(EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory) implements VectorValueProviderFactory {
+            public VectorValueProvider build(DriverContext context) {
+                return new ExpressionVectorProvider(expressionEvaluatorFactory.get(context));
+            }
+
+            @Override
+            public String toString() {
+                return ExpressionVectorProvider.class.getSimpleName() + "[expressionEvaluator=[" + expressionEvaluatorFactory + "]]";
+            }
+        }
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ExpressionVectorProvider.class);
 

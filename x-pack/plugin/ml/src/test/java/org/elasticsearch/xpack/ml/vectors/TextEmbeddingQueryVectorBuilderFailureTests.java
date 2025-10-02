@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.vectors;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -15,7 +14,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.WeightedToken;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 
 public class TextEmbeddingQueryVectorBuilderFailureTests extends ESTestCase {
 
@@ -57,12 +54,11 @@ public class TextEmbeddingQueryVectorBuilderFailureTests extends ESTestCase {
             PlainActionFuture<float[]> future = new PlainActionFuture<>();
             queryVectorBuilder.buildVector(client, future);
 
-            var exception = expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TimeValue.timeValueSeconds(30)));
+            var exception = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TimeValue.timeValueSeconds(30)));
             assertThat(
                 exception.getMessage(),
                 containsString("expected a result of type [text_embedding_result] received [text_expansion_result]")
             );
-            assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
         }
     }
 

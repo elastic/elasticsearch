@@ -7,6 +7,7 @@ applies_to:
     self:
     ece:
     eck:
+  serverless: unavailable
 ---
 
 # Networking settings [modules-network]

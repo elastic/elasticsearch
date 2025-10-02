@@ -814,7 +814,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
                 final ShardRouting shardRouting = it.next();
                 final ProjectIndex index = projectIndex(shardRouting);
-                final MoveDecision moveDecision = decideMove(index, shardRouting, movementsTracker);
+                final MoveDecision moveDecision = decideMove(index, shardRouting, movementsTracker::shardIsPreferableToCurrent);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
@@ -997,7 +997,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * Stores the most desirable shard seen so far and compares proposed shards against it using
          * the {@link PrioritiseByShardWriteLoadComparator}.
          */
-        private class MostDesirableMovementsTracker implements Predicate<ShardRouting> {
+        private class MostDesirableMovementsTracker {
 
             public record StoredMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision) {}
 
@@ -1005,8 +1005,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             private final Map<String, StoredMoveDecision> bestNonPreferredShardsByNode = new LinkedHashMap<>();
             private final Map<String, PrioritiseByShardWriteLoadComparator> comparatorCache = new HashMap<>();
 
-            @Override
-            public boolean test(ShardRouting shardRouting) {
+            /**
+             * Is the provided {@link ShardRouting} potentially a better shard to move than the one
+             * we currently have stored for this node?
+             *
+             * @param shardRouting The shard routing being considered for movement
+             * @return true if the shard is more desirable to move that the current one we stored for this node, false otherwise.
+             */
+            public boolean shardIsPreferableToCurrent(ShardRouting shardRouting) {
                 final var currentShardForNode = bestNonPreferredShardsByNode.get(shardRouting.currentNodeId());
                 if (currentShardForNode == null) {
                     return true;

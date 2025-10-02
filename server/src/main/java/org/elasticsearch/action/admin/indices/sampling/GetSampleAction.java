@@ -54,6 +54,112 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
         super(NAME);
     }
 
+    public static class Request extends BaseNodesRequest implements IndicesRequest.Replaceable {
+        private String[] names;
+
+        public Request(String[] names) {
+            super((String[]) null);
+            this.names = names;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "get samples", parentTaskId, headers);
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            if (this.indices().length != 1) {
+                return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
+                    "Can only get samples for a single index at a time, but found "
+                        + Arrays.stream(this.indices()).collect(Collectors.joining(", ", "[", "]"))
+                );
+            }
+            if (this.indices()[0].contains("*")) {
+                return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
+                    "Wildcards are not supported, but found [" + this.indices()[0] + "]"
+                );
+            }
+            return null;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.names = indices;
+            return this;
+        }
+
+        @Override
+        public String[] indices() {
+            return names;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
+        }
+    }
+
+    public static class NodeRequest extends AbstractTransportRequest implements IndicesRequest {
+        private final ProjectId projectId;
+        private final String index;
+
+        public NodeRequest(ProjectId projectId, String index) {
+            this.projectId = projectId;
+            this.index = index;
+        }
+
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            this.projectId = ProjectId.readFrom(in);
+            this.index = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            projectId.writeTo(out);
+            out.writeString(index);
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeRequest other = (NodeRequest) o;
+            return Objects.equals(projectId, other.projectId) && Objects.equals(index, other.index);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(projectId, index);
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { index };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
+        }
+    }
+
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ChunkedToXContent {
         final int maxSize;
 
@@ -158,112 +264,6 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(getNode(), sample);
-        }
-    }
-
-    public static class Request extends BaseNodesRequest implements IndicesRequest.Replaceable {
-        private String[] names;
-
-        public Request(String[] names) {
-            super((String[]) null);
-            this.names = names;
-        }
-
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "get samples", parentTaskId, headers);
-        }
-
-        @Override
-        public boolean includeDataStreams() {
-            return true;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            if (this.indices().length != 1) {
-                return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
-                    "Can only get samples for a single index at a time, but found "
-                        + Arrays.stream(this.indices()).collect(Collectors.joining(", ", "[", "]"))
-                );
-            }
-            if (this.indices()[0].contains("*")) {
-                return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
-                    "Wildcards are not supported, but found [" + this.indices()[0] + "]"
-                );
-            }
-            return null;
-        }
-
-        @Override
-        public IndicesRequest indices(String... indices) {
-            this.names = indices;
-            return this;
-        }
-
-        @Override
-        public String[] indices() {
-            return names;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
-        }
-    }
-
-    public static class NodeRequest extends AbstractTransportRequest implements IndicesRequest {
-        private final ProjectId projectId;
-        private final String index;
-
-        public NodeRequest(ProjectId projectId, String index) {
-            this.projectId = projectId;
-            this.index = index;
-        }
-
-        public NodeRequest(StreamInput in) throws IOException {
-            super(in);
-            this.projectId = ProjectId.readFrom(in);
-            this.index = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            projectId.writeTo(out);
-            out.writeString(index);
-        }
-
-        @Override
-        public boolean includeDataStreams() {
-            return true;
-        }
-
-        public ProjectId getProjectId() {
-            return projectId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeRequest other = (NodeRequest) o;
-            return Objects.equals(projectId, other.projectId) && Objects.equals(index, other.index);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(projectId, index);
-        }
-
-        @Override
-        public String[] indices() {
-            return new String[] { index };
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
         }
     }
 }

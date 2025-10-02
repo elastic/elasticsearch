@@ -176,6 +176,8 @@ toc:
       - file: sql/sql-translate.md
       - file: sql/sql-cli.md
       - file: sql/sql-jdbc.md
+        children:
+            - file: sql/sql-jdbc-api-usage.md
       - file: sql/sql-odbc.md
         children:
             - file: sql/sql-odbc-installation.md

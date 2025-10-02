@@ -11,7 +11,7 @@ products:
 
 # Getting started with SQL [sql-getting-started]
 
-To start using Elasticsearch SQL, create an index with some data to experiment with:
+To start using {{es}} SQL, create an index with some data to experiment with:
 
 ```console
 PUT /library/_bulk?refresh

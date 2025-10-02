@@ -12,9 +12,9 @@ products:
 
 ## Overview [sql-odbc-overview]
 
-Elasticsearch SQL ODBC Driver is a 3.80 compliant ODBC driver for {{es}}. It is a core level driver, exposing all of the functionality accessible through the {{es}}'s SQL API, converting ODBC calls into Elasticsearch SQL.
+{{es}} SQL ODBC Driver is a 3.80 compliant ODBC driver for {{es}}. It is a core level driver, exposing all the functionality accessible through the {{es}}'s SQL API, converting ODBC calls into {{es}} SQL.
 
-In order to make use of the driver, the server must have Elasticsearch SQL installed and running with the valid license.
+In order to make use of the driver, the server must have {{es}} SQL installed and running with the valid license.
 
 * [Driver installation](sql-odbc-installation.md)
 * [Configuration](sql-odbc-setup.md)

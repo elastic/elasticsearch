@@ -10,23 +10,23 @@ products:
 
 # Security [sql-security]
 
-Elasticsearch SQL integrates with security, if this is enabled on your cluster. In such a scenario, Elasticsearch SQL supports both security at the transport layer (by encrypting the communication between the consumer and the server) and authentication (for the access layer).
+{{es}} SQL integrates with security, if this is enabled on your cluster. In such a scenario, {{es}} SQL supports both security at the transport layer (by encrypting the communication between the consumer and the server) and authentication (for the access layer).
 
 
 ## SSL/TLS configuration [ssl-tls-config]
 
-In case of an encrypted transport, the SSL/TLS support needs to be enabled in Elasticsearch SQL to properly establish communication with {{es}}. This is done by setting the `ssl` property to `true` or by using the `https` prefix in the URL.<br> Depending on your SSL configuration (whether the certificates are signed by a CA or not, whether they are global at JVM level or just local to one application), might require setting up the `keystore` and/or `truststore`, that is where the *credentials* are stored (`keystore` - which typically stores private keys and certificates) and how to *verify* them (`truststore` - which typically stores certificates from third party also known as CA - certificate authorities).<br> Typically (and again, do note that your environment might differ significantly), if the SSL setup for Elasticsearch SQL is not already done at the JVM level, one needs to setup the keystore if the Elasticsearch SQL security requires client authentication (PKI - Public Key Infrastructure), and setup `truststore` if SSL is enabled.
+In case of an encrypted transport, the SSL/TLS support needs to be enabled in Elasticsearch SQL to properly establish communication with {{es}}. This is done by setting the `ssl` property to `true` or by using the `https` prefix in the URL.<br> Depending on your SSL configuration (whether the certificates are signed by a CA or not, whether they are global at JVM level or just local to one application), might require setting up the `keystore` and/or `truststore`, that is where the *credentials* are stored (`keystore` - which typically stores private keys and certificates) and how to *verify* them (`truststore` - which typically stores certificates from third party also known as CA - certificate authorities).<br> Typically (and again, do note that your environment might differ significantly), if the SSL setup for {{es}} SQL is not already done at the JVM level, one needs to setup the keystore if the Elasticsearch SQL security requires client authentication (PKI - Public Key Infrastructure), and setup `truststore` if SSL is enabled.
 
 
 ## Authentication [_authentication]
 
-The authentication support in Elasticsearch SQL is of two types:
+The authentication support in {{es}} SQL is of two types:
 
 Username/Password
 :   Set these through `user` and `password` properties.
 
 PKI/X.509
-:   Use X.509 certificates to authenticate Elasticsearch SQL to {{es}}. For this, one would need to setup the `keystore` containing the private key and certificate to the appropriate user (configured in {{es}}) and the `truststore` with the CA certificate used to sign the SSL/TLS certificates in the {{es}} cluster. That is, one should setup the key to authenticate Elasticsearch SQL and also to verify that is the right one. To do so, one should set the `ssl.keystore.location` and `ssl.truststore.location` properties to indicate the `keystore` and `truststore` to use. It is recommended to have these secured through a password in which case `ssl.keystore.pass` and `ssl.truststore.pass` properties are required.
+:   Use X.509 certificates to authenticate {{es}} SQL to {{es}}. For this, one would need to setup the `keystore` containing the private key and certificate to the appropriate user (configured in {{es}}) and the `truststore` with the CA certificate used to sign the SSL/TLS certificates in the {{es}} cluster. That is, one should setup the key to authenticate {{es}} SQL and also to verify that is the right one. To do so, one should set the `ssl.keystore.location` and `ssl.truststore.location` properties to indicate the `keystore` and `truststore` to use. It is recommended to have these secured through a password in which case `ssl.keystore.pass` and `ssl.truststore.pass` properties are required.
 
 
 ## Permissions (server-side) [sql-security-permissions]

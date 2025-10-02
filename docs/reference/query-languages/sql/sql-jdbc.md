@@ -10,7 +10,7 @@ products:
 
 # SQL JDBC [sql-jdbc]
 
-{{es}}'s SQL jdbc driver is a rich, fully featured JDBC driver for {{es}}. It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database, pure Java driver that converts JDBC calls to Elasticsearch SQL.
+{{es}}'s SQL jdbc driver is a rich, fully featured JDBC driver for {{es}}. It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database, pure Java driver that converts JDBC calls to {{es}} SQL.
 
 
 ## Installation [sql-jdbc-installation]

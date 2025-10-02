@@ -323,8 +323,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
             () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)")
         );
         logger.info("error", error);
-        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
     }
 
     public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {

@@ -221,7 +221,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
     public void testPartialResolution() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
         if (randomBoolean()) {
-            indexRandom(true, "index-1", 10);
+            indexRandom(true, "index-1", 1);
         }
 
         expectThrows(
@@ -231,6 +231,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         );
         expectThrows(
             VerificationException.class,
+            // TODO ES-13095 both [nonexisting-1,nonexisting-2] missing should be reported as missing.
             containsString("Unknown index [nonexisting-1]"), // only the first missing index is reported
             () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1,nonexisting-2"))
         );

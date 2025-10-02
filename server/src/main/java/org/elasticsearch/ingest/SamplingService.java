@@ -232,6 +232,9 @@ public class SamplingService implements ClusterStateListener {
      */
     public SampleStats getLocalSampleStats(ProjectId projectId, String index) {
         SoftReference<SampleInfo> sampleInfoReference = samples.get(new ProjectIndex(projectId, index));
+        if (sampleInfoReference == null) {
+            return new SampleStats();
+        }
         SampleInfo sampleInfo = sampleInfoReference.get();
         return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
     }

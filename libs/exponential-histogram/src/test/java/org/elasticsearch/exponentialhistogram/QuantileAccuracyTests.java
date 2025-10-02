@@ -88,6 +88,17 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         double expectedResult = (4.0 / 3 + 2.1) / 2;
         double p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
         assertThat(p50, equalTo(expectedResult));
+
+        // Test the same for min instead of max
+        histogram = createAutoReleasedHistogram(
+            b -> b.scale(0)
+                .setNegativeBucket(0, 1) // bucket 0 covers (1, 2]
+                .setNegativeBucket(1, 1) // bucket 1 covers (2, 4]
+                .min(-2.1)
+                .max(-1.1)
+        );
+        p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
+        assertThat(p50, equalTo(-expectedResult));
     }
 
     public void testUniformDistribution() {

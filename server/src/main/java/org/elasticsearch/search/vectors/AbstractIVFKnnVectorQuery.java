@@ -16,6 +16,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConjunctionUtils;
@@ -39,8 +40,6 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -192,10 +191,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {
         final LeafReader reader = ctx.reader();
-        final Bits liveDocs = reader.getLiveDocs();
 
         if (filterWeight == null) {
-            return approximateSearch(ctx, liveDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+            AcceptDocs acceptDocs = AcceptDocs.fromLiveDocs(reader.getLiveDocs(), reader.maxDoc());
+            return approximateSearch(ctx, acceptDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         }
 
         ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
@@ -211,7 +210,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // then we should do exact search over the floating point vectors.
         // However, if the index is tiny, let's use the approximate vectors as they will be magnitudes cheaper than floating point
         if (filterCost < k && fvv.size() > k) {
-            return exactSearch(ctx, liveDocs, supplier);
+            return exactSearch(ctx, reader.getLiveDocs(), supplier);
         }
 
         Scorer scorer = supplier.get(Long.MAX_VALUE);
@@ -219,14 +218,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
 
-        BitSet acceptDocs = createBitSet(scorer.iterator(), liveDocs, reader.maxDoc());
-        final int cost = acceptDocs.cardinality();
-        return approximateSearch(ctx, acceptDocs, cost + 1, knnCollectorManager, visitRatio);
+        AcceptDocs acceptDocs = AcceptDocs.fromIteratorSupplier(scorer::iterator, reader.getLiveDocs(), reader.maxDoc());
+        return approximateSearch(ctx, acceptDocs, filterCost + 1, knnCollectorManager, visitRatio);
     }
 
     abstract TopDocs approximateSearch(
         LeafReaderContext context,
-        Bits acceptDocs,
+        AcceptDocs acceptDocs,
         int visitedLimit,
         IVFCollectorManager knnCollectorManager,
         float visitRatio
@@ -289,22 +287,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     @Override
     public final void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
-    }
-
-    BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
-        if (liveDocs == null && iterator instanceof BitSetIterator bitSetIterator) {
-            // If we already have a BitSet and no deletions, reuse the BitSet
-            return bitSetIterator.getBitSet();
-        } else {
-            // Create a new BitSet from matching and live docs
-            FilteredDocIdSetIterator filterIterator = new FilteredDocIdSetIterator(iterator) {
-                @Override
-                protected boolean match(int doc) {
-                    return liveDocs == null || liveDocs.get(doc);
-                }
-            };
-            return BitSet.of(filterIterator, maxDoc);
-        }
     }
 
     static class IVFCollectorManager implements KnnCollectorManager {

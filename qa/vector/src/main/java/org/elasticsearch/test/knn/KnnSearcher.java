@@ -38,9 +38,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -52,7 +49,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
@@ -178,7 +174,7 @@ class KnnSearcher {
             );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
-            try (MMapDirectory dir = new MMapDirectory(indexPath)) {
+            try (Directory dir = KnnIndexer.getDirectory(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     IndexSearcher searcher = searchThreads > 1 ? new IndexSearcher(reader, executorService) : new IndexSearcher(reader);
                     byte[] targetBytes = new byte[dim];
@@ -402,14 +398,13 @@ class KnnSearcher {
                 topK,
                 efSearch,
                 filterQuery,
-                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
+                indexType == KnnIndexTester.IndexType.HNSW && earlyTermination
             );
-            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
-                knnQuery = PatienceKnnVectorQuery.fromByteQuery((KnnByteVectorQuery) knnQuery);
-            }
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
+        assert knnQuery instanceof QueryProfilerProvider : "this knnQuery doesn't support profiling";
         QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
         queryProfilerProvider.profile(profiler);
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
@@ -433,11 +428,9 @@ class KnnSearcher {
                 topK,
                 efSearch,
                 filterQuery,
-                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
+                indexType == KnnIndexTester.IndexType.HNSW && earlyTermination
             );
-            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
-                knnQuery = PatienceKnnVectorQuery.fromFloatQuery((KnnFloatVectorQuery) knnQuery);
-            }
         }
         if (overSamplingFactor > 1f) {
             // oversample the topK results to get more candidates for the final result
@@ -445,12 +438,10 @@ class KnnSearcher {
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
-        if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-            queryProfilerProvider.profile(profiler);
-            return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
-        } else {
-            return docs;
-        }
+        assert knnQuery instanceof QueryProfilerProvider : "this knnQuery doesn't support profiling";
+        QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
+        queryProfilerProvider.profile(profiler);
+        return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
     private static float checkResults(int[][] results, int[][] nn, int topK) {

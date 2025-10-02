@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 
 import java.util.Map;
@@ -175,9 +175,9 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     threadPool,
                     clusterService,
                     (innerState, strategy) -> innerState,
-                    TelemetryProvider.NOOP,
                     EMPTY_NODE_ALLOCATION_STATS,
-                    TEST_ONLY_EXPLAINER
+                    TEST_ONLY_EXPLAINER,
+                    DesiredBalanceMetrics.NOOP
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {

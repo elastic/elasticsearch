@@ -132,4 +132,9 @@ public class ReferenceAttribute extends TypedAttribute {
     public boolean isDimension() {
         return false;
     }
+
+    @Override
+    public boolean isMetric() {
+        return false;
+    }
 }

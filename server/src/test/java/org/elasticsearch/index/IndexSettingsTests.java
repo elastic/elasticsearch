@@ -857,7 +857,13 @@ public class IndexSettingsTests extends ESTestCase {
             Settings.EMPTY,
             null,
             xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+            new MapperRegistry(
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                MapperPlugin.NOOP_FIELD_FILTER,
+                null
+            ),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null,
             MapperMetrics.NOOP
@@ -915,4 +921,5 @@ public class IndexSettingsTests extends ESTestCase {
         }
         assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
+
 }

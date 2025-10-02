@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregatorFunctionSupplier;
@@ -47,7 +45,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
-import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
 import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
@@ -68,7 +65,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.KEYWORD, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -77,6 +75,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     @FunctionInfo(
         returnType = "long",
         description = "Returns the approximate number of distinct values.",
+        note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
+            + "aggregation-functions.md#esql-agg-count-distinct-approximate).",
         appendix = """
             ### Counts are approximate [esql-agg-count-distinct-approximate]
 
@@ -119,7 +119,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version", "_tsid" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(
@@ -147,16 +147,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : nullSafeList(in.readOptionalNamedWriteable(Expression.class))
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
-    }
-
-    @Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        out.writeOptionalNamedWriteable(precision);
     }
 
     @Override

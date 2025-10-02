@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +34,11 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
         ElasticInferenceServiceRateLimitServiceSettings {
 
     public static final String NAME = "elastic_rerank_service_settings";
+
+    private static final TransportVersion ML_INFERENCE_ELASTIC_RERANK = TransportVersion.fromName("ml_inference_elastic_rerank");
+    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
+        "inference_api_disable_eis_rate_limiting"
+    );
 
     public static ElasticInferenceServiceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -69,7 +73,7 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
     public ElasticInferenceServiceRerankServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
-        if (in.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             new RateLimitSettings(in);
         }
     }
@@ -92,13 +96,12 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.ML_INFERENCE_ELASTIC_RERANK;
+        return ML_INFERENCE_ELASTIC_RERANK;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ML_INFERENCE_ELASTIC_RERANK)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19);
+        return version.supports(ML_INFERENCE_ELASTIC_RERANK);
     }
 
     @Override
@@ -123,7 +126,7 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        if (out.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             rateLimitSettings.writeTo(out);
         }
     }

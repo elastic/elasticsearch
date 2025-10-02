@@ -1,35 +1,37 @@
 {
-  "transform.upgrade_transforms":{
-    "documentation":{
-      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-upgrade-transforms",
-      "description":"Upgrade all transforms"
+  "transform.upgrade_transforms": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-upgrade-transforms",
+      "description": "Upgrade all transforms"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept":["application/json"],
-      "content_type":["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_transform/_upgrade",
-          "methods":[
+          "path": "/_transform/_upgrade",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "dry_run":{
-        "type":"boolean",
-        "required":false,
-        "description":"Whether to only check for updates but don't execute"
+    "params": {
+      "dry_run": {
+        "type": "boolean",
+        "description": "Whether to only check for updates but don't execute"
       },
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"Controls the time to wait for the upgrade"
+      "timeout": {
+        "type": "time",
+        "description": "Controls the time to wait for the upgrade"
       }
     }
   }

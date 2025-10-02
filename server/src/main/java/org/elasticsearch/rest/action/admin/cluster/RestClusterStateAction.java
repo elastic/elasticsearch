@@ -112,6 +112,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         final Map<String, String> params;
         if (request.paramAsBoolean("multi_project", false)) {
             params = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API, "multi-project", "true");
+            clusterStateRequest.multiproject(true);
         } else {
             params = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
         }

@@ -9,15 +9,17 @@
 package org.elasticsearch.logstashbridge.plugins;
 
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.ingest.common.RecoverFailureDocumentProcessor;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
-import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
 
 import java.util.Map;
 
 /**
  * An external bridge for {@link IngestCommonPlugin}
  */
-public class IngestCommonPluginBridge implements IngestPluginBridge {
+public final class IngestCommonPluginBridge implements IngestPluginBridge {
 
     public static final String APPEND_PROCESSOR_TYPE = org.elasticsearch.ingest.common.AppendProcessor.TYPE;
     public static final String BYTES_PROCESSOR_TYPE = org.elasticsearch.ingest.common.BytesProcessor.TYPE;
@@ -40,6 +42,7 @@ public class IngestCommonPluginBridge implements IngestPluginBridge {
     public static final String LOWERCASE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.LowercaseProcessor.TYPE;
     public static final String NETWORK_DIRECTION_PROCESSOR_TYPE = org.elasticsearch.ingest.common.NetworkDirectionProcessor.TYPE;
     public static final String REGISTERED_DOMAIN_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RegisteredDomainProcessor.TYPE;
+    public static final String RECOVER_FAILURE_DOCUMENT_PROCESSOR_TYPE = RecoverFailureDocumentProcessor.TYPE;
     public static final String REMOVE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RemoveProcessor.TYPE;
     public static final String RENAME_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RenameProcessor.TYPE;
     public static final String REROUTE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RerouteProcessor.TYPE;
@@ -59,7 +62,7 @@ public class IngestCommonPluginBridge implements IngestPluginBridge {
     }
 
     @Override
-    public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
-        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorBridge.Factory::fromInternal);
+    public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {
+        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorFactoryBridge::fromInternal);
     }
 }

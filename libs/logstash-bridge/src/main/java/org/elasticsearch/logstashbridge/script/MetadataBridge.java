@@ -16,52 +16,86 @@ import java.time.ZonedDateTime;
 /**
  * An external bridge for {@link Metadata}
  */
-public class MetadataBridge extends StableBridgeAPI.ProxyInternal<Metadata> {
-    public MetadataBridge(final Metadata delegate) {
-        super(delegate);
+public interface MetadataBridge extends StableBridgeAPI<Metadata> {
+
+    String getIndex();
+
+    void setIndex(String index);
+
+    String getId();
+
+    void setId(String id);
+
+    long getVersion();
+
+    void setVersion(long version);
+
+    String getVersionType();
+
+    void setVersionType(String versionType);
+
+    String getRouting();
+
+    void setRouting(String routing);
+
+    ZonedDateTime getNow();
+
+    static MetadataBridge fromInternal(final Metadata metadata) {
+        return new ProxyInternal(metadata);
     }
 
-    public String getIndex() {
-        return internalDelegate.getIndex();
-    }
+    /**
+     * An implementation of {@link MetadataBridge} that proxies calls through
+     * to an internal {@link Metadata}.
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<Metadata> implements MetadataBridge {
+        ProxyInternal(final Metadata delegate) {
+            super(delegate);
+        }
 
-    public void setIndex(final String index) {
-        internalDelegate.setIndex(index);
-    }
+        public String getIndex() {
+            return internalDelegate.getIndex();
+        }
 
-    public String getId() {
-        return internalDelegate.getId();
-    }
+        public void setIndex(final String index) {
+            internalDelegate.setIndex(index);
+        }
 
-    public void setId(final String id) {
-        internalDelegate.setId(id);
-    }
+        public String getId() {
+            return internalDelegate.getId();
+        }
 
-    public long getVersion() {
-        return internalDelegate.getVersion();
-    }
+        public void setId(final String id) {
+            internalDelegate.setId(id);
+        }
 
-    public void setVersion(final long version) {
-        internalDelegate.setVersion(version);
-    }
+        public long getVersion() {
+            return internalDelegate.getVersion();
+        }
 
-    public String getVersionType() {
-        return internalDelegate.getVersionType();
-    }
+        public void setVersion(final long version) {
+            internalDelegate.setVersion(version);
+        }
 
-    public void setVersionType(final String versionType) {
-        internalDelegate.setVersionType(versionType);
-    }
+        public String getVersionType() {
+            return internalDelegate.getVersionType();
+        }
 
-    public String getRouting() {
-        return internalDelegate.getRouting();
-    }
+        public void setVersionType(final String versionType) {
+            internalDelegate.setVersionType(versionType);
+        }
 
-    public void setRouting(final String routing) {
-        internalDelegate.setRouting(routing);
-    }
+        public String getRouting() {
+            return internalDelegate.getRouting();
+        }
 
-    public ZonedDateTime getNow() {
-        return internalDelegate.getNow();
+        public void setRouting(final String routing) {
+            internalDelegate.setRouting(routing);
+        }
+
+        public ZonedDateTime getNow() {
+            return internalDelegate.getNow();
+        }
     }
 }

@@ -304,13 +304,25 @@ public class TopTests extends AbstractAggregationTestCase {
                 .limit(limit)
                 .toList();
 
+            String baseName;
+            if (limit != 1) {
+                baseName = "Top";
+            } else {
+                // If the limit is 1 we rewrite TOP into MIN or MAX and never run our lovely TOP code.
+                if (order.equals("asc")) {
+                    baseName = "Min";
+                } else {
+                    baseName = "Max";
+                }
+            }
+
             return new TestCaseSupplier.TestCase(
                 List.of(
                     fieldTypedData,
                     limitTypedData,
                     new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral()
                 ),
-                standardAggregatorName("Top", fieldTypedData.type()),
+                standardAggregatorName(baseName, fieldTypedData.type()),
                 fieldSupplier.type(),
                 equalTo(expected.size() == 1 ? expected.get(0) : expected)
             );

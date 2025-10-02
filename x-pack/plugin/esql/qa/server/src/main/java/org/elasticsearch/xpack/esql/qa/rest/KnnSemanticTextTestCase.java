@@ -12,7 +12,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -37,7 +36,8 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+        // TODO: not sure why this doesn't work??
+        // assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
     }
 
     @SuppressWarnings("unchecked")
@@ -87,7 +87,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(knnQuery));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), is(BAD_REQUEST.getStatus()));
-        assertThat(re.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
+        assertThat(re.getMessage(), containsString("Field [sparse_semantic] does not use a [text_embedding] model"));
     }
 
     @Before

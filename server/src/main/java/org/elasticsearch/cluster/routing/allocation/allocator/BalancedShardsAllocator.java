@@ -700,12 +700,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             lowIdx = 0;
                             highIdx = relevantNodes - 1;
 
-                            shardBalanced = true;
-                            if (completeEarlyOnShardAssignmentChange && routingNodes.getRelocatingShardCount() > 0) {
+                            if (routingNodes.getRelocatingShardCount() > 0) {
                                 // ES-12955: Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
-                                // It should not happen in production, i.e, throttling should not happen unless there is a prior shard
-                                // that is already relocating. But in tests, we have decider like RandomAllocationDecider that can
-                                // randomly return THROTTLE when there is no existing relocation.
+                                // This should rarely happen since in most cases, we don't throttle unless there is an existing relocation.
+                                // But it can happen in production for frozen indices when the cache is still being prepared. It can also
+                                // happen in tests because we have decider like RandomAllocationDecider that can randomly return THROTTLE
+                                // when there is no existing relocation.
+                                shardBalanced = true;
+                            }
+                            if (completeEarlyOnShardAssignmentChange && shardBalanced) {
                                 return true;
                             }
                             continue;

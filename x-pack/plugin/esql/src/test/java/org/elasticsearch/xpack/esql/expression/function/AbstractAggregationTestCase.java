@@ -554,11 +554,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case CARTESIAN_SHAPE -> "CartesianShape";
             case GEO_POINT -> "GeoPoint";
             case GEO_SHAPE -> "GeoShape";
-            case KEYWORD, TEXT, VERSION -> "BytesRef";
+            case KEYWORD, TEXT, VERSION, TSID_DATA_TYPE -> "BytesRef";
             case DOUBLE, COUNTER_DOUBLE -> "Double";
             case INTEGER, COUNTER_INTEGER -> "Int";
             case IP -> "Ip";
             case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
+            case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
             case NULL -> "Null";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };

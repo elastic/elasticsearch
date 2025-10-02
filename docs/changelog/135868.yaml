@@ -1,0 +1,5 @@
+pr: 135868
+summary: Add APM metrics for duration of search phases at the coordinating node
+area: Search
+type: enhancement
+issues: []

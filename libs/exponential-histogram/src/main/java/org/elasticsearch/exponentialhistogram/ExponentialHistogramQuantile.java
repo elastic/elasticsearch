@@ -34,6 +34,7 @@ public class ExponentialHistogramQuantile {
      * It returns the value of the element at rank {@code max(0, min(n - 1, (quantile * (n + 1)) - 1))}, where n is the total number of
      * values and rank starts at 0. If the rank is fractional, the result is linearly interpolated from the values of the two
      * neighboring ranks.
+     * The result is clamped to the histogram's minimum and maximum values.
      *
      * @param histo    the histogram representing the distribution
      * @param quantile the quantile to query, in the range [0, 1]
@@ -60,6 +61,8 @@ public class ExponentialHistogramQuantile {
         double upperFactor = exactRank - lowerRank;
 
         ValueAndPreviousValue values = getElementAtRank(histo, upperRank);
+        // Ensure we don't return values outside the histogram's range
+        values = values.clampTo(histo.min(), histo.max());
 
         double result;
         if (lowerRank == upperRank) {
@@ -158,8 +161,13 @@ public class ExponentialHistogramQuantile {
      * @param valueAtRank         the value at the desired rank
      */
     private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank) {
+
         ValueAndPreviousValue negateAndSwap() {
             return new ValueAndPreviousValue(-valueAtRank, -valueAtPreviousRank);
+        }
+
+        ValueAndPreviousValue clampTo(double min, double max) {
+            return new ValueAndPreviousValue(Math.clamp(valueAtPreviousRank, min, max), Math.clamp(valueAtRank, min, max));
         }
     }
 }

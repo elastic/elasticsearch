@@ -1,0 +1,5 @@
+pr: 130893
+summary: Add a direct IO option for rescoring to `bbq_hnsw`
+area: Vector Search
+type: feature
+issues: []

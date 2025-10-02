@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -354,42 +355,47 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoSourceAndConstant(DoubleBlock.Builder results, int p, BytesRefBlock left, @Fixed Point right) {
+    static void processGeoSourceAndConstant(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, @Fixed Point right) {
         GEO.distanceSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoSourceAndSource(DoubleBlock.Builder results, int p, BytesRefBlock left, BytesRefBlock right) {
+    static void processGeoSourceAndSource(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, BytesRefBlock right) {
         GEO.distanceSourceAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoPointDocValuesAndConstant(DoubleBlock.Builder results, int p, LongBlock left, @Fixed Point right) {
+    static void processGeoPointDocValuesAndConstant(DoubleBlock.Builder results, @Position int p, LongBlock left, @Fixed Point right) {
         GEO.distancePointDocValuesAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoPointDocValuesAndSource(DoubleBlock.Builder results, int p, LongBlock left, BytesRefBlock right) {
+    static void processGeoPointDocValuesAndSource(DoubleBlock.Builder results, @Position int p, LongBlock left, BytesRefBlock right) {
         GEO.distancePointDocValuesAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processCartesianSourceAndConstant(DoubleBlock.Builder results, int p, BytesRefBlock left, @Fixed Point right) {
+    static void processCartesianSourceAndConstant(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, @Fixed Point right) {
         CARTESIAN.distanceSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class })
-    static void processCartesianSourceAndSource(DoubleBlock.Builder results, int p, BytesRefBlock left, BytesRefBlock right) {
+    static void processCartesianSourceAndSource(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, BytesRefBlock right) {
         CARTESIAN.distanceSourceAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processCartesianPointDocValuesAndConstant(DoubleBlock.Builder results, int p, LongBlock left, @Fixed Point right) {
+    static void processCartesianPointDocValuesAndConstant(
+        DoubleBlock.Builder results,
+        @Position int p,
+        LongBlock left,
+        @Fixed Point right
+    ) {
         CARTESIAN.distancePointDocValuesAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource")
-    static void processCartesianPointDocValuesAndSource(DoubleBlock.Builder results, int p, LongBlock left, BytesRefBlock right) {
+    static void processCartesianPointDocValuesAndSource(DoubleBlock.Builder results, @Position int p, LongBlock left, BytesRefBlock right) {
         CARTESIAN.distancePointDocValuesAndSource(results, p, left, right);
     }
 }

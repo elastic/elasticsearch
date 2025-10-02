@@ -26,8 +26,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -141,6 +143,14 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertMutatingCtxThrows(ctx -> ctx.put("foo", "bar"));
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).add("bar"));
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
+        assertMutatingCtxThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).add("bar"));
+        assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
+        assertMutatingCtxThrows(
+            ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
+        );
     }
 
     public void testPrecompiledError() {
@@ -194,6 +204,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         execProcessor(processor, ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("runtime problem")); });
     }
 
+    @SuppressWarnings("unchecked")
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
         String scriptName = "conditionalScript";
         PlainActionFuture<Exception> expectedException = new PlainActionFuture<>();
@@ -221,6 +232,11 @@ public class ConditionalProcessorTests extends ESTestCase {
         );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("listField", new ArrayList<>());
+        ingestDocument.setFieldValue("mapField", new HashMap<>());
+        ingestDocument.setFieldValue("setField", new HashSet<>());
+        List<Object> listWithinSet = new ArrayList<>();
+        listWithinSet.add(new ArrayList<>());
+        ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         Exception e = safeGet(expectedException);
         assertThat(e, instanceOf(UnsupportedOperationException.class));

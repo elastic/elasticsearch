@@ -33,10 +33,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -45,9 +42,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
@@ -75,7 +72,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -130,7 +126,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final int BBQ_MIN_DIMS = 64;
 
     private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
-    public static final FeatureFlag IVF_FORMAT = new FeatureFlag("ivf_format");
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -256,10 +251,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         final IndexVersion indexVersionCreated;
         final boolean isExcludeSourceVectors;
+        private final List<VectorsFormatProvider> vectorsFormatProviders;
 
-        public Builder(String name, IndexVersion indexVersionCreated, boolean isExcludeSourceVectors) {
+        public Builder(
+            String name,
+            IndexVersion indexVersionCreated,
+            boolean isExcludeSourceVectors,
+            List<VectorsFormatProvider> vectorsFormatProviders
+        ) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
+            this.vectorsFormatProviders = vectorsFormatProviders;
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
             // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
             this.dims = new Parameter<>("dims", true, () -> null, (n, c, o) -> {
@@ -448,7 +450,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
-                isExcludeSourceVectorsFinal
+                isExcludeSourceVectorsFinal,
+                vectorsFormatProviders
             );
         }
     }
@@ -1549,18 +1552,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public boolean supportsDimension(int dims) {
                 return true;
             }
-
-            @Override
-            public boolean isEnabled() {
-                return IVF_FORMAT.isEnabled();
-            }
         };
 
         public static Optional<VectorIndexType> fromString(String type) {
-            return Stream.of(VectorIndexType.values())
-                .filter(VectorIndexType::isEnabled)
-                .filter(vectorIndexType -> vectorIndexType.name.equals(type))
-                .findFirst();
+            return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
         }
 
         private final String name;
@@ -1583,10 +1578,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean isQuantized() {
             return quantized;
-        }
-
-        public boolean isEnabled() {
-            return true;
         }
 
         public String getName() {
@@ -1904,6 +1895,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
+        public int m() {
+            return m;
+        }
+
+        public int efConstruction() {
+            return efConstruction;
+        }
+
+        public Float confidenceInterval() {
+            return confidenceInterval;
+        }
+
         @Override
         public String toString() {
             return "{type="
@@ -1939,7 +1942,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class HnswIndexOptions extends DenseVectorIndexOptions {
+    public static class HnswIndexOptions extends DenseVectorIndexOptions {
         private final int m;
         private final int efConstruction;
 
@@ -1998,6 +2001,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isFlat() {
             return false;
+        }
+
+        public int m() {
+            return m;
+        }
+
+        public int efConstruction() {
+            return efConstruction;
         }
 
         @Override
@@ -2220,7 +2231,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         (n, c) -> new Builder(
             n,
             c.getIndexSettings().getIndexVersionCreated(),
-            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
+            c.getVectorsFormatProviders()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -2245,7 +2257,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
+            super(name, indexed, false, indexed == false, meta);
             this.element = Element.getElement(elementType);
             this.dims = dims;
             this.indexed = indexed;
@@ -2380,6 +2392,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
+            hnswEarlyTermination &= canApplyPatienceQuery();
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(
                     queryVector.asByteVector(),
@@ -2424,6 +2437,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized();
         }
 
+        private boolean canApplyPatienceQuery() {
+            return indexOptions instanceof HnswIndexOptions
+                || indexOptions instanceof Int8HnswIndexOptions
+                || indexOptions instanceof Int4HnswIndexOptions
+                || indexOptions instanceof BBQHnswIndexOptions;
+        }
+
         private Query createKnnBitQuery(
             byte[] queryVector,
             int k,
@@ -2447,11 +2467,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .build();
             } else {
                 knnQuery = parentFilter != null
-                    ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
-                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-                if (hnswEarlyTermination) {
-                    knnQuery = maybeWrapPatience(knnQuery);
-                }
+                    ? new ESDiversifyingChildrenByteKnnVectorQuery(
+                        name(),
+                        queryVector,
+                        filter,
+                        k,
+                        numCands,
+                        parentFilter,
+                        searchStrategy,
+                        hnswEarlyTermination
+                    )
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2491,11 +2517,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .build();
             } else {
                 knnQuery = parentFilter != null
-                    ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
-                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-                if (hnswEarlyTermination) {
-                    knnQuery = maybeWrapPatience(knnQuery);
-                }
+                    ? new ESDiversifyingChildrenByteKnnVectorQuery(
+                        name(),
+                        queryVector,
+                        filter,
+                        k,
+                        numCands,
+                        parentFilter,
+                        searchStrategy,
+                        hnswEarlyTermination
+                    )
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy, hnswEarlyTermination);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2505,23 +2537,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             return knnQuery;
-        }
-
-        private Query maybeWrapPatience(Query knnQuery) {
-            Query finalQuery = knnQuery;
-            if (knnQuery instanceof KnnByteVectorQuery knnByteVectorQuery && canApplyPatienceQuery()) {
-                finalQuery = PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery);
-            } else if (knnQuery instanceof KnnFloatVectorQuery knnFloatVectorQuery && canApplyPatienceQuery()) {
-                finalQuery = PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery);
-            }
-            return finalQuery;
-        }
-
-        private boolean canApplyPatienceQuery() {
-            return indexOptions instanceof HnswIndexOptions
-                || indexOptions instanceof Int8HnswIndexOptions
-                || indexOptions instanceof Int4HnswIndexOptions
-                || indexOptions instanceof BBQHnswIndexOptions;
         }
 
         private Query createKnnFloatQuery(
@@ -2600,10 +2615,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         parentFilter,
                         knnSearchStrategy
                     )
-                    : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
-                if (hnswEarlyTermination) {
-                    knnQuery = maybeWrapPatience(knnQuery);
-                }
+                    : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy, hnswEarlyTermination);
             }
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
@@ -2625,11 +2637,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
-        VectorSimilarity getSimilarity() {
+        public VectorSimilarity getSimilarity() {
             return similarity;
         }
 
-        int getVectorDimensions() {
+        public int getVectorDimensions() {
             return dims;
         }
 
@@ -2683,6 +2695,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
     private final boolean isExcludeSourceVectors;
+    private final List<VectorsFormatProvider> extraVectorsFormatProviders;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -2690,12 +2703,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        boolean isExcludeSourceVectorsFinal
+        boolean isExcludeSourceVectorsFinal,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
         this.isExcludeSourceVectors = isExcludeSourceVectorsFinal;
+        this.extraVectorsFormatProviders = vectorsFormatProviders;
     }
 
     @Override
@@ -2817,7 +2832,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, isExcludeSourceVectors).init(this);
+        return new Builder(leafName(), indexCreatedVersion, isExcludeSourceVectors, extraVectorsFormatProviders).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
@@ -2840,12 +2855,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * @return the custom kNN vectors format that is configured for this field or
      * {@code null} if the default format should be used.
      */
-    public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
+    public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat, IndexSettings indexSettings) {
         final KnnVectorsFormat format;
         if (indexOptions == null) {
             format = fieldType().element.elementType() == ElementType.BIT ? new ES815HnswBitVectorsFormat() : defaultFormat;
         } else {
-            format = indexOptions.getVectorsFormat(fieldType().element.elementType());
+            // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
+            KnnVectorsFormat extraKnnFormat = null;
+            for (VectorsFormatProvider vectorsFormatProvider : extraVectorsFormatProviders) {
+                extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions);
+                if (extraKnnFormat != null) {
+                    break;
+                }
+            }
+            format = extraKnnFormat != null ? extraKnnFormat : indexOptions.getVectorsFormat(fieldType().element.elementType());
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

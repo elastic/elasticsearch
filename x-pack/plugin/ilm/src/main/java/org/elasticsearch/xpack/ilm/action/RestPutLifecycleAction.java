@@ -31,7 +31,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPutLifecycleAction extends BaseRestHandler {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PutLifecycleMetadataService.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestPutLifecycleAction.class);
 
     public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition found in phase [{}]. This"
         + " condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version";

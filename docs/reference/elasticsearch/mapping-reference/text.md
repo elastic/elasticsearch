@@ -343,8 +343,12 @@ The following mapping parameters are accepted:
 
 
 ## Pattern text field type [pattern-text-field-type]
-::::{warning}
+```{applies_to}
+serverless: preview
+stack: preview 9.2
+```
 
+::::{warning}
 This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 

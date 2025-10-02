@@ -51,7 +51,7 @@ public class ExponentialHistogramBlockEqualityTests extends ComputeTestCase {
     }
 
     public void testFilteredBlockEquality() {
-        ExponentialHistogram histo1 = ExponentialHistogram.create(2, ExponentialHistogramCircuitBreaker.noop(), 1, 2, 3, 4);
+        ExponentialHistogram histo1 = ExponentialHistogram.create(4, ExponentialHistogramCircuitBreaker.noop(), 1, 2, 3, 4, 5);
         ExponentialHistogram histo2 = ExponentialHistogram.empty();
         Block block1 = blockFactory().newExponentialHistogramBlockBuilder(0).append(histo1).append(histo1).append(histo2).build();
 

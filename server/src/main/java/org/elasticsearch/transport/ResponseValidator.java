@@ -116,14 +116,13 @@ public class ResponseValidator {
                     }
                 }
             } else {
-
-                // flat local-only expression
                 if (result == SUCCESS && false == localExpressions.expressions().isEmpty()) {
+                    // flat expression matching locally
                     continue;
                 }
                 boolean isUnAuthorized = result == CONCRETE_RESOURCE_UNAUTHORIZED;
-                // flat linked project expression
                 boolean foundFlat = false;
+                // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
                     ElasticsearchException exception = checkSingleRemoteExpression(

@@ -1178,8 +1178,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     indexVersionCreated
                 );
 
-                // Skip setting similarity on pre 8.11 indices. It causes dense vector field creation to fail because similarity can only be set
-                // on indexed fields, which is not done by default prior to 8.11. The fact that the dense vector field is partially configured is
+                // Skip setting similarity on pre 8.11 indices. It causes dense vector field creation to fail because similarity can only be
+                // set
+                // on indexed fields, which is not done by default prior to 8.11. The fact that the dense vector field is partially
+                // configured is
                 // moot because we will explicitly fail to index docs into this semantic text field anyways.
                 if (indexVersionCreated.onOrAfter(NEW_SPARSE_VECTOR)) {
                     SimilarityMeasure similarity = modelSettings.similarity();

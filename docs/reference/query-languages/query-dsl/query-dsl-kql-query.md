@@ -2,6 +2,9 @@
 navigation_title: "KQL"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-kql-query.html
+applies_to:
+  stack: preview 9.0, ga 9.1
+  serverless: all
 ---
 
 # KQL query [query-dsl-kql-query]

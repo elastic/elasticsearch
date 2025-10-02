@@ -33,7 +33,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -297,9 +296,9 @@ public enum DataType implements Writeable {
     // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support these types, we'll be missing validation for
     // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because these types require specific
     // geo functions to turn up in the query, and those types aren't available before 9.2.0 either.
-    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
-    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
-    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES).supportedOn(INDEX_SOURCE)),
+    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES).supportedOn(DataTypesTransportVersions.INDEX_SOURCE)),
+    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES).supportedOn(DataTypesTransportVersions.INDEX_SOURCE)),
+    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES).supportedOn(DataTypesTransportVersions.INDEX_SOURCE)),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -322,7 +321,9 @@ public enum DataType implements Writeable {
     // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support _tsid, we'll be missing validation for
     // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because _tsid requires specifically being
     // used in `FROM idx METADATA _tsid` or in the `TS` command, which both weren't available before 9.2.0.
-    TSID_DATA_TYPE(builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues().supportedOn(INDEX_SOURCE)),
+    TSID_DATA_TYPE(
+        builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues().supportedOn(DataTypesTransportVersions.INDEX_SOURCE)
+    ),
     /**
      * Fields with this type are the partial result of running a non-time-series aggregation
      * inside alongside time-series aggregations. These fields are not parsable from the
@@ -971,6 +972,9 @@ public enum DataType implements Writeable {
     }
 
     private static class DataTypesTransportVersions {
+
+        public static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
+
         public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
             "esql_dense_vector_created_version"
         );

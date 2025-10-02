@@ -1587,7 +1587,13 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "_tsid" metadata field.
          */
-        METADATA_TSID_FIELD;
+        METADATA_TSID_FIELD,
+
+        /**
+         * Fix management of plans with no columns
+         * https://github.com/elastic/elasticsearch/issues/120272
+         */
+        FIX_NO_COLUMNS;
 
         private final boolean enabled;
 

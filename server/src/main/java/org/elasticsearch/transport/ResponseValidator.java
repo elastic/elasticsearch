@@ -48,7 +48,6 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
  */
 public class ResponseValidator {
     private static final Logger logger = LogManager.getLogger(ResponseValidator.class);
-    private static final String WILDCARD = "*";
     private static final String ORIGIN = "_origin"; // TODO use available constants
 
     /**
@@ -88,16 +87,14 @@ public class ResponseValidator {
 
             // Check if this is a qualified resource (project:index pattern)
             boolean isQualifiedResource = RemoteClusterAware.isRemoteIndexName(originalExpression);
-            String resource = originalExpression;
 
             // Handle qualified resources specially
             if (isQualifiedResource) {
-                String[] splitResource = splitQualifiedResource(resource);
+                String[] splitResource = splitQualifiedResource(originalExpression);
                 String projectAlias = splitResource[0];
-                resource = splitResource[1];
 
-                // Special handling for _origin prefixed resources
-                if (projectAlias.equals(ORIGIN)) {
+                // Special handling for _origin prefixed or origin alias resources, that should not be present in the resolvedRemotes
+                if (false == remoteResolvedExpressions.containsKey(projectAlias)) {
                     ElasticsearchException error = validateOriginResource(
                         localResolvedIndices,
                         localResolvedExpressions,
@@ -111,13 +108,11 @@ public class ResponseValidator {
             }
 
             // Perform validation based on indices options
-            ElasticsearchException error = validateResourceWithOptions(
-                resource,
+            ElasticsearchException error = checkIndicesOptions(
                 originalExpression,
                 localResolvedIndices,
                 remoteResolvedExpressions,
-                false == isQualifiedResource,
-                indicesOptions
+                false == isQualifiedResource
             );
 
             if (error != null) {
@@ -134,9 +129,8 @@ public class ResponseValidator {
         String originalExpression
     ) {
         ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-        boolean resourceFoundLocally = isResourceFoundLocally(localExpressions);
 
-        if (resourceFoundLocally && localExpressions.expressions().size() == 1) {
+        if (isResourceFoundLocally(localExpressions)) {
             logger.debug("Local cluster has canonical expression for original expression [{}], skipping extra checks", originalExpression);
             return null;
         }
@@ -153,27 +147,6 @@ public class ResponseValidator {
         );
     }
 
-    private static ElasticsearchException validateResourceWithOptions(
-        String resource,
-        String originalExpression,
-        ResolvedIndexExpression localResolvedIndices,
-        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
-        boolean isFlatWorldResource,
-        IndicesOptions indicesOptions
-    ) {
-        // For wildcards with strict allowNoIndices
-        if (false == indicesOptions.allowNoIndices() && resource.contains(WILDCARD)) {
-            return checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isFlatWorldResource);
-        }
-
-        // For concrete indices with strict ignoreUnavailable
-        if (false == indicesOptions.ignoreUnavailable()) {
-            return checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isFlatWorldResource);
-        }
-
-        return null;
-    }
-
     private static ElasticsearchException checkIndicesOptions(
         String originalExpression,
         ResolvedIndexExpression localResolvedIndices,
@@ -183,7 +156,7 @@ public class ResponseValidator {
         ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
 
         // Early return if we have local resource that satisfies conditions
-        if (isResourceFoundLocally(localExpressions) && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
+        if (isResourceFoundLocally(localExpressions) && isFlatWorldResource) {
             logger.debug("Local cluster has canonical expression for [{}], skipping remote check", originalExpression);
             return null;
         }

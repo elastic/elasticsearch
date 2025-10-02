@@ -28,7 +28,7 @@ public class ResponseValidatorTests extends ESTestCase {
 
     public void testLenientIndicesOptions() {
         // with lenient IndicesOptions we early terminate without error
-        assertNull(ResponseValidator.validate(getLenientIndicesOptions(), null, null));
+        assertNull(ResponseValidator.validate(getLenientIndicesOptions(), null, Map.of()));
     }
 
     public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
@@ -47,7 +47,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched resource locally thus no error
-        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null));
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, Map.of()));
     }
 
     public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
@@ -117,6 +117,7 @@ public class ResponseValidatorTests extends ESTestCase {
                 )
             )
         );
+
         var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
@@ -177,7 +178,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched locally thus no error
-        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null));
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, Map.of()));
     }
 
     public void testQualifiedOriginExpressionWithStrictIgnoreUnavailableNotMatching() {
@@ -195,7 +196,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null);
+        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, Map.of());
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [_origin:logs]"));
@@ -329,7 +330,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched resource locally thus no error
-        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, null));
+        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, Map.of()));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {
@@ -460,7 +461,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched locally thus no error
-        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, null));
+        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, Map.of()));
     }
 
     public void testQualifiedOriginExpressionWithStrictAllowNoIndicesNotMatching() {
@@ -477,7 +478,7 @@ public class ResponseValidatorTests extends ESTestCase {
                 )
             )
         );
-        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, null);
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, Map.of());
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [_origin:logs*]"));
@@ -592,6 +593,108 @@ public class ResponseValidatorTests extends ESTestCase {
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
+    }
+
+    public void testQualifiedOriginExpressionWithWildcardAndStrictAllowNoIndicesMatching() {
+        for (var indexExpression : List.of("_all", "*", "local-*")) {
+            ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "_origin:" + indexExpression,
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("local-index-1", "local-index-2"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            );
+            assertNull(ResponseValidator.validate(getIndicesOptions(randomBoolean(), randomBoolean()), local, Map.of()));
+        }
+    }
+
+    public void testQualifiedWildcardOriginExpressionAndStrictIgnoreUnavailableMatching() {
+
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "o*:local",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("local"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, Map.of()));
+
+    }
+
+    public void testQualifiedWildcardOriginExpressionAndStrictAllowNoIndicesMatching() {
+
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "o*:local-*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("local-index-1", "local-index-2"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, Map.of()));
+
+    }
+
+    public void testQualifiedWildcardOriginExpressionAndStrictIgnoreUnavailableNotMatching() {
+
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "o*:local",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, Map.of());
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [o*:local]"));
+
+    }
+
+    public void testQualifiedWildcardOriginExpressionAndStrictAllowNoIndicesNotMatching() {
+
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "o*:local-*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+
+        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, Map.of());
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [o*:local-*]"));
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

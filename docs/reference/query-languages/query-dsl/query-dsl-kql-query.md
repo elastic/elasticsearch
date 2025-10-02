@@ -145,7 +145,4 @@ or [`simple_query_string`](./query-dsl-simple-query-string-query.md) when those 
 ## See also [kql-see-also]
 
 * [KQL language reference](docs-content://query-languages/kql.md)
-* [`query_string` query](./query-dsl-query-string-query.md)
-* [`simple_query_string` query](./query-dsl-simple-query-string-query.md)
-* [`nested` query](./query-dsl-nested-query.md)
 * [Default field setting](/reference/elasticsearch/index-settings/index-modules.md#index-query-default-field)

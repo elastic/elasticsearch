@@ -17,7 +17,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,10 +30,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 
@@ -121,15 +118,15 @@ public class NetworkDirection extends EsqlScalarFunction {
         var internalNetworksEvaluatorSupplier = toEvaluator.apply(internalNetworks);
         return new NetworkDirectionEvaluator.Factory(
             source(),
+            context -> new BytesRef(),
             sourceIpEvaluatorSupplier,
             destinationIpEvaluatorSupplier,
-            internalNetworksEvaluatorSupplier,
-            context -> new BreakingBytesRefBuilder(context.breaker(), "network_direction")
+            internalNetworksEvaluatorSupplier
         );
     }
 
     @Evaluator
-    static boolean process(BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock internalNetworks, @Fixed(includeInToString=false, scope=THREAD_LOCAL) BreakingBytesRefBuilder scratch) {
+    static boolean process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock internalNetworks) {
         // Pulling the bytes out directly using InetAddress.getByAddress() requires error handling TODO
         InetAddress sourceIpAddress = InetAddresses.forString(sourceIp.utf8ToString());
         InetAddress destinationIpAddress = InetAddresses.forString(destinationIp.utf8ToString());

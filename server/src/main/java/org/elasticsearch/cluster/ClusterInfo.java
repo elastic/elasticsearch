@@ -50,6 +50,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
     public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
+    private static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = TransportVersion.fromName("heap_usage_in_cluster_info");
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -102,7 +103,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
             : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
             this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::new);
         } else {
             this.estimatedHeapUsages = Map.of();
@@ -121,7 +122,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
         out.writeMap(this.reservedSpace);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);
         }
     }

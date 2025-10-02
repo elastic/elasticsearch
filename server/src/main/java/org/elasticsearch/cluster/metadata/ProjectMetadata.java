@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -84,6 +85,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
+
+    private static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = TransportVersion.fromName("cluster_state_projects_settings");
 
     private final ProjectId id;
 
@@ -2201,8 +2204,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             builder.put(ReservedStateMetadata.readFrom(in));
         }
 
-        if (in.getTransportVersion()
-            .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+        if (in.getTransportVersion().supports(TransportVersions.PROJECT_METADATA_SETTINGS)
+            && in.getTransportVersion().supports(CLUSTER_STATE_PROJECTS_SETTINGS) == false) {
             Settings.readSettingsFromStream(in);
         }
 
@@ -2237,8 +2240,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
         out.writeCollection(reservedStateMetadata.values());
 
-        if (out.getTransportVersion()
-            .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+        if (out.getTransportVersion().supports(TransportVersions.PROJECT_METADATA_SETTINGS)
+            && out.getTransportVersion().supports(CLUSTER_STATE_PROJECTS_SETTINGS) == false) {
             Settings.EMPTY.writeTo(out);
         }
     }
@@ -2305,8 +2308,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 DiffableUtils.getStringKeySerializer(),
                 RESERVED_DIFF_VALUE_READER
             );
-            if (in.getTransportVersion()
-                .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            if (in.getTransportVersion().supports(TransportVersions.PROJECT_METADATA_SETTINGS)
+                && in.getTransportVersion().supports(CLUSTER_STATE_PROJECTS_SETTINGS) == false) {
                 Settings.readSettingsDiffFromStream(in);
             }
         }
@@ -2333,8 +2336,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             templates.writeTo(out);
             customs.writeTo(out);
             reservedStateMetadata.writeTo(out);
-            if (out.getTransportVersion()
-                .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            if (out.getTransportVersion().supports(TransportVersions.PROJECT_METADATA_SETTINGS)
+                && out.getTransportVersion().supports(CLUSTER_STATE_PROJECTS_SETTINGS) == false) {
                 Settings.EMPTY_DIFF.writeTo(out);
             }
         }

@@ -1321,11 +1321,7 @@ public class AuthenticationTests extends ESTestCase {
         if (realmRef == null) {
             realmRef = randomRealmRef(false);
         }
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.minimumCompatible(),
-            TransportVersion.current()
-        );
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -1338,11 +1334,7 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
-        return randomApiKeyAuthentication(
-            user,
-            apiKeyId,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.minimumCompatible(), TransportVersion.current())
-        );
+        return randomApiKeyAuthentication(user, apiKeyId, TransportVersionUtils.randomCompatibleVersion(random()));
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, TransportVersion version) {

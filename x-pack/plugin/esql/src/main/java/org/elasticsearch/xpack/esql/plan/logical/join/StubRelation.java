@@ -18,8 +18,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -36,13 +39,21 @@ public class StubRelation extends LeafPlan {
         StubRelation::new
     );
 
-    public static final StubRelation EMPTY = new StubRelation(null, null);
-
     private final List<Attribute> output;
 
     public StubRelation(Source source, List<Attribute> output) {
         super(source);
         this.output = output;
+    }
+
+    /*
+     * The output of a StubRelation must also include any synthetic attributes referenced by the source plan (union types is a great
+     * example of those attributes that has some special treatment throughout the planning phases, especially in the EsRelation).
+     */
+    public static List<Attribute> computeOutput(LogicalPlan source, LogicalPlan target) {
+        Set<Attribute> stubRelationOutput = new LinkedHashSet<>(target.output());
+        stubRelationOutput.addAll(source.references().stream().filter(Attribute::synthetic).toList());
+        return new ArrayList<>(stubRelationOutput);
     }
 
     public StubRelation(StreamInput in) throws IOException {

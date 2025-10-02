@@ -19,4 +19,5 @@ module org.elasticsearch.test.knn {
     requires java.management;
     requires jdk.management;
     requires org.apache.lucene.misc;
+    requires org.elasticsearch.gpu;
 }

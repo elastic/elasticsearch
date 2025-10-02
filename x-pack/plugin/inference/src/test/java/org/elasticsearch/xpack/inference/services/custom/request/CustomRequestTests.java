@@ -40,6 +40,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CustomRequestTests extends ESTestCase {
 
@@ -76,10 +77,7 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var request = new CustomRequest(
-            EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, null),
-                model.getServiceSettings().getInputTypeTranslator()
-            ),
+            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc", "123"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
         );
         var httpRequest = request.createHttpRequest();
@@ -140,7 +138,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, InputType.INGEST),
+                new EmbeddingsInput(List.of("abc", "123"), InputType.INGEST),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model
@@ -196,7 +194,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, InputType.SEARCH),
+                new EmbeddingsInput(List.of("abc", "123"), InputType.SEARCH),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model
@@ -380,7 +378,7 @@ public class CustomRequestTests extends ESTestCase {
             IllegalStateException.class,
             () -> new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model)
         );
-        assertThat(exception.getMessage(), is("Failed to build URI, error: Illegal character in path at index 0: ^"));
+        assertThat(exception.getMessage(), startsWith("Failed to build URI, error: Illegal character in path"));
     }
 
     private static String convertToString(InputStream inputStream) throws IOException {

@@ -1356,7 +1356,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (engine == null) {
                 return 0L;
             }
-            return engine.getWritingBytes();
+            try {
+                return engine.getWritingBytes();
+            } catch (AlreadyClosedException ex) {
+                return 0L;
+            }
         });
     }
 
@@ -1896,6 +1900,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         SubscribableListener<Void> subscribableListener = new SubscribableListener<>();
         postRecoveryComplete = subscribableListener;
         final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
+
         try {
             // Some engine implementations try to acquire the engine reset write lock during refresh: in case something else is holding the
             // engine read lock at the same time then the refresh is a no-op for those engines. Here we acquire the engine reset write lock
@@ -1918,9 +1923,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw new IndexShardStartedException(shardId);
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
-                changeState(IndexShardState.POST_RECOVERY, reason);
             }
-            indexEventListener.afterIndexShardRecovery(this, finalListener);
+
+            SubscribableListener.newForked(
+                (CheckedConsumer<ActionListener<Void>, Exception>) l -> indexEventListener.afterIndexShardRecovery(IndexShard.this, l)
+            ).andThenAccept(v -> {
+                synchronized (mutex) {
+                    if (state == IndexShardState.CLOSED) {
+                        throw new IndexShardClosedException(shardId);
+                    }
+                    if (state == IndexShardState.STARTED) {
+                        throw new IndexShardStartedException(shardId);
+                    }
+                    changeState(IndexShardState.POST_RECOVERY, reason);
+                }
+            }).addListener(finalListener);
         } catch (Exception e) {
             finalListener.onFailure(e);
         }

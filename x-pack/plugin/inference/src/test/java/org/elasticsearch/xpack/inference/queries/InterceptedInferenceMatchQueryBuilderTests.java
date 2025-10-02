@@ -8,22 +8,34 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class InterceptedInferenceMatchQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<MatchQueryBuilder> {
+
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
+
     @Override
     protected MatchQueryBuilder createQueryBuilder(String field) {
         return new MatchQueryBuilder(field, "foo").boost(randomFloatBetween(0.1f, 4.0f, true)).queryName(randomAlphanumericOfLength(5));
+    }
+
+    @Override
+    protected InterceptedInferenceQueryBuilder<MatchQueryBuilder> createInterceptedQueryBuilder(
+        MatchQueryBuilder originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        return new InterceptedInferenceMatchQueryBuilder(originalQuery, inferenceResultsMap);
     }
 
     @Override
@@ -42,9 +54,9 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         QueryBuilder rewritten,
         TransportVersion transportVersion,
         QueryRewriteContext queryRewriteContext
-    ) {
+    ) throws Exception {
         assertThat(original, instanceOf(MatchQueryBuilder.class));
-        if (transportVersion.onOrAfter(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+        if (transportVersion.supports(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
             assertThat(rewritten, instanceOf(InterceptedInferenceMatchQueryBuilder.class));
 
             InterceptedInferenceMatchQueryBuilder intercepted = (InterceptedInferenceMatchQueryBuilder) rewritten;
@@ -59,7 +71,16 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
                 original
             );
             QueryBuilder expectedLegacyRewritten = rewriteAndFetch(expectedLegacyIntercepted, queryRewriteContext);
-            assertThat(rewritten, equalTo(expectedLegacyRewritten));
+
+            // Run the expected query through a serialization cycle to align the inference results map representations
+            QueryBuilder expectedLegacySerialized = copyNamedWriteable(
+                expectedLegacyRewritten,
+                writableRegistry(),
+                QueryBuilder.class,
+                transportVersion
+            );
+
+            assertThat(rewritten, equalTo(expectedLegacySerialized));
         }
     }
 
@@ -88,7 +109,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
                 testIndex3.semanticTextFields()
             ),
             Map.of(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
         QueryBuilder coordinatorRewritten = rewriteAndFetch(matchQuery, queryRewriteContext);
 
@@ -99,8 +121,16 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         assertThat(coordinatorIntercepted.originalQuery, equalTo(matchQuery));
         assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(2));
-        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(DENSE_INFERENCE_ID));
-        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(SPARSE_INFERENCE_ID));
+        assertTrue(
+            coordinatorIntercepted.inferenceResultsMap.containsKey(
+                new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)
+            )
+        );
+        assertTrue(
+            coordinatorIntercepted.inferenceResultsMap.containsKey(
+                new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
+            )
+        );
 
         final SemanticQueryBuilder expectedSemanticQuery = new SemanticQueryBuilder(
             field,

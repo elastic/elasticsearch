@@ -83,26 +83,27 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        VectorValueProviderFactory leftVectorProviderFactory;
-        VectorValueProviderFactory rightVectorProviderFactory;
-        if (left() instanceof Literal) {
-            leftVectorProviderFactory = new ConstantVectorProvider.Factory((ArrayList<Float>) ((Literal) left()).value());
-        } else {
-            leftVectorProviderFactory = new ExpressionVectorProvider.Factory(toEvaluator.apply(left()));
-        }
-        if (right() instanceof Literal) {
-            rightVectorProviderFactory = new ConstantVectorProvider.Factory((ArrayList<Float>) ((Literal) right()).value());
-        } else {
-            rightVectorProviderFactory = new ExpressionVectorProvider.Factory(toEvaluator.apply(right()));
-        }
+        VectorValueProviderFactory leftVectorProviderFactory = getVectorValueProviderFactory(left(), toEvaluator);
+        VectorValueProviderFactory rightVectorProviderFactory = getVectorValueProviderFactory(right(), toEvaluator);
         return new SimilarityEvaluatorFactory(
             leftVectorProviderFactory,
             rightVectorProviderFactory,
             getSimilarityFunction(),
             getClass().getSimpleName() + "Evaluator"
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static VectorValueProviderFactory getVectorValueProviderFactory(
+        Expression expression,
+        EvaluatorMapper.ToEvaluator toEvaluator
+    ) {
+        if (expression instanceof Literal) {
+            return new ConstantVectorProvider.Factory((ArrayList<Float>) ((Literal) expression).value());
+        } else {
+            return new ExpressionVectorProvider.Factory(toEvaluator.apply(expression));
+        }
     }
 
     /**

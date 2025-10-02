@@ -385,12 +385,10 @@ PUT logs
 {
   "settings": {
     "index": {
-        "sort": {
-            "field": ["message.template_id", "@timestamp"],
-            "order": ["asc", "desc"]
-        }
+      "sort.field": [ "message.template_id", "@timestamp" ],
+      "sort.order": [ "asc", "desc" ]
     }
-  }
+  },
   "mappings": {
     "properties": {
       "@timestamp": {

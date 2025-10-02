@@ -34,14 +34,12 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
          * This triggers the balancer to work out a new routing.
          */
         logger.info("---> Remove shard assignments of node " + testHarness.firstDataNodeName + " by excluding first data node.");
-        updateClusterSettings(
-            Settings.builder().put("cluster.routing.allocation.exclude._name", testHarness.firstDataNodeName)
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", testHarness.firstDataNodeName));
 
         refreshClusterInfo();
 
         int lowerThreshold = testHarness.randomNumberOfShards / 2;
-        int upperThreshold = (int)Math.ceil((double) testHarness.randomNumberOfShards / 2);
+        int upperThreshold = (int) Math.ceil((double) testHarness.randomNumberOfShards / 2);
 
         var verifyShardCountBalanceListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             var indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(testHarness.indexName);
@@ -78,7 +76,7 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
         int lowerLimitSecondDataNode,
         int upperLimitThirdDataNode,
         int lowerLimitThirdDataNode
-        ) {
+    ) {
 
         int firstDataNodeRealNumberOfShards = routingNodes.node(firstDataNodeId).numberOfOwningShardsForIndex(index);
         int secondDataNodeRealNumberOfShards = routingNodes.node(secondDataNodeId).numberOfOwningShardsForIndex(index);
@@ -94,12 +92,11 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
 
     private TestHarness setUpThreeHealthyDataNodesAndVerifyIndexShardsBalancedDistributed() {
         Settings settings = Settings.builder()
-            .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING.getKey(),
+            .put(
+                IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING.getKey(),
                 IndexShardCountConstraintSettings.IndexShardCountDeciderStatus.ENABLED
             )
-            .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_LOAD_SKEW_TOLERANCE.getKey(),
-                1.0d
-            )
+            .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_LOAD_SKEW_TOLERANCE.getKey(), 1.0d)
             .build();
         internalCluster().startMasterOnlyNode(settings);
 
@@ -113,7 +110,7 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
         final String thirdDataNodeId = getNodeId(thirdDataNodeName);
         ensureStableCluster(4);
 
-        final DiscoveryNode firstDiscoveryNode =  internalCluster().getInstance(TransportService.class, firstDataNodeName).getLocalNode();
+        final DiscoveryNode firstDiscoveryNode = internalCluster().getInstance(TransportService.class, firstDataNodeName).getLocalNode();
         final DiscoveryNode secondDiscoveryNode = internalCluster().getInstance(TransportService.class, secondDataNodeName).getLocalNode();
         final DiscoveryNode thirdDiscoveryNode = internalCluster().getInstance(TransportService.class, thirdDataNodeName).getLocalNode();
 
@@ -121,23 +118,29 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
               ---> first node NAME %s and ID %s; second node NAME %s and ID %s; third node NAME %s and ID %s;
             """;
         logger.info(
-            String.format(format,
-                firstDataNodeName, firstDataNodeId,
-                secondDataNodeName, secondDataNodeId,
-                thirdDataNodeName, thirdDataNodeId)
+            String.format(
+                format,
+                firstDataNodeName,
+                firstDataNodeId,
+                secondDataNodeName,
+                secondDataNodeId,
+                thirdDataNodeName,
+                thirdDataNodeId
+            )
         );
 
         int randomNumberOfShards = randomIntBetween(15, 20);
         String indexName = randomIdentifier();
         int lowerThreshold = randomNumberOfShards / 3;
-        int upperThreshold = (int)Math.ceil((double) randomNumberOfShards / 3);
+        int upperThreshold = (int) Math.ceil((double) randomNumberOfShards / 3);
 
         var verifyShardAllocationListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
             var indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(indexName);
             if (indexRoutingTable == null) {
                 return false;
             }
-            return checkShardAssignment(clusterState.getRoutingNodes(),
+            return checkShardAssignment(
+                clusterState.getRoutingNodes(),
                 indexRoutingTable.getIndex(),
                 firstDataNodeId,
                 secondDataNodeId,
@@ -148,7 +151,7 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
                 lowerThreshold,
                 upperThreshold,
                 lowerThreshold
-                );
+            );
         });
 
         createIndex(

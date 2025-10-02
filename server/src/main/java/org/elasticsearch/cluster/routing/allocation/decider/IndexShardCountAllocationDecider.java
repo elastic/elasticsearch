@@ -52,10 +52,18 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
 
         Index index = shardRouting.index();
         if (node.hasIndex(index)) {
-            var dataNodes = allocation.nodes().stream()
-                .filter(DiscoveryNode::canContainData).map(DiscoveryNode::getId).collect(Collectors.toSet());
-            var nodesShuttingDown = allocation.metadata().nodeShutdowns().getAll().values().stream()
-                .map(SingleNodeShutdownMetadata::getNodeId).collect(Collectors.toSet());
+            var dataNodes = allocation.nodes()
+                .stream()
+                .filter(DiscoveryNode::canContainData)
+                .map(DiscoveryNode::getId)
+                .collect(Collectors.toSet());
+            var nodesShuttingDown = allocation.metadata()
+                .nodeShutdowns()
+                .getAll()
+                .values()
+                .stream()
+                .map(SingleNodeShutdownMetadata::getNodeId)
+                .collect(Collectors.toSet());
             var availableDataNodes = dataNodes.stream().filter(Predicate.not(nodesShuttingDown::contains)).collect(Collectors.toSet());
 
             assert availableDataNodes.isEmpty() == false;
@@ -63,7 +71,7 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
 
             var totalShards = allocation.getClusterState().routingTable(ProjectId.DEFAULT).index(index).size();
             var idealAllocation = Math.ceil((double) totalShards / availableDataNodes.size());
-            var threshold =  (int) Math.ceil(idealAllocation * indexShardCountConstraintSettings.getLoadSkewTolerance());
+            var threshold = (int) Math.ceil(idealAllocation * indexShardCountConstraintSettings.getLoadSkewTolerance());
             var currentAllocation = node.numberOfOwningShardsForIndex(index);
 
             if (currentAllocation >= threshold) {
@@ -75,10 +83,22 @@ public class IndexShardCountAllocationDecider extends AllocationDecider {
                     assigning additional shards is not preferred.
                     """;
 
-                String explanation = Strings.format(rationale,
-                    index, totalShards, node.nodeId(), idealAllocation, index, availableDataNodes.size(),
-                    indexShardCountConstraintSettings.getLoadSkewTolerance(), idealAllocation,
-                    indexShardCountConstraintSettings.getLoadSkewTolerance(), threshold, node.nodeId(), currentAllocation, index);
+                String explanation = Strings.format(
+                    rationale,
+                    index,
+                    totalShards,
+                    node.nodeId(),
+                    idealAllocation,
+                    index,
+                    availableDataNodes.size(),
+                    indexShardCountConstraintSettings.getLoadSkewTolerance(),
+                    idealAllocation,
+                    indexShardCountConstraintSettings.getLoadSkewTolerance(),
+                    threshold,
+                    node.nodeId(),
+                    currentAllocation,
+                    index
+                );
 
                 if (logger.isTraceEnabled()) {
                     logger.trace(explanation);

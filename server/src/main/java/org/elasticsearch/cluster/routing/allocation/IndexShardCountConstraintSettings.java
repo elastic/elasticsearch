@@ -60,10 +60,8 @@ public class IndexShardCountConstraintSettings {
     private volatile double loadSkewTolerance;
 
     public IndexShardCountConstraintSettings(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING,
-            status -> this.indexShardCountDeciderStatus = status);
-        clusterSettings.initializeAndWatch(INDEX_SHARD_COUNT_DECIDER_LOAD_SKEW_TOLERANCE,
-            value -> this.loadSkewTolerance = value);
+        clusterSettings.initializeAndWatch(INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING, status -> this.indexShardCountDeciderStatus = status);
+        clusterSettings.initializeAndWatch(INDEX_SHARD_COUNT_DECIDER_LOAD_SKEW_TOLERANCE, value -> this.loadSkewTolerance = value);
     }
 
     public IndexShardCountDeciderStatus getIndexShardCountDeciderStatus() {

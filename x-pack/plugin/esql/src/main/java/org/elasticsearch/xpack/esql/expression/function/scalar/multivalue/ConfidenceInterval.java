@@ -43,8 +43,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 public class ConfidenceInterval extends EsqlScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY =
-        new NamedWriteableRegistry.Entry(Expression.class, "ConfidenceInterval", ConfidenceInterval::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ConfidenceInterval",
+        ConfidenceInterval::new
+    );
 
     private final Expression bestEstimate;
     private final Expression estimates;
@@ -78,8 +81,9 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(bestEstimate, t -> t.isNumeric() && isRepresentable(t), sourceText(), FIRST, "numeric")
-            .and(isType(estimates, t -> t.isNumeric() && isRepresentable(t), sourceText(), SECOND, "numeric"));
+        return isType(bestEstimate, t -> t.isNumeric() && isRepresentable(t), sourceText(), FIRST, "numeric").and(
+            isType(estimates, t -> t.isNumeric() && isRepresentable(t), sourceText(), SECOND, "numeric")
+        );
     }
 
     @Override
@@ -90,12 +94,17 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(bestEstimate.dataType())) {
-            case DOUBLE ->
-                new ConfidenceIntervalDoubleEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
-            case INT ->
-                new ConfidenceIntervalIntEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
-            case LONG ->
-                new ConfidenceIntervalLongEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
+            case DOUBLE -> new ConfidenceIntervalDoubleEvaluator.Factory(
+                source(),
+                toEvaluator.apply(bestEstimate),
+                toEvaluator.apply(estimates)
+            );
+            case INT -> new ConfidenceIntervalIntEvaluator.Factory(source(), toEvaluator.apply(bestEstimate), toEvaluator.apply(estimates));
+            case LONG -> new ConfidenceIntervalLongEvaluator.Factory(
+                source(),
+                toEvaluator.apply(bestEstimate),
+                toEvaluator.apply(estimates)
+            );
             default -> throw EsqlIllegalArgumentException.illegalDataType(bestEstimate.dataType());
         };
     }
@@ -220,10 +229,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
         sm /= Math.sqrt(estimatesMean.getN());
 
-        return new Number[] {
-            mm + sm * (z0 + zl / (1 - Math.min(0.8, a * zl))),
-            mm + sm * (z0 + zu / (1 - Math.min(0.8, a * zu))),
-        };
+        return new Number[] { mm + sm * (z0 + zl / (1 - Math.min(0.8, a * zl))), mm + sm * (z0 + zu / (1 - Math.min(0.8, a * zu))), };
     }
 
     @Override

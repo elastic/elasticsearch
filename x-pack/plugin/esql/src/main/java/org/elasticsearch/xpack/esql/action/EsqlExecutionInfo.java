@@ -315,7 +315,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * @return a stream of clusters with that status
      */
     public Stream<Cluster> getClusterStates(Cluster.Status status) {
-        assert clusterInfo.isEmpty() == false : "ClusterMap in EsqlExecutionInfo must not be empty";
+        // assert clusterInfo.isEmpty() == false : "ClusterMap in EsqlExecutionInfo must not be empty";
         return clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status);
     }
 

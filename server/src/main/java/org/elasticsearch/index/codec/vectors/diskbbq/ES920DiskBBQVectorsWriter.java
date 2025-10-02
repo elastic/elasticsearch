@@ -374,6 +374,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
+    @Override
+    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids) {
+        // Do Nothing Extra
+    }
+
     private void writeCentroidsWithParents(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -632,7 +637,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             return corrections;
         }
     }
@@ -684,7 +689,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call next first");
             }
@@ -734,7 +739,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call readQuantizedVector first");
             }

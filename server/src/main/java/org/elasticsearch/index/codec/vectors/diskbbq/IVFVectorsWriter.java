@@ -52,8 +52,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final List<FieldWriter> fieldWriters = new ArrayList<>();
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
-    private final String rawVectorFormatName;
-    private final FlatVectorsWriter rawVectorDelegate;
+    protected final String rawVectorFormatName;
+    protected final FlatVectorsWriter rawVectorDelegate;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(SegmentWriteState state, String rawVectorFormatName, FlatVectorsWriter rawVectorDelegate)
@@ -267,6 +267,35 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
     }
+
+    private void writeMeta(
+        FieldInfo field,
+        int numCentroids,
+        long centroidOffset,
+        long centroidLength,
+        long postingListOffset,
+        long postingListLength,
+        float[] globalCentroid
+    ) throws IOException {
+        ivfMeta.writeInt(field.number);
+        ivfMeta.writeString(rawVectorFormatName);
+        ivfMeta.writeInt(field.getVectorEncoding().ordinal());
+        ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
+        ivfMeta.writeInt(numCentroids);
+        ivfMeta.writeLong(centroidOffset);
+        ivfMeta.writeLong(centroidLength);
+        if (centroidLength > 0) {
+            ivfMeta.writeLong(postingListOffset);
+            ivfMeta.writeLong(postingListLength);
+            final ByteBuffer buffer = ByteBuffer.allocate(globalCentroid.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            buffer.asFloatBuffer().put(globalCentroid);
+            ivfMeta.writeBytes(buffer.array(), buffer.array().length);
+            ivfMeta.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(globalCentroid, globalCentroid)));
+        }
+        doWriteMeta(ivfMeta, field, numCentroids);
+    }
+
+    protected abstract void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
@@ -486,33 +515,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return numVectors;
     }
 
-    private void writeMeta(
-        FieldInfo field,
-        int numCentroids,
-        long centroidOffset,
-        long centroidLength,
-        long postingListOffset,
-        long postingListLength,
-        float[] globalCentroid
-    ) throws IOException {
-        ivfMeta.writeInt(field.number);
-        ivfMeta.writeString(rawVectorFormatName);
-        ivfMeta.writeInt(field.getVectorEncoding().ordinal());
-        ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
-        ivfMeta.writeInt(numCentroids);
-        ivfMeta.writeLong(centroidOffset);
-        ivfMeta.writeLong(centroidLength);
-        if (centroidLength > 0) {
-            ivfMeta.writeLong(postingListOffset);
-            ivfMeta.writeLong(postingListLength);
-            final ByteBuffer buffer = ByteBuffer.allocate(globalCentroid.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-            buffer.asFloatBuffer().put(globalCentroid);
-            ivfMeta.writeBytes(buffer.array(), buffer.array().length);
-            ivfMeta.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(globalCentroid, globalCentroid)));
-        }
-    }
-
-    private static int distFuncToOrd(VectorSimilarityFunction func) {
+    public static int distFuncToOrd(VectorSimilarityFunction func) {
         for (int i = 0; i < SIMILARITY_FUNCTIONS.size(); i++) {
             if (SIMILARITY_FUNCTIONS.get(i).equals(func)) {
                 return (byte) i;

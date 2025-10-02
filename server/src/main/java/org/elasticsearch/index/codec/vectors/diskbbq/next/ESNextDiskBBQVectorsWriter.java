@@ -58,17 +58,20 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
+    private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
 
     public ESNextDiskBBQVectorsWriter(
         String rawVectorFormatName,
         SegmentWriteState state,
         FlatVectorsWriter rawVectorDelegate,
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
         int vectorPerCluster,
         int centroidsPerParentCluster
     ) throws IOException {
         super(state, rawVectorFormatName, rawVectorDelegate);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
+        this.quantEncoding = encoding;
     }
 
     @Override
@@ -118,6 +121,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
+            quantEncoding,
             fieldInfo.getVectorDimension(),
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
@@ -190,8 +194,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-            int[] quantized = new int[fieldInfo.getVectorDimension()];
-            byte[] binary = new byte[BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8];
+            int[] quantized = new int[quantEncoding.discretizedDimensions(fieldInfo.getVectorDimension())];
+            byte[] binary = new byte[quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())];
             float[] scratch = new float[fieldInfo.getVectorDimension()];
             for (int i = 0; i < assignments.length; i++) {
                 int c = assignments[i];
@@ -202,16 +206,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     vector,
                     scratch,
                     quantized,
-                    (byte) 1,
+                    quantEncoding.bits(),
                     centroid
                 );
-                BQVectorUtils.packAsBinary(quantized, binary);
+                quantEncoding.pack(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 if (overspill) {
                     int s = overspillAssignments[i];
                     // write the overspill vector as well
-                    result = quantizer.scalarQuantize(vector, scratch, quantized, (byte) 1, centroidSupplier.centroid(s));
-                    BQVectorUtils.packAsBinary(quantized, binary);
+                    result = quantizer.scalarQuantize(vector, scratch, quantized, quantEncoding.bits(), centroidSupplier.centroid(s));
+                    quantEncoding.pack(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {
                     // write a zero vector for the overspill
@@ -362,6 +366,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         float[] globalCentroid
     ) {
         return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
+    }
+
+    @Override
+    protected void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException {
+        metaOutput.writeInt(quantEncoding.id());
     }
 
     @Override
@@ -519,7 +528,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         throws IOException {
 
         long nanoTime = System.nanoTime();
-
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         CentroidAssignments centroidAssignments = buildCentroidAssignments(floatVectorValues, vectorPerCluster);
         float[][] centroids = centroidAssignments.centroids();
@@ -640,7 +648,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             return corrections;
         }
     }
@@ -651,14 +659,21 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final byte[] quantizedVector;
         private final int[] quantizedVectorScratch;
         private final float[] floatVectorScratch;
+        private final ESNextDiskBBQVectorsFormat.QuantEncoding encoding;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private float[] currentCentroid;
         private IntToIntFunction ordTransformer = null;
         private int currOrd = -1;
         private int count;
 
-        OnHeapQuantizedVectors(FloatVectorValues vectorValues, int dimension, OptimizedScalarQuantizer quantizer) {
+        OnHeapQuantizedVectors(
+            FloatVectorValues vectorValues,
+            ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
+            int dimension,
+            OptimizedScalarQuantizer quantizer
+        ) {
             this.vectorValues = vectorValues;
+            this.encoding = encoding;
             this.quantizer = quantizer;
             this.quantizedVector = new byte[BQVectorUtils.discretize(dimension, 64) / 8];
             this.floatVectorScratch = new float[dimension];
@@ -686,13 +701,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             currOrd++;
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
-            corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
-            BQVectorUtils.packAsBinary(quantizedVectorScratch, quantizedVector);
+            corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, encoding.bits(), currentCentroid);
+            encoding.pack(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call next first");
             }
@@ -742,7 +757,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call readQuantizedVector first");
             }

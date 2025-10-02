@@ -187,7 +187,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
-        return new FieldEntry(
+        return doReadField(
+            input,
             rawVectorFormat,
             similarityFunction,
             vectorEncoding,
@@ -200,6 +201,20 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             globalCentroidDp
         );
     }
+
+    protected abstract FieldEntry doReadField(
+        IndexInput input,
+        String rawVectorFormat,
+        VectorSimilarityFunction similarityFunction,
+        VectorEncoding vectorEncoding,
+        int numCentroids,
+        long centroidOffset,
+        long centroidLength,
+        long postingListOffset,
+        long postingListLength,
+        float[] globalCentroid,
+        float globalCentroidDp
+    ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
         final int i = input.readInt();
@@ -367,23 +382,63 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IOUtils.close(closeables);
     }
 
-    protected record FieldEntry(
-        String rawVectorFormatName,
-        VectorSimilarityFunction similarityFunction,
-        VectorEncoding vectorEncoding,
-        int numCentroids,
-        long centroidOffset,
-        long centroidLength,
-        long postingListOffset,
-        long postingListLength,
-        float[] globalCentroid,
-        float globalCentroidDp
-    ) {
-        IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
+    protected static class FieldEntry {
+        protected final String rawVectorFormatName;
+        protected final VectorSimilarityFunction similarityFunction;
+        protected final VectorEncoding vectorEncoding;
+        protected final int numCentroids;
+        protected final long centroidOffset;
+        protected final long centroidLength;
+        protected final long postingListOffset;
+        protected final long postingListLength;
+        protected final float[] globalCentroid;
+        protected final float globalCentroidDp;
+
+        protected FieldEntry(
+            String rawVectorFormatName,
+            VectorSimilarityFunction similarityFunction,
+            VectorEncoding vectorEncoding,
+            int numCentroids,
+            long centroidOffset,
+            long centroidLength,
+            long postingListOffset,
+            long postingListLength,
+            float[] globalCentroid,
+            float globalCentroidDp
+        ) {
+            this.rawVectorFormatName = rawVectorFormatName;
+            this.similarityFunction = similarityFunction;
+            this.vectorEncoding = vectorEncoding;
+            this.numCentroids = numCentroids;
+            this.centroidOffset = centroidOffset;
+            this.centroidLength = centroidLength;
+            this.postingListOffset = postingListOffset;
+            this.postingListLength = postingListLength;
+            this.globalCentroid = globalCentroid;
+            this.globalCentroidDp = globalCentroidDp;
+        }
+
+        public int numCentroids() {
+            return numCentroids;
+        }
+
+        public float[] globalCentroid() {
+            return globalCentroid;
+        }
+
+        public float globalCentroidDp() {
+            return globalCentroidDp;
+        }
+
+        public VectorSimilarityFunction similarityFunction() {
+            return similarityFunction;
+        }
+
+        public IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }
 
-        IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
+        public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
             return postingListFile.slice("postingLists", postingListOffset, postingListLength);
         }
     }

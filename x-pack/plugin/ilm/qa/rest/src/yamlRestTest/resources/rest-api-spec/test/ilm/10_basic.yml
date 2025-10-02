@@ -397,7 +397,7 @@ setup:
            }
 
 ---
-# This test checks that the deprecation warning is issues when a deprecated rollover condition is part of the policy
+# This test checks that the deprecation warning is issued when a deprecated rollover condition is part of the policy
 # On both creation and update of an existing policy
 "Test Deprecated Condition On Policy Put / Update":
   - requires:

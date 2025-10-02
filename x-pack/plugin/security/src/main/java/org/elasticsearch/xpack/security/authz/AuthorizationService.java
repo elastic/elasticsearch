@@ -515,7 +515,7 @@ public class AuthorizationService {
                         authzInfo,
                         projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(authorizedIndices -> {
-                            if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.crossProjectResolvable()) {
+                            if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsCrossProject()) {
                                 authorizedProjectsSupplier.getAuthorizedProjects(
                                     ActionListener.wrap(
                                         authorizedProjects -> resolvedIndicesListener.onResponse(

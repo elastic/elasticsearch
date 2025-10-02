@@ -81,7 +81,10 @@ public interface IndicesRequest {
             return false;
         }
 
-        default boolean crossProjectResolvable() {
+        /**
+         * Determines whether the request type allows cross-project processing.
+         */
+        default boolean allowsCrossProject() {
             return false;
         }
     }

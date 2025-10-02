@@ -199,7 +199,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
-        public boolean crossProjectResolvable() {
+        public boolean allowsCrossProject() {
             return true;
         }
 
@@ -619,7 +619,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
-            final boolean resolveCrossProject = resolveCrossProject(originalIndicesOptions);
+            final boolean resolveCrossProject = resolveCrossProject(request);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 resolveCrossProject ? lenientIndicesOptions(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()

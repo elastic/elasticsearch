@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -151,9 +152,10 @@ public class CrossProjectResponseValidator {
         }
     }
 
-    public static boolean resolveCrossProject(IndicesOptions indicesOptions) {
+    public static boolean resolveCrossProject(IndicesRequest.Replaceable request) {
         // TODO this needs to be based on the IndicesOptions flag instead, once available
-        return Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
+        final boolean indicesOptionsResolveCrossProject = Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
+        return request.allowsCrossProject() && indicesOptionsResolveCrossProject;
     }
 
     public static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {

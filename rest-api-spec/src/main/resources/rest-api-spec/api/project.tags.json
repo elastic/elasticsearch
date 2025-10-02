@@ -1,7 +1,7 @@
 {
   "project.tags": {
     "documentation": {
-      "url": "",
+      "url": null,
       "description": "Return tags defined for the project"
     },
     "stability": "experimental",

@@ -16,6 +16,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
@@ -157,6 +158,9 @@ public final class MergePolicyConfig {
         Property.Dynamic,
         Property.IndexScope
     );
+    private static final CompoundFileThreshold DEFAULT_COMPOUND_FILE_THRESHOLD = parseCompoundFormat(
+        INDEX_COMPOUND_FORMAT_SETTING.getDefaultRaw(Settings.EMPTY)
+    );
 
     public enum Type {
         UNSET {
@@ -294,7 +298,11 @@ public final class MergePolicyConfig {
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
         setMergePolicyType(mergePolicyType);
-        setCompoundFormatThreshold(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
+        // This setting is rarely configured (it isn't even documented), so we use a default instance to avoid parsing.
+        final CompoundFileThreshold compoundFileThreshold = INDEX_COMPOUND_FORMAT_SETTING.exists(indexSettings.getSettings())
+            ? indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING)
+            : DEFAULT_COMPOUND_FILE_THRESHOLD;
+        setCompoundFormatThreshold(compoundFileThreshold);
         setExpungeDeletesAllowed(forceMergeDeletesPctAllowed);
         setFloorSegmentSetting(floorSegment);
         setMaxMergesAtOnce(maxMergeAtOnce);

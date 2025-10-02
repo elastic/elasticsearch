@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -226,7 +225,7 @@ public class LocalExecutionPlanner {
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
         localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
-            a -> a.getMode() == AggregatorMode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
+            a -> a.getMode().isOutputPartial() ? a : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates()))
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
 

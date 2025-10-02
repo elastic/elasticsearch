@@ -131,7 +131,9 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Evaluator(extraName = "Double")
     static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock bestEstimateBlock, DoubleBlock estimatesBlock) {
-        assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
+        if (bestEstimateBlock.getValueCount(position) != 1) {
+            builder.appendNull();
+        }
         Number bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
 
         Number[] estimates = new Number[estimatesBlock.getValueCount(position)];
@@ -145,13 +147,14 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             builder.appendDouble(v.doubleValue());
         }
         builder.endPositionEntry();
-
-        System.out.println("@@@ bestEstimate = " + bestEstimate + ", estimates = " + Arrays.toString(estimates) + " --> confidenceInterval = " + Arrays.toString(confidenceInterval));
     }
 
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, @Position int position, IntBlock bestEstimateBlock, IntBlock estimatesBlock) {
-        assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
+        if (bestEstimateBlock.getValueCount(position) != 1) {
+            builder.appendNull();
+            return;
+        }
         Number bestEstimate = bestEstimateBlock.getInt(bestEstimateBlock.getFirstValueIndex(position));
 
         Number[] estimates = new Number[estimatesBlock.getValueCount(position)];
@@ -169,7 +172,10 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, @Position int position, LongBlock bestEstimateBlock, LongBlock estimatesBlock) {
-        assert bestEstimateBlock.getValueCount(position) == 1 : "bestEstimate: expected 1 element, got " + bestEstimateBlock.getValueCount(position);
+        if (bestEstimateBlock.getValueCount(position) != 1) {
+            builder.appendNull();
+            return;
+        }
         Number bestEstimate = bestEstimateBlock.getLong(bestEstimateBlock.getFirstValueIndex(position));
 
         Number[] estimates = new Number[estimatesBlock.getValueCount(position)];

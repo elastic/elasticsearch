@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -1231,18 +1232,38 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     public void testPushDownFilterOnReferenceAttributesPastUnionAllDebug() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var plan = planSubquery("""
-            FROM test, (FROM test1 | where salary < 100000 | EVAL x = 1, y = emp_no, z = emp_no + 1)
+            FROM test
+                       , (FROM test1
+                          | where salary < 100000
+                          | EVAL x = 1, y = emp_no, z = emp_no + 1)
+                       , (FROM languages
+                          | STATS cnt = COUNT(*) by language_code
+                          | RENAME language_code AS z, cnt AS y
+                          | EVAL x = 1)
+                       , (FROM test1
+                          | RENAME languages AS language_code
+                          | LOOKUP JOIN languages_lookup ON language_code
+                          | RENAME emp_no AS x, salary AS y, language_code AS z)
             | WHERE x is not null and y is not null and z > 0
             """);
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
+        assertEquals(4, unionAll.children().size());
 
         LocalRelation child1 = as(unionAll.children().get(0), LocalRelation.class);
 
         EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
-        Limit childLimit = as(child2.child(), Limit.class);
+        Filter filter = as(child2.child(), Filter.class);
+        IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
+        ReferenceAttribute y = as(isNotNull.field(), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        Eval eval = as(filter.child(), Eval.class);
+        List<Alias> aliases = eval.fields();
+        assertEquals(2, aliases.size());
+        assertEquals("language_name", aliases.get(0).name());
+        assertEquals("y", aliases.get(1).name());
+        Limit childLimit = as(eval.child(), Limit.class);
         Subquery subquery = as(childLimit.child(), Subquery.class);
         Project project = as(subquery.child(), Project.class);
         Filter childFilter = as(project.child(), Filter.class);
@@ -1251,8 +1272,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals("z", z.name());
         Literal right = as(greaterThan.right(), Literal.class);
         assertEquals(0, right.value());
-        Eval eval = as(childFilter.child(), Eval.class);
-        List<Alias> aliases = eval.fields();
+        eval = as(childFilter.child(), Eval.class);
+        aliases = eval.fields();
         assertEquals(2, aliases.size());
         Alias aliasX = aliases.get(0);
         assertEquals("x", aliasX.name());
@@ -1261,17 +1282,67 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         Alias aliasZ = aliases.get(1);
         assertEquals("z", aliasZ.name());
         childFilter = as(eval.child(), Filter.class);
-        And and = as(childFilter.condition(), And.class);
-        IsNotNull isNotNull = as(and.right(), IsNotNull.class);
-        FieldAttribute emp_no = as(isNotNull.field(), FieldAttribute.class);
-        assertEquals("emp_no", emp_no.name());
-        LessThan lessThan = as(and.left(), LessThan.class);
+        LessThan lessThan = as(childFilter.condition(), LessThan.class);
         FieldAttribute salaryField = as(lessThan.left(), FieldAttribute.class);
         assertEquals("salary", salaryField.name());
         Literal literal = as(lessThan.right(), Literal.class);
         assertEquals(100000, literal.value());
         EsRelation relation = as(childFilter.child(), EsRelation.class);
         assertEquals("test1", relation.indexPattern());
+
+        EsqlProject child3 = as(unionAll.children().get(2), EsqlProject.class);
+        eval = as(child3.child(), Eval.class);
+        limit = as(eval.child(), Limit.class);
+        subquery = as(limit.child(), Subquery.class);
+        eval = as(subquery.child(), Eval.class);
+        filter = as(eval.child(), Filter.class);
+        And and = as(filter.condition(), And.class);
+        isNotNull = as(and.left(), IsNotNull.class);
+        y = as(isNotNull.field(), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        greaterThan = as(and.right(), GreaterThan.class);
+        z = as(greaterThan.left(), ReferenceAttribute.class);
+        assertEquals("z", z.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        Aggregate aggregate = as(filter.child(), Aggregate.class);
+        List<Expression> groupings = aggregate.groupings();
+        assertEquals(1, groupings.size());
+        FieldAttribute language_code = as(groupings.get(0), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertEquals(2, aggregates.size());
+        assertEquals("y", aggregates.get(0).name());
+        assertEquals("z", aggregates.get(1).name());
+        relation = as(aggregate.child(), EsRelation.class);
+        assertEquals("languages", relation.indexPattern());
+
+        EsqlProject child4 = as(unionAll.children().get(3), EsqlProject.class);
+        filter = as(child4.child(), Filter.class);
+        isNotNull = as(filter.condition(), IsNotNull.class);
+        ReferenceAttribute x = as(isNotNull.field(), ReferenceAttribute.class);
+        assertEquals("y", x.name());
+        eval = as(filter.child(), Eval.class);
+        aliases = eval.fields();
+        assertEquals(4, aliases.size());
+        limit = as(eval.child(), Limit.class);
+        subquery = as(limit.child(), Subquery.class);
+        project = as(subquery.child(), Project.class);
+        Join lookupJoin = as(project.child(), Join.class);
+        Filter leftFilter = as(lookupJoin.left(), Filter.class);
+        and = as(leftFilter.condition(), And.class);
+        isNotNull = as(and.left(), IsNotNull.class);
+        FieldAttribute emp_no = as(isNotNull.field(), FieldAttribute.class);
+        assertEquals("emp_no", emp_no.name());
+        greaterThan = as(and.right(), GreaterThan.class);
+        language_code = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", language_code.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        relation = as(leftFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+        relation = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("languages_lookup", relation.indexPattern());
     }
 
     public void testPushDownFilterOnReferenceAttributesAndFieldAttributesPastUnionAllDebug() {

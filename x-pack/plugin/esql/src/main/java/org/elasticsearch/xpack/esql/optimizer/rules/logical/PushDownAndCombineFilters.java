@@ -329,24 +329,31 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         if (pushable.isEmpty()) {
             return filter; // nothing to push down
         }
-        // Preserve the filter on top of UnionAll if not all pushable predicates can be pushed down into UnionAll children.
-        // This happens when the pushable predicate contains ReferenceAttribute that cannot be mapped to children's output correctly.
-        boolean preserveOriginalFilterOnTopOfUnionAll = false;
-        // Push the filter down to each child of the UnionAll, the child of a UnionAll is always a project
-        // followed by an optional eval and then limit added by fork and then the real child
+        // Push the filter down to each child of the UnionAll, the child of a UnionAll is always
+        // a project followed by an optional eval and then limit or a limit added by fork and
+        // then the real child, if there is unknown pattern, keep the filter and UnionAll plan unchanged
         List<LogicalPlan> newChildren = new ArrayList<>();
         boolean changed = false;
         for (LogicalPlan child : unionAll.children()) {
-            if (child instanceof Project project) {
-                LogicalPlan newChild = maybePushDownFilterPastEvalAndLimitForUnionAllChild(pushable, project);
-                if (newChild != child) {
-                    changed = true;
-                } else {
-                    preserveOriginalFilterOnTopOfUnionAll = true;
-                }
+            LogicalPlan newChild = switch (child) {
+                case Project project -> maybePushDownFilterPastProjectForUnionAllChild(pushable, project);
+                case Limit limit -> maybePushDownFilterPastLimitForUnionAllChild(pushable, limit);
+                default -> null; // TODO add a general push down for unexpected pattern
+            };
+
+            if (newChild == null) {
+                // Unexpected pattern, keep plan unchanged without pushing down filters
+                return filter;
+            }
+
+            if (newChild != child) {
+                changed = true;
                 newChildren.add(newChild);
-            } else { // unexpected pattern, just add the child as is
-                newChildren.add(child);
+            } else {
+                // Theoretically, all the pushable predicates should be pushed down into each child,
+                // in case one child is not changed, preserve the filter on top of UnionAll to make sure
+                // correct results are returned and avoid infinite loop of the rule.
+                return filter;
             }
         }
 
@@ -355,11 +362,6 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         }
 
         LogicalPlan newUnionAll = unionAll.replaceChildren(newChildren);
-        if (preserveOriginalFilterOnTopOfUnionAll) {
-            // Preserve the filter on top of UnionAll as some pushable predicates cannot be pushed down
-            // to make sure correct results are returned
-            return filter.replaceChild(newUnionAll);
-        }
         if (nonPushable.isEmpty()) {
             return newUnionAll;
         } else {
@@ -367,22 +369,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         }
     }
 
-    private static LogicalPlan maybePushDownFilterPastEvalAndLimitForUnionAllChild(List<Expression> pushable, Project project) {
-        List<Expression> resolvedPushable = new ArrayList<>();
-        // Make sure the pushable predicates can find their corresponding attributes in the child project
-        for (Expression exp : pushable) {
-            Expression replaced = resolveUnionAllOutputByName(exp, project.projections());
-            if (replaced == null || replaced == exp) {
-                // cannot find the attribute in the child project, cannot push down this filter
-                return project;
-            } else {
-                resolvedPushable.add(replaced);
-            }
-        }
-        if (resolvedPushable.size() != pushable.size()) {
-            // Some pushable predicates cannot be resolved to the child project, cannot push down.
-            // This should not happen, however we need to be cautious here, if the predicate is removed from the main query,
-            // and it is not pushed down into the UnionAll child, the result will be incorrect.
+    private static LogicalPlan maybePushDownFilterPastProjectForUnionAllChild(List<Expression> pushable, Project project) {
+        List<Expression> resolvedPushable = resolvePushableAgainstOutput(pushable, project.projections());
+        if (resolvedPushable == null) {
             return project;
         }
         LogicalPlan child = project.child();
@@ -393,6 +382,35 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             return project.replaceChild(newLimit);
         }
         return project;
+    }
+
+    private static LogicalPlan maybePushDownFilterPastLimitForUnionAllChild(List<Expression> pushable, Limit limit) {
+        List<Expression> resolvedPushable = resolvePushableAgainstOutput(pushable, limit.output());
+        if (resolvedPushable == null) {
+            return limit;
+        }
+        return pushDownFilterPastLimitForUnionAllChild(resolvedPushable, limit);
+    }
+
+    /**
+     * Attempts to resolve all pushable expressions against the given output attributes.
+     * Returns a fully resolved list if successful, or null if any expression cannot be resolved.
+     */
+    private static List<Expression> resolvePushableAgainstOutput(List<Expression> pushable, List<? extends NamedExpression> output) {
+        List<Expression> resolved = new ArrayList<>();
+        for (Expression exp : pushable) {
+            Expression replaced = resolveUnionAllOutputByName(exp, output);
+            // Make sure the pushable predicates can find their corresponding attributes in the output
+            if (replaced == null || replaced == exp) {
+                // cannot find the attribute in the child project, cannot push down this filter
+                return null;
+            }
+            resolved.add(replaced);
+        }
+        // If some pushable predicates cannot be resolved against the output, cannot push filter down.
+        // This should not happen, however we need to be cautious here, if the predicate is removed from
+        // the main query, and it is not pushed down into the UnionAll child, the result will be incorrect.
+        return resolved.size() == pushable.size() ? resolved : null;
     }
 
     private static LogicalPlan pushDownFilterPastEvalForUnionAllChild(List<Expression> pushable, Project project, Eval eval) {

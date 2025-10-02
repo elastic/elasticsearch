@@ -92,6 +92,49 @@ null           | null           | null              | 1        | 172.21.2.162
 null           | null           | null              | 4        | 172.21.3.15
 ;
 
+subqueryInFromWithStatsInSubqueryConjunctiveFilterInMainQuery
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM sample_data
+                                | STATS cnt = count(*) by client_ip )
+                              , (FROM sample_data_str
+                                | STATS cnt = count(*) by client_ip )
+           metadata _index
+| EVAL client_ip = client_ip::ip
+| WHERE client_ip == "172.21.3.15" AND cnt >0
+| SORT emp_no, client_ip
+| KEEP _index,  emp_no, languages, cnt, client_ip
+;
+
+_index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
+null           | null           | null              | 4        | 172.21.3.15
+null           | null           | null              | 4        | 172.21.3.15
+;
+
+subqueryInFromWithStatsInSubqueryDisjunctiveFilterInMainQuery
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM sample_data
+                                | STATS cnt = count(*) by client_ip )
+                              , (FROM sample_data_str
+                                | STATS cnt = count(*) by client_ip )
+           metadata _index
+| EVAL client_ip = client_ip::ip
+| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR client_ip == "172.21.3.15"
+| SORT emp_no, client_ip
+| KEEP _index,  emp_no, languages, cnt, client_ip
+;
+
+_index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
+employees      | 10091          | 3                 | null     | null
+employees      | 10092          | 1                 | null     | null
+employees      | 10093          | 3                 | null     | null
+null           | null           | null              | 4        | 172.21.3.15
+null           | null           | null              | 4        | 172.21.3.15
+;
+
 subqueryInFromWithStatsInMainQuery
 required_capability: fork_v9
 required_capability: subquery_in_from_command

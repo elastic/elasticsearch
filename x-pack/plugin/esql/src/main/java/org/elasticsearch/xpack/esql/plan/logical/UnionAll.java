@@ -106,6 +106,10 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
         return UnionAll::checkNestedUnionAlls;
     }
 
+    /**
+     * Defer the check for nested UnionAlls until after logical planner as some of the nested subqueries can be flattened
+     * by logical planner in the future.
+     */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
             unionAll.forEachDown(UnionAll.class, otherUnionAll -> {

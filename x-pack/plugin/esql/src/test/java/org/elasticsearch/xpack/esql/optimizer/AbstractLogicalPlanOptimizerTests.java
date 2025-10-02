@@ -203,7 +203,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
-                emptyMap(),
+                defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution(),
                 Map.of("test1", subqueryIndex1, "languages", subqueryIndex2)

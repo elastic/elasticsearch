@@ -52,7 +52,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,11 +88,6 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
         assertThat(fieldExistsQuery.getField(), equalTo("field.template_id"));
         assertNoFieldNamesField(fields);
-    }
-
-    @Before
-    public void setup() {
-        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
     }
 
     public void testExistsStandardSource() throws IOException {

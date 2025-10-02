@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -23,6 +24,8 @@ import java.io.IOException;
  * <p>
  * For exceptions thrown prior to publication,
  * when the cluster update has <i>definitely</i> failed, use a {@link FailedToPublishClusterStateException}.
+ * <p>
+ * If during a cluster state update the node is no longer master, use a {@link NotMasterException}
  * <p>
  * This is a retryable exception inside {@link TransportMasterNodeAction}
  * <p>

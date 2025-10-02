@@ -241,7 +241,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
         }
 
-        int bytesToAdd = operation.length();
         final Translog.Location location;
         synchronized (this) {
             ensureOpen();
@@ -250,7 +249,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
-            totalOffset += bytesToAdd;
+            totalOffset += operation.length();
             operation.writeToTranslogBuffer(buffer);
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
@@ -265,7 +264,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             assert assertNoSeqNumberConflict(seqNo, operation);
 
-            location = new Translog.Location(generation, offset, bytesToAdd);
+            location = new Translog.Location(generation, offset, operation.length());
             operationListener.operationAdded(operation, seqNo, location);
             bufferedBytes = buffer.size();
         }

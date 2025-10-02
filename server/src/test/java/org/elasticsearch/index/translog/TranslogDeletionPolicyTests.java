@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -106,7 +107,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
                 out.writeInt(ops);
-                writer.add(new Translog.Serialized(header, new BytesArray(bytes), header.length() + bytes.length + 4, 0), ops);
+                writer.add(Translog.Serialized.create(header, new BytesArray(bytes), new CRC32()), ops);
             }
         }
         return new Tuple<>(readers, writer);

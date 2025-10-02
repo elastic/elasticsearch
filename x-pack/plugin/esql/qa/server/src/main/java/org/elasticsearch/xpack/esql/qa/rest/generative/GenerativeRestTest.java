@@ -66,6 +66,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
+        "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
+        "can't build page out of released blocks", // https://github.com/elastic/elasticsearch/issues/135679
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

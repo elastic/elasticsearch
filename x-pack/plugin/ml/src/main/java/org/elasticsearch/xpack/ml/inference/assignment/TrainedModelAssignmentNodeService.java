@@ -62,7 +62,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
@@ -274,20 +274,27 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
         logger.debug(() -> format("[%s] Forcefully stopping deployment due to reason %s", task.getDeploymentId(), reason));
 
-        stopAndNotifyHelper(task, reason, listener, deploymentManager::stopDeployment);
+        stopAndNotifyHelper(task, reason, listener, (t, l) -> {
+            deploymentManager.stopDeployment(t);
+            l.onResponse(AcknowledgedResponse.TRUE);
+        });
     }
 
     private void stopAndNotifyHelper(
         TrainedModelDeploymentTask task,
         String reason,
         ActionListener<AcknowledgedResponse> listener,
-        Consumer<TrainedModelDeploymentTask> stopDeploymentFunc
+        BiConsumer<TrainedModelDeploymentTask, ActionListener<AcknowledgedResponse>> stopDeploymentFunc
     ) {
         // Removing the entry from the map to avoid the possibility of a node shutdown triggering a concurrent graceful stopping of the
         // process while we are attempting to forcefully stop the native process
         // The graceful stopping will only occur if there is an entry in the map
         deploymentIdToTask.remove(task.getDeploymentId());
-        ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(task.getDeploymentId(), reason, listener);
+        ActionListener<AcknowledgedResponse> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
+            task.getDeploymentId(),
+            reason,
+            listener
+        );
 
         updateStoredState(
             task.getDeploymentId(),
@@ -541,7 +548,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             )
         );
 
-        ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
+        ActionListener<AcknowledgedResponse> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
             task.getDeploymentId(),
             NODE_IS_SHUTTING_DOWN,
             routingStateListener
@@ -550,7 +557,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         stopDeploymentAfterCompletingPendingWorkAsync(task, NODE_IS_SHUTTING_DOWN, notifyDeploymentOfStopped);
     }
 
-    private ActionListener<Void> updateRoutingStateToStoppedListener(
+    private ActionListener<AcknowledgedResponse> updateRoutingStateToStoppedListener(
         String deploymentId,
         String reason,
         ActionListener<AcknowledgedResponse> listener
@@ -594,27 +601,30 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         );
     }
 
-    private void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
-        stopDeploymentHelper(task, reason, deploymentManager::stopDeployment, listener);
+    private void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
+        stopDeploymentHelper(task, reason, (t, l) -> {
+            deploymentManager.stopDeployment(t);
+            l.onResponse(AcknowledgedResponse.TRUE);
+        }, listener);
     }
 
     private void stopDeploymentHelper(
         TrainedModelDeploymentTask task,
         String reason,
-        Consumer<TrainedModelDeploymentTask> stopDeploymentFunc,
-        ActionListener<Void> listener
+        BiConsumer<TrainedModelDeploymentTask, ActionListener<AcknowledgedResponse>> stopDeploymentFunc,
+        ActionListener<AcknowledgedResponse> listener
     ) {
         if (stopped) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
             return;
         }
         task.markAsStopped(reason);
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                stopDeploymentFunc.accept(task);
                 taskManager.unregister(task);
                 deploymentIdToTask.remove(task.getDeploymentId());
-                listener.onResponse(null);
+                stopDeploymentFunc.accept(task, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -624,7 +634,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     private void stopDeploymentAfterCompletingPendingWorkAsync(
         TrainedModelDeploymentTask task,
         String reason,
-        ActionListener<Void> listener
+        ActionListener<AcknowledgedResponse> listener
     ) {
         stopDeploymentHelper(task, reason, deploymentManager::stopAfterCompletingPendingWork, listener);
     }
@@ -769,6 +779,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void updateStoredState(String deploymentId, RoutingInfoUpdate update, ActionListener<AcknowledgedResponse> listener) {
         if (stopped) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
             return;
         }
         trainedModelAssignmentService.updateModelAssignmentState(

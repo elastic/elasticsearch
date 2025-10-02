@@ -22,6 +22,7 @@ toc:
           - file: query-dsl/query-dsl-multi-match-query.md
           - file: query-dsl/query-dsl-query-string-query.md
           - file: query-dsl/query-dsl-simple-query-string-query.md
+          - file: query-dsl/query-dsl-kql-query.md
       - file: query-dsl/geo-queries.md
         children:
           - file: query-dsl/query-dsl-geo-bounding-box-query.md

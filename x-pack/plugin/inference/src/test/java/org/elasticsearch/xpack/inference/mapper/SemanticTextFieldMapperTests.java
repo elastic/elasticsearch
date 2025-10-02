@@ -80,6 +80,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
@@ -108,13 +109,14 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -164,7 +166,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             protected Supplier<ModelRegistry> getModelRegistry() {
                 return () -> globalModelRegistry;
             }
-        }, new XPackClientPlugin());
+        }, new XPackClientPlugin(), new TestInferenceServicePlugin());
     }
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
@@ -221,7 +223,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void metaMapping(XContentBuilder b) throws IOException {
         super.metaMapping(b);
-        b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);
+        b.field(INFERENCE_ID_FIELD, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 
     @Override
@@ -289,7 +291,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = mapperService.documentMapper();
         assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
         assertSemanticTextField(mapperService, fieldName, false, null, null);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
@@ -303,14 +305,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 
         // Test 1: When EIS is available, should default to .elser-2-elastic
-        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenReturn(true);
+        when(globalModelRegistry.containsDefaultConfigId(DEFAULT_ELSER_ENDPOINT_ID_V2)).thenReturn(true);
         MapperService mapperServiceWithEis = createMapperService(fieldMapping, useLegacyFormat);
-        assertInferenceEndpoints(mapperServiceWithEis, fieldName, ".elser-2-elastic", ".elser-2-elastic");
+        assertInferenceEndpoints(mapperServiceWithEis, fieldName, DEFAULT_ELSER_ENDPOINT_ID_V2, DEFAULT_ELSER_ENDPOINT_ID_V2);
 
         // Test 2: When EIS is not available, should fallback to .elser-2-elasticsearch
-        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenReturn(false);
+        when(globalModelRegistry.containsDefaultConfigId(DEFAULT_ELSER_ENDPOINT_ID_V2)).thenReturn(false);
         MapperService mapperServiceWithoutEis = createMapperService(fieldMapping, useLegacyFormat);
-        assertInferenceEndpoints(mapperServiceWithoutEis, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+        assertInferenceEndpoints(mapperServiceWithoutEis, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 
     public void testDynamicElserDefaultSelectionEdgeCases() throws Exception {
@@ -318,9 +320,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 
         // Test: ModelRegistry throws exception - should fallback gracefully
-        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenThrow(new RuntimeException("Registry error"));
+        when(globalModelRegistry.containsDefaultConfigId(DEFAULT_ELSER_ENDPOINT_ID_V2)).thenThrow(new RuntimeException("Registry error"));
         MapperService mapperServiceWithError = createMapperService(fieldMapping, useLegacyFormat);
-        assertInferenceEndpoints(mapperServiceWithError, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+        assertInferenceEndpoints(mapperServiceWithError, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 
     public void testExplicitInferenceIdOverridesDynamicSelection() throws Exception {
@@ -331,7 +333,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
 
         // Even when EIS is available, explicit inference_id should take precedence
-        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenReturn(true);
+        when(globalModelRegistry.containsDefaultConfigId(DEFAULT_ELSER_ENDPOINT_ID_V2)).thenReturn(true);
         MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
         assertInferenceEndpoints(mapperService, fieldName, explicitInferenceId, explicitInferenceId);
     }

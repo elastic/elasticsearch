@@ -11,12 +11,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.plugins.InferencePlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.List;
 
-public class TestInferenceServicePlugin extends Plugin implements InferencePlugin {
+public class TestInferenceServicePlugin extends Plugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -61,18 +60,6 @@ public class TestInferenceServicePlugin extends Plugin implements InferencePlugi
                 TestCompletionServiceExtension.TestServiceSettings.NAME,
                 TestCompletionServiceExtension.TestServiceSettings::new
             )
-        );
-    }
-
-    @Override
-    public List<TestInferenceServiceExtension> getTestInferenceServiceExtensions() {
-        return List.of(
-            new TestCompletionServiceExtension(),
-            new TestDenseInferenceServiceExtension(),
-            new TestRerankingServiceExtension(),
-            new TestSparseInferenceServiceExtension(),
-            new TestStreamingCompletionServiceExtension(),
-            new TestEisMockInferenceServiceExtension()
         );
     }
 }

@@ -60,17 +60,20 @@ import static org.mockito.Mockito.when;
 public class HttpClientTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
+    private final MockWebServer redirectWebServer = new MockWebServer();
     private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
         webServer.start();
+        redirectWebServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
     public void shutdown() {
         terminate(threadPool);
+        redirectWebServer.close();
         webServer.close();
     }
 
@@ -95,6 +98,50 @@ public class HttpClientTests extends ESTestCase {
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequestBase().getURI().getPath()));
+            assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        }
+    }
+
+    public void testClientHandlesRedirect() throws Exception {
+        int responseCode = randomIntBetween(200, 203);
+        String body = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+
+        String paramKey = randomAlphaOfLength(3);
+        String paramValue = randomAlphaOfLength(3);
+        var redirectedPathSegment = randomAlphaOfLength(5);
+
+        var redirectedUri = new URIBuilder().setScheme("http")
+            .setHost("localhost")
+            .setPort(webServer.getPort())
+            .setPathSegments(redirectedPathSegment)
+            .setParameter(paramKey, paramValue)
+            .build();
+
+        redirectWebServer.enqueue(
+            new MockResponse().setResponseCode(307).addHeader(HttpHeaders.LOCATION, redirectedUri.toURL().toString())
+        );
+
+        var httpPost = createHttpPost(redirectWebServer.getPort(), paramKey, paramValue);
+
+        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager())) {
+            httpClient.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            httpClient.send(httpPost, HttpClientContext.create(), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
+            assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
+            assertThat(redirectWebServer.requests(), hasSize(1));
+            assertThat(redirectWebServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequestBase().getURI().getPath()));
+            assertThat(redirectWebServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
+            assertThat(redirectWebServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/" + redirectedPathSegment));
             assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
         }

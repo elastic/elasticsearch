@@ -22,6 +22,7 @@ toc:
           - file: query-dsl/query-dsl-multi-match-query.md
           - file: query-dsl/query-dsl-query-string-query.md
           - file: query-dsl/query-dsl-simple-query-string-query.md
+          - file: query-dsl/query-dsl-kql-query.md
       - file: query-dsl/geo-queries.md
         children:
           - file: query-dsl/query-dsl-geo-bounding-box-query.md
@@ -97,6 +98,7 @@ toc:
                   - file: esql/commands/from.md
                   - file: esql/commands/row.md
                   - file: esql/commands/show.md
+                  - file: esql/commands/ts.md
               - file: esql/commands/processing-commands.md
                 children:
                   - file: esql/commands/change-point.md
@@ -121,6 +123,7 @@ toc:
           - file: esql/esql-functions-operators.md
             children:
               - file: esql/functions-operators/aggregation-functions.md
+              - file: esql/functions-operators/time-series-aggregation-functions.md
               - file: esql/functions-operators/grouping-functions.md
               - file: esql/functions-operators/conditional-functions-and-expressions.md
               - file: esql/functions-operators/date-time-functions.md

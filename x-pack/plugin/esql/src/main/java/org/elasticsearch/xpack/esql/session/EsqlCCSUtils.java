@@ -23,7 +23,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -214,6 +213,9 @@ public class EsqlCCSUtils {
         IndexResolution indexResolution,
         boolean usedFilter
     ) {
+        if (executionInfo.clusterInfo.isEmpty()) {
+            return;
+        }
         // Get the clusters which are still running, and we will check whether they have any matching indices.
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
@@ -340,11 +342,9 @@ public class EsqlCCSUtils {
         }
         try {
             var groupedIndices = indicesGrouper.groupIndices(
-                // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
-                // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
-                Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
-                indexPattern.indexPattern()
+                Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
+                false
             );
 
             executionInfo.clusterInfoInitializing(true);
@@ -363,11 +363,8 @@ public class EsqlCCSUtils {
                 executionInfo.clusterInfoInitializing(false);
             }
 
-            // check if it is a cross-cluster query
-            if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                    throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-                }
+            if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
         } catch (NoSuchRemoteClusterException e) {
             if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {

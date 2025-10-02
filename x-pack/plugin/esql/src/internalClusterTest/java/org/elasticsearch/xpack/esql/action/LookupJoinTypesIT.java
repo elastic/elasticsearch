@@ -244,7 +244,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     if (type == NULL
                         || type == DOC_DATA_TYPE
                         || type == TSID_DATA_TYPE
-                        || type == AGGREGATE_METRIC_DOUBLE
+                        || type == AGGREGATE_METRIC_DOUBLE  // need special handling for loads at the moment
+                        || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == GEOHASH
                         || type == GEOTILE
                         || type == GEOHEX
@@ -1023,7 +1024,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private boolean isValidDataType(DataType dataType) {
-        return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
+        return UNDER_CONSTRUCTION.contains(dataType) == false;
     }
 
     private static void saveJoinTypes(Supplier<Set<DocsV3Support.TypeSignature>> signatures) throws Exception {

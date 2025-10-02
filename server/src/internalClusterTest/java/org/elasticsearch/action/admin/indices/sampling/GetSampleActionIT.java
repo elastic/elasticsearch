@@ -21,12 +21,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class GetSampleActionIT extends ESIntegTestCase {
 
@@ -73,7 +69,6 @@ public class GetSampleActionIT extends ESIntegTestCase {
 
     @SuppressWarnings("deprecation")
     private void addSamplingConfig(String indexName) throws Exception {
-        final CountDownLatch blockingClusterStateUpdateTaskExecuting = new CountDownLatch(1);
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitUnbatchedStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
@@ -86,24 +81,20 @@ public class GetSampleActionIT extends ESIntegTestCase {
                 );
                 projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, samplingMetadata);
                 ClusterState newState = new ClusterState.Builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
-                blockingClusterStateUpdateTaskExecuting.countDown();
                 return newState;
             }
 
             @Override
             public void onFailure(Exception e) {
-                blockingClusterStateUpdateTaskExecuting.countDown();
                 assert false : e.getMessage();
             }
         });
-        blockingClusterStateUpdateTaskExecuting.await(10, TimeUnit.SECONDS);
-        assertBusy(() -> {
+        awaitClusterState(state -> {
             SamplingMetadata samplingMetadata = clusterService.state()
                 .projectState(ProjectId.DEFAULT)
                 .metadata()
                 .custom(SamplingMetadata.TYPE);
-            assertThat(samplingMetadata, not(nullValue()));
-            assertThat(samplingMetadata.getIndexToSamplingConfigMap().get(indexName), not(nullValue()));
+            return samplingMetadata != null && samplingMetadata.getIndexToSamplingConfigMap().get(indexName) != null;
         });
     }
 }

@@ -904,7 +904,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersions.V_8_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
         );
-        assertSemanticTextField(mapperService, fieldName, false, null, null);
+        assertSemanticTextField(mapperService, fieldName, false);
 
         merge(
             mapperService,
@@ -921,7 +921,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
+        assertSemanticTextField(mapperService, fieldName, true);
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         DocumentParsingException e = assertThrows(
@@ -931,7 +931,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     b -> addSemanticTextInferenceResults(
                         true,
                         b,
-                        List.of(randomSemanticText(true, fieldName, model, null, List.of("foo", "bar"), XContentType.JSON))
+                        List.of(randomSemanticText(true, fieldName, model, List.of("foo", "bar"), XContentType.JSON))
                     )
                 )
             )
@@ -952,7 +952,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersions.V_8_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
         );
-        assertSemanticTextField(mapperService, fieldName, false, null, null);
+        assertSemanticTextField(mapperService, fieldName, false);
 
         merge(
             mapperService,
@@ -966,7 +966,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
+        assertSemanticTextField(mapperService, fieldName, true);
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         DocumentParsingException e = assertThrows(
@@ -976,7 +976,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     b -> addSemanticTextInferenceResults(
                         true,
                         b,
-                        List.of(randomSemanticText(true, fieldName, model, null, List.of("foo", "bar"), XContentType.JSON))
+                        List.of(randomSemanticText(true, fieldName, model, List.of("foo", "bar"), XContentType.JSON))
                     )
                 )
             )

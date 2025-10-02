@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestRolloverIndexAction extends BaseRestHandler {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportRolloverAction.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestRolloverIndexAction.class);
     public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition has been deprecated in favour of "
         + "the [max_primary_shard_size] condition and will be removed in a later version";
 

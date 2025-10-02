@@ -1224,21 +1224,24 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
         assertSemanticTextField(mapperService, fieldName, false, null, null);
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(
-            mapperService,
-            mapping(
-                b -> b.startObject(fieldName)
-                    .field("type", "semantic_text")
-                    .field("inference_id", "test_model")
-                    .startObject("model_settings")
-                    .field("task_type", TaskType.TEXT_EMBEDDING.toString())
-                    .field("dimensions", 256)
-                    .field("similarity", SimilarityMeasure.COSINE.toString())
-                    .field("element_type", DenseVectorFieldMapper.ElementType.FLOAT)
-                    .endObject()
-                    .endObject()
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(
+                mapperService,
+                mapping(
+                    b -> b.startObject(fieldName)
+                        .field("type", "semantic_text")
+                        .field("inference_id", "test_model")
+                        .startObject("model_settings")
+                        .field("task_type", TaskType.TEXT_EMBEDDING.toString())
+                        .field("dimensions", 256)
+                        .field("similarity", SimilarityMeasure.COSINE.toString())
+                        .field("element_type", DenseVectorFieldMapper.ElementType.FLOAT)
+                        .endObject()
+                        .endObject()
+                )
             )
-        ));
+        );
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: " + UNSUPPORTED_INDEX_MESSAGE));
     }
 
@@ -1252,18 +1255,21 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
         assertSemanticTextField(mapperService, fieldName, false, null, null);
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(
-            mapperService,
-            mapping(
-                b -> b.startObject(fieldName)
-                    .field("type", "semantic_text")
-                    .field("inference_id", "test_model")
-                    .startObject("model_settings")
-                    .field("task_type", TaskType.SPARSE_EMBEDDING.toString())
-                    .endObject()
-                    .endObject()
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(
+                mapperService,
+                mapping(
+                    b -> b.startObject(fieldName)
+                        .field("type", "semantic_text")
+                        .field("inference_id", "test_model")
+                        .startObject("model_settings")
+                        .field("task_type", TaskType.SPARSE_EMBEDDING.toString())
+                        .endObject()
+                        .endObject()
+                )
             )
-        ));
+        );
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: " + UNSUPPORTED_INDEX_MESSAGE));
     }
 

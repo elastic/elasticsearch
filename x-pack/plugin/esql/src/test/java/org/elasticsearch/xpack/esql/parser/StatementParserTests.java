@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
@@ -3214,8 +3213,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPatternFieldJoin() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
         var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
         var numberOfOnFields = randomIntBetween(1, 5);
@@ -3242,12 +3239,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
         assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
 
-        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-        assertThat(joinType.columns(), hasSize(numberOfOnFields));
+        assertThat(join.config().leftFields(), hasSize(numberOfOnFields));
         for (int i = 0; i < numberOfOnFields; i++) {
-            assertThat(as(joinType.columns().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
+            assertThat(as(join.config().leftFields().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
         }
-        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+        assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
     }
 
     /**
@@ -3532,8 +3528,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void testInvalidJoinPatterns(String onClause) {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         {
             // wildcard
             var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER), without(INDEX_SELECTOR));
@@ -4218,8 +4212,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
@@ -4318,8 +4310,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
         expectError(queryPrefix + " | FUSE BLA", "line 1:75: Fuse type BLA is not supported");
@@ -4603,9 +4593,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             LookupJoin join = as(limit.child(), LookupJoin.class);
             UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
             assertEquals(ur.indexPattern().indexPattern(), "idx");
-            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-            assertEquals(joinType.columns(), List.of(attribute("f9")));
+            assertEquals(join.config().type().joinName(), "LEFT OUTER");
+            assertEquals(join.config().leftFields(), List.of(attribute("f9")));
             Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
             Grok grok = as(rename.child(), Grok.class);
@@ -4713,9 +4702,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             LookupJoin join = as(limit.child(), LookupJoin.class);
             UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
             assertEquals(ur.indexPattern().indexPattern(), "idx");
-            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-            assertEquals(joinType.columns(), List.of(attribute("f13.f14")));
+            assertEquals(join.config().type().joinName(), "LEFT OUTER");
+            assertEquals(join.config().leftFields(), List.of(attribute("f13.f14")));
             Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
             Grok grok = as(rename.child(), Grok.class);
@@ -4964,9 +4952,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LookupJoin join = as(plan, LookupJoin.class);
         UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
         assertEquals(ur.indexPattern().indexPattern(), "idx");
-        JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-        assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-        assertEquals(joinType.columns(), List.of(attribute("f5")));
+        assertEquals(join.config().type().joinName(), "LEFT OUTER");
+        assertEquals(join.config().leftFields(), List.of(attribute("f5")));
         Drop drop = as(join.left(), Drop.class);
         List<? extends NamedExpression> removals = drop.removals();
         assertEquals(removals.size(), 2);

@@ -281,7 +281,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private final IgnoreAbove ignoreAbove;
 
         private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
-            super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
+            super(name, true, false, true, meta);
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
@@ -294,6 +294,11 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return context.fieldExistsInIndex(name());
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return Defaults.TEXT_SEARCH_INFO;
         }
 
         @Override

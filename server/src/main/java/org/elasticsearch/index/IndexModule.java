@@ -15,7 +15,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
@@ -27,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -169,9 +167,6 @@ public final class IndexModule {
     private final EngineFactory engineFactory;
     private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
-        new SetOnce<>();
-    // a limited version of the reader wrapper that only returns a query that can filter out documents
-    private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderFilter =
         new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities = new HashMap<>();
@@ -397,29 +392,6 @@ public final class IndexModule {
     }
 
     /**
-     * A limited version of {@link IndexModule#setReaderWrapper} that can only filter out documents matching a query.
-     * <p>
-     * The returned query may be null in which case no documents are filtered.
-     * @param indexReaderFilterFactory the factory for creating per-DirectoryReader @link Query} instances
-     */
-    public void setReaderFilter(Function<IndexService, CheckedFunction<DirectoryReader, Query, IOException>> indexReaderFilterFactory) {
-        ensureNotFrozen();
-        // convert the query filter into a reader wrapper
-        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = (indexService) -> {
-            var queryFactory = indexReaderFilterFactory.apply(indexService);
-            return (reader) -> {
-                Query query = queryFactory.apply(reader);
-                if (query == null) {
-                    return reader;
-                }
-                return Lucene.queryFilteredDirectoryReader(reader, query);
-            };
-        };
-
-        this.indexReaderFilter.set(readerWrapperFactory);
-    }
-
-    /**
      * Sets a {@link Directory} wrapping method that allows to apply a function to the Lucene directory instance
      * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
      *
@@ -527,23 +499,8 @@ public final class IndexModule {
         QueryRewriteInterceptor queryRewriteInterceptor
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
-        var readerFilterFactory = indexReaderFilter.get();
-        var readerWrapperFactory = indexReaderWrapper.get();
-
-        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrappersFactory = (indexService) -> {
-            if (readerFilterFactory == null && readerWrapperFactory == null) {
-                return null;
-            } else if (readerFilterFactory == null) {
-                return readerWrapperFactory.apply(indexService);
-            } else if (readerWrapperFactory == null) {
-                return readerFilterFactory.apply(indexService);
-            } else {
-                var readerFilter = readerFilterFactory.apply(indexService);
-                var readerWrapper = readerWrapperFactory.apply(indexService);
-                return (reader) -> readerWrapper.apply(readerFilter.apply(reader));
-            }
-        };
-
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
+            .get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
@@ -588,7 +545,7 @@ public final class IndexModule {
                 queryCache,
                 directoryFactory,
                 eventListener,
-                readerWrappersFactory,
+                readerWrapperFactory,
                 mapperRegistry,
                 indicesFieldDataCache,
                 searchOperationListeners,

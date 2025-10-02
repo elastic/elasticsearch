@@ -1215,62 +1215,96 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testPre811IndexSemanticTextDenseVectorRaisesError() throws IOException {
+        Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
         String fieldName = randomAlphaOfLength(8);
+
         MapperService mapperService = createMapperService(
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
+            mapping(
+                b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", model.getInferenceEntityId()).endObject()
+            ),
             true,
             IndexVersions.V_8_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
         );
         assertSemanticTextField(mapperService, fieldName, false, null, null);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> merge(
-                mapperService,
-                mapping(
-                    b -> b.startObject(fieldName)
-                        .field("type", "semantic_text")
-                        .field("inference_id", "test_model")
-                        .startObject("model_settings")
-                        .field("task_type", TaskType.TEXT_EMBEDDING.toString())
-                        .field("dimensions", 256)
-                        .field("similarity", SimilarityMeasure.COSINE.toString())
-                        .field("element_type", DenseVectorFieldMapper.ElementType.FLOAT)
-                        .endObject()
-                        .endObject()
+        merge(
+            mapperService,
+            mapping(
+                b -> b.startObject(fieldName)
+                    .field("type", "semantic_text")
+                    .field("inference_id", model.getInferenceEntityId())
+                    .startObject("model_settings")
+                    .field("task_type", TaskType.TEXT_EMBEDDING.toString())
+                    .field("dimensions", model.getServiceSettings().dimensions())
+                    .field("similarity", model.getServiceSettings().similarity())
+                    .field("element_type", model.getServiceSettings().elementType())
+                    .endObject()
+                    .endObject()
+            )
+        );
+        assertSemanticTextField(mapperService, fieldName, true, null, null);
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        true,
+                        b,
+                        List.of(randomSemanticText(true, fieldName, model, null, List.of("foo", "bar"), XContentType.JSON))
+                    )
                 )
             )
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: " + UNSUPPORTED_INDEX_MESSAGE));
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
+        assertThat(e.getCause().getMessage(), equalTo(UNSUPPORTED_INDEX_MESSAGE));
     }
 
     public void testPre811IndexSemanticTextSparseVectorRaisesError() throws IOException {
+        Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         String fieldName = randomAlphaOfLength(8);
+
         MapperService mapperService = createMapperService(
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
+            mapping(
+                b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", model.getInferenceEntityId()).endObject()
+            ),
             true,
             IndexVersions.V_8_0_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
         );
         assertSemanticTextField(mapperService, fieldName, false, null, null);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> merge(
-                mapperService,
-                mapping(
-                    b -> b.startObject(fieldName)
-                        .field("type", "semantic_text")
-                        .field("inference_id", "test_model")
-                        .startObject("model_settings")
-                        .field("task_type", TaskType.SPARSE_EMBEDDING.toString())
-                        .endObject()
-                        .endObject()
+        merge(
+            mapperService,
+            mapping(
+                b -> b.startObject(fieldName)
+                    .field("type", "semantic_text")
+                    .field("inference_id", model.getInferenceEntityId())
+                    .startObject("model_settings")
+                    .field("task_type", TaskType.SPARSE_EMBEDDING.toString())
+                    .endObject()
+                    .endObject()
+            )
+        );
+        assertSemanticTextField(mapperService, fieldName, true, null, null);
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        true,
+                        b,
+                        List.of(randomSemanticText(true, fieldName, model, null, List.of("foo", "bar"), XContentType.JSON))
+                    )
                 )
             )
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: " + UNSUPPORTED_INDEX_MESSAGE));
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
+        assertThat(e.getCause().getMessage(), equalTo(UNSUPPORTED_INDEX_MESSAGE));
     }
 
     private MapperService mapperServiceForFieldWithModelSettings(String fieldName, String inferenceId, MinimalServiceSettings modelSettings)

@@ -260,6 +260,7 @@ public class TransportVersions {
     public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_100_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = def(9_101_0_00);
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
+    public static final TransportVersion ESQL_KQL_FUNCTION_OPTIONS = def(9_109_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

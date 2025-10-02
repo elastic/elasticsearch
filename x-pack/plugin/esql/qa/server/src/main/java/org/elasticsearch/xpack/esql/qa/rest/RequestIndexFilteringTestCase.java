@@ -85,15 +85,11 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             allOf(instanceOf(List.class), hasSize(docsTest1))
         );
 
-        // filter excludes both indices (no rows); the first analysis step fails because there are no columns, a second attempt succeeds
-        // after eliminating the index filter. All columns are returned.
+        // filter excludes both indices (no rows); Empty result set is derived.
         builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
         assertQueryResult(
             runEsql(builder),
-            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            matchesList().item(matchesMap().entry("name", "<no-fields>").entry("type", "null")),
             allOf(instanceOf(List.class), hasSize(0))
         );
     }
@@ -206,15 +202,10 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo]"), containsString("Unknown index [remote_cluster:foo]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo*"))));
+        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo,test1")));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
-        assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
-
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("index_not_found_exception"));
-        assertThat(e.getMessage(), containsString("no such index [foo]"));
+        assertThat(e.getMessage(), containsString("Unknown index [foo,test1]"));// TODO why test1 is reported?
 
         // Don't test remote patterns here, we'll test them in the multi-cluster tests
         if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {

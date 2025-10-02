@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -795,9 +794,9 @@ public class EsqlFunctionRegistry {
      * Remove types that are being actively built.
      */
     private static String[] removeUnderConstruction(String[] types) {
-        for (Map.Entry<DataType, FeatureFlag> underConstruction : DataType.UNDER_CONSTRUCTION.entrySet()) {
-            if (underConstruction.getValue().isEnabled() == false) {
-                types = Arrays.stream(types).filter(t -> underConstruction.getKey().typeName().equals(t) == false).toArray(String[]::new);
+        for (DataType underConstruction : DataType.UNDER_CONSTRUCTION) {
+            if (underConstruction.supportedVersion().supportedLocally() == false) {
+                types = Arrays.stream(types).filter(t -> underConstruction.typeName().equals(t) == false).toArray(String[]::new);
             }
         }
         return types;

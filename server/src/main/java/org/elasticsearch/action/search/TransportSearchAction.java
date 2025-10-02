@@ -1627,7 +1627,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider,
                     task,
                     requireAtLeastOneMatch,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                    coordinatorSearchPhaseAPMMetrics
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(

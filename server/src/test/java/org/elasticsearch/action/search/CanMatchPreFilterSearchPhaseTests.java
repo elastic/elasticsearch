@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -161,7 +162,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            CoordinatorSearchPhaseAPMMetrics.NOOP
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -256,7 +258,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            CoordinatorSearchPhaseAPMMetrics.NOOP
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -347,7 +350,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 true,
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                CoordinatorSearchPhaseAPMMetrics.NOOP
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -446,7 +450,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 shardsIter.size() > shardToSkip.size(),
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                CoordinatorSearchPhaseAPMMetrics.NOOP
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1418,7 +1423,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 true,
-                contextProvider
+                contextProvider,
+                CoordinatorSearchPhaseAPMMetrics.NOOP
             ),
             requests
         );

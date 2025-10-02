@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -71,6 +72,7 @@ final class CanMatchPreFilterSearchPhase {
     private final SearchTask task;
     private final Executor executor;
     private final boolean requireAtLeastOneMatch;
+    private final CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics;
 
     private final FixedBitSet possibleMatches;
     private final MinAndMax<?>[] minAndMaxes;
@@ -90,7 +92,8 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        ActionListener<List<SearchShardIterator>> listener
+        ActionListener<List<SearchShardIterator>> listener,
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
     ) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -105,6 +108,7 @@ final class CanMatchPreFilterSearchPhase {
         this.requireAtLeastOneMatch = requireAtLeastOneMatch;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
         this.executor = executor;
+        this.coordinatorSearchPhaseAPMMetrics = coordinatorSearchPhaseAPMMetrics;
         final int size = shardsIts.size();
         possibleMatches = new FixedBitSet(size);
         minAndMaxes = new MinAndMax<?>[size];
@@ -136,7 +140,8 @@ final class CanMatchPreFilterSearchPhase {
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
         boolean requireAtLeastOneMatch,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
     ) {
         if (shardsIts.isEmpty()) {
             return SubscribableListener.newSucceeded(List.of());
@@ -168,7 +173,8 @@ final class CanMatchPreFilterSearchPhase {
                     task,
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
-                    listener
+                    listener,
+                    coordinatorSearchPhaseAPMMetrics
                 ).runCoordinatorRewritePhase();
             }
         });
@@ -224,6 +230,10 @@ final class CanMatchPreFilterSearchPhase {
             checkNoMissingShards(matchedShardLevelRequests);
             new Round(matchedShardLevelRequests).run();
         }
+        coordinatorSearchPhaseAPMMetrics.onCoordinatorPhaseDone(
+            "can_match",
+            timeProvider.relativeCurrentNanosProvider().getAsLong() - coordinatorStartTimeNanos
+        );
     }
 
     private void consumeResult(boolean canMatch, ShardSearchRequest request) {

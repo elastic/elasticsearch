@@ -34,12 +34,9 @@ public class CoordinatorSearchPhaseAPMMetrics {
     }
 
     public void onCoordinatorPhaseDone(String phaseName, long tookInNanos) {
-        LongHistogram histogram = histogramsCache.computeIfAbsent(phaseName, this::createHistogram);
-        if (histogram != null) {
-            recordPhaseLatency(histogram, tookInNanos);
-        } else {
-            throw new IllegalStateException("phase [" + phaseName + "] not found");
-        }
+        String cleanedPhaseName = phaseName.toLowerCase(Locale.ROOT).replace('-', '_');
+        LongHistogram histogram = histogramsCache.computeIfAbsent(cleanedPhaseName, this::createHistogram);
+        recordPhaseLatency(histogram, tookInNanos);
     }
 
     private LongHistogram createHistogram(String phaseName) {

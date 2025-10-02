@@ -193,6 +193,7 @@ public class RankFeaturePhase extends SearchPhase {
                         reducedQueryPhase,
                         topResults
                     );
+                    context.recordPhaseTookTime(getName());
                     moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
                 }
 

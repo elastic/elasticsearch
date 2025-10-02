@@ -20,7 +20,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
-import org.elasticsearch.xpack.esql.expression.function.*;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -81,32 +88,34 @@ public class Kql extends FullTextFunction implements OptionalArgument {
         ) Expression queryString,
         @MapParam(
             name = "options",
-            description = "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>.",
+            description = "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>."
+                + " See <<query-dsl-kql-query,KQL query>> for more information.",
             params = {
                 @MapParam.MapParamEntry(
                     name = "case_insensitive",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, the query is case insensitive. Defaults to false."
+                    description = "If true, performs case-insensitive matching for keyword fields. Defaults to false."
                 ),
                 @MapParam.MapParamEntry(
                     name = "time_zone",
                     type = "keyword",
-                    valueHint = { "UTC", "America/New_York" },
-                    description = "Time zone to use when parsing date values. Defaults to UTC."
+                    valueHint = {"UTC", "Europe/Paris", "America/New_York"},
+                    description = "UTC offset or IANA time zone used to interpret date literals in the query string."
                 ),
                 @MapParam.MapParamEntry(
                     name = "default_field",
                     type = "keyword",
-                    valueHint = { "_all", "title" },
-                    description = "Default field to search when no field is specified in the query."
+                    valueHint = {"*", "logs.*", "title"},
+                    description = "Default field (or field pattern with wildcards) to target when a bare term in the query does not specify a field. Supports wildcards (*)."
                 ),
                 @MapParam.MapParamEntry(
                     name = "boost",
                     type = "float",
                     valueHint = { "2.5" },
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
-                ) },
+                )
+            },
             optional = true
         ) Expression options
     ) {

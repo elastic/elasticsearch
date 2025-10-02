@@ -1488,7 +1488,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Randomly chooses between {@link NotMasterException}, {@link FailedToCommitClusterStateException} and {@link FailedToPublishClusterStateException}.
+     * Randomly chooses between {@link NotMasterException}, {@link FailedToCommitClusterStateException}
+     * and {@link FailedToPublishClusterStateException}.
      */
     public static Exception randomClusterStateUpdateException() {
         int choice = between(0, 2);

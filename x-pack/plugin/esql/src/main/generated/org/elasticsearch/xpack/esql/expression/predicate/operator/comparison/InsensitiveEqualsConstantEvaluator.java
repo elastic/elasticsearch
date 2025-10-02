@@ -80,7 +80,8 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(InsensitiveEquals.processConstant(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), this.rhs));
+        BytesRef lhs = lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch);
+        result.appendBoolean(InsensitiveEquals.processConstant(lhs, this.rhs));
       }
       return result.build();
     }
@@ -90,7 +91,8 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, InsensitiveEquals.processConstant(lhsVector.getBytesRef(p, lhsScratch), this.rhs));
+        BytesRef lhs = lhsVector.getBytesRef(p, lhsScratch);
+        result.appendBoolean(p, InsensitiveEquals.processConstant(lhs, this.rhs));
       }
       return result.build();
     }

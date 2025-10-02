@@ -449,7 +449,9 @@ class IndicesAndAliasesResolver {
                 + replaceable.getResolvedIndexExpressions()
                 + "] and should not be set again. Attempted to set to new expressions ["
                 + resolved
-                + "].";
+                + "] for ["
+                + replaceable.getClass().getName()
+                + "]";
             logger.debug(message);
             // we are excepting `*,-*` below since we've observed this already -- keeping this assertion catch other cases
             assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;

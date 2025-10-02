@@ -272,7 +272,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        // TODO move this to xpack core and use inference APIs
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             inferenceId,
             List.of(query),

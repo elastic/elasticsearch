@@ -79,7 +79,7 @@ public class GetSampleActionIT extends ESIntegTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(
-                    currentState.projectState(ProjectId.DEFAULT).metadata()
+                    currentState.metadata().getProject(ProjectId.DEFAULT)
                 );
                 SamplingMetadata samplingMetadata = new SamplingMetadata(
                     Map.of(indexName, new SamplingConfiguration(1.0d, 100, null, null, null))

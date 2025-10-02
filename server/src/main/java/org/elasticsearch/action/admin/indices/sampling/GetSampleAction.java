@@ -33,13 +33,11 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.collect.Iterators.single;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
@@ -54,11 +52,11 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class Request extends BaseNodesRequest implements IndicesRequest.Replaceable {
-        private String[] names;
+        private String indexName;
 
-        public Request(String[] names) {
+        public Request(String indexName) {
             super((String[]) null);
-            this.names = names;
+            this.indexName = indexName;
         }
 
         @Override
@@ -73,15 +71,9 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            if (this.indices().length != 1) {
+            if (this.indexName.contains("*")) {
                 return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
-                    "Can only get samples for a single index at a time, but found "
-                        + Arrays.stream(this.indices()).collect(Collectors.joining(", ", "[", "]"))
-                );
-            }
-            if (this.indices()[0].contains("*")) {
-                return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
-                    "Wildcards are not supported, but found [" + this.indices()[0] + "]"
+                    "Wildcards are not supported, but found [" + indexName + "]"
                 );
             }
             return null;
@@ -89,13 +81,14 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
 
         @Override
         public IndicesRequest indices(String... indices) {
-            this.names = indices;
+            assert indices.length == 1 : "GetSampleAction only supports a single index name";
+            this.indexName = indices[0];
             return this;
         }
 
         @Override
         public String[] indices() {
-            return names;
+            return new String[] { indexName };
         }
 
         @Override

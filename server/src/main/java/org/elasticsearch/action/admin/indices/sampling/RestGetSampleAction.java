@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -16,7 +17,9 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -34,7 +37,14 @@ public class RestGetSampleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetSampleAction.Request getSampleRequest = new GetSampleAction.Request(request.param("index").split(","));
+        String[] indexNames = request.param("index").split(",");
+        if (indexNames.length > 1) {
+            throw new ActionRequestValidationException().addValidationError(
+                "Can only get samples for a single index at a time, but found "
+                    + Arrays.stream(indexNames).collect(Collectors.joining(", ", "[", "]"))
+            );
+        }
+        GetSampleAction.Request getSampleRequest = new GetSampleAction.Request(indexNames[0]);
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetSampleAction.INSTANCE,
             getSampleRequest,

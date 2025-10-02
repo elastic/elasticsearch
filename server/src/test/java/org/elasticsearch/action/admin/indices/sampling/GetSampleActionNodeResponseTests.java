@@ -49,12 +49,7 @@ public class GetSampleActionNodeResponseTests extends AbstractWireSerializingTes
     }
 
     private static SamplingService.RawDocument randomSample() {
-        return new SamplingService.RawDocument(
-            randomProjectIdOrDefault(),
-            randomIdentifier(),
-            randomSource(),
-            randomFrom(XContentType.values())
-        );
+        return new SamplingService.RawDocument(randomIdentifier(), randomSource(), randomFrom(XContentType.values()));
     }
 
     private static DiscoveryNode randomNode() {

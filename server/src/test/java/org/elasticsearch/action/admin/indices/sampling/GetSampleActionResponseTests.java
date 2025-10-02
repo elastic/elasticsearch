@@ -61,7 +61,6 @@ public class GetSampleActionResponseTests extends AbstractWireSerializingTestCas
 
     private static SamplingService.RawDocument randomSample() {
         return new SamplingService.RawDocument(
-            randomProjectIdOrDefault(),
             randomIdentifier(),
             randomSource(),
             randomFrom(org.elasticsearch.xcontent.XContentType.values())

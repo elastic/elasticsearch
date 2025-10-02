@@ -132,6 +132,10 @@ public class SslConfigurationKeys {
      * The use of this setting {@link #isDeprecated(String) is deprecated}.
      */
     public static final String KEY_LEGACY_PASSPHRASE = "key_passphrase";
+    /**
+     * The timeout for TLS handshakes in this context.
+     */
+    public static final String HANDSHAKE_TIMEOUT = "handshake_timeout";
 
     private static final Set<String> DEPRECATED_KEYS = new HashSet<>(
         Arrays.asList(TRUSTSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_KEY_PASSWORD, KEY_LEGACY_PASSPHRASE)

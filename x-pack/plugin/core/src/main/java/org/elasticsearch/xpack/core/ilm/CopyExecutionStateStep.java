@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the execution state data from one index to another, typically after a
@@ -66,18 +70,18 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata indexMetadata = projectState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
-            return clusterState;
+            return projectState;
         }
         // get target index
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String targetIndexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
         calculatedTargetIndexName.set(targetIndexName);
-        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = projectState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
             logger.warn(
@@ -101,10 +105,20 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         newLifecycleState.setAction(action);
         newLifecycleState.setStep(step);
 
-        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
-            clusterState,
-            targetIndexMetadata.getIndex(),
-            newLifecycleState.build()
+        // Build a new index metadata with the version incremented and the new lifecycle state.
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(targetIndexMetadata)
+            .version(targetIndexMetadata.getVersion() + 1)
+            .putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
+
+        // Remove the skip setting if it's present.
+        if (targetIndexMetadata.getSettings().hasValue(LifecycleSettings.LIFECYCLE_SKIP)) {
+            final var newSettings = Settings.builder().put(targetIndexMetadata.getSettings());
+            newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP);
+            indexMetadataBuilder.settingsVersion(targetIndexMetadata.getSettingsVersion() + 1).settings(newSettings);
+        }
+
+        return projectState.updateProject(
+            ProjectMetadata.builder(projectState.metadata()).put(indexMetadataBuilder.build(), false).build()
         );
     }
 

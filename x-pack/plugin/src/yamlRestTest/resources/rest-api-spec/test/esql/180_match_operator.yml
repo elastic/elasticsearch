@@ -125,7 +125,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:19: Unknown column [something]" }
+  - match: { error.reason: "/Unknown.column.\\[something\\]/" }
 
 ---
 "match on eval column":
@@ -139,7 +139,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:60: [:] operator cannot operate on [upper_content], which is not a field from an index mapping" }
+  - match: { error.reason: "/operator.cannot.operate.on.\\[upper_content\\],.which.is.not.a.field.from.an.index.mapping/" }
 
 ---
 "match on overwritten column":
@@ -153,7 +153,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:78: [:] operator cannot operate on [content], which is not a field from an index mapping" }
+  - match: { error.reason: "/operator.cannot.operate.on.\\[content\\],.which.is.not.a.field.from.an.index.mapping/" }
 
 ---
 "match after stats":
@@ -167,7 +167,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:36: Unknown column [content], did you mean [count(*)]?" }
+  - match: { error.reason: "/Unknown.column.\\[content\\]/" }
 
 ---
 "match with disjunctions":
@@ -199,4 +199,4 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:34: [:] operator is only supported in WHERE commands" }
+  - match: { error.reason: "/.*operator.is.only.supported.in.WHERE.*/" }

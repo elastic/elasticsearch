@@ -21,7 +21,9 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -56,13 +58,15 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
     };
 
     private final MasterServiceTaskQueue<DeleteDatabaseConfigurationTask> deleteDatabaseConfigurationTaskQueue;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteDatabaseConfigurationAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteDatabaseConfigurationAction.NAME,
@@ -79,13 +83,17 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             Priority.NORMAL,
             DELETE_TASK_EXECUTOR
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         final String id = request.getDatabaseId();
-        final IngestGeoIpMetadata geoIpMeta = state.metadata().getProject().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final ProjectId projectId = projectResolver.getProjectId();
+        final IngestGeoIpMetadata geoIpMeta = state.metadata()
+            .getProject(projectId)
+            .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (geoIpMeta.getDatabases().containsKey(id) == false) {
             throw new ResourceNotFoundException("Database configuration not found: {}", id);
         } else if (geoIpMeta.getDatabases().get(id).database().isReadOnly()) {
@@ -93,27 +101,27 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
         }
         deleteDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("delete-geoip-database-configuration-[%s]", id),
-            new DeleteDatabaseConfigurationTask(listener, id),
+            new DeleteDatabaseConfigurationTask(projectId, listener, id),
             null
         );
     }
 
-    private record DeleteDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, String databaseId)
+    private record DeleteDatabaseConfigurationTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener, String databaseId)
         implements
             ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            final IngestGeoIpMetadata geoIpMeta = currentState.metadata()
-                .getProject()
-                .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+            final var project = currentState.metadata().getProject(projectId);
+            final IngestGeoIpMetadata geoIpMeta = project.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             logger.debug("deleting database configuration [{}]", databaseId);
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());
             databases.remove(databaseId);
 
-            Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentMeta).putCustom(IngestGeoIpMetadata.TYPE, new IngestGeoIpMetadata(databases)))
+                .putProjectMetadata(
+                    ProjectMetadata.builder(project).putCustom(IngestGeoIpMetadata.TYPE, new IngestGeoIpMetadata(databases))
+                )
                 .build();
         }
 

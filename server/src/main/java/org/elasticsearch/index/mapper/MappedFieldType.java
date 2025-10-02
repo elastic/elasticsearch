@@ -25,6 +25,8 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,9 +53,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -66,22 +68,13 @@ public abstract class MappedFieldType {
     private final boolean docValues;
     private final boolean isIndexed;
     private final boolean isStored;
-    private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
 
-    public MappedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
+    public MappedFieldType(String name, boolean isIndexed, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
         this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
-        this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
         // irrelevant
         this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
@@ -192,6 +185,15 @@ public abstract class MappedFieldType {
      * @return true if field has been marked as a dimension field
      */
     public boolean isDimension() {
+        return false;
+    }
+
+    /**
+     * Vector embeddings are typically large and not intended for human consumption, so such fields may be excluded from responses.
+     *
+     * @return true if this field contains vector embeddings.
+     */
+    public boolean isVectorEmbedding() {
         return false;
     }
 
@@ -320,6 +322,19 @@ public abstract class MappedFieldType {
         return wildcardQuery(value, method, false, context);
     }
 
+    /**
+     * Similar to wildcardQuery, except that we change the behavior for ESQL
+     * to behave like a string LIKE query, where the value is matched as a string
+     */
+    public Query wildcardLikeQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitve,
+        SearchExecutionContext context
+    ) {
+        return wildcardQuery(value, method, caseInsensitve, context);
+    }
+
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -361,8 +376,25 @@ public abstract class MappedFieldType {
         );
     }
 
+    /**
+     * Returns a Lucene pushable Query for the current field
+     * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
+     */
+    public Query automatonQuery(
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
+        throw new QueryShardException(
+            context,
+            "Can only use automaton queries on keyword fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+        if (hasDocValues() || (isIndexed() && getTextSearchInfo().hasNorms())) {
             return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
@@ -607,7 +639,7 @@ public abstract class MappedFieldType {
      * {@link TextSearchInfo#SIMPLE_MATCH_WITHOUT_TERMS}
      */
     public TextSearchInfo getTextSearchInfo() {
-        return textSearchInfo;
+        return TextSearchInfo.NONE;
     }
 
     public enum CollapseType {

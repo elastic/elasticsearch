@@ -8,12 +8,9 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -88,13 +85,11 @@ public class PhaseCacheManagementTests extends ESTestCase {
         LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Map.of(), 2L, 2L);
 
-        ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
-            .build();
+        ProjectMetadata existingProject = ProjectMetadata.builder(randomProjectIdOrDefault()).put(meta, false).build();
 
-        ClusterState changedState = refreshPhaseDefinition(existingState, indexName, policyMetadata);
+        ProjectMetadata changedProject = PhaseCacheManagement.refreshPhaseDefinition(existingProject, indexName, policyMetadata);
 
-        IndexMetadata newIdxMeta = changedState.metadata().getProject().index(indexName);
+        IndexMetadata newIdxMeta = changedProject.index(indexName);
         LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
@@ -495,15 +490,13 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
         assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
 
-        ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
-            .build();
+        ProjectMetadata existingProject = ProjectMetadata.builder(randomProjectIdOrDefault()).put(meta, false).build();
 
         logger.info("--> update for unchanged policy");
-        ClusterState updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
+        ProjectMetadata updatedProject = updateIndicesForPolicy(existingProject, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         // No change, because the policies were identical
-        assertThat(updatedState, equalTo(existingState));
+        assertThat(updatedProject, equalTo(existingProject));
 
         actions = new HashMap<>();
         actions.put("rollover", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
@@ -514,10 +507,10 @@ public class PhaseCacheManagementTests extends ESTestCase {
         policyMetadata = new LifecyclePolicyMetadata(newPolicy, Map.of(), 2L, 2L);
 
         logger.info("--> update with changed policy, but not configured in settings");
-        updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
+        updatedProject = updateIndicesForPolicy(existingProject, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         // No change, because the index doesn't have a lifecycle.name setting for this policy
-        assertThat(updatedState, equalTo(existingState));
+        assertThat(updatedProject, equalTo(existingProject));
 
         meta = IndexMetadata.builder(index)
             .settings(
@@ -528,14 +521,12 @@ public class PhaseCacheManagementTests extends ESTestCase {
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
-        existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
-            .build();
+        existingProject = ProjectMetadata.builder(randomProjectIdOrDefault()).put(meta, false).build();
 
         logger.info("--> update with changed policy and this index has the policy");
-        updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
+        updatedProject = updateIndicesForPolicy(existingProject, REGISTRY, client, oldPolicy, policyMetadata, null);
 
-        IndexMetadata newIdxMeta = updatedState.metadata().getProject().index(index);
+        IndexMetadata newIdxMeta = updatedProject.index(index);
         LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
@@ -583,37 +574,18 @@ public class PhaseCacheManagementTests extends ESTestCase {
             );
     }
 
-    static ClusterState updateIndicesForPolicy(
-        final ClusterState clusterState,
+    static ProjectMetadata updateIndicesForPolicy(
+        ProjectMetadata project,
         final NamedXContentRegistry xContentRegistry,
         final Client client,
         final LifecyclePolicy oldPolicy,
         final LifecyclePolicyMetadata newPolicy,
         XPackLicenseState licenseState
     ) {
-        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
-        if (PhaseCacheManagement.updateIndicesForPolicy(
-            projectMetadataBuilder,
-            projectMetadata,
-            xContentRegistry,
-            client,
-            oldPolicy,
-            newPolicy,
-            licenseState
-        )) {
-            return ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
+        if (PhaseCacheManagement.updateIndicesForPolicy(builder, project, xContentRegistry, client, oldPolicy, newPolicy, licenseState)) {
+            return builder.build();
         }
-        return clusterState;
-    }
-
-    public static ClusterState refreshPhaseDefinition(
-        final ClusterState clusterState,
-        final String index,
-        final LifecyclePolicyMetadata updatedPolicy
-    ) {
-        ProjectMetadata projectMetadata = DefaultProjectResolver.INSTANCE.getProjectMetadata(clusterState);
-        ProjectMetadata newProjectMetadata = PhaseCacheManagement.refreshPhaseDefinition(projectMetadata, index, updatedPolicy);
-        return ClusterState.builder(clusterState).putProjectMetadata(newProjectMetadata).build();
+        return project;
     }
 }

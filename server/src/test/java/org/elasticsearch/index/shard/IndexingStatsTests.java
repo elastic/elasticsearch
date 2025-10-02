@@ -33,6 +33,7 @@ public class IndexingStatsTests extends ESTestCase {
             false,
             10,
             1_800_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 1.8sec
+            1_800_000_000L, // totalIndexingExecutionTimeSinceShardStartedInNanos - 1.8sec
             3_000_000_000L, // totalActiveTimeInNanos - 3sec
             0.1357,
             0.2468
@@ -55,6 +56,7 @@ public class IndexingStatsTests extends ESTestCase {
             false,
             10,
             11,
+            11,
             12,
             0.1357,
             0.2468
@@ -72,6 +74,7 @@ public class IndexingStatsTests extends ESTestCase {
             false,
             10,
             11,
+            11,
             12,
             0.1357,
             0.2468
@@ -81,8 +84,8 @@ public class IndexingStatsTests extends ESTestCase {
     }
 
     public void testStatsAdd_throttled() {
-        IndexingStats.Stats statsFalse = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, 9, false, 10, 11, 12, 0.1357, 0.2468);
-        IndexingStats.Stats statsTrue = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, 9, true, 10, 11, 12, 0.1357, 0.2468);
+        IndexingStats.Stats statsFalse = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, 9, false, 10, 11, 11, 12, 0.1357, 0.2468);
+        IndexingStats.Stats statsTrue = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, 9, true, 10, 11, 11, 12, 0.1357, 0.2468);
         assertThat(sumOfStats(statsFalse, statsFalse).isThrottled(), is(false));
         assertThat(sumOfStats(statsFalse, statsTrue).isThrottled(), is(true));
         assertThat(sumOfStats(statsTrue, statsFalse).isThrottled(), is(true));
@@ -103,6 +106,7 @@ public class IndexingStatsTests extends ESTestCase {
             false,
             10,
             1_000_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 1sec
+            1_000_000_000L, // totalIndexingLoadSinceShardStartedInNanos - 1sec
             2_000_000_000L, // totalActiveTimeInNanos - 2sec
             0.1357, // recentWriteLoad
             0.3579 // peakWriteLoad
@@ -119,6 +123,7 @@ public class IndexingStatsTests extends ESTestCase {
             9,
             false,
             10,
+            2_100_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 2.1sec
             2_100_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 2.1sec
             3_000_000_000L, // totalActiveTimeInNanos - 3sec
             0.2468, // recentWriteLoad

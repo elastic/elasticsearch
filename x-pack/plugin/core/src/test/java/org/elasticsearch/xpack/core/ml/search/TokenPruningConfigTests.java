@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.search;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 

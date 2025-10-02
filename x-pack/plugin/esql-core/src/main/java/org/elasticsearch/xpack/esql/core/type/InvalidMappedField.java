@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -17,9 +19,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Representation of field mapped differently across indices.
@@ -34,7 +33,7 @@ public class InvalidMappedField extends EsField {
     private final Map<String, Set<String>> typesToIndices;
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
-        this(name, errorMessage, properties, Map.of());
+        this(name, errorMessage, properties, Map.of(), TimeSeriesFieldType.UNKNOWN);
     }
 
     public InvalidMappedField(String name, String errorMessage) {
@@ -45,17 +44,29 @@ public class InvalidMappedField extends EsField {
      * Constructor supporting union types, used in ES|QL.
      */
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices);
+        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices, TimeSeriesFieldType.UNKNOWN);
     }
 
-    private InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties, Map<String, Set<String>> typesToIndices) {
-        super(name, DataType.UNSUPPORTED, properties, false);
+    private InvalidMappedField(
+        String name,
+        String errorMessage,
+        Map<String, EsField> properties,
+        Map<String, Set<String>> typesToIndices,
+        TimeSeriesFieldType type
+    ) {
+        super(name, DataType.UNSUPPORTED, properties, false, type);
         this.errorMessage = errorMessage;
         this.typesToIndices = typesToIndices;
     }
 
     protected InvalidMappedField(StreamInput in) throws IOException {
-        this(readCachedStringWithVersionCheck(in), in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom));
+        this(
+            ((PlanStreamInput) in).readCachedString(),
+            in.readString(),
+            in.readImmutableMap(StreamInput::readString, EsField::readFrom),
+            Map.of(),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     public Set<DataType> types() {
@@ -64,9 +75,10 @@ public class InvalidMappedField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, getName());
+        ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

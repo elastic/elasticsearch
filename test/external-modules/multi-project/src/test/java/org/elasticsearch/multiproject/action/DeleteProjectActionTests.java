@@ -64,7 +64,7 @@ public class DeleteProjectActionTests extends ESTestCase {
         );
         var nonExistingTask = createTask(randomUniqueProjectId(), listener);
         var tasks = Stream.concat(Stream.of(nonExistingTask), deletedProjects.stream().map(this::createTask)).toList();
-        var result = ClusterStateTaskExecutorUtils.executeIgnoringFailures(state, executor, tasks);
+        var result = ClusterStateTaskExecutorUtils.executeHandlingResults(state, executor, tasks, t -> {}, DeleteProjectTask::onFailure);
         for (ProjectId deletedProject : deletedProjects) {
             assertNull(result.metadata().projects().get(deletedProject));
             assertNull(result.globalRoutingTable().routingTables().get(deletedProject));

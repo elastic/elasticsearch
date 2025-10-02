@@ -27,10 +27,6 @@ public class QueryAndDocsInputs extends InferenceInputs {
     private final Boolean returnDocuments;
     private final Integer topN;
 
-    public QueryAndDocsInputs(String query, List<String> chunks) {
-        this(query, chunks, null, null, false);
-    }
-
     public QueryAndDocsInputs(
         String query,
         List<String> chunks,
@@ -43,6 +39,10 @@ public class QueryAndDocsInputs extends InferenceInputs {
         this.chunks = Objects.requireNonNull(chunks);
         this.returnDocuments = returnDocuments;
         this.topN = topN;
+    }
+
+    public QueryAndDocsInputs(String query, List<String> chunks) {
+        this(query, chunks, null, null, false);
     }
 
     public String getQuery() {
@@ -61,7 +61,8 @@ public class QueryAndDocsInputs extends InferenceInputs {
         return topN;
     }
 
-    public int inputSize() {
-        return chunks.size();
+    @Override
+    public boolean isSingleInput() {
+        return chunks.size() == 1;
     }
 }

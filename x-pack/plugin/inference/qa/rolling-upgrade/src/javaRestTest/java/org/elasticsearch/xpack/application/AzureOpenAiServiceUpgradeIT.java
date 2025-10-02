@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.not;
 
 public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
-    private static final String OPEN_AI_AZURE_EMBEDDINGS_ADDED = "8.14.0";
+    private static final String OPEN_AI_AZURE_EMBEDDINGS_ADDED_FEATURE = "gte_v8.14.0";
 
     private static MockWebServer openAiEmbeddingsServer;
 
@@ -48,10 +48,9 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
     @SuppressWarnings("unchecked")
     @AwaitsFix(bugUrl = "Cannot set the URL in the tests")
     public void testOpenAiEmbeddings() throws IOException {
-        var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_AZURE_EMBEDDINGS_ADDED);
-        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
-        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("Azure OpenAI embedding service added in " + OPEN_AI_AZURE_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
+        var openAiEmbeddingsSupported = oldClusterHasFeature(OPEN_AI_AZURE_EMBEDDINGS_ADDED_FEATURE);
+        String oldClusterEndpointIdentifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("Azure OpenAI embedding service supported", openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
         final String upgradedClusterId = "upgraded-cluster-embeddings";

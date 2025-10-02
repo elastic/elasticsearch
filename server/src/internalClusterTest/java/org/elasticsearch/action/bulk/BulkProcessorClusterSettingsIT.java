@@ -51,6 +51,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testIndexWithDisabledAutoCreateIndex() {
+        internalCluster().startNode();
         updateClusterSettings(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")));
         final BulkItemResponse itemResponse = client().prepareBulk()
             .add(prepareIndex("test-index").setSource("foo", "bar"))

@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -116,7 +115,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             List.of(modelText),
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            null
         );
 
         inferRequest.setHighPriority(true);

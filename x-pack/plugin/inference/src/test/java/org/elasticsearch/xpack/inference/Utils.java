@@ -26,31 +26,24 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpSettings;
-import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
-import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_RESPONSE_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -71,15 +64,7 @@ public final class Utils {
     public static ClusterService mockClusterService(Settings settings) {
         var clusterService = mock(ClusterService.class);
 
-        var registeredSettings = Stream.of(
-            HttpSettings.getSettingsDefinitions(),
-            HttpClientManager.getSettingsDefinitions(),
-            ThrottlerManager.getSettingsDefinitions(),
-            RetrySettings.getSettingsDefinitions(),
-            Truncator.getSettingsDefinitions(),
-            RequestExecutorServiceSettings.getSettingsDefinitions(),
-            ElasticInferenceServiceSettings.getSettingsDefinitions()
-        ).flatMap(Collection::stream).collect(Collectors.toSet());
+        var registeredSettings = InferencePlugin.getInferenceSettings();
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
@@ -87,34 +72,52 @@ public final class Utils {
         return clusterService;
     }
 
-    public static ScalingExecutorBuilder inferenceUtilityPool() {
-        return new ScalingExecutorBuilder(
-            UTILITY_THREAD_POOL_NAME,
-            1,
-            4,
-            TimeValue.timeValueMinutes(10),
-            false,
-            "xpack.inference.utility_thread_pool"
-        );
+    public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
+        return new ScalingExecutorBuilder[] {
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            ),
+            new ScalingExecutorBuilder(
+                INFERENCE_RESPONSE_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.inference_response_thread_pool"
+            ) };
     }
 
-    public static void storeSparseModel(ModelRegistry modelRegistry) throws Exception {
+    public static void storeSparseModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
-            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            inferenceId,
             new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
         );
         storeModel(modelRegistry, model);
     }
 
     public static void storeDenseModel(
+        String inferenceId,
         ModelRegistry modelRegistry,
         int dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
-            TestDenseInferenceServiceExtension.TestInferenceService.NAME,
+            inferenceId,
             new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
+        );
+        storeModel(modelRegistry, model);
+    }
+
+    public static void storeRerankModel(String inferenceId, ModelRegistry modelRegistry) throws Exception {
+        Model model = new TestRerankingServiceExtension.TestRerankingModel(
+            inferenceId,
+            new TestRerankingServiceExtension.TestServiceSettings("rerank-model")
         );
         storeModel(modelRegistry, model);
     }
@@ -232,7 +235,11 @@ public final class Utils {
             var actualParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, actual);
             var expectedParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, expected);
         ) {
-            assertThat(actualParser.mapOrdered(), equalTo(expectedParser.mapOrdered()));
+            assertThat(actualParser.map().entrySet(), containsInAnyOrder(expectedParser.map().entrySet().toArray()));
         }
+    }
+
+    public static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
+        return new HashMap<>(aMap);
     }
 }

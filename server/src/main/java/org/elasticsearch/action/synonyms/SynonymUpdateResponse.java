@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.synonyms;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,17 +21,27 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 public class SynonymUpdateResponse extends ActionResponse implements ToXContentObject {
+
+    public static final String RESULT_FIELD = "result";
+    public static final String RELOAD_ANALYZERS_DETAILS_FIELD = "reload_analyzers_details";
+    static final ReloadAnalyzersResponse EMPTY_RELOAD_ANALYZER_RESPONSE = new ReloadAnalyzersResponse(0, 0, 0, List.of(), Map.of());
 
     private final UpdateSynonymsResultStatus updateStatus;
     private final ReloadAnalyzersResponse reloadAnalyzersResponse;
 
     public SynonymUpdateResponse(StreamInput in) throws IOException {
         this.updateStatus = in.readEnum(UpdateSynonymsResultStatus.class);
-        this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            this.reloadAnalyzersResponse = in.readOptionalWriteable(ReloadAnalyzersResponse::new);
+        } else {
+            this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
+        }
     }
 
     public SynonymUpdateResponse(SynonymsReloadResult synonymsReloadResult) {
@@ -38,7 +49,6 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
         UpdateSynonymsResultStatus updateStatus = synonymsReloadResult.synonymsOperationResult();
         Objects.requireNonNull(updateStatus, "Update status must not be null");
         ReloadAnalyzersResponse reloadResponse = synonymsReloadResult.reloadAnalyzersResponse();
-        Objects.requireNonNull(reloadResponse, "Reload analyzers response must not be null");
 
         this.updateStatus = updateStatus;
         this.reloadAnalyzersResponse = reloadResponse;
@@ -48,9 +58,11 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field("result", updateStatus.name().toLowerCase(Locale.ENGLISH));
-            builder.field("reload_analyzers_details");
-            reloadAnalyzersResponse.toXContent(builder, params);
+            builder.field(RESULT_FIELD, updateStatus.name().toLowerCase(Locale.ENGLISH));
+            if (reloadAnalyzersResponse != null) {
+                builder.field(RELOAD_ANALYZERS_DETAILS_FIELD);
+                reloadAnalyzersResponse.toXContent(builder, params);
+            }
         }
         builder.endObject();
 
@@ -60,7 +72,16 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(updateStatus);
-        reloadAnalyzersResponse.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            out.writeOptionalWriteable(reloadAnalyzersResponse);
+        } else {
+            if (reloadAnalyzersResponse == null) {
+                // Nulls will be written as empty reload analyzer responses for older versions
+                EMPTY_RELOAD_ANALYZER_RESPONSE.writeTo(out);
+            } else {
+                reloadAnalyzersResponse.writeTo(out);
+            }
+        }
     }
 
     public RestStatus status() {
@@ -68,6 +89,14 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
             case CREATED -> RestStatus.CREATED;
             default -> RestStatus.OK;
         };
+    }
+
+    UpdateSynonymsResultStatus updateStatus() {
+        return updateStatus;
+    }
+
+    ReloadAnalyzersResponse reloadAnalyzersResponse() {
+        return reloadAnalyzersResponse;
     }
 
     @Override

@@ -27,9 +27,9 @@ public abstract class DisabledSecurityDataStreamTestCase extends ESRestTestCase 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .feature(FeatureFlag.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG)
         .build();
 
     @Override

@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-ingest.html
+products:
+  - id: painless
 ---
 
 # Using ingest processors in Painless [painless-ingest]

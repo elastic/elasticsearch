@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -18,11 +19,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
@@ -34,17 +35,19 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends ESTestCase {
@@ -57,7 +60,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -135,22 +138,17 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
-            var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
-            assertFalse(authResponse.isAuthorized());
+            var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), containsString("failed to parse field [models]"));
 
-            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger).warn(loggerArgsCaptor.capture());
-            var message = loggerArgsCaptor.getValue();
-            assertThat(
-                message,
-                is(
-                    "Failed to retrieve the authorization information from the Elastic Inference Service."
-                        + " Encountered an exception: org.elasticsearch.xcontent.XContentParseException: [4:28] "
-                        + "[ElasticInferenceServiceAuthorizationResponseEntity] failed to parse field [models]"
-                )
-            );
+            var stringCaptor = ArgumentCaptor.forClass(String.class);
+            var exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+            verify(logger).warn(stringCaptor.capture(), exceptionCaptor.capture());
+            var message = stringCaptor.getValue();
+            assertThat(message, containsString("failed to parse field [models]"));
+
+            var capturedException = exceptionCaptor.getValue();
+            assertThat(capturedException, instanceOf(XContentParseException.class));
         }
     }
 
@@ -196,18 +194,17 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
             var message = loggerArgsCaptor.getValue();
             assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
-            verifyNoMoreInteractions(logger);
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetAuthorization_OnResponseCalledOnce() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
 
-        ActionListener<ElasticInferenceServiceAuthorizationModel> listener = mock(ActionListener.class);
+        PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+        ActionListener<ElasticInferenceServiceAuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
         String responseJson = """
                 {
                     "models": [
@@ -221,21 +218,24 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         try (var sender = senderFactory.createSender()) {
-            authHandler.getAuthorization(listener, sender);
+            authHandler.getAuthorization(onlyOnceListener, sender);
             authHandler.waitForAuthRequestCompletion(TIMEOUT);
 
-            verify(listener, times(1)).onResponse(any());
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
+            assertTrue(authResponse.isAuthorized());
+
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());
 
             var message = loggerArgsCaptor.getValue();
             assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
-            verifyNoMoreInteractions(logger);
         }
     }
 
     public void testGetAuthorization_InvalidResponse() throws IOException {
-        var senderMock = mock(Sender.class);
+        var senderMock = createMockSender();
         var senderFactory = mock(HttpRequestSender.Factory.class);
         when(senderFactory.createSender()).thenReturn(senderMock);
 
@@ -252,21 +252,14 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
 
             authHandler.getAuthorization(listener, sender);
-            var result = listener.actionGet(TIMEOUT);
+            var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(result, is(ElasticInferenceServiceAuthorizationModel.newDisabledService()));
+            assertThat(exception.getMessage(), containsString("Received an invalid response type from the Elastic Inference Service"));
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger).warn(loggerArgsCaptor.capture());
             var message = loggerArgsCaptor.getValue();
-            assertThat(
-                message,
-                is(
-                    "Failed to retrieve the authorization information from the Elastic Inference Service."
-                        + " Received an invalid response type: ChatCompletionResults"
-                )
-            );
+            assertThat(message, containsString("Failed to retrieve the authorization information from the Elastic Inference Service."));
         }
-
     }
 }

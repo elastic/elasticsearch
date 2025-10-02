@@ -31,6 +31,11 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
+                if (e == ElementType.AGGREGATE_METRIC_DOUBLE) {
+                    // doesn't support multi-values
+                    params.add(new Object[] { e, nullAllowed, 0, 1 });
+                    continue;
+                }
                 for (int[] valuesPerPosition : new int[][] { new int[] { 1, 1 }, new int[] { 1, 10 } }) {  // TODO 0
                     params.add(new Object[] { e, nullAllowed, valuesPerPosition[0], valuesPerPosition[1] });
                 }
@@ -100,6 +105,10 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                 case FLOAT -> ((FloatBlockBuilder) builder).copyFrom((FloatBlock) block, i);
                 case INT -> ((IntBlockBuilder) builder).copyFrom((IntBlock) block, i);
                 case LONG -> ((LongBlockBuilder) builder).copyFrom((LongBlock) block, i);
+                case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).copyFrom(
+                    (AggregateMetricDoubleBlock) block,
+                    i
+                );
                 default -> throw new IllegalArgumentException("unsupported type: " + elementType);
             }
 

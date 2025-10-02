@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 final class AzureStorageSettings {
@@ -155,8 +156,7 @@ final class AzureStorageSettings {
         this.maxRetries = maxRetries;
         this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
             : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
-            : SocketAccess.doPrivilegedException(() -> System.getenv("AZURE_FEDERATED_TOKEN_FILE")) == null
-                ? Set.of("uses_default_credentials", "uses_managed_identity")
+            : System.getenv("AZURE_FEDERATED_TOKEN_FILE") == null ? Set.of("uses_default_credentials", "uses_managed_identity")
             : Set.of("uses_default_credentials", "uses_workload_identity");
 
         // Register the proxy if we have any
@@ -378,5 +378,24 @@ final class AzureStorageSettings {
 
     public Set<String> credentialsUsageFeatures() {
         return credentialsUsageFeatures;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        AzureStorageSettings that = (AzureStorageSettings) o;
+        return maxRetries == that.maxRetries
+            && hasCredentials == that.hasCredentials
+            && Objects.equals(account, that.account)
+            && Objects.equals(connectString, that.connectString)
+            && Objects.equals(endpointSuffix, that.endpointSuffix)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(proxy, that.proxy)
+            && Objects.equals(credentialsUsageFeatures, that.credentialsUsageFeatures);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(account, connectString, endpointSuffix, timeout, maxRetries, proxy, hasCredentials, credentialsUsageFeatures);
     }
 }

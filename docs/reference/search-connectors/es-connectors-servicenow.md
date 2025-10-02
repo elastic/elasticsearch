@@ -119,9 +119,6 @@ The ServiceNow connector is compatible with the following versions of ServiceNow
 
 ### Configuration [es-connectors-servicenow-client-configuration]
 
-
-
-
 The following configuration fields are required to set up the connector:
 
 `url`
@@ -136,11 +133,11 @@ The following configuration fields are required to set up the connector:
 `services`
 :   Comma-separated list of services to fetch data from ServiceNow. If the value is `*`, the connector will fetch data from the list of basic services provided by ServiceNow:
 
-    * [User](https://docs.servicenow.com/bundle/utah-platform-administration/page/administer/roles/concept/user.md)
-    * [Incident](https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/incident-management/concept/c_IncidentManagement.md)
-    * [Requested Item](https://docs.servicenow.com/bundle/tokyo-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.md)
-    * [Knowledge](https://docs.servicenow.com/bundle/tokyo-customer-service-management/page/product/customer-service-management/task/t_SearchTheKnowledgeBase.md)
-    * [Change request](https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.md)
+    * [User](https://www.servicenow.com/docs/bundle/vancouver-platform-administration/page/administer/roles/concept/user.html)
+    * [Incident](https://www.servicenow.com/docs/bundle/vancouver-it-service-management/page/product/incident-management/concept/c_IncidentManagement.html)
+    * [Requested Item](https://www.servicenow.com/docs/bundle/vancouver-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.html)
+    * [Knowledge](https://www.servicenow.com/docs/bundle/vancouver-servicenow-platform/page/product/knowledge-management/concept/c_KnowledgeHomepage.html)
+    * [Change request](https://www.servicenow.com/docs/bundle/vancouver-it-service-management/page/product/change-management/task/t_CreateAChange.html)
 
         ::::{note}
         If you have configured a custom service, the `*` value will not fetch data from the basic services above by default. In this case you’ll need to mention these service names explicitly.
@@ -262,13 +259,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

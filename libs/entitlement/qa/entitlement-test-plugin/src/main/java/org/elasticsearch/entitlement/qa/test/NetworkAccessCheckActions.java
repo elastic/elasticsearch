@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.xml.sax.helpers.DefaultHandler;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -25,6 +26,7 @@ import java.net.ResponseCache;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.StandardProtocolFamily;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
@@ -45,6 +47,7 @@ import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.xml.parsers.SAXParserFactory;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
@@ -200,6 +203,20 @@ class NetworkAccessCheckActions {
                 // We expect to fail, not a valid address to connect to.
                 // "connect" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
             }
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void socketChannelOpenProtocol() throws IOException {
+        SocketChannel.open(StandardProtocolFamily.INET).close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void socketChannelOpenAddress() throws IOException {
+        try {
+            SocketChannel.open(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)).close();
+        } catch (SocketException ex) {
+            // Some sort of SocketException is expected, we are trying to connect to port 0
         }
     }
 
@@ -417,6 +434,13 @@ class NetworkAccessCheckActions {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
         }
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaXmlNetworkRequest() throws Exception {
+        // java.xml is part of the jdk, but not a system module. this checks it can't access the network
+        var saxParser = SAXParserFactory.newInstance().newSAXParser();
+        saxParser.parse("http://127.0.0.1/foo.json", new DefaultHandler());
     }
 
     private NetworkAccessCheckActions() {}

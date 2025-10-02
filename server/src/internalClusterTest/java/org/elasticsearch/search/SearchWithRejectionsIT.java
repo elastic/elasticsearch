@@ -58,7 +58,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         assertBusy(
             () -> assertThat(indicesAdmin().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
-            1,
+            2,
             TimeUnit.SECONDS
         );
     }

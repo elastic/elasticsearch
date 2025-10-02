@@ -24,7 +24,19 @@ public abstract class TypedAttribute extends Attribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, nullability, id, synthetic);
+        this(source, null, name, dataType, nullability, id, synthetic);
+    }
+
+    protected TypedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
+        super(source, qualifier, name, nullability, id, synthetic);
         this.dataType = dataType;
     }
 
@@ -34,12 +46,14 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), dataType);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(dataType, ((TypedAttribute) obj).dataType);
+    protected boolean innerEquals(Object o) {
+        var other = (TypedAttribute) o;
+        return super.innerEquals(other) && dataType == other.dataType;
     }
 }

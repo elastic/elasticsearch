@@ -9,28 +9,9 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
-
 public abstract class TransportResponse extends TransportMessage {
-
     /**
      * Constructs a new empty transport response
      */
-    public TransportResponse() {}
-
-    public static class Empty extends TransportResponse {
-        public static final Empty INSTANCE = new Empty();
-
-        private Empty() {/* singleton */}
-
-        @Override
-        public String toString() {
-            return "Empty{}";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
-    }
+    protected TransportResponse() {}
 }

@@ -190,7 +190,11 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                     ActionListener.wrap(
                         model -> listener.onFailure(
                             new ElasticsearchStatusException(
-                                "[" + modelId + "] is configured for the _inference API and does not accept documents as input",
+                                "["
+                                    + modelId
+                                    + "] is configured for the _inference API and does not accept documents as input. "
+                                    + "If using an inference ingest processor configure it with the [input_output] option instead of "
+                                    + "[field_map].",
                                 RestStatus.BAD_REQUEST
                             )
                         ),

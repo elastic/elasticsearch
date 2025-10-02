@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.linear;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -18,6 +19,7 @@ import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -26,9 +28,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase<LinearRetrieverBuilder> {
     private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
+
+    private static final ScoreNormalizer[] SCORE_NORMALIZERS = new ScoreNormalizer[] {
+        null,
+        MinMaxScoreNormalizer.INSTANCE,
+        L2ScoreNormalizer.INSTANCE,
+        IdentityScoreNormalizer.INSTANCE };
 
     @BeforeClass
     public static void init() {
@@ -40,9 +49,23 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
         xContentRegistryEntries = null;
     }
 
+    /**
+     * Creates a random {@link LinearRetrieverBuilder}. The created instance is not guaranteed to pass {@link SearchRequest} validation.
+     * This is purely for x-content testing.
+     */
     @Override
     protected LinearRetrieverBuilder createTestInstance() {
         int rankWindowSize = randomInt(100);
+
+        List<String> fields = null;
+        String query = null;
+        ScoreNormalizer normalizer = null;
+        if (randomBoolean()) {
+            fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            query = randomAlphaOfLengthBetween(1, 10);
+            normalizer = randomScoreNormalizer();
+        }
+
         int num = randomIntBetween(1, 3);
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>();
         float[] weights = new float[num];
@@ -54,7 +77,8 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
             weights[i] = randomFloat();
             normalizers[i] = randomScoreNormalizer();
         }
-        return new LinearRetrieverBuilder(innerRetrievers, rankWindowSize, weights, normalizers);
+
+        return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
     }
 
     @Override
@@ -92,10 +116,46 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     }
 
     private static ScoreNormalizer randomScoreNormalizer() {
-        if (randomBoolean()) {
-            return MinMaxScoreNormalizer.INSTANCE;
-        } else {
-            return IdentityScoreNormalizer.INSTANCE;
+        return randomFrom(SCORE_NORMALIZERS);
+    }
+
+    public void testTopLevelNormalizer() throws IOException {
+        String json = """
+            {
+              "linear": {
+                "retrievers": [
+                  {
+                    "retriever": {
+                      "test": {
+                        "value": "test1"
+                      }
+                    },
+                    "weight": 1.0,
+                    "normalizer": "none"
+                  },
+                  {
+                    "retriever": {
+                      "test": {
+                        "value": "test2"
+                      }
+                    },
+                    "weight": 1.0,
+                    "normalizer": "none"
+                  }
+                ],
+                "normalizer": "minmax"
+              }
+            }""";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            LinearRetrieverBuilder builder = doParseInstance(parser);
+            // Test that the top-level normalizer is properly applied - the individual
+            // Per-retriever 'none' should override top-level 'minmax'
+            ScoreNormalizer[] normalizers = builder.getNormalizers();
+            assertEquals(2, normalizers.length);
+            for (ScoreNormalizer normalizer : normalizers) {
+                assertThat(normalizer, instanceOf(IdentityScoreNormalizer.class));
+            }
         }
     }
 }

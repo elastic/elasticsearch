@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -72,6 +73,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     private final JobManager jobManager;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final MlMemoryTracker memoryTracker;
+    private final ProjectResolver projectResolver;
 
     /**
      * A map of task listeners by job_id.
@@ -93,7 +95,8 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         MlMemoryTracker memoryTracker,
-        JobManager jobManager
+        JobManager jobManager,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteJobAction.NAME,
@@ -112,11 +115,12 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         this.memoryTracker = memoryTracker;
         this.listenersByJobId = new HashMap<>();
         this.jobManager = jobManager;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteJobAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

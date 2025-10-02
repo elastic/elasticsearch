@@ -32,7 +32,6 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -50,10 +49,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -195,7 +192,11 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege WRITE = new IndexPrivilege("write", WRITE_AUTOMATON);
     public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON);
-    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON);
+    public static final IndexPrivilege MANAGE = new IndexPrivilege(
+        "manage",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPredicate.DATA_AND_FAILURES
+    );
     public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON);
     public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
@@ -204,7 +205,8 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
     public static final IndexPrivilege MANAGE_DATA_STREAM_LIFECYCLE = new IndexPrivilege(
         "manage_data_stream_lifecycle",
-        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON
+        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON,
+        IndexComponentSelectorPredicate.DATA_AND_FAILURES
     );
     public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
     public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
@@ -234,10 +236,8 @@ public final class IndexPrivilege extends Privilege {
      */
     private static final Map<String, IndexPrivilege> VALUES = combineSortedInOrder(
         sortByAccessLevel(
-            Stream.of(
-                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null,
-                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("manage_failure_store", MANAGE_FAILURE_STORE) : null
-            ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+            Stream.of(entry("read_failure_store", READ_FAILURE_STORE), entry("manage_failure_store", MANAGE_FAILURE_STORE))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         ),
         sortByAccessLevel(
             Stream.of(
@@ -364,6 +364,7 @@ public final class IndexPrivilege extends Privilege {
         final Set<IndexPrivilege> allSelectorAccessPrivileges = new HashSet<>();
         final Set<IndexPrivilege> dataSelectorAccessPrivileges = new HashSet<>();
         final Set<IndexPrivilege> failuresSelectorAccessPrivileges = new HashSet<>();
+        final Set<IndexPrivilege> dataAndFailuresSelectorAccessPrivileges = new HashSet<>();
 
         boolean containsAllAccessPrivilege = name.stream().anyMatch(n -> getNamedOrNull(n) == ALL);
         for (String part : name) {
@@ -383,6 +384,8 @@ public final class IndexPrivilege extends Privilege {
                         dataSelectorAccessPrivileges.add(indexPrivilege);
                     } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.FAILURES) {
                         failuresSelectorAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.DATA_AND_FAILURES) {
+                        dataAndFailuresSelectorAccessPrivileges.add(indexPrivilege);
                     } else {
                         String errorMessage = "unexpected selector [" + indexPrivilege.selectorPredicate + "]";
                         assert false : errorMessage;
@@ -393,7 +396,7 @@ public final class IndexPrivilege extends Privilege {
                         + part
                         + "]. a privilege must be either "
                         + "one of the predefined fixed indices privileges ["
-                        + Strings.collectionToCommaDelimitedString(VALUES.entrySet())
+                        + Strings.collectionToCommaDelimitedString(names().stream().sorted().collect(Collectors.toList()))
                         + "] or a pattern over one of the available index"
                         + " actions";
                     logger.debug(errorMessage);
@@ -406,6 +409,7 @@ public final class IndexPrivilege extends Privilege {
             allSelectorAccessPrivileges,
             dataSelectorAccessPrivileges,
             failuresSelectorAccessPrivileges,
+            dataAndFailuresSelectorAccessPrivileges,
             actions
         );
         assertNamesMatch(name, combined);
@@ -416,23 +420,32 @@ public final class IndexPrivilege extends Privilege {
         Set<IndexPrivilege> allSelectorAccessPrivileges,
         Set<IndexPrivilege> dataSelectorAccessPrivileges,
         Set<IndexPrivilege> failuresSelectorAccessPrivileges,
+        Set<IndexPrivilege> dataAndFailuresSelectorAccessPrivileges,
         Set<String> actions
     ) {
         assert false == allSelectorAccessPrivileges.isEmpty()
             || false == dataSelectorAccessPrivileges.isEmpty()
             || false == failuresSelectorAccessPrivileges.isEmpty()
+            || false == dataAndFailuresSelectorAccessPrivileges.isEmpty()
             || false == actions.isEmpty() : "at least one of the privilege sets or actions must be non-empty";
 
         if (false == allSelectorAccessPrivileges.isEmpty()) {
-            assert failuresSelectorAccessPrivileges.isEmpty() && dataSelectorAccessPrivileges.isEmpty()
-                : "data and failure access must be empty when all access is present";
+            assert failuresSelectorAccessPrivileges.isEmpty()
+                && dataSelectorAccessPrivileges.isEmpty()
+                && dataAndFailuresSelectorAccessPrivileges.isEmpty() : "data and failure access must be empty when all access is present";
             return Set.of(union(allSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.ALL));
         }
 
         // linked hash set to preserve order across selectors
-        final Set<IndexPrivilege> combined = new LinkedHashSet<>();
+        final Set<IndexPrivilege> combined = Sets.newLinkedHashSetWithExpectedSize(
+            dataAndFailuresSelectorAccessPrivileges.size() + failuresSelectorAccessPrivileges.size() + dataSelectorAccessPrivileges.size()
+                + actions.size()
+        );
         if (false == dataSelectorAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
             combined.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
+        }
+        if (false == dataAndFailuresSelectorAccessPrivileges.isEmpty()) {
+            combined.add(union(dataAndFailuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.DATA_AND_FAILURES));
         }
         if (false == failuresSelectorAccessPrivileges.isEmpty()) {
             combined.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));
@@ -482,10 +495,13 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
+        return findPrivilegesThatGrant(action, p -> p.getSelectorPredicate().test(IndexComponentSelector.DATA));
+    }
+
+    public static Collection<String> findPrivilegesThatGrant(String action, Predicate<IndexPrivilege> preCondition) {
         return VALUES.entrySet()
             .stream()
-            // Only include privileges that grant data access; failures access is handled separately in authorization failure messages
-            .filter(e -> e.getValue().selectorPredicate.test(IndexComponentSelector.DATA))
+            .filter(e -> preCondition.test(e.getValue()))
             .filter(e -> e.getValue().predicate.test(action))
             .map(Map.Entry::getKey)
             .toList();

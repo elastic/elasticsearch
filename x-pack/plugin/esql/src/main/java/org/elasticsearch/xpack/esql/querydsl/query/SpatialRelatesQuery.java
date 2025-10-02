@@ -86,6 +86,11 @@ public class SpatialRelatesQuery extends Query {
         };
     }
 
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
+
     /**
      * This class is a minimal implementation of the QueryBuilder interface.
      * We only need the toQuery method, but ESQL makes extensive use of QueryBuilder and trimming that interface down for ESQL only would

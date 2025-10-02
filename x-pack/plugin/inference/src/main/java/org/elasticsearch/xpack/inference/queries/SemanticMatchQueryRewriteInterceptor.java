@@ -7,55 +7,19 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
-import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
-public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
-
-    public static final NodeFeature SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
-        "search.semantic_match_query_rewrite_interception_supported"
-    );
-
-    public SemanticMatchQueryRewriteInterceptor() {}
-
+public class SemanticMatchQueryRewriteInterceptor implements QueryRewriteInterceptor {
     @Override
-    protected String getFieldName(QueryBuilder queryBuilder) {
-        assert (queryBuilder instanceof MatchQueryBuilder);
-        MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
-        return matchQueryBuilder.fieldName();
-    }
-
-    @Override
-    protected String getQuery(QueryBuilder queryBuilder) {
-        assert (queryBuilder instanceof MatchQueryBuilder);
-        MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
-        return (String) matchQueryBuilder.value();
-    }
-
-    @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
-        return new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
-    }
-
-    @Override
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
-    ) {
-        assert (queryBuilder instanceof MatchQueryBuilder);
-        MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.should(
-            createSemanticSubQuery(
-                indexInformation.getInferenceIndices(),
-                matchQueryBuilder.fieldName(),
-                (String) matchQueryBuilder.value()
-            )
-        );
-        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));
-        return boolQueryBuilder;
+    public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof MatchQueryBuilder matchQueryBuilder) {
+            return new InterceptedInferenceMatchQueryBuilder(matchQueryBuilder);
+        } else {
+            throw new IllegalStateException("Unexpected query builder type: " + queryBuilder.getClass());
+        }
     }
 
     @Override

@@ -11,12 +11,6 @@ setup:
           synonyms_set:
             synonyms: "foo => bar, baz"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
   - do:
       indices.create:
         index: test_index
@@ -372,13 +366,6 @@ setup:
           synonyms_set:
             synonyms: "foo => bar, baz"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
-
   - do:
       indices.stats: { index: test_index }
 
@@ -440,12 +427,6 @@ setup:
         body:
           synonyms_set:
             synonyms: "foo => bar, baz"
-
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
 
   - do:
       # Warning issued in previous versions

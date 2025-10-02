@@ -46,6 +46,14 @@ public class RailRoadDiagram {
      * {@code FOO(a, b, c)}.
      */
     static String functionSignature(FunctionDefinition definition) throws IOException {
+        return toSvg(svgSequence(definition));
+    }
+
+    /**
+     * Create the internal representation of a function signature.
+     * Useful for unit testing the SVG output without having to parse SVG.
+     */
+    static Sequence svgSequence(FunctionDefinition definition) {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
@@ -57,6 +65,7 @@ public class RailRoadDiagram {
             expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
         } else {
             List<Expression> argExpressions = new ArrayList<>();
+            List<Expression> repetitionExpressions = new ArrayList<>();
             List<EsqlFunctionRegistry.ArgSignature> args = EsqlFunctionRegistry.description(definition).args();
             for (int i = 0; i < args.size(); i++) {
                 EsqlFunctionRegistry.ArgSignature arg = args.get(i);
@@ -67,83 +76,76 @@ public class RailRoadDiagram {
                     }
                     argExpressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(argName)), arg.optional ? 0 : 1, null));
                 } else {
+                    List<Expression> currentExpressions;
                     if (arg.optional) {
-                        if (definition.name().equals("bucket")) {
-                            // BUCKET requires optional args to be optional together, so we need custom code to do that
-                            var nextArg = args.get(++i);
-                            assert nextArg.optional();
-                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","), new Literal(nextArg.name));
-                            argExpressions.add(new Repetition(seq, 0, 1));
-                        } else if (i < args.size() - 1 && args.get(i + 1).optional() == false) {
-                            // Special case with leading optional args
-                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","));
-                            argExpressions.add(new Repetition(seq, 0, 1));
-                        } else {
-                            argExpressions.add(new Repetition(new Literal(argName), 0, 1));
-                        }
+                        currentExpressions = repetitionExpressions;
                     } else {
-                        argExpressions.add(new Literal(argName));
+                        currentExpressions = argExpressions;
+                        if (i > 0 && args.get(i - 1).optional) {
+                            repetitionExpressions.add(new Syntax(","));
+                        }
+                        checkRepetition(argExpressions, repetitionExpressions);
                     }
+                    if (i > 0 && (arg.optional || args.get(i - 1).optional == false)) {
+                        currentExpressions.add(new Syntax(","));
+                    }
+                    currentExpressions.add(new Literal(argName));
                 }
             }
-            expressions.addAll(injectCommas(argExpressions, new Syntax(",")));
+            checkRepetition(argExpressions, repetitionExpressions);
+            expressions.addAll(argExpressions);
         }
         expressions.add(new Syntax(")"));
-        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+        return new Sequence(expressions.toArray(Expression[]::new));
     }
 
-    public static List<Expression> injectCommas(List<Expression> original, Expression comma) {
-        List<Expression> result = new ArrayList<>();
-        for (int i = 0; i < original.size(); i++) {
-            result.add(original.get(i));
-            if (i < original.size() - 1 && hasComma(original.get(i), true) == false && hasComma(original.get(i + 1), false) == false) {
-                result.add(comma);
-            }
+    private static void checkRepetition(List<Expression> argExpressions, List<Expression> repetitionExpressions) {
+        if (repetitionExpressions.isEmpty() == false) {
+            // We have collected some optional args, add them as a group
+            argExpressions.add(new Repetition(new Sequence(repetitionExpressions.toArray(Expression[]::new)), 0, 1));
+            repetitionExpressions.clear();
         }
-        return result;
-    }
-
-    private static boolean hasComma(Expression exp, boolean atEnd) {
-        if (exp instanceof Repetition rep && rep.getExpression() instanceof Sequence seq) {
-            Expression[] seqExp = seq.getExpressions();
-            int index = atEnd ? seqExp.length - 1 : 0;
-            return seqExp[index] instanceof Syntax syntax && syntax.text.equals(",");
-        }
-        return false;
     }
 
     /**
-     * Generate a railroad diagram for binary operator. The output would look like
-     * {@code lhs + rhs}.
+     * Generate a railroad diagram for an infix operator like the binary operators, search operator or cast operator.
+     * Example output would look like:
+     * <dl>
+     *     <dt>Addition (binary operator)</dt>
+     *     <dd>{@code lhs + rhs}</dd>
+     *     <dt>Search</dt>
+     *     <dd>{@code field : query}</dd>
+     *     <dt>Cast</dt>
+     *     <dd>{@code field :: type}</dd>
+     * </dl>
      */
-    static String binaryOperator(String operator) throws IOException {
+    static String infixOperator(String lhs, String operator, String rhs) throws IOException {
         List<Expression> expressions = new ArrayList<>();
-        expressions.add(new Literal("lhs"));
+        expressions.add(new Literal(lhs));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("rhs"));
+        expressions.add(new Literal(rhs));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
     /**
-     * Generate a railroad diagram for a search operator. The output would look like
-     * {@code field : value}.
+     * Generate a railroad diagram for prefix operators like the unary operators.
+     * For example, for negation the output would look like {@code -v}.
      */
-    static String searchOperator(String operator) throws IOException {
+    static String prefixOperator(String operator, String suffix) throws IOException {
         List<Expression> expressions = new ArrayList<>();
-        expressions.add(new Literal("field"));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("query"));
+        expressions.add(new Literal(suffix));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
     /**
-     * Generate a railroad diagram for unary operator. The output would look like
-     * {@code -v}.
+     * Generate a railroad diagram for suffix operators like the NULL predicates.
+     * For example, for null checks the output would look like {@code field IS NOT NULL}.
      */
-    static String unaryOperator(String operator) throws IOException {
+    static String suffixOperator(String prefix, String operator) throws IOException {
         List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal(prefix));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("v"));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 

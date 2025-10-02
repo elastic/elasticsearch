@@ -5,6 +5,7 @@ applies_to:
     ess:
     ece:
     self:
+    eck:
   serverless:
 ---
 

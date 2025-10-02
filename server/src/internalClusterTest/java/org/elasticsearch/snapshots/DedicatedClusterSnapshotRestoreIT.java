@@ -62,7 +62,6 @@ import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -524,10 +523,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             throw getRepoError.get();
         }
 
-        RestClusterStateAction clusterStateAction = new RestClusterStateAction(
-            internalCluster().getInstance(SettingsFilter.class),
-            internalCluster().getInstance(ThreadPool.class)
-        );
+        RestClusterStateAction clusterStateAction = new RestClusterStateAction(internalCluster().getInstance(SettingsFilter.class));
         RestRequest clusterStateRequest = new FakeRestRequest();
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);
         final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();
@@ -685,6 +681,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testSnapshotWithDateMath() {
+        internalCluster().startMasterOnlyNode();
         final String repo = "repo";
 
         final String snapshotName = "<snapshot-{now/d}>";
@@ -712,6 +709,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testSnapshotTotalAndIncrementalSizes() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
         final String indexName = "test-blocks-1";
         final String repositoryName = "repo-" + indexName;
         final String snapshot0 = "snapshot-0";
@@ -798,6 +797,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testDeduplicateIndexMetadata() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
         final String indexName = "test-blocks-1";
         final String repositoryName = "repo-" + indexName;
         final String snapshot0 = "snapshot-0";
@@ -968,6 +969,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testRetentionLeasesClearedOnRestore() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
         final String repoName = "test-repo-retention-leases";
         createRepository(repoName, "fs");
 
@@ -1060,7 +1063,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 TransportRequest request,
                 TransportRequestOptions finalOptions
             ) {
-                if (blocked.get() && action.equals(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME)) {
+                if (blocked.get() && action.equals(TransportUpdateSnapshotStatusAction.NAME)) {
                     throw new AssertionError("Node had no assigned shard snapshots so it shouldn't send out shard state updates");
                 }
             }
@@ -1070,7 +1073,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final ActionFuture<AcknowledgedResponse> deleteResponse = startDeleteSnapshot(repoName, snapshotName);
 
         awaitClusterState(
-            logger,
             otherDataNode,
             state -> SnapshotsInProgress.get(state)
                 .forRepo(repoName)

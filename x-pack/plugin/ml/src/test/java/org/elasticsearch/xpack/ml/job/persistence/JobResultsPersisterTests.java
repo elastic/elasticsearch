@@ -234,6 +234,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
     }
@@ -253,6 +254,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
 
@@ -303,6 +305,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
 

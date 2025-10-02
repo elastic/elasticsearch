@@ -15,6 +15,7 @@ import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
@@ -27,6 +28,7 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.nio.conn.NoopIOSessionStrategy;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
@@ -42,7 +44,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,6 +75,10 @@ import java.util.function.Supplier;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
+
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_HOST;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_PORT;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_SCHEME;
 
 /**
  * Utilities for JWT realm.
@@ -267,10 +273,13 @@ public class JwtUtil {
             return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
                 final ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
                 final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-                final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-                final SSLContext clientContext = sslService.sslContext(sslConfiguration);
-                final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
+
+                final SslProfile sslProfile = sslService.profile(sslKey);
+                final SSLContext clientContext = sslProfile.sslContext();
+                final HostnameVerifier verifier = sslProfile.hostnameVerifier();
                 final Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
+                    .register("http", NoopIOSessionStrategy.INSTANCE)
+                    // TODO: Should this use profile.ioSessionStrategy4 ?
                     .register("https", new SSLIOSessionStrategy(clientContext, verifier))
                     .build();
                 final PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
@@ -286,6 +295,15 @@ public class JwtUtil {
                 final HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
                     .setDefaultRequestConfig(requestConfig);
+                if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+                    httpAsyncClientBuilder.setProxy(
+                        new HttpHost(
+                            realmConfig.getSetting(HTTP_PROXY_HOST),
+                            realmConfig.getSetting(HTTP_PROXY_PORT),
+                            realmConfig.getSetting(HTTP_PROXY_SCHEME)
+                        )
+                    );
+                }
                 final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
                 httpAsyncClient.start();
                 return httpAsyncClient;

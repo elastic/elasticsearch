@@ -48,15 +48,13 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         suppliers(suppliers, "keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10));
         suppliers(suppliers, "text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10));
         suppliers(suppliers, "text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
-        suppliers(suppliers, "semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10));
-        suppliers(suppliers, "semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     public void testRandomLocale() {
         String testString = randomAlphaOfLength(10);
         Configuration cfg = randomLocaleConfig();
-        ToLower func = new ToLower(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
+        ToLower func = new ToLower(Source.EMPTY, Literal.keyword(Source.EMPTY, testString), cfg);
         assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold(FoldContext.small())));
     }
 
@@ -73,7 +71,9 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             false,
             Map.of(),
             System.nanoTime(),
-            randomBoolean()
+            randomBoolean(),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 

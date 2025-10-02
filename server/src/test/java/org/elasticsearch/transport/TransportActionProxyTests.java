@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -58,7 +57,7 @@ public class TransportActionProxyTests extends ESTestCase {
         IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
-    protected static final TransportVersion transportVersion0 = TransportVersions.MINIMUM_COMPATIBLE;
+    protected static final TransportVersion transportVersion0 = TransportVersion.minimumCompatible();
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
@@ -159,7 +158,7 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
         // Node A -> Node B -> Node C: different versions - serialize the response
         {
-            final List<TransportMessage> responses = Collections.synchronizedList(new ArrayList<>());
+            final List<TransportResponse> responses = Collections.synchronizedList(new ArrayList<>());
             final CountDownLatch latch = new CountDownLatch(1);
             serviceB.addRequestHandlingBehavior(
                 TransportActionProxy.getProxyAction("internal:test"),
@@ -212,7 +211,7 @@ public class TransportActionProxyTests extends ESTestCase {
         {
             AbstractSimpleTransportTestCase.connectToNode(serviceD, nodeB);
             final CountDownLatch latch = new CountDownLatch(1);
-            final List<TransportMessage> responses = Collections.synchronizedList(new ArrayList<>());
+            final List<TransportResponse> responses = Collections.synchronizedList(new ArrayList<>());
             serviceB.addRequestHandlingBehavior(
                 TransportActionProxy.getProxyAction("internal:test"),
                 (handler, request, channel, task) -> handler.messageReceived(
@@ -257,7 +256,7 @@ public class TransportActionProxyTests extends ESTestCase {
             );
             latch.await();
             assertThat(responses, hasSize(1));
-            assertThat(responses.get(0), instanceOf(TransportActionProxy.BytesTransportResponse.class));
+            assertThat(responses.get(0), instanceOf(BytesTransportResponse.class));
             serviceB.clearAllRules();
         }
     }
@@ -400,7 +399,7 @@ public class TransportActionProxyTests extends ESTestCase {
         latch.await();
     }
 
-    public static class SimpleTestRequest extends TransportRequest {
+    public static class SimpleTestRequest extends AbstractTransportRequest {
         final boolean cancellable;
         final String sourceNode;
 

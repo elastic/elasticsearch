@@ -1,0 +1,31 @@
+---
+"Index using shared data path":
+
+  - requires:
+      test_runner_features: ["warnings"]
+
+  - do:
+      warnings:
+        - "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            data_path: "test_index_data_path"
+
+  - do:
+      index:
+        index:  test_index
+        id:     "1"
+        body:   { foo: bar }
+
+  - match:   { result: created }
+
+  - do:
+      index:
+        index:    test_index
+        id:       "1"
+        body:     { foo: bar }
+        op_type:  index
+
+  - match:   { result: updated }

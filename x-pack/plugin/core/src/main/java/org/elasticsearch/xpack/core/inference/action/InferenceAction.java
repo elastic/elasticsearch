@@ -64,6 +64,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public static final ParseField TOP_N = new ParseField("top_n");
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
+        public static Builder builder(String inferenceEntityId, TaskType taskType) {
+            return new Builder().setInferenceEntityId(inferenceEntityId).setTaskType(taskType);
+        }
+
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
@@ -265,6 +269,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 if (topN != null) {
                     var e = new ActionRequestValidationException();
                     e.addValidationError(format("Field [top_n] cannot be specified for task type [%s]", taskType));
+                    return e;
+                }
+            }
+
+            if (taskType.equals(TaskType.TEXT_EMBEDDING) || taskType.equals(TaskType.SPARSE_EMBEDDING)) {
+                if (query != null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be specified for task type [%s]", taskType));
                     return e;
                 }
             }
@@ -580,12 +592,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeNamedWriteable(results);
-            } else {
-                out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
-            }
             // streaming isn't supported via Writeable yet
+            out.writeNamedWriteable(results);
         }
 
         @Override

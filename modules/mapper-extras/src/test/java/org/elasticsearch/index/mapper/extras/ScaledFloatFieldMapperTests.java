@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapperTests;
@@ -75,6 +76,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+    }
+
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -365,6 +371,23 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         return new ScaledFloatSyntheticSourceSupport(ignoreMalformed);
     }
 
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed) {
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                var example = super.example(maxVals);
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // uses the inputValue as both the input and expected.
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+        };
+    }
+
     private static class ScaledFloatSyntheticSourceSupport implements SyntheticSourceSupport {
         private final boolean ignoreMalformedEnabled;
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
@@ -381,7 +404,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
                 if (v.malformedOutput == null) {
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
-                return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
             }
             List<Value> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
@@ -458,11 +481,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
-    }
-
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        assumeTrue("Disabled, tested by ScaledFloatFieldBlockLoaderTests instead", false);
-        return null;
     }
 
     @Override

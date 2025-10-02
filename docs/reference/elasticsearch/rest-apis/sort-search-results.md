@@ -36,9 +36,9 @@ GET /my-index-000001/_search
 {
   "sort" : [
     { "post_date" : {"order" : "asc", "format": "strict_date_optional_time_nanos"}},
-    "user",
     { "name" : "desc" },
     { "age" : "desc" },
+    "user",
     "_score"
   ],
   "query" : {
@@ -46,6 +46,17 @@ GET /my-index-000001/_search
   }
 }
 ```
+Order matters when defining multiple sort fields, because {{es}} attempts to sort on the first field in the array. Each subsequent field in the array is only used if the previous fields result in a tie. If documents have identical values across all specified sort fields, {{es}} uses the document ID as the final tie-breaker.
+
+Here's how the example query attempts to sort results:
+
+- First by `post_date` 
+- If `post_date` values are identical, sorts by `name` 
+- If both `post_date` and `name` are identical, sorts by `age`
+- If the first three fields are identical, sorts by `user` 
+- If all previous fields are identical, sorts by `_score`
+
+By default, Elasticsearch sorts `numeric` fields in descending order and `string` fields in ascending order unless you explicitly specify otherwise. All three formats shown in the example above are valid. Some make the sort order explicit, while others rely on Elasticsearch’s default behavior.
 
 ::::{note}
 `_doc` has no real use-case besides being the most efficient sort order. So if you don’t care about the order in which documents are returned, then you should sort by `_doc`. This especially helps when [scrolling](/reference/elasticsearch/rest-apis/paginate-search-results.md#scroll-search-results).
@@ -102,7 +113,7 @@ Elasticsearch supports sorting by array or multi-valued fields. The `mode` optio
 `median`
 :   Use the median of all values as sort value. Only applicable for number based array fields.
 
-The default sort mode in the ascending sort order is `min` — the lowest value is picked. The default sort mode in the descending order is `max` — the highest value is picked.
+The default sort mode in the ascending sort order is `min` — the lowest value is picked. The default sort mode in the descending order is `max` — the highest value is picked.
 
 
 ### Sort mode example usage [_sort_mode_example_usage]

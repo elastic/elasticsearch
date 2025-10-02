@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -28,7 +30,9 @@ public class MatchOperator extends Match {
     @FunctionInfo(
         returnType = "boolean",
         operator = ":",
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = """
             Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.
@@ -39,7 +43,7 @@ public class MatchOperator extends Match {
             <<esql-match,match function>>.
 
             `:` returns true if the provided query matches the row.""",
-        examples = { @Example(file = "match-function", tag = "match-with-field") }
+        examples = { @Example(file = "match-operator", tag = "match-with-field") }
     )
     public MatchOperator(
         Source source,

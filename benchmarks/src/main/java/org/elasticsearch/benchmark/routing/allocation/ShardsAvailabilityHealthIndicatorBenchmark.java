@@ -12,8 +12,10 @@ package org.elasticsearch.benchmark.routing.allocation;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -95,7 +97,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
 
         AllocationService allocationService = Allocators.createAllocationService(Settings.EMPTY);
 
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder pmb = ProjectMetadata.builder(ProjectId.DEFAULT);
         RoutingTable.Builder rb = RoutingTable.builder();
 
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
@@ -159,12 +161,12 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             }
 
             routingTable.add(indexRountingTableBuilder);
-            mb.put(indexMetadata, false);
+            pmb.put(indexMetadata, false);
         }
 
         ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(mb)
-            .routingTable(routingTable)
+            .putProjectMetadata(pmb)
+            .putRoutingTable(pmb.getId(), routingTable.build())
             .nodes(nb)
             .build();
 
@@ -178,7 +180,12 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
         );
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, new SystemIndices(List.of()));
+        indicatorService = new ShardsAvailabilityHealthIndicatorService(
+            clusterService,
+            allocationService,
+            new SystemIndices(List.of()),
+            DefaultProjectResolver.INSTANCE
+        );
     }
 
     private int toInt(String v) {

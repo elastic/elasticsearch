@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,6 +23,7 @@ import java.util.stream.Stream;
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+        Path esHome = Path.of(sysprops.get("es.path.home"));
         String distroType = sysprops.get("es.distribution.type");
         String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
@@ -67,7 +67,8 @@ final class SystemJvmOptions {
                 "-Djava.locale.providers=CLDR",
                 // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
                 "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
-                // Pass through distribution type and java type
+                // Pass through some properties
+                "-Des.path.home=" + esHome,
                 "-Des.distribution.type=" + distroType,
                 "-Des.java.type=" + javaType
             ),
@@ -76,8 +77,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(useEntitlements),
-            maybeAttachEntitlementAgent(useEntitlements)
+            maybeAttachEntitlementAgent(esHome, useEntitlements)
         ).flatMap(s -> s).toList();
     }
 
@@ -151,20 +151,12 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
-            // Will become conditional on useEntitlements once entitlements can run without SM
-            return Stream.of("-Djava.security.manager=allow");
-        }
-        return Stream.of();
-    }
-
-    private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
+    private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
         if (useEntitlements == false) {
             return Stream.empty();
         }
 
-        Path dir = Path.of("lib", "entitlement-bridge");
+        Path dir = esHome.resolve("lib/entitlement-bridge");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
         }
@@ -182,7 +174,6 @@ final class SystemJvmOptions {
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
         String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
         return Stream.of(
-            "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,

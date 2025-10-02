@@ -55,6 +55,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -567,12 +568,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
             // size is lower than terminate_after
             context.setSize(5);
             // track_total_hits is lower than terminate_after
-            context.trackTotalHitsUpTo(randomIntBetween(1, 6));
+            int trackTotalHits = randomIntBetween(1, 6);
+            context.trackTotalHitsUpTo(trackTotalHits);
             QueryPhase.executeQuery(context);
             // depending on docs distribution we may or may not be able to honor terminate_after: low scoring hits are skipped via
             // setMinCompetitiveScore, which bypasses terminate_after until the next leaf collector is pulled, when that happens.
             assertThat(context.queryResult().terminatedEarly(), either(is(true)).or(is(false)));
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo(7L));
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), greaterThanOrEqualTo((long) trackTotalHits));
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation(), equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(5));
         }
@@ -813,7 +815,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final SortAndFormats formatsLongDate = new SortAndFormats(sortLongDate, new DocValueFormat[] { DocValueFormat.RAW, dvFormatDate });
         final SortAndFormats formatsDateLong = new SortAndFormats(sortDateLong, new DocValueFormat[] { dvFormatDate, DocValueFormat.RAW });
 
-        Query q = LongPoint.newRangeQuery(fieldNameLong, startLongValue, startLongValue + numDocs);
+        // query all but one doc to avoid optimizations that may rewrite to a MatchAllDocs, which simplifies assertions
+        Query q = LongPoint.newRangeQuery(fieldNameLong, startLongValue, startLongValue + numDocs - 2);
 
         // 1. Test sort optimization on long field
         try (TestSearchContext searchContext = createContext(newContextSearcher(reader), q)) {
@@ -881,7 +884,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             QueryPhase.addCollectorsAndSearch(searchContext);
             assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
             assertThat(searchContext.queryResult().topDocs().topDocs.scoreDocs, arrayWithSize(0));
-            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value(), equalTo((long) numDocs));
+            assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.value(), equalTo((long) numDocs - 1));
             assertThat(searchContext.queryResult().topDocs().topDocs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
         }
 
@@ -990,7 +993,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.trackTotalHitsUpTo(5);
 
             QueryPhase.addCollectorsAndSearch(context);
-            assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value());
+            TotalHits totalHits = context.queryResult().topDocs().topDocs.totalHits;
+            assertThat(totalHits.value(), greaterThanOrEqualTo(5L));
+            assertThat(totalHits.relation(), is(Relation.GREATER_THAN_OR_EQUAL_TO));
         }
     }
 

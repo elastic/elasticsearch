@@ -14,8 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOError;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
     private static final Logger logger = LogManager.getLogger(ElasticsearchUncaughtExceptionHandler.class);
@@ -53,41 +51,17 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
 
     void onFatalUncaught(final String threadName, final Throwable t) {
         final String message = "fatal error in thread [" + threadName + "], exiting";
-        logErrorMessage(t, message);
+        logger.error(message, t);
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {
         final String message = "uncaught exception in thread [" + threadName + "]";
-        logErrorMessage(t, message);
+        logger.error(message, t);
     }
 
-    private static void logErrorMessage(Throwable t, String message) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            logger.error(message, t);
-            return null;
-        });
-    }
-
+    @SuppressForbidden(reason = "intentionally halting")
     void halt(int status) {
-        AccessController.doPrivileged(new PrivilegedHaltAction(status));
+        // we halt to prevent shutdown hooks from running
+        Runtime.getRuntime().halt(status);
     }
-
-    static class PrivilegedHaltAction implements PrivilegedAction<Void> {
-
-        private final int status;
-
-        private PrivilegedHaltAction(final int status) {
-            this.status = status;
-        }
-
-        @SuppressForbidden(reason = "halt")
-        @Override
-        public Void run() {
-            // we halt to prevent shutdown hooks from running
-            Runtime.getRuntime().halt(status);
-            return null;
-        }
-
-    }
-
 }

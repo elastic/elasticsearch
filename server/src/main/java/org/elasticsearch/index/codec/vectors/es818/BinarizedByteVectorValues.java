@@ -23,6 +23,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
 

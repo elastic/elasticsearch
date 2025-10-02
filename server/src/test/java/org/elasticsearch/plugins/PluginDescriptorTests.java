@@ -107,7 +107,7 @@ public class PluginDescriptorTests extends ESTestCase {
         assertions.accept(PluginDescriptorTests::mockStableDescriptor);
     }
 
-    public void testReadInternalDescriptor() throws Exception {
+    public void testReadInternalDescriptorFromStream() throws Exception {
         PluginDescriptor info = mockInternalDescriptor();
         assertEquals("my_plugin", info.getName());
         assertEquals("fake desc", info.getDescription());

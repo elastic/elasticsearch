@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -72,7 +72,8 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
         DataType dataType = randomFrom(types());
         DataType toType = toString ? DataType.KEYWORD : dataType;
         Map<String, Expression> indexToConvertExpressions = randomConvertExpressions(name, toString, dataType);
-        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions);
+        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
+        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType);
     }
 
     @Override
@@ -80,13 +81,15 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
         String name = instance.getName();
         DataType dataType = instance.getDataType();
         Map<String, Expression> indexToConvertExpressions = instance.getIndexToConversionExpressions();
-        switch (between(0, 2)) {
+        EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
+        switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> dataType = randomValueOtherThan(dataType, () -> randomFrom(DataType.types()));
             case 2 -> indexToConvertExpressions = mutateConvertExpressions(name, dataType, indexToConvertExpressions);
+            case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             default -> throw new IllegalArgumentException();
         }
-        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions);
+        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType);
     }
 
     @Override
@@ -156,7 +159,7 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
                 case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
                 case INTEGER -> new ToInteger(Source.EMPTY, fromField);
                 case LONG -> new ToLong(Source.EMPTY, fromField);
-                case IP -> new ToIP(Source.EMPTY, fromField);
+                case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField);
                 case KEYWORD -> new ToString(Source.EMPTY, fromField);
                 case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
                 case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);
@@ -169,6 +172,6 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 }

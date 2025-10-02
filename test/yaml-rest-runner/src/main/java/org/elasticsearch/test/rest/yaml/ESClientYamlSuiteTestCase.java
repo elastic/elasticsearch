@@ -59,8 +59,9 @@ import java.util.stream.Collectors;
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
  * clients against an elasticsearch cluster.
- *
+ * <p>
  * The suite timeout is extended to account for projects with a large number of tests.
+ * </p>
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
@@ -91,11 +92,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
      * This allows us to support ',' within paths when it is escaped with a slash.
-     *
+     * <p>
      * For example, the path string "/a/b/c\,d/e/f,/foo/bar,/baz" is separated to "/a/b/c\,d/e/f", "/foo/bar" and "/baz".
-     *
+     * </p><p>
      * For reference, this regular expression feature is known as zero-width negative look-behind.
-     *
+     * </p>
      */
     private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
@@ -226,57 +227,74 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Create parameters for this parameterized test.
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        return createParameters(executeableSectionRegistry, null);
+        return createParameters(executeableSectionRegistry, Map.of(), resolvePathsProperty(REST_TESTS_SUITE, ""));
     }
 
     /**
      * Create parameters for this parameterized test.
-     */
-    public static Iterable<Object[]> createParameters(String[] testPaths, Map<String, Object> yamlParameters) throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths, yamlParameters);
-    }
-
-    /**
-     * Create parameters for this parameterized test.
-     */
-    public static Iterable<Object[]> createParameters(String[] testPaths) throws Exception {
-        return createParameters(testPaths, Collections.emptyMap());
-    }
-
-    /**
-     * Create parameters for this parameterized test.
-     *
-     * @param executeableSectionRegistry registry of executable sections
-     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
-     * @return list of test candidates.
-     * @throws Exception
-     */
-    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths)
-        throws Exception {
-        return createParameters(executeableSectionRegistry, testPaths, Collections.emptyMap());
-    }
-
-    /**
-     * Create parameters for this parameterized test.
-     *
-     * @param executeableSectionRegistry registry of executable sections
-     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
      * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
+     */
+    public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters) throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, resolvePathsProperty(REST_TESTS_SUITE, ""));
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
+     * @param testPaths      list of paths to explicitly search for tests.
+     */
+    public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters, String... testPaths) throws Exception {
+        if (System.getProperty(REST_TESTS_SUITE) != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     * @param testPaths list of paths to explicitly search for tests.
+     */
+    public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
+        if (System.getProperty(REST_TESTS_SUITE) != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param testPaths list of paths to explicitly search for tests.
      * @return list of test candidates.
-     * @throws Exception
+     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... testPaths)
+        throws Exception {
+        if (System.getProperty(REST_TESTS_SUITE) != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+        return createParameters(executeableSectionRegistry, Map.of(), testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param yamlParameters             map or parameters used within the yaml specs to be replaced at parsing time.
+     * @param testPaths                  list of paths to explicitly search for tests. If {@code null} then include all tests in root path.
+     * @return list of test candidates.
      */
     public static Iterable<Object[]> createParameters(
         NamedXContentRegistry executeableSectionRegistry,
-        String[] testPaths,
-        Map<String, ?> yamlParameters
+        Map<String, ?> yamlParameters,
+        String... testPaths
     ) throws Exception {
-        if (testPaths != null && System.getProperty(REST_TESTS_SUITE) != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+
+        if (testPaths == null) {
+            throw new IllegalArgumentException("testPaths cannot be null");
         }
 
-        // default to all tests under the test root
-        String[] paths = testPaths == null ? resolvePathsProperty(REST_TESTS_SUITE, "") : testPaths;
-        Map<String, Set<Path>> yamlSuites = loadSuites(paths);
+        Map<String, Set<Path>> yamlSuites = loadSuites(testPaths);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
         // yaml suites are grouped by directory (effectively by api)
@@ -476,6 +494,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         restTestExecutionContext.clear();
+        // Prepare the stash so that ${_project_id_prefix_} is expanded as needed in some assertions:
+        restTestExecutionContext.stash().stashValue("_project_id_prefix_", activeProjectPrefix());
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {

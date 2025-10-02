@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
@@ -27,7 +28,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -38,7 +38,6 @@ import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
@@ -74,8 +73,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             clusterSettings,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            taskManger,
-            Tracer.NOOP
+            taskManger
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
@@ -185,7 +183,7 @@ public class JoinHelperTests extends ESTestCase {
 
     private void completeJoinRequest(CapturingTransport capturingTransport, CapturedRequest request, boolean mightSucceed) {
         if (mightSucceed && randomBoolean()) {
-            capturingTransport.handleResponse(request.requestId(), TransportResponse.Empty.INSTANCE);
+            capturingTransport.handleResponse(request.requestId(), ActionResponse.Empty.INSTANCE);
         } else {
             capturingTransport.handleRemoteError(request.requestId(), new CoordinationStateRejectedException("dummy"));
         }
@@ -241,8 +239,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             clusterSettings,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            taskManger,
-            Tracer.NOOP
+            taskManger
         );
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
@@ -319,8 +316,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             clusterSettings,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            taskManger,
-            Tracer.NOOP
+            taskManger
         );
         JoinHelper joinHelper = new JoinHelper(
             null,

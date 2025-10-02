@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-lambdas.html
+products:
+  - id: painless
 ---
 
 # Lambdas [painless-lambdas]

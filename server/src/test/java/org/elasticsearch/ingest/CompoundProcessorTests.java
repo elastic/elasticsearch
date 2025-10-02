@@ -408,9 +408,9 @@ public class CompoundProcessorTests extends ESTestCase {
             processor,
             ingestDocument
         );
-        assertThat(ingestProcessorException1.getHeader("processor_tag"), equalTo(List.of("my_tag")));
-        assertThat(ingestProcessorException1.getHeader("processor_type"), equalTo(List.of("my_type")));
-        assertThat(ingestProcessorException1.getHeader("pipeline_origin"), nullValue());
+        assertThat(ingestProcessorException1.getBodyHeader("processor_tag"), equalTo(List.of("my_tag")));
+        assertThat(ingestProcessorException1.getBodyHeader("processor_type"), equalTo(List.of("my_type")));
+        assertThat(ingestProcessorException1.getBodyHeader("pipeline_origin"), nullValue());
 
         IngestProcessorException ingestProcessorException2 = CompoundProcessor.newCompoundProcessorException(
             ingestProcessorException1,
@@ -459,9 +459,9 @@ public class CompoundProcessorTests extends ESTestCase {
         Exception[] holder = new Exception[1];
         ingestDocument.executePipeline(pipeline1, (document, e) -> holder[0] = e);
         IngestProcessorException ingestProcessorException = (IngestProcessorException) holder[0];
-        assertThat(ingestProcessorException.getHeader("processor_tag"), equalTo(List.of("my_tag")));
-        assertThat(ingestProcessorException.getHeader("processor_type"), equalTo(List.of("my_type")));
-        assertThat(ingestProcessorException.getHeader("pipeline_origin"), equalTo(List.of("2", "1")));
+        assertThat(ingestProcessorException.getBodyHeader("processor_tag"), equalTo(List.of("my_tag")));
+        assertThat(ingestProcessorException.getBodyHeader("processor_type"), equalTo(List.of("my_type")));
+        assertThat(ingestProcessorException.getBodyHeader("pipeline_origin"), equalTo(List.of("2", "1")));
     }
 
     public void testMultipleProcessors() {

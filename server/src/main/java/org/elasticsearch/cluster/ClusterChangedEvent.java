@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -41,6 +43,8 @@ public class ClusterChangedEvent {
 
     private final DiscoveryNodes.Delta nodesDelta;
 
+    private final ProjectsDelta projectsDelta;
+
     public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState) {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(state, "state must not be null");
@@ -49,6 +53,7 @@ public class ClusterChangedEvent {
         this.state = state;
         this.previousState = previousState;
         this.nodesDelta = state.nodes().delta(previousState.nodes());
+        this.projectsDelta = calculateProjectDelta(previousState.metadata(), state.metadata());
     }
 
     /**
@@ -158,6 +163,19 @@ public class ClusterChangedEvent {
         return result;
     }
 
+    /**
+     * Checks whether custom metadata type for a project has changed between the previous cluster state
+     * and the new cluster state. Custom metadata types are considered changed iff they have been added,
+     * updated or removed between the previous and the current state
+     */
+    public boolean customMetadataChanged(ProjectId projectId, String customMetadataType) {
+        ProjectMetadata previousProject = previousState.metadata().projects().get(projectId);
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        Object previousValue = previousProject == null ? null : previousProject.customs().get(customMetadataType);
+        Object value = project == null ? null : project.customs().get(customMetadataType);
+        return Objects.equals(previousValue, value) == false;
+    }
+
     private <C extends Metadata.MetadataCustom<C>> Set<String> changedCustoms(
         Map<String, C> currentCustoms,
         Map<String, C> previousCustoms
@@ -235,6 +253,13 @@ public class ClusterChangedEvent {
      */
     public boolean nodesChanged() {
         return nodesRemoved() || nodesAdded();
+    }
+
+    /**
+     * Returns the {@link ProjectsDelta} between the previous cluster state and the new cluster state.
+     */
+    public ProjectsDelta projectDelta() {
+        return projectsDelta;
     }
 
     /**
@@ -336,4 +361,32 @@ public class ClusterChangedEvent {
             .toList();
     }
 
+    private static ProjectsDelta calculateProjectDelta(Metadata previousMetadata, Metadata currentMetadata) {
+        if (previousMetadata == currentMetadata
+            || (previousMetadata.projects().size() == 1
+                && previousMetadata.hasProject(ProjectId.DEFAULT)
+                && currentMetadata.projects().size() == 1
+                && currentMetadata.hasProject(ProjectId.DEFAULT))) {
+            return ProjectsDelta.EMPTY;
+        }
+
+        final Set<ProjectId> added = Collections.unmodifiableSet(
+            Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())
+        );
+        final Set<ProjectId> removed = Collections.unmodifiableSet(
+            Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet())
+        );
+        // TODO: Enable the following assertions once tests no longer add or remove default projects
+        // assert added.contains(ProjectId.DEFAULT) == false;
+        // assert removed.contains(ProjectId.DEFAULT) == false;
+        return new ProjectsDelta(added, removed);
+    }
+
+    public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed) {
+        private static final ProjectsDelta EMPTY = new ProjectsDelta(Set.of(), Set.of());
+
+        public boolean isEmpty() {
+            return added.isEmpty() && removed.isEmpty();
+        }
+    }
 }

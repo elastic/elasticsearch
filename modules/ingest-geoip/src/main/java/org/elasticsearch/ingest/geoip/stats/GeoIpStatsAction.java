@@ -21,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -68,7 +68,7 @@ public class GeoIpStatsAction {
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
@@ -174,9 +174,7 @@ public class GeoIpStatsAction {
             }
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
-            configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? in.readCollectionAsImmutableSet(StreamInput::readString)
-                : null;
+            configDatabases = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
 
         protected NodeResponse(
@@ -226,9 +224,7 @@ public class GeoIpStatsAction {
             }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeStringCollection(configDatabases);
-            }
+            out.writeStringCollection(configDatabases);
         }
 
         @Override

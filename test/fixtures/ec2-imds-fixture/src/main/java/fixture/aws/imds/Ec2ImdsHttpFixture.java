@@ -27,12 +27,6 @@ import java.util.Objects;
 public class Ec2ImdsHttpFixture extends ExternalResource {
 
     /**
-     * Name of the JVM system property that allows to override the IMDS endpoint address when using the AWS v1 SDK.
-     * Can be removed once we only use the v2 SDK.
-     */
-    public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME = "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride";
-
-    /**
      * Name of the JVM system property that allows to override the IMDS endpoint address when using the AWS v2 SDK.
      */
     public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2 = "aws.ec2MetadataServiceEndpoint";

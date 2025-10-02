@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.Page;
@@ -23,14 +25,17 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.util.List;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
- * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
+ * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
 abstract sealed class Coalesce$Type$Evaluator implements EvalOperator.ExpressionEvaluator permits
     Coalesce$Type$Evaluator.Coalesce$Type$EagerEvaluator, //
     Coalesce$Type$Evaluator.Coalesce$Type$LazyEvaluator {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Coalesce$Type$Evaluator.class);
 
     static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
         List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
@@ -129,6 +134,15 @@ abstract sealed class Coalesce$Type$Evaluator implements EvalOperator.Expression
     @Override
     public final String toString() {
         return getClass().getSimpleName() + "[values=" + evaluators + ']';
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : evaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
     }
 
     @Override

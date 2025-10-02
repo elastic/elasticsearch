@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
@@ -94,13 +95,16 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
         return lazyOutput;
     }
 
-    // TODO: in case of inlinestats, the join key is always the grouping
+    // TODO: in case of INLINE STATS, the join key is always the grouping
     private JoinConfig joinConfig() {
         List<Expression> groupings = aggregate.groupings();
         List<Attribute> namedGroupings = new ArrayList<>(groupings.size());
         for (Expression g : groupings) {
             namedGroupings.add(Expressions.attribute(g));
         }
+        // last named grouping wins, just like it happens for regular STATS
+        // ie BY x = field_1, x = field_2, the grouping is actually performed on second x (field_2)
+        namedGroupings = mergeOutputAttributes(namedGroupings, emptyList());
 
         List<Attribute> leftFields = new ArrayList<>(groupings.size());
         List<Attribute> rightFields = new ArrayList<>(groupings.size());
@@ -114,7 +118,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
                 }
             }
         }
-        return new JoinConfig(JoinTypes.LEFT, namedGroupings, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, leftFields, rightFields, null);
     }
 
     @Override
@@ -123,6 +127,11 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
         Source source = source();
         LogicalPlan left = aggregate.child();
         return new InlineJoin(source, left, InlineJoin.stubSource(aggregate, left), joinConfig());
+    }
+
+    @Override
+    public String telemetryLabel() {
+        return "INLINE STATS";
     }
 
     @Override

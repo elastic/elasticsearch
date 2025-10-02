@@ -36,7 +36,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     /**
      * Used by telemetry to say if this is the result of a FROM command
-     * or a METRICS command (or maybe something else in the future)
+     * or a TS command (or maybe something else in the future)
      */
     private final String commandName;
 
@@ -165,5 +165,13 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
     @Override
     public String toString() {
         return UNRESOLVED_PREFIX + indexPattern.indexPattern();
+    }
+
+    /**
+     * @return true if and only if this relation is being loaded in "time series mode",
+     *         which changes a number of behaviors in the planner.
+     */
+    public boolean isTimeSeriesMode() {
+        return indexMode == IndexMode.TIME_SERIES;
     }
 }

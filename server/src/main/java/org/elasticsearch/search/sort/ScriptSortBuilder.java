@@ -452,7 +452,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     public enum ScriptSortType implements Writeable {
@@ -501,10 +501,5 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             return this;
         }
         return new ScriptSortBuilder(this).setNestedSort(rewrite);
-    }
-
-    @Override
-    public boolean supportsParallelCollection() {
-        return true;
     }
 }

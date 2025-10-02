@@ -33,7 +33,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyParserTests extends ESTestCase {
 
     public static String TEST_ABSOLUTE_PATH_TO_FILE;
@@ -82,10 +81,13 @@ public class PolicyParserTests extends ESTestCase {
         }
     }
 
-    public void testGetEntitlementTypeName() {
-        assertEquals("create_class_loader", PolicyParser.getEntitlementTypeName(CreateClassLoaderEntitlement.class));
+    public void testBuildEntitlementNameFromClass() {
+        assertEquals("create_class_loader", PolicyParser.buildEntitlementNameFromClass(CreateClassLoaderEntitlement.class));
 
-        var ex = expectThrows(IllegalArgumentException.class, () -> PolicyParser.getEntitlementTypeName(TestWrongEntitlementName.class));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> PolicyParser.buildEntitlementNameFromClass(TestWrongEntitlementName.class)
+        );
         assertThat(
             ex.getMessage(),
             equalTo("TestWrongEntitlementName is not a valid Entitlement class name. A valid class name must end with 'Entitlement'")

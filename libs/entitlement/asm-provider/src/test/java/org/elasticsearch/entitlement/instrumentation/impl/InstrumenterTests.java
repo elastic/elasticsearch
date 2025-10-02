@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
  * This tests {@link InstrumenterImpl} can instrument various method signatures
  * (e.g. overloaded methods, overloaded targets, multiple instrumentation, etc.)
  */
-@ESTestCase.WithoutSecurityManager
 public class InstrumenterTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(InstrumenterTests.class);
 

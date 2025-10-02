@@ -11,10 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
@@ -156,6 +156,8 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
         };
 
         if (request.getInitialRead() > request.getRequestCount()) {
+            // This is just the initial read, so we can use getRegister() despite its weaker read-after-write semantics: all subsequent
+            // operations of this action use compareAndExchangeRegister() and do not rely on this value being accurate.
             blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, initialValueListener.delegateFailure((l, r) -> {
                 if (r.isPresent()) {
                     l.onResponse(r);
@@ -176,7 +178,7 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
         }
     }
 
-    static class Request extends ActionRequest {
+    static class Request extends LegacyActionRequest {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;

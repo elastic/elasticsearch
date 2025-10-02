@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -21,6 +22,14 @@ import static java.util.Collections.emptyList;
  * value (abs) and returns a new value.
  */
 public abstract class ScalarFunction extends Function {
+
+    /**
+     * Limit for the BytesRef return of functions.
+     * <p>
+     *     To be used when there's no CircuitBreaking, as an arbitrary measure to limit memory usage.
+     * </p>
+     */
+    public static final long MAX_BYTES_REF_RESULT_SIZE = MB.toBytes(1);
 
     protected ScalarFunction(Source source) {
         super(source, emptyList());

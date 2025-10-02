@@ -696,7 +696,7 @@ When aggregating on multiple indices the type of the aggregated field may not be
 
 ### Failed Trying to Format Bytes [_failed_trying_to_format_bytes]
 
-When running a terms aggregation (or other aggregation, but in practice usually terms) over multiple indices, you may get an error that starts with "Failed trying to format bytes…​".  This is usually caused by two of the indices not having the same mapping type for the field being aggregated.
+When running a terms aggregation (or other aggregation, but in practice usually terms) over multiple indices, you may get an error that starts with "Failed trying to format bytes… ".  This is usually caused by two of the indices not having the same mapping type for the field being aggregated.
 
 **Use an explicit `value_type`** Although it’s best to correct the mappings, you can work around this issue if the field is unmapped in one of the indices.  Setting the `value_type` parameter can resolve the issue by coercing the unmapped field into the correct type.
 

@@ -10,11 +10,12 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
@@ -23,13 +24,17 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 50) // tests.directory sys property?
@@ -40,14 +45,11 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES814HnswScalarQuantizedVectorsFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES814HnswScalarQuantizedVectorsFormat();
-            }
-        };
+        return codec;
     }
 
     // The following test scenarios are similar to their superclass namesakes,
@@ -169,11 +171,42 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                 LeafReader leafReader = getOnlyLeafReader(reader);
                 StoredFields storedFields = reader.storedFields();
                 float[] queryVector = new float[] { 0.6f, 0.8f };
-                var hits = leafReader.searchNearestVectors("field", queryVector, 3, null, 100);
+                var hits = leafReader.searchNearestVectors(
+                    "field",
+                    queryVector,
+                    3,
+                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                    100
+                );
                 assertEquals(hits.scoreDocs.length, 3);
                 assertEquals("B", storedFields.document(hits.scoreDocs[0].doc).get("id"));
                 assertEquals("A", storedFields.document(hits.scoreDocs[1].doc).get("id"));
                 assertEquals("C", storedFields.document(hits.scoreDocs[2].doc).get("id"));
+            }
+        }
+    }
+
+    public void testSimpleOffHeapSize() throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                if (r instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    var fieldInfo = r.getFieldInfos().fieldInfo("f");
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+                    assertEquals(3, offHeap.size());
+                    assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                    assertEquals(1L, (long) offHeap.get("vex"));
+                    assertTrue(offHeap.get("veq") > 0L);
+                }
             }
         }
     }

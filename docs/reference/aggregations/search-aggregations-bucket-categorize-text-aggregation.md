@@ -26,7 +26,8 @@ The algorithm used for categorization was completely changed in version 8.3.0. A
 
     The `categorization_analyzer` field can be specified either as a string or as an object. If it is a string it must refer to a [built-in analyzer](/reference/text-analysis/analyzer-reference.md) or one added by another plugin. If it is an object it has the following properties:
 
-    :::::{dropdown} Properties of `categorization_analyzer`
+    **Properties of `categorization_analyzer`**:
+
     `char_filter`
     :   (array of strings or objects) One or more [character filters](/reference/text-analysis/character-filter-reference.md). In addition to the built-in character filters, other plugins can provide more character filters. This property is optional. If it is not specified, no character filters are applied prior to categorization. If you are customizing some other aspect of the analyzer and you need to achieve the equivalent of `categorization_filters` (which are not permitted when some other aspect of the analyzer is customized), add them here as [pattern replace character filters](/reference/text-analysis/analysis-pattern-replace-charfilter.md).
 
@@ -40,8 +41,6 @@ The algorithm used for categorization was completely changed in version 8.3.0. A
 
     `filter`
     :   (array of strings or objects) One or more [token filters](/reference/text-analysis/token-filter-reference.md). In addition to the built-in token filters, other plugins can provide more token filters. This property is optional. If it is not specified, no token filters are applied prior to categorization.
-
-    :::::
 
 
 `categorization_filters`

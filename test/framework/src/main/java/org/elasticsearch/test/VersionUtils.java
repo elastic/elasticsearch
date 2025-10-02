@@ -9,7 +9,7 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
-import java.util.function.IntFunction;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
@@ -77,7 +76,7 @@ public class VersionUtils {
 
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
-        return randomFrom(random, ALL_VERSIONS, Version::fromId);
+        return randomFrom(random, ALL_VERSIONS);
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
@@ -106,7 +105,7 @@ public class VersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return randomFrom(random, versions, Version::fromId);
+        return randomFrom(random, versions);
     }
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
@@ -114,16 +113,7 @@ public class VersionUtils {
         return ALL_VERSIONS.tailSet(version, true).descendingSet().stream().filter(version::isCompatible).findFirst().orElseThrow();
     }
 
-    public static <T extends VersionId<T>> T randomFrom(Random random, NavigableSet<T> set, IntFunction<T> ctor) {
-        // get the first and last id, pick a random id in the middle, then find that id in the set in O(nlogn) time
-        // this assumes the id numbers are reasonably evenly distributed in the set
-        assert set.isEmpty() == false;
-        int lowest = set.getFirst().id();
-        int highest = set.getLast().id();
-
-        T randomId = ctor.apply(RandomNumbers.randomIntBetween(random, lowest, highest));
-        // try to find the id below, then the id above. We're just looking for *some* item in the set that is close to randomId
-        T found = set.floor(randomId);
-        return found != null ? found : set.ceiling(randomId);
+    public static <T extends VersionId<T>> T randomFrom(Random random, NavigableSet<T> set) {
+        return RandomPicks.randomFrom(random, set);
     }
 }

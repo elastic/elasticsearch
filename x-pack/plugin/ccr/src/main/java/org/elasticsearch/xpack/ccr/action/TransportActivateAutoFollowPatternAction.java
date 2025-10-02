@@ -76,7 +76,8 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
     }
 
     static ClusterState innerActivate(final Request request, ClusterState currentState) {
-        final AutoFollowMetadata autoFollowMetadata = currentState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        final var project = currentState.metadata().getProject();
+        final AutoFollowMetadata autoFollowMetadata = project.custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
         }
@@ -114,8 +115,9 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
             )
         );
 
-        return currentState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(
+        return currentState.copyAndUpdateProject(
+            project.id(),
+            builder -> builder.putCustom(
                 AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(newPatterns, autoFollowMetadata.getFollowedLeaderIndexUUIDs(), autoFollowMetadata.getHeaders())
             )

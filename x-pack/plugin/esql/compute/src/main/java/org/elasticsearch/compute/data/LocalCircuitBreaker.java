@@ -28,6 +28,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     private final long maxOverReservedBytes;
     private long reservedBytes;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private volatile Thread activeThread;
 
     public record SizeSettings(long overReservedBytes, long maxOverReservedBytes) {
         public SizeSettings(Settings settings) {
@@ -57,6 +58,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
 
     @Override
     public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        assert assertSingleThread();
         if (bytes <= reservedBytes) {
             reservedBytes -= bytes;
             maybeReduceReservedBytes();
@@ -68,6 +70,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
 
     @Override
     public void addWithoutBreaking(long bytes) {
+        assert assertSingleThread();
         if (bytes <= reservedBytes) {
             reservedBytes -= bytes;
             maybeReduceReservedBytes();
@@ -130,6 +133,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
 
     @Override
     public void close() {
+        assert assertSingleThread();
         if (closed.compareAndSet(false, true)) {
             breaker.addWithoutBreaking(-reservedBytes);
         }
@@ -138,5 +142,35 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     @Override
     public String toString() {
         return "LocalCircuitBreaker[" + reservedBytes + "/" + overReservedBytes + ":" + maxOverReservedBytes + "]";
+    }
+
+    private boolean assertSingleThread() {
+        Thread activeThread = this.activeThread;
+        Thread currentThread = Thread.currentThread();
+        assert activeThread == null || activeThread == currentThread
+            : "Local breaker must be accessed by a single thread at a time: expected ["
+                + activeThread
+                + "] != actual ["
+                + currentThread
+                + "]";
+        return true;
+    }
+
+    /**
+     * Marks the beginning of a run loop for assertion purposes.
+     * Sets the current thread as the only thread allowed to access this breaker.
+     */
+    public boolean assertBeginRunLoop() {
+        activeThread = Thread.currentThread();
+        return true;
+    }
+
+    /**
+     * Marks the end of a run loop for assertion purposes.
+     * Clears the active thread to allow other threads to access this breaker.
+     */
+    public boolean assertEndRunLoop() {
+        activeThread = null;
+        return true;
     }
 }

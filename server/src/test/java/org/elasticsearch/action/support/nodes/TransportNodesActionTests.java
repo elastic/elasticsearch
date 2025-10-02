@@ -10,6 +10,7 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,8 +39,8 @@ import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -57,6 +58,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -66,7 +69,9 @@ import java.util.function.ObjLongConsumer;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
@@ -316,6 +321,147 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
+    public void testCompletionShouldNotBeInterferedByCancellationAfterProcessingBegins() throws Exception {
+        final var barrier = new CyclicBarrier(2);
+        final var action = new TestTransportNodesAction(
+            clusterService,
+            transportService,
+            new ActionFilters(Set.of()),
+            TestNodeRequest::new,
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+        ) {
+            @Override
+            protected void newResponseAsync(
+                Task task,
+                TestNodesRequest request,
+                Void unused,
+                List<TestNodeResponse> testNodeResponses,
+                List<FailedNodeException> failures,
+                ActionListener<TestNodesResponse> listener
+            ) {
+                boolean waited = false;
+                // Process node responses in a loop and ensure no ConcurrentModificationException will be thrown due to
+                // concurrent cancellation coming after the loop has started, see also #128852
+                for (var response : testNodeResponses) {
+                    if (waited == false) {
+                        waited = true;
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                }
+                super.newResponseAsync(task, request, unused, testNodeResponses, failures, listener);
+            }
+        };
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final var cancelledFuture = new PlainActionFuture<Void>();
+        cancellableTask.addListener(() -> cancelledFuture.onResponse(null));
+
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        for (var capturedRequest : transport.getCapturedRequestsAndClear()) {
+            completeOneRequest(capturedRequest);
+        }
+
+        // Wait for the overall response to start processing the node responses in a loop and then cancel the task.
+        // The cancellation should not interfere with the node response processing.
+        safeAwait(barrier);
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+        safeGet(cancelledFuture);
+
+        // Let the process continue, and it should be successful
+        safeAwait(barrier);
+        assertResponseReleased(safeGet(future));
+    }
+
+    public void testConcurrentlyCompletionAndCancellation() throws InterruptedException {
+        final var action = getTestTransportNodesAction();
+
+        final CountDownLatch onCancelledLatch = new CountDownLatch(1);
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
+            @Override
+            protected void onCancelled() {
+                onCancelledLatch.countDown();
+            }
+        };
+
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        final List<TestNodeResponse> nodeResponses = new ArrayList<>();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        // Complete all but the last request for racing completion with cancellation
+        for (int i = 0; i < capturedRequests.length - 1; i++) {
+            final var capturedRequest = capturedRequests[i];
+            nodeResponses.add(completeOneRequest(capturedRequest));
+        }
+
+        final var raceBarrier = new CyclicBarrier(3);
+        final var lastResponseFuture = new PlainActionFuture<TestNodeResponse>();
+        final Thread completeThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            lastResponseFuture.onResponse(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
+        });
+        final Thread cancelThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            TaskCancelHelper.cancel(cancellableTask, "simulated");
+        });
+        completeThread.start();
+        cancelThread.start();
+        safeAwait(raceBarrier);
+
+        // We expect either a successful response or a cancellation exception. All node responses should be released in both cases.
+        try {
+            final var testNodesResponse = future.actionGet(SAFE_AWAIT_TIMEOUT);
+            assertThat(testNodesResponse.getNodes(), hasSize(capturedRequests.length));
+            assertResponseReleased(testNodesResponse);
+        } catch (Exception e) {
+            final var taskCancelledException = (TaskCancelledException) ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull("expect task cancellation exception, but got\n" + ExceptionsHelper.stackTrace(e), taskCancelledException);
+            assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
+            assertTrue(cancellableTask.isCancelled());
+            // Wait for the latch, the listener for releasing node responses is called before it.
+            // We need to wait for the latch because the cancellation may be detected in CancellableFanOut#onCompletion with
+            // the responseHandled flag being true. The flag is set by the cancellation listener which is still in process of
+            // draining existing responses.
+            safeAwait(onCancelledLatch);
+            // All previously captured responses are released due to cancellation
+            assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+            // Wait for the last response to be gathered and assert it is also released by either the concurrent cancellation or
+            // not tracked in onItemResponse at all due to already cancelled
+            assertFalse(safeGet(lastResponseFuture).hasReferences());
+        }
+
+        completeThread.join(10_000);
+        cancelThread.join(10_000);
+        assertFalse(completeThread.isAlive());
+        assertFalse(cancelThread.isAlive());
+    }
+
+    private void assertResponseReleased(TestNodesResponse response) {
+        final var allResponsesReleasedListener = new SubscribableListener<Void>();
+        try (var listeners = new RefCountingListener(allResponsesReleasedListener)) {
+            response.addCloseListener(listeners.acquire());
+            for (final var nodeResponse : response.getNodes()) {
+                nodeResponse.addCloseListener(listeners.acquire());
+            }
+        }
+        safeAwait(allResponsesReleasedListener);
+        assertTrue(response.getNodes().stream().noneMatch(TestNodeResponse::hasReferences));
+        assertFalse(response.hasReferences());
+    }
+
+    private TestNodeResponse completeOneRequest(CapturingTransport.CapturedRequest capturedRequest) {
+        final var response = new TestNodeResponse(capturedRequest.node());
+        try {
+            transport.getTransportResponseHandler(capturedRequest.requestId()).handleResponse(response);
+        } finally {
+            response.decRef();
+        }
+        return response;
+    }
+
     @BeforeClass
     public static void startThreadPool() {
         THREAD_POOL = new TestThreadPool(TransportNodesActionTests.class.getSimpleName());
@@ -507,7 +653,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class TestNodeRequest extends TransportRequest {
+    private static class TestNodeRequest extends AbstractTransportRequest {
         private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
 
         TestNodeRequest() {}

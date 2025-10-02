@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +42,8 @@ public class DataStreamFailureStoreDefinition {
         IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
         IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-        IndexMetadata.LIFECYCLE_NAME
+        // Different recovery implementations may be provided on the index which need to be preserved.
+        ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()
     );
     public static final Set<String> SUPPORTED_USER_SETTINGS_PREFIXES = Set.of(
         IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".",

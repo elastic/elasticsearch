@@ -18,8 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.SyntheticSourceSupport {
@@ -58,11 +56,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (ESTestCase.randomBoolean()) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
-            Object loadBlock = v.v2();
-            if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
-                loadBlock = null;
-            }
-            return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, loadBlock, this::mapping);
+            return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
         }
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();
@@ -76,7 +70,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 validValues.add(v);
             }
         });
-        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().collect(Collectors.toList());
+        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().toList();
 
         Object out;
         if (preservesExactSource()) {
@@ -87,19 +81,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
         }
 
-        List<String> loadBlock;
-        if (loadBlockFromSource) {
-            // The block loader infrastructure will never return nulls. Just zap them all.
-            loadBlock = in.stream().filter(Objects::nonNull).toList();
-        } else if (docValues) {
-            loadBlock = List.copyOf(outputFromDocValues);
-        } else {
-            // Meaning loading from terms.
-            loadBlock = List.copyOf(validValues);
-        }
-
-        Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
-        return new MapperTestCase.SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
+        return new MapperTestCase.SyntheticSourceExample(in, out, this::mapping);
     }
 
     private Tuple<String, String> generateValue() {

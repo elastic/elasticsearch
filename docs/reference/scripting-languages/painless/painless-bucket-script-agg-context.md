@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-bucket-script-agg-context.html
+products:
+  - id: painless
 ---
 
 # Bucket script aggregation context [painless-bucket-script-agg-context]

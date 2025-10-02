@@ -169,6 +169,8 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             Response response = client().performRequest(new Request("GET", "_ilm/status"));
             assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
         });
+        // Wait for cluster state to be published to all nodes.
+        waitForClusterUpdates();
 
         String indexWithDataWarmRouting = "indexwithdatawarmrouting";
         Settings.Builder settings = Settings.builder()
@@ -340,6 +342,8 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                 Response response = client().performRequest(new Request("GET", "_ilm/status"));
                 assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
             });
+            // Wait for cluster state to be published to all nodes.
+            waitForClusterUpdates();
         }
 
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");

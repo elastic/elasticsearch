@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
@@ -29,6 +29,6 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
         List<Object> values = new ArrayList<>(fields.size());
         fields.forEach(f -> values.add(f.child().fold(context.foldCtx())));
         var blocks = BlockUtils.fromListRow(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-        return new LocalRelation(row.source(), row.output(), LocalSupplier.of(blocks));
+        return new LocalRelation(row.source(), row.output(), new CopyingLocalSupplier(blocks));
     }
 }

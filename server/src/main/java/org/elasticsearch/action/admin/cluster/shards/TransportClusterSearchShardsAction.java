@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -105,14 +104,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(project.metadata(), request.indices());
         for (String index : concreteIndices) {
             final AliasFilter aliasFilter = indicesService.buildAliasFilter(project, index, indicesAndAliases);
-            final String[] aliases = indexNameExpressionResolver.indexAliases(
-                project.metadata(),
-                index,
-                Predicates.always(),
-                Predicates.always(),
-                true,
-                indicesAndAliases
-            );
+            final String[] aliases = indexNameExpressionResolver.allIndexAliases(project.metadata(), index, indicesAndAliases);
             indicesAndFilters.put(index, AliasFilter.of(aliasFilter.getQueryBuilder(), aliases));
         }
 

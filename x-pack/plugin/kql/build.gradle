@@ -10,7 +10,6 @@ import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.publish'
 
 esplugin {
   name = 'x-pack-kql'

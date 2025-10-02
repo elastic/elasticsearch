@@ -83,21 +83,21 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getTotalValueCount() {
-        throw new UnsupportedOperationException("Composite block");
+        int totalValueCount = 0;
+        for (Block b : blocks) {
+            totalValueCount += b.getTotalValueCount();
+        }
+        return totalValueCount;
     }
 
     @Override
     public int getFirstValueIndex(int position) {
-        return blocks[0].getFirstValueIndex(position);
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override
     public int getValueCount(int position) {
-        int max = 0;
-        for (var block : blocks) {
-            max = Math.max(max, block.getValueCount(position));
-        }
-        return max;
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override
@@ -163,6 +163,23 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
         } finally {
             if (result == null) {
                 Releasables.close(filteredBlocks);
+            }
+        }
+    }
+
+    @Override
+    public CompositeBlock deepCopy(BlockFactory blockFactory) {
+        CompositeBlock result = null;
+        final Block[] copied = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                copied[i] = blocks[i].deepCopy(blockFactory);
+            }
+            result = new CompositeBlock(copied);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(copied);
             }
         }
     }

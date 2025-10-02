@@ -31,10 +31,8 @@ public class MinioRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         .distribution(DistributionType.DEFAULT)
         .keystore("s3.client.repository_test_kit.access_key", "s3_test_access_key")
         .keystore("s3.client.repository_test_kit.secret_key", "s3_test_secret_key")
-        .setting("s3.client.repository_test_kit.protocol", () -> "http")
         .setting("s3.client.repository_test_kit.endpoint", minioFixture::getAddress)
         .setting("xpack.security.enabled", "false")
-        // Additional tracing related to investigation into https://github.com/elastic/elasticsearch/issues/102294
         .setting("xpack.ml.enabled", "false")
         .build();
 

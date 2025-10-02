@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -34,7 +34,7 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final DiscoveryNode discoveryNode;
 
@@ -58,14 +58,14 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
         }
     }
 
-    public static class TransportAction extends HandledTransportAction<FrozenCacheInfoAction.Request, FrozenCacheInfoResponse> {
+    public static class TransportAction extends HandledTransportAction<Request, FrozenCacheInfoResponse> {
 
         private final FrozenCacheInfoNodeAction.Request nodeRequest = new FrozenCacheInfoNodeAction.Request();
         private final TransportService transportService;
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, actionFilters, FrozenCacheInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
         }
 

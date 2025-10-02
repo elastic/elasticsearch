@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -41,6 +39,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -57,12 +56,21 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  */
 public class Verifier {
 
+    /**
+     * Extra plan verification checks defined in plugins.
+     */
+    private final List<BiConsumer<LogicalPlan, Failures>> extraCheckers;
     private final Metrics metrics;
     private final XPackLicenseState licenseState;
 
     public Verifier(Metrics metrics, XPackLicenseState licenseState) {
+        this(metrics, licenseState, Collections.emptyList());
+    }
+
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<BiConsumer<LogicalPlan, Failures>> extraCheckers) {
         this.metrics = metrics;
         this.licenseState = licenseState;
+        this.extraCheckers = extraCheckers;
     }
 
     /**
@@ -86,6 +94,7 @@ public class Verifier {
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
+        planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
         plan.forEachDown(p -> {
@@ -180,11 +189,6 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            } else if (p instanceof Fork fork) {
-                var subPlans = fork.subPlans();
-                for (var subPlan : subPlans) {
-                    checkUnresolvedAttributes(subPlan, failures);
-                }
             }
 
             else {
@@ -193,6 +197,9 @@ public class Verifier {
         });
     }
 
+    /**
+     * Build a list of checkers based on the components in the plan.
+     */
     private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
@@ -298,9 +305,6 @@ public class Verifier {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
-        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
-            allowed.add(DataType.SEMANTIC_TEXT);
-        }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
         allowed.add(DataType.DATE_NANOS);
@@ -309,6 +313,9 @@ public class Verifier {
         allowed.add(DataType.GEO_SHAPE);
         allowed.add(DataType.CARTESIAN_POINT);
         allowed.add(DataType.CARTESIAN_SHAPE);
+        allowed.add(DataType.GEOHASH);
+        allowed.add(DataType.GEOTILE);
+        allowed.add(DataType.GEOHEX);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -115,19 +117,29 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 TestDelayedRepo.TYPE,
-                metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
-                    if (doDelay.get()) {
-                        try {
-                            assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
+                (projectId, metadata) -> new TestDelayedRepo(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    () -> {
+                        if (doDelay.get()) {
+                            try {
+                                assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
-                })
+                )
             );
         }
     }
@@ -137,6 +149,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         private final Runnable delayFn;
 
         protected TestDelayedRepo(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment env,
             NamedXContentRegistry namedXContentRegistry,
@@ -145,7 +158,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             Runnable delayFn
         ) {
-            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.delayFn = delayFn;
         }
 

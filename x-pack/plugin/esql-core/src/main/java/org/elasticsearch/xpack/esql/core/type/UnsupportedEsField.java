@@ -18,9 +18,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
-
 /**
  * Information about a field in an ES index that cannot be supported by ESQL.
  * All the subfields (properties) of an unsupported type are also be unsupported.
@@ -35,33 +32,52 @@ public class UnsupportedEsField extends EsField {
     }
 
     public UnsupportedEsField(String name, List<String> originalTypes, String inherited, Map<String, EsField> properties) {
-        super(name, DataType.UNSUPPORTED, properties, false);
+        this(name, originalTypes, inherited, properties, TimeSeriesFieldType.UNKNOWN);
+    }
+
+    public UnsupportedEsField(
+        String name,
+        List<String> originalTypes,
+        String inherited,
+        Map<String, EsField> properties,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, DataType.UNSUPPORTED, properties, false, timeSeriesFieldType);
         this.originalTypes = originalTypes;
         this.inherited = inherited;
     }
 
     public UnsupportedEsField(StreamInput in) throws IOException {
-        this(readCachedStringWithVersionCheck(in), readOriginalTypes(in), in.readOptionalString(), in.readImmutableMap(EsField::readFrom));
+        this(
+            ((PlanStreamInput) in).readCachedString(),
+            readOriginalTypes(in),
+            in.readOptionalString(),
+            in.readImmutableMap(EsField::readFrom),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     private static List<String> readOriginalTypes(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
             return in.readCollectionAsList(i -> ((PlanStreamInput) i).readCachedString());
         } else {
-            return List.of(readCachedStringWithVersionCheck(in).split(","));
+            return List.of(((PlanStreamInput) in).readCachedString().split(","));
         }
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, getName());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)) {
+        ((PlanStreamOutput) out).writeCachedString(getName());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
             out.writeCollection(getOriginalTypes(), (o, s) -> ((PlanStreamOutput) o).writeCachedString(s));
         } else {
-            writeCachedStringWithVersionCheck(out, String.join(",", getOriginalTypes()));
+            ((PlanStreamOutput) out).writeCachedString(String.join(",", getOriginalTypes()));
         }
         out.writeOptionalString(getInherited());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

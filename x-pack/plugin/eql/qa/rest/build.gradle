@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'eql'
+    include '_common', 'bulk', 'indices', 'eql', 'capabilities'
   }
 }
 

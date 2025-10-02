@@ -53,6 +53,11 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {
                 Releasables.closeExpectNoException(child);
             }

@@ -42,7 +42,7 @@ There is the restriction that all resolved concrete tables have the exact same m
 ::::
 
 
-[preview] To run a [{{ccs}}](docs-content://solutions/search/cross-cluster-search.md), specify a cluster name using the `<remote_cluster>:<target>` syntax, where `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table (index or data stream). The `<remote_cluster>` supports wildcards (`*`) and `<target>` can be an index pattern.
+{applies_to}`stack: preview` {applies_to}`serverless: preview` To run a [{{ccs}}](docs-content://solutions/search/cross-cluster-search.md), specify a cluster name using the `<remote_cluster>:<target>` syntax, where `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table (index or data stream). The `<remote_cluster>` supports wildcards (`*`) and `<target>` can be an index pattern.
 
 For example:
 
@@ -85,9 +85,8 @@ Notice how now `emp%` does not match any tables because `%`, which means match z
 
 In a nutshell, the differences between the two type of patterns are:
 
-|     |     |     |
-| --- | --- | --- |
 | **Feature** | **Multi index** | **SQL `LIKE`** |
+| --- | --- | --- |
 | Type of quoting | `"` | `'` |
 | Inclusion | Yes | Yes |
 | Exclusion | Yes | No |

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -14,6 +15,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores float values.
@@ -37,6 +39,19 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
 
     @Override
     FloatBlock filter(int... positions);
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default FloatBlock deepCopy(BlockFactory blockFactory) {
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
 
     @Override
     FloatBlock keepMask(BooleanVector mask);
@@ -87,10 +102,10 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatArrayBlock b) {
+        } else if (this instanceof FloatArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatBigArrayBlock b) {
+        } else if (this instanceof FloatBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {

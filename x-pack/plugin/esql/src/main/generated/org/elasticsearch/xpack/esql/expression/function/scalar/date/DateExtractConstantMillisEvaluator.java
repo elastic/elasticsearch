@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateExtractConstantMillisEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateExtractConstantMillisEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator value;
@@ -56,6 +59,13 @@ public final class DateExtractConstantMillisEvaluator implements EvalOperator.Ex
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += value.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -70,7 +80,8 @@ public final class DateExtractConstantMillisEvaluator implements EvalOperator.Ex
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateExtract.processMillis(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.chronoField, this.zone));
+        long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
+        result.appendLong(DateExtract.processMillis(value, this.chronoField, this.zone));
       }
       return result.build();
     }
@@ -79,7 +90,8 @@ public final class DateExtractConstantMillisEvaluator implements EvalOperator.Ex
   public LongVector eval(int positionCount, LongVector valueVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateExtract.processMillis(valueVector.getLong(p), this.chronoField, this.zone));
+        long value = valueVector.getLong(p);
+        result.appendLong(p, DateExtract.processMillis(value, this.chronoField, this.zone));
       }
       return result.build();
     }

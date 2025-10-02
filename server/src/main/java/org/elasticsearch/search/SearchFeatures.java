@@ -28,9 +28,26 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS = new NodeFeature(
         "search.completion_field.duplicate.support"
     );
+    public static final NodeFeature RESCORER_MISSING_FIELD_BAD_REQUEST = new NodeFeature("search.rescorer.missing.field.bad.request");
+    public static final NodeFeature INT_SORT_FOR_INT_SHORT_BYTE_FIELDS = new NodeFeature("search.sort.int_sort_for_int_short_byte_fields");
+    static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
+    public static final NodeFeature BBQ_HNSW_DEFAULT_INDEXING = new NodeFeature("search.vectors.mappers.default_bbq_hnsw");
+    public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+    public static final NodeFeature SEARCH_RESCORE_SCRIPT = new NodeFeature("search.rescore.script");
+    public static final NodeFeature NEGATIVE_FUNCTION_SCORE_BAD_REQUEST = new NodeFeature("search.negative.function.score.bad.request");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RETRIEVER_RESCORER_ENABLED, COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS);
+        return Set.of(
+            RETRIEVER_RESCORER_ENABLED,
+            COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS,
+            RESCORER_MISSING_FIELD_BAD_REQUEST,
+            INT_SORT_FOR_INT_SHORT_BYTE_FIELDS,
+            MULTI_MATCH_CHECKS_POSITIONS,
+            BBQ_HNSW_DEFAULT_INDEXING,
+            SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
+            SEARCH_RESCORE_SCRIPT,
+            NEGATIVE_FUNCTION_SCORE_BAD_REQUEST
+        );
     }
 }

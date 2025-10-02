@@ -53,4 +53,9 @@ public class TermsQuery extends Query {
     protected String innerToString() {
         return term + ":" + values;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

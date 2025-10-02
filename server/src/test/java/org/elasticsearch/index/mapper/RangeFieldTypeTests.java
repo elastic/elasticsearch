@@ -41,8 +41,11 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -86,10 +89,21 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    private static String dateTimeString(long epochMillis, int increment, ChronoUnit precision) {
+        var dateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneOffset.UTC)
+            .plus(increment, precision)
+            .truncatedTo(precision);
+        return switch (precision) {
+            case MILLIS -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT).format(dateTime);
+            case SECONDS -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT).format(dateTime);
+            case MINUTES -> DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm'Z'", Locale.ROOT).format(dateTime);
+            default -> dateTime.toString();
+        };
+    }
+
     /**
      * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         SearchExecutionContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
@@ -105,8 +119,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             }
             case DATE -> {
                 long fromValue = randomInt();
-                from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue), ZoneOffset.UTC);
-                to = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue + 1), ZoneOffset.UTC);
+                var precision = randomFrom(ChronoUnit.MILLIS, ChronoUnit.SECONDS, ChronoUnit.MINUTES);
+                from = dateTimeString(fromValue, 0, precision);
+                to = dateTimeString(fromValue, 1, precision);
             }
             case INTEGER -> {
                 int fromValue = randomInt();
@@ -143,7 +158,6 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     /**
      * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testFromLargerToErrors() throws Exception {
         SearchExecutionContext context = createContext();
         RangeFieldType ft = createDefaultFieldType();
@@ -159,8 +173,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             }
             case DATE: {
                 long fromValue = randomInt();
-                from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue), ZoneOffset.UTC);
-                to = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue - 1), ZoneOffset.UTC);
+                var precision = randomFrom(ChronoUnit.MILLIS, ChronoUnit.SECONDS, ChronoUnit.MINUTES);
+                from = dateTimeString(fromValue, 0, precision);
+                to = dateTimeString(fromValue, -1, precision);
                 break;
             }
             case INTEGER: {

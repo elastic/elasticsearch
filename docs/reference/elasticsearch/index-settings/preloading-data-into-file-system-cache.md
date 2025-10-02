@@ -1,9 +1,14 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/preload-data-to-file-system-cache.html
+applies_to:
+  stack: all
 ---
 
 # Preloading data into the file system cache [preload-data-to-file-system-cache]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 ::::{note}
 This is an expert setting, the details of which may change in the future.

@@ -29,6 +29,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
@@ -39,6 +40,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -186,6 +188,16 @@ public abstract class Plugin implements Closeable {
          * Provider for additional SlowLog fields
          */
         SlowLogFieldProvider slowLogFieldProvider();
+
+        /**
+         * Provider for indexing pressure
+         */
+        IndexingPressure indexingPressure();
+
+        /**
+         * A service for registering for linked project configuration updates.
+         */
+        LinkedProjectConfigService linkedProjectConfigService();
     }
 
     /**

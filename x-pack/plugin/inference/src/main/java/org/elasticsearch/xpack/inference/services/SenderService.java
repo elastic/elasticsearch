@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -41,11 +44,13 @@ public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
+    private final ClusterService clusterService;
 
-    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
+    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         Objects.requireNonNull(factory);
         sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     public Sender getSender() {
@@ -66,12 +71,14 @@ public abstract class SenderService implements InferenceService {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        init();
-        var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
-        doInfer(model, inferenceInput, taskSettings, timeout, listener);
+        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
+            var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
+            var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
+            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
+        }).addListener(listener);
     }
 
     private static InferenceInputs createInput(
@@ -116,30 +123,31 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        init();
-        doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, listener);
+        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
+        }).addListener(listener);
     }
 
     @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        init();
+        SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+            ValidationException validationException = new ValidationException();
+            validateInputType(inputType, model, validationException);
+            if (validationException.validationErrors().isEmpty() == false) {
+                throw validationException;
+            }
 
-        ValidationException validationException = new ValidationException();
-        validateInputType(inputType, model, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, inputType, timeout, listener);
+            // a non-null query is not supported and is dropped by all providers
+            doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+        }).addListener(listener);
     }
 
     protected abstract void doInfer(
@@ -163,7 +171,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -171,8 +179,9 @@ public abstract class SenderService implements InferenceService {
     );
 
     public void start(Model model, ActionListener<Boolean> listener) {
-        init();
-        doStart(model, listener);
+        SubscribableListener.newForked(this::init)
+            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
+            .addListener(listener);
     }
 
     @Override
@@ -184,8 +193,8 @@ public abstract class SenderService implements InferenceService {
         listener.onResponse(true);
     }
 
-    private void init() {
-        sender.start();
+    private void init(ActionListener<Void> listener) {
+        sender.startAsynchronously(listener);
     }
 
     @Override

@@ -14,19 +14,19 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Block implementation representing a constant null value.
  */
-final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     implements
         BooleanBlock,
         IntBlock,
         LongBlock,
         FloatBlock,
         DoubleBlock,
-        BytesRefBlock {
+        BytesRefBlock,
+        AggregateMetricDoubleBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
@@ -88,6 +88,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public ConstantNullBlock deepCopy(BlockFactory blockFactory) {
+        return (ConstantNullBlock) blockFactory.newConstantNullBlock(positionCount);
+    }
+
+    @Override
     public ConstantNullBlock keepMask(BooleanVector mask) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(getPositionCount());
     }
@@ -120,15 +125,53 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof ConstantNullBlock that) {
-            return this.getPositionCount() == that.getPositionCount();
+        if (obj instanceof Block that) {
+            return this.getPositionCount() == 0 && that.getPositionCount() == 0
+                || this.getPositionCount() == that.getPositionCount() && that.areAllValuesNull();
+        }
+        if (obj instanceof Vector that) {
+            return this.getPositionCount() == 0 && that.getPositionCount() == 0;
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getPositionCount());
+        // The hashcode for ConstantNullBlock is calculated in this way so that
+        // we return the same hashcode for ConstantNullBlock as we would for block
+        // types that ConstantNullBlock implements that contain only null values.
+        // Example: a DoubleBlock with 8 positions that are all null will return
+        // the same hashcode as a ConstantNullBlock with a positionCount of 8.
+        int result = 1;
+        for (int pos = 0; pos < positionCount; pos++) {
+            result = 31 * result - 1;
+        }
+        return result;
+    }
+
+    @Override
+    public DoubleBlock minBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock maxBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock sumBlock() {
+        return this;
+    }
+
+    @Override
+    public IntBlock countBlock() {
+        return this;
+    }
+
+    @Override
+    public Block getMetricBlock(int index) {
+        return this;
     }
 
     @Override

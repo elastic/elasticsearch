@@ -10,8 +10,12 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -28,6 +32,13 @@ public enum InputType {
     // Use the following enums when calling the inference API internally
     INTERNAL_SEARCH,
     INTERNAL_INGEST;
+
+    private static final EnumSet<InputType> SUPPORTED_REQUEST_VALUES = EnumSet.of(
+        InputType.CLASSIFICATION,
+        InputType.CLUSTERING,
+        InputType.INGEST,
+        InputType.SEARCH
+    );
 
     @Override
     public String toString() {
@@ -56,5 +67,71 @@ public enum InputType {
 
     public static String invalidInputTypeMessage(InputType inputType) {
         return Strings.format("received invalid input type value [%s]", inputType.toString());
+    }
+
+    /**
+     * Ensures that a map used for translating input types is valid. The keys of the map are the external representation,
+     * and the values correspond to the values in this class.
+     * Throws a {@link ValidationException} if any value is not a valid InputType.
+     *
+     * @param inputTypeTranslation the map of input type translations to validate
+     * @param validationException  a ValidationException to which errors will be added
+     */
+    public static Map<InputType, String> validateInputTypeTranslationValues(
+        Map<String, Object> inputTypeTranslation,
+        ValidationException validationException
+    ) {
+        if (inputTypeTranslation == null || inputTypeTranslation.isEmpty()) {
+            return Map.of();
+        }
+
+        var translationMap = new HashMap<InputType, String>();
+
+        for (var entry : inputTypeTranslation.entrySet()) {
+            var key = entry.getKey();
+            var value = entry.getValue();
+
+            if (value instanceof String == false || Strings.isNullOrEmpty((String) value)) {
+                validationException.addValidationError(
+                    Strings.format(
+                        "Input type translation value for key [%s] must be a String that is "
+                            + "not null and not empty, received: [%s], type: [%s].",
+                        key,
+                        value,
+                        value == null ? "null" : value.getClass().getSimpleName()
+                    )
+                );
+
+                throw validationException;
+            }
+
+            try {
+                var inputTypeKey = InputType.fromStringValidateSupportedRequestValue(key);
+                translationMap.put(inputTypeKey, (String) value);
+            } catch (Exception e) {
+                validationException.addValidationError(
+                    Strings.format(
+                        "Invalid input type translation for key: [%s], is not a valid value. Must be one of %s",
+                        key,
+                        SUPPORTED_REQUEST_VALUES
+                    )
+                );
+
+                throw validationException;
+            }
+        }
+
+        return translationMap;
+    }
+
+    private static InputType fromStringValidateSupportedRequestValue(String name) {
+        var inputType = fromRestString(name);
+        if (SUPPORTED_REQUEST_VALUES.contains(inputType) == false) {
+            throw new IllegalArgumentException(
+                format("Unrecognized input_type [%s], must be one of %s", inputType, SUPPORTED_REQUEST_VALUES)
+            );
+        }
+
+        return inputType;
     }
 }

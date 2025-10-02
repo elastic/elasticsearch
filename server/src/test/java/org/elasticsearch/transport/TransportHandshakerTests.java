@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -113,7 +112,7 @@ public class TransportHandshakerTests extends ESTestCase {
         StreamInput input = bytesStreamOutput.bytes().streamInput();
         input.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
 
-        if (handshakeRequest.transportVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE)) {
+        if (handshakeRequest.transportVersion.onOrAfter(TransportVersion.minimumCompatible())) {
 
             final PlainActionFuture<TransportResponse> responseFuture = new PlainActionFuture<>();
             final TestTransportChannel channel = new TestTransportChannel(responseFuture);
@@ -134,9 +133,9 @@ public class TransportHandshakerTests extends ESTestCase {
                     Strings.format(
                         """
                             Negotiating transport handshake with remote node with version [%s/%s] received on [*] which appears to be from \
-                            a chronologically-older release with a numerically-newer version compared to this node's version [%s/%s]. \
-                            Upgrading to a chronologically-older release may not work reliably and is not recommended. Falling back to \
-                            transport protocol version [%s].""",
+                            a chronologically-newer release with a numerically-older version compared to this node's version [%s/%s]. \
+                            Upgrading to this version from a chronologically-newer release may not work reliably and is not recommended. \
+                            Falling back to transport protocol version [%s].""",
                         handshakeRequest.releaseVersion,
                         handshakeRequest.transportVersion,
                         Build.current().version(),
@@ -204,7 +203,7 @@ public class TransportHandshakerTests extends ESTestCase {
         final var randomIncompatibleTransportVersion = getRandomIncompatibleTransportVersion();
         final var handshakeResponse = new TransportHandshaker.HandshakeResponse(randomIncompatibleTransportVersion, randomIdentifier());
 
-        if (randomIncompatibleTransportVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE)) {
+        if (randomIncompatibleTransportVersion.onOrAfter(TransportVersion.minimumCompatible())) {
             // we fall back to the best known version
             MockLog.assertThatLogger(
                 () -> handler.handleResponse(handshakeResponse),
@@ -216,9 +215,9 @@ public class TransportHandshakerTests extends ESTestCase {
                     Strings.format(
                         """
                             Negotiating transport handshake with remote node with version [%s/%s] received on [*] which appears to be from \
-                            a chronologically-older release with a numerically-newer version compared to this node's version [%s/%s]. \
-                            Upgrading to a chronologically-older release may not work reliably and is not recommended. Falling back to \
-                            transport protocol version [%s].""",
+                            a chronologically-newer release with a numerically-older version compared to this node's version [%s/%s]. \
+                            Upgrading to this version from a chronologically-newer release may not work reliably and is not recommended. \
+                            Falling back to transport protocol version [%s].""",
                         handshakeResponse.getReleaseVersion(),
                         handshakeResponse.getTransportVersion(),
                         Build.current().version(),
@@ -258,11 +257,11 @@ public class TransportHandshakerTests extends ESTestCase {
     private static TransportVersion getRandomIncompatibleTransportVersion() {
         return randomBoolean()
             // either older than MINIMUM_COMPATIBLE
-            ? new TransportVersion(between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1))
+            ? new TransportVersion(between(1, TransportVersion.minimumCompatible().id() - 1))
             // or between MINIMUM_COMPATIBLE and current but not known
             : randomValueOtherThanMany(
                 TransportVersion::isKnown,
-                () -> new TransportVersion(between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()))
+                () -> new TransportVersion(between(TransportVersion.minimumCompatible().id(), TransportVersion.current().id()))
             );
     }
 

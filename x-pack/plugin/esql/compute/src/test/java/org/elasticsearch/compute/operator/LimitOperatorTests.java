@@ -18,16 +18,19 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected LimitOperator.Factory simple() {
+    protected LimitOperator.Factory simple(SimpleOptions options) {
         return new LimitOperator.Factory(100);
     }
 
@@ -55,7 +58,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testStatus() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        LimitOperator op = simple().get(driverContext());
+        LimitOperator op = simple(SimpleOptions.DEFAULT).get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -77,7 +80,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testNeedInput() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (LimitOperator op = simple().get(driverContext())) {
+        try (LimitOperator op = simple(SimpleOptions.DEFAULT).get(driverContext())) {
             assertTrue(op.needsInput());
             Page p = new Page(blockFactory.newConstantNullBlock(10));
             op.addInput(p);
@@ -191,5 +194,18 @@ public class LimitOperatorTests extends OperatorTestCase {
             return blockFactory.newConstantNullBlock(size);
         }
         return RandomBlock.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
+    }
+
+    @Override
+    protected final void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        var emittedRows = output.stream().mapToInt(Page::getPositionCount).sum();
+
+        var mapMatcher = matchesMap().entry("rows_received", emittedRows)
+            .entry("pages_processed", output.size())
+            .entry("rows_emitted", emittedRows)
+            .entry("limit", 100)
+            .entry("limit_remaining", 100 - emittedRows);
+
+        assertMap(map, mapMatcher);
     }
 }

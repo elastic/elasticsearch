@@ -476,6 +476,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertTrue(isUnfollowInjected("cold", SearchableSnapshotAction.NAME));
         assertTrue(isUnfollowInjected("frozen", SearchableSnapshotAction.NAME));
 
+        assertTrue(isUnfollowInjected("warm", DownsampleAction.NAME));
+        assertTrue(isUnfollowInjected("cold", DownsampleAction.NAME));
+
         assertFalse(isUnfollowInjected("hot", SetPriorityAction.NAME));
         assertFalse(isUnfollowInjected("warm", SetPriorityAction.NAME));
         assertFalse(isUnfollowInjected("warm", AllocateAction.NAME));

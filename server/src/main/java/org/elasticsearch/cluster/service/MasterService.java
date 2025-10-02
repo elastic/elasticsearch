@@ -36,7 +36,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -56,6 +55,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -913,7 +913,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public Releasable captureResponseHeaders() {
-            final var storedContext = threadContext.newStoredContext();
+            final var storedContext = threadContextSupplier.get();
             return Releasables.wrap(() -> {
                 final var newResponseHeaders = threadContext.getResponseHeaders();
                 if (newResponseHeaders.isEmpty()) {
@@ -1437,7 +1437,7 @@ public class MasterService extends AbstractLifecycleComponent {
      *
      * @param name The name of the queue, which is mostly useful for debugging.
      *
-     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorites other than {@link Priority#NORMAL}
+     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorities other than {@link Priority#NORMAL}
      *                 where possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks
      *                 should definitely re-use the same {@link MasterServiceTaskQueue} so that they are executed in batches.
      *

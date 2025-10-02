@@ -1,8 +1,8 @@
 {
   "connector.sync_job_update_stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/set-connector-sync-job-stats-api.html",
-      "description": "Updates the stats fields in the connector sync job document."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-sync-job-update-stats",
+      "description": "Set the connector sync job stats"
     },
     "stability": "experimental",
     "visibility": "public",

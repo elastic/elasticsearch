@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CastUnsignedLongToDoubleEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator v;
@@ -50,6 +53,13 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += v.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, LongBlock vBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -64,7 +74,8 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Cast.castUnsignedLongToDouble(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+        long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
+        result.appendDouble(Cast.castUnsignedLongToDouble(v));
       }
       return result.build();
     }
@@ -73,7 +84,8 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   public DoubleVector eval(int positionCount, LongVector vVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Cast.castUnsignedLongToDouble(vVector.getLong(p)));
+        long v = vVector.getLong(p);
+        result.appendDouble(p, Cast.castUnsignedLongToDouble(v));
       }
       return result.build();
     }

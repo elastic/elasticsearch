@@ -89,10 +89,10 @@ public class AggregatorProcessor implements Processor {
                 IntermediateState[] intermediateState = aggClass.getAnnotation(Aggregator.class).value();
                 implementer = new AggregatorImplementer(
                     env.getElementUtils(),
+                    env.getTypeUtils(),
                     aggClass,
                     intermediateState,
-                    warnExceptionsTypes,
-                    aggClass.getAnnotation(Aggregator.class).includeTimestamps()
+                    warnExceptionsTypes
                 );
                 write(aggClass, "aggregator", implementer.sourceFile(), env);
             }
@@ -104,10 +104,10 @@ public class AggregatorProcessor implements Processor {
                 }
                 groupingAggregatorImplementer = new GroupingAggregatorImplementer(
                     env.getElementUtils(),
+                    env.getTypeUtils(),
                     aggClass,
                     intermediateState,
-                    warnExceptionsTypes,
-                    aggClass.getAnnotation(GroupingAggregator.class).includeTimestamps()
+                    warnExceptionsTypes
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }

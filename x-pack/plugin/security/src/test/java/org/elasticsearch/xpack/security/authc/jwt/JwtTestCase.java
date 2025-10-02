@@ -98,12 +98,14 @@ public abstract class JwtTestCase extends ESTestCase {
         final boolean includePublicKey = includeRsa || includeEc;
         final boolean includeHmac = randomBoolean() || (includePublicKey == false); // one of HMAC/RSA/EC must be true
         final boolean populateUserMetadata = randomBoolean();
+        final boolean useJwksEndpoint = randomBoolean();
+        final boolean useProxy = useJwksEndpoint && randomBoolean();
         final Path jwtSetPathObj = PathUtils.get(pathHome);
-        final String jwkSetPath = randomBoolean()
+        final String jwkSetPath = useJwksEndpoint
             ? "https://op.example.com/jwkset.json"
             : Files.createTempFile(jwtSetPathObj, "jwkset.", ".json").toString();
 
-        if (jwkSetPath.equals("https://op.example.com/jwkset.json") == false) {
+        if (useJwksEndpoint == false) {
             Files.writeString(PathUtils.get(jwkSetPath), "Non-empty JWK Set Path contents");
         }
         final ClientAuthenticationType clientAuthenticationType = randomFrom(ClientAuthenticationType.values());
@@ -194,6 +196,16 @@ public abstract class JwtTestCase extends ESTestCase {
             .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_PATH.realm(JwtRealmSettings.TYPE)), "ts2.p12")
             .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_ALGORITHM.realm(JwtRealmSettings.TYPE)), "PKIX")
             .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.CERT_AUTH_PATH.realm(JwtRealmSettings.TYPE)), "ca2.pem");
+
+        if (useProxy) {
+            if (randomBoolean()) {
+                // Scheme is optional, and defaults to HTTP
+                settingsBuilder.put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_SCHEME), "http");
+            }
+
+            settingsBuilder.put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_HOST), "localhost/proxy")
+                .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_PORT), randomIntBetween(1, 65535));
+        }
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (includeHmac) {

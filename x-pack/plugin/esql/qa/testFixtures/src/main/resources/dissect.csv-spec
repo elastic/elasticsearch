@@ -331,3 +331,43 @@ ROW a="b c d x"| DISSECT a "%{b} %{} %{d} %{}";
 a:keyword  | b:keyword | d:keyword
 b c d x    | b         | d
 ;
+
+avoidAttributesRemoval
+// https://github.com/elastic/elasticsearch/issues/127468
+required_capability: keep_regex_extract_attributes
+required_capability: join_lookup_v12
+from message_types 
+| eval type = 1 
+| lookup join message_types_lookup on message 
+| drop message 
+| dissect type "%{b}" 
+| stats x = max(b) 
+| keep x
+;
+
+x:keyword
+Success
+;
+
+avoidAttributesRemoval2
+// https://github.com/elastic/elasticsearch/issues/127468
+required_capability: keep_regex_extract_attributes
+required_capability: join_lookup_v12
+FROM sample_data, employees
+| EVAL client_ip = client_ip::keyword
+| RENAME languages AS language_code
+| LOOKUP JOIN clientips_lookup ON client_ip
+| EVAL type = 1::keyword
+| EVAL type = 2
+| LOOKUP JOIN message_types_lookup ON message
+| LOOKUP JOIN languages_lookup ON language_code
+| DISSECT type "%{type_as_text}"
+| KEEP message
+| WHERE message IS NOT NULL
+| SORT message DESC
+| LIMIT 1
+;
+
+message:keyword
+Disconnected
+;

@@ -114,7 +114,7 @@ GET twitter/_search
 }
 ```
 
-Repeat this process by updating the `search_after` array every time you retrieve a new page of results. If a [refresh](docs-content://solutions/search/search-approaches/near-real-time-search.md) occurs between these requests, the order of your results may change, causing inconsistent results across pages. To prevent this, you can create a [point in time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) to preserve the current index state over your searches.
+Repeat this process by updating the `search_after` array every time you retrieve a new page of results. If a [refresh](docs-content://manage-data/data-store/near-real-time-search.md) occurs between these requests, the order of your results may change, causing inconsistent results across pages. To prevent this, you can create a [point in time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) to preserve the current index state over your searches.
 
 ```console
 POST /my-index-000001/_pit?keep_alive=1m
@@ -324,7 +324,7 @@ POST /_search/scroll                                                            
 }
 ```
 
-1. `GET` or `POST` can be used and the URL should not include the `index` name — this is specified in the original `search` request instead.
+1. `GET` or `POST` can be used and the URL should not include the `index` name — this is specified in the original `search` request instead.
 2. The `scroll` parameter tells Elasticsearch to keep the search context open for another `1m`.
 3. The `scroll_id` parameter
 
@@ -332,7 +332,7 @@ POST /_search/scroll                                                            
 The `size` parameter allows you to configure the maximum number of hits to be returned with each batch of results. Each call to the `scroll` API returns the next batch of results until there are no more results left to return, ie the `hits` array is empty.
 
 ::::{important}
-The initial search request and each subsequent scroll request each return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t always change — in any case, only the most recently received `_scroll_id` should be used.
+The initial search request and each subsequent scroll request each return a `_scroll_id`. While the `_scroll_id` may change between requests, it doesn’t always change — in any case, only the most recently received `_scroll_id` should be used.
 ::::
 
 
@@ -360,7 +360,7 @@ GET /_search?scroll=1m
 
 A scroll returns all the documents which matched the search at the time of the initial search request. It ignores any subsequent changes to these documents. The `scroll_id` identifies a *search context* which keeps track of everything that {{es}} needs to return the correct documents. The search context is created by the initial request and kept alive by subsequent requests.
 
-The `scroll` parameter (passed to the `search` request and to every `scroll` request) tells Elasticsearch how long it should keep the search context alive. Its value (e.g. `1m`, see [Time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) does not need to be long enough to process all data — it just needs to be long enough to process the previous batch of results. Each `scroll` request (with the `scroll` parameter) sets a new expiry time. If a `scroll` request doesn’t pass in the `scroll` parameter, then the search context will be freed as part of *that* `scroll` request.
+The `scroll` parameter (passed to the `search` request and to every `scroll` request) tells Elasticsearch how long it should keep the search context alive. Its value (e.g. `1m`, see [Time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) does not need to be long enough to process all data — it just needs to be long enough to process the previous batch of results. Each `scroll` request (with the `scroll` parameter) sets a new expiry time. If a `scroll` request doesn’t pass in the `scroll` parameter, then the search context will be freed as part of *that* `scroll` request.
 
 Normally, the background merge process optimizes the index by merging together smaller segments to create new, bigger segments. Once the smaller segments are no longer needed they are deleted. This process continues during scrolling, but an open search context prevents the old segments from being deleted since they are still in use.
 

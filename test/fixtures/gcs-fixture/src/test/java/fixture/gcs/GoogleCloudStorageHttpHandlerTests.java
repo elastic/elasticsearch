@@ -102,9 +102,10 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(new TestHttpResponse(RestStatus.OK, """
             {"kind":"storage#objects","items":[],"prefixes":[]}"""), listBlobs(handler, bucket, "some/other/path", null));
 
+        var boundary = newMultipartBoundary();
         assertEquals(
             new TestHttpResponse(RestStatus.OK, """
-                --__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__
+                --$boundary
                 Content-Length: 168
                 Content-Type: application/http
                 content-id: 1
@@ -115,13 +116,13 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
 
 
-                --__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__
-                """.replaceAll("\n", "\r\n")),
+                --$boundary--
+                """.replace("\n", "\r\n").replace("$boundary", boundary)),
             handleRequest(
                 handler,
                 "POST",
                 "/batch/storage/v1",
-                createBatchDeleteRequest(bucket, blobName),
+                createBatchDeleteRequest(bucket, boundary, blobName),
                 Headers.of("Content-Type", "mixed/multipart")
             )
         );
@@ -131,7 +132,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
                 handler,
                 "POST",
                 "/batch/storage/v1",
-                createBatchDeleteRequest(bucket, blobName),
+                createBatchDeleteRequest(bucket, boundary, blobName),
                 Headers.of("Content-Type", "mixed/multipart")
             ).restStatus()
         );
@@ -157,14 +158,14 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         var end = blobBytes.length() - 1;
         assertEquals(
             "Exact Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, TestHttpExchange.EMPTY_HEADERS),
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, end))
         );
 
         end = randomIntBetween(blobBytes.length() - 1, Integer.MAX_VALUE);
         assertEquals(
             "Larger Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, TestHttpExchange.EMPTY_HEADERS),
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, end))
         );
 
@@ -181,8 +182,35 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         end = start + length - 1;
         assertEquals(
             "Range: bytes=" + start + '-' + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes.slice(start, length), TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes.slice(start, length), TestHttpExchange.EMPTY_HEADERS),
             getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(start, end))
+        );
+    }
+
+    public void testZeroLengthObjectGets() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobBytes = BytesArray.EMPTY;
+
+        assertEquals(RestStatus.OK, executeMultipartUpload(handler, bucket, blobName, blobBytes, 0L).restStatus());
+
+        assertEquals(
+            "No Range",
+            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            getBlobContents(handler, bucket, blobName, null, null)
+        );
+
+        assertEquals(
+            "Range 0-0",
+            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, 0))
+        );
+
+        assertEquals(
+            "Random range x-y",
+            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(randomIntBetween(0, 30), randomIntBetween(31, 100)))
         );
     }
 
@@ -225,7 +253,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
         final var part3 = randomAlphaOfLength(30);
         final var uploadPart3Response = handleRequest(handler, "PUT", sessionURI, part3, contentRangeHeader(100, 129, 130));
-        assertEquals(new TestHttpResponse(RestStatus.OK, TestHttpExchange.EMPTY_HEADERS), uploadPart3Response);
+        assertEquals(new TestHttpResponse(RestStatus.OK, rangeHeader(0, 129)), uploadPart3Response);
 
         // status check
         assertEquals(
@@ -545,7 +573,6 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
-        assert bytes.length() > 20;
         if (randomBoolean()) {
             return executeResumableUpload(handler, bucket, blobName, bytes, ifGenerationMatch);
         } else {
@@ -560,6 +587,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
+        assert bytes.length() >= 2 : "We can't split anything smaller than two";
         final var createUploadResponse = handleRequest(
             handler,
             "POST",
@@ -572,7 +600,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         final var sessionURI = locationHeader.substring(locationHeader.indexOf(HOST) + HOST.length());
         assertEquals(RestStatus.OK, createUploadResponse.restStatus());
 
-        final int partBoundary = randomIntBetween(10, bytes.length() - 1);
+        final int partBoundary = randomIntBetween(1, bytes.length() - 1);
         final var part1 = bytes.slice(0, partBoundary);
         final var uploadPart1Response = handleRequest(handler, "PUT", sessionURI, part1, contentRangeHeader(0, partBoundary - 1, null));
         assertEquals(RESUME_INCOMPLETE, uploadPart1Response.status());
@@ -588,11 +616,16 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         BytesReference bytes,
         Long ifGenerationMatch
     ) {
+        var headers = new Headers();
+        // multipart upload is required to provide boundary header
+        var boundary = newMultipartBoundary();
+        headers.put("Content-Type", List.of("multipart/related; boundary=" + boundary));
         return handleRequest(
             handler,
             "POST",
             "/upload/storage/v1/b/" + bucket + "/" + generateQueryString("uploadType", "multipart", "ifGenerationMatch", ifGenerationMatch),
-            createGzipCompressedMultipartUploadBody(bucket, blobName, bytes)
+            createGzipCompressedMultipartUploadBody(bucket, blobName, bytes, boundary),
+            headers
         );
     }
 
@@ -758,25 +791,37 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return Headers.of("Range", Strings.format("bytes=%d-%d", start, end));
     }
 
-    private static BytesReference createGzipCompressedMultipartUploadBody(String bucketName, String path, BytesReference content) {
+    private static String newMultipartBoundary() {
+        return "__END_OF_PART__" + randomUUID();
+    }
+
+    private static BytesReference createGzipCompressedMultipartUploadBody(
+        String bucketName,
+        String path,
+        BytesReference content,
+        String boundary
+    ) {
         final String metadataString = Strings.format("{\"bucket\":\"%s\", \"name\":\"%s\"}", bucketName, path);
-        final BytesReference header = new BytesArray(Strings.format("""
-            --__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__
-            Content-Length: %d
+        final String headerStr = """
+            --$boundary
+            Content-Length: $metadata-length
             Content-Type: application/json; charset=UTF-8
             content-transfer-encoding: binary
 
-            %s
-            --__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__
+            $metadata
+            --$boundary
             Content-Type: application/octet-stream
             content-transfer-encoding: binary
 
-            """.replaceAll("\n", "\r\n"), metadataString.length(), metadataString).getBytes(StandardCharsets.UTF_8));
-
+            """.replace("\n", "\r\n")
+            .replace("$boundary", boundary)
+            .replace("$metadata-length", Integer.toString(metadataString.length()))
+            .replace("$metadata", metadataString);
+        final BytesReference header = new BytesArray(headerStr.getBytes(StandardCharsets.UTF_8));
         final BytesReference footer = new BytesArray("""
 
-            --__END_OF_PART__a607a67c-6df7-4b87-b8a1-81f639a75a97__--
-            """.replaceAll("\n", "\r\n"));
+            --$boundary--
+            """.replace("\n", "\r\n").replace("$boundary", boundary));
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(out)) {
             gzipOutputStream.write(BytesReference.toBytes(CompositeBytesReference.of(header, content, footer)));
@@ -786,7 +831,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return new BytesArray(out.toByteArray());
     }
 
-    private static String createBatchDeleteRequest(String bucketName, String... paths) {
+    private static String createBatchDeleteRequest(String bucketName, String boundary, String... paths) {
         final String deleteRequestTemplate = """
             DELETE %s/storage/v1/b/%s/o/%s HTTP/1.1
             Authorization: Bearer foo
@@ -795,14 +840,14 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
             """;
         final String partTemplate = """
-            --__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__
+            --$boundary
             Content-Length: %d
             Content-Type: application/http
             content-id: %d
             content-transfer-encoding: binary
 
             %s
-            """;
+            """.replace("$boundary", boundary);
         StringBuilder builder = new StringBuilder();
         AtomicInteger contentId = new AtomicInteger();
         Arrays.stream(paths).forEach(p -> {
@@ -810,7 +855,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             final String part = Strings.format(partTemplate, deleteRequest.length(), contentId.incrementAndGet(), deleteRequest);
             builder.append(part);
         });
-        builder.append("--__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__");
+        builder.append("--").append(boundary).append("--");
         return builder.toString();
     }
 

@@ -7,21 +7,55 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocsV3SupportTests extends ESTestCase {
-    private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class);
+    private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class, null);
+    private static final String ESQL = "/reference/query-languages/esql";
 
     public void testFunctionLink() {
         String text = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.";
-        String expected = "The value that is greater than half of all values and less than half of all values, "
-            + "also known as the 50% [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile).";
+        String expected = "The value that is greater than half of all values and less than half of all values, also known as the 50% "
+            + "[`PERCENTILE`]("
+            + ESQL
+            + "/functions-operators/aggregation-functions.md#esql-percentile).";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testFunctionHeaderLink() {
+        String text = "Combine `BUCKET` with an <<esql-aggregation-functions,aggregation>> to create";
+        String expected = "Combine `BUCKET` with an [aggregation](" + ESQL + "/functions-operators/aggregation-functions.md) to create";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testSpatialFunctionLink() {
+        String text = "This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function";
+        String expected = "This is the inverse of the [ST_DISJOINT]("
+            + ESQL
+            + "/functions-operators/spatial-functions.md#esql-st_disjoint) function";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testStringFunctionLink() {
+        String text = "a known order like <<esql-split>>.";
+        String expected = "a known order like [`SPLIT`](" + ESQL + "/functions-operators/string-functions.md#esql-split).";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -29,27 +63,31 @@ public class DocsV3SupportTests extends ESTestCase {
         String text = "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.";
         String expected = """
             If you need floating point division,
-            [`Cast (::)`](/reference/query-languages/esql/esql-functions-operators.md#esql-cast-operator)
-            one of the arguments to a `DOUBLE`.""".replaceAll("\n", " ");
+            [`Cast (::)`](ESQL/functions-operators/operators.md#esql-cast-operator)
+            one of the arguments to a `DOUBLE`.""".replaceAll("ESQL", ESQL).replaceAll("\n", " ");
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testCommandLink() {
         String text = "use a <<esql-where>> command to remove rows";
-        String expected = "use a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command to remove rows";
+        String expected = "use a [`WHERE`](" + ESQL + "/commands/processing-commands.md#esql-where) command to remove rows";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testStatsCommandLink() {
         String text = "Combine `DATE_TRUNC` with <<esql-stats-by>>";
-        String expected = "Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/esql-commands.md#esql-stats-by)";
+        String expected = "Combine `DATE_TRUNC` with [`STATS`](" + ESQL + "/commands/processing-commands.md#esql-stats-by)";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testFunctionAndHeaderLinks() {
         String text = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.";
-        String expected = "Like [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile), "
-            + "`MEDIAN` is [usually approximate](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile-approximate).";
+        String expected = "Like [`PERCENTILE`]("
+            + ESQL
+            + "/functions-operators/aggregation-functions.md#esql-percentile), "
+            + "`MEDIAN` is [usually approximate]("
+            + ESQL
+            + "/functions-operators/aggregation-functions.md#esql-percentile-approximate).";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -191,8 +229,11 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(results, equalTo(expectedResults));
     }
 
-    public void testRenderingExampleFromClass() throws IOException {
+    public void testRenderingExampleFromClass() throws Exception {
         String expected = """
+            % This is generated by ESQL's AbstractFunctionTestCase. Do not edit it. See ../README.md for how to regenerate it.
+
+            **Examples**
 
             ```esql
             FROM employees
@@ -233,8 +274,8 @@ public class DocsV3SupportTests extends ESTestCase {
             | 6 |
 
             To count the number of times an expression returns `TRUE` use a
-            [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command
-            to remove rows that shouldn’t be included
+            [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command
+            to remove rows that shouldn't be included
 
             ```esql
             ROW n=1
@@ -261,21 +302,69 @@ public class DocsV3SupportTests extends ESTestCase {
             | --- | --- |
             | 1 | 0 |
             """;
+        TestCallbacks tempFileWriter = renderTestClassDocs();
+        String rendered = tempFileWriter.rendered.get("examples/count.md");
+        assertThat(rendered.trim(), equalTo(expected.trim()));
+    }
+
+    public void testRenderingLayoutFromClass() throws Exception {
+        String expected = """
+            % This is generated by ESQL's AbstractFunctionTestCase. Do not edit it. See ../README.md for how to regenerate it.
+
+            ## `COUNT` [esql-count]
+            ```{applies_to}
+            stack: ga 9.1.0
+            ```
+
+            **Syntax**
+
+            :::{image} ../../../images/functions/count.svg
+            :alt: Embedded
+            :class: text-center
+            :::
+
+
+            :::{include} ../parameters/count.md
+            :::
+
+            :::{include} ../description/count.md
+            :::
+
+            :::{include} ../types/count.md
+            :::
+
+            :::{include} ../examples/count.md
+            :::
+            """;
+        TestCallbacks tempFileWriter = renderTestClassDocs();
+        String rendered = tempFileWriter.rendered.get("layout/count.md");
+        assertThat(rendered.trim(), equalTo(expected.trim()));
+    }
+
+    private TestCallbacks renderTestClassDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClass.class);
         assert info != null;
-        DocsV3Support docs = DocsV3Support.forFunctions("count", TestClass.class);
-        StringBuilder results = new StringBuilder();
-        for (Example example : info.examples()) {
-            if (example.description().isEmpty() == false) {
-                results.append("\n");
-                results.append(docs.replaceLinks(example.description().trim()));
-                results.append("\n");
-            }
-            String query = docs.loadExampleQuery(example);
-            String result = docs.loadExampleResult(example);
-            results.append("\n").append(query).append("\n").append(result);
+        FunctionDefinition definition = EsqlFunctionRegistry.def(TestClass.class, TestClass::new, "count");
+        TestCallbacks callbacks = new TestCallbacks();
+        var docs = new DocsV3Support.FunctionDocsSupport("count", TestClass.class, definition, TestClass::signatures, callbacks);
+        docs.renderDocs();
+        return callbacks;
+    }
+
+    private class TestCallbacks implements DocsV3Support.Callbacks {
+        private final Map<String, String> rendered = new HashMap<>();
+
+        @Override
+        public void write(Path dir, String name, String extension, String str, boolean kibana) {
+            String file = dir.getFileName() + "/" + name + "." + extension;
+            rendered.put(file, str);
+            logger.info("Wrote to file: {}", file);
         }
-        assertThat(results.toString(), equalTo(expected));
+
+        @Override
+        public boolean supportsRendering() {
+            return true;
+        }
     }
 
     private static FunctionInfo functionInfo(Class<?> clazz) {
@@ -301,7 +390,7 @@ public class DocsV3SupportTests extends ESTestCase {
         return constructors[0];
     }
 
-    public static class TestClass {
+    public static class TestClass extends Function {
         @FunctionInfo(
             returnType = "long",
             description = "Returns the total number (count) of input values.",
@@ -315,7 +404,7 @@ public class DocsV3SupportTests extends ESTestCase {
                 @Example(description = """
                     To count the number of times an expression returns `TRUE` use a
                     <<esql-where>> command
-                    to remove rows that shouldn’t be included""", file = "stats", tag = "count-where"),
+                    to remove rows that shouldn't be included""", file = "stats", tag = "count-where"),
                 @Example(
                     description = """
                         To count the same stream of data based on two different expressions use the pattern
@@ -325,8 +414,42 @@ public class DocsV3SupportTests extends ESTestCase {
                         `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.""",
                     file = "stats",
                     tag = "count-or-null"
-                ) }
+                ) },
+            appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
         )
-        public TestClass() {}
+        public TestClass(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
+            String expression. If `null`, the function returns `null`.
+            The input can be a single- or multi-valued column or an expression.""") Expression field) {
+            super(source, List.of(field));
+        }
+
+        public static Set<DocsV3Support.TypeSignature> signatures() {
+            return Set.of(new DocsV3Support.TypeSignature(List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())), DataType.LONG));
+        }
+
+        @Override
+        public DataType dataType() {
+            return DataType.LONG;
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            return new TestClass(source(), newChildren.getFirst());
+        }
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(this, TestClass::new, children().getFirst());
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 }

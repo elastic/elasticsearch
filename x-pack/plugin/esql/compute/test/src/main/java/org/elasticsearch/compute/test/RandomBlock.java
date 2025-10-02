@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -37,8 +38,16 @@ public record RandomBlock(List<List<Object>> values, Block block) {
      * A random {@link ElementType} for which we can build a {@link RandomBlock}.
      */
     public static ElementType randomElementType() {
+        return randomElementExcluding(List.of());
+    }
+
+    public static ElementType randomElementExcluding(List<ElementType> type) {
         return ESTestCase.randomValueOtherThanMany(
-            e -> e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE,
+            e -> e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.COMPOSITE
+                || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
     }
@@ -133,6 +142,18 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             boolean b = ESTestCase.randomBoolean();
                             valuesAtPosition.add(b);
                             ((BooleanBlock.Builder) builder).appendBoolean(b);
+                        }
+                        case AGGREGATE_METRIC_DOUBLE -> {
+                            AggregateMetricDoubleBlockBuilder b = (AggregateMetricDoubleBlockBuilder) builder;
+                            double min = ESTestCase.randomDouble();
+                            double max = ESTestCase.randomDouble();
+                            double sum = ESTestCase.randomDouble();
+                            int count = ESTestCase.randomNonNegativeInt();
+                            b.min().appendDouble(min);
+                            b.max().appendDouble(max);
+                            b.sum().appendDouble(sum);
+                            b.count().appendInt(count);
+                            valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

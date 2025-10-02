@@ -42,7 +42,7 @@ public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthI
 
         var unknown = new ArrayList<String>();
         var invalid = new ArrayList<String>();
-        repositories.values().forEach(repository -> {
+        repositories.forEach(repository -> {
             if (repository instanceof UnknownTypeRepository) {
                 unknown.add(repository.getMetadata().name());
             } else if (repository instanceof InvalidRepository) {

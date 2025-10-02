@@ -48,7 +48,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
         return new ColumnExtractOperator.Factory(
             new ElementType[] { ElementType.BYTES_REF },
@@ -63,6 +63,11 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
                     }
                     input.incRef();
                     return input;
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return 0;
                 }
 
                 @Override

@@ -22,7 +22,7 @@ It supports the `mode` and `user_dictionary` settings from [`kuromoji_tokenizer`
 
 The `kuromoji_tokenizer` tokenizer uses characters from the MeCab-IPADIC dictionary to split text into tokens. The dictionary includes some full-width characters, such as `ｏ` and `ｆ`. If a text contains full-width characters, the tokenizer can produce unexpected tokens.
 
-For example, the `kuromoji_tokenizer` tokenizer converts the text `Ｃｕｌｔｕｒｅ　ｏｆ　Ｊａｐａｎ` to the tokens `[ culture, o, f, japan ]` instead of `[ culture, of, japan ]`.
+For example, the `kuromoji_tokenizer` tokenizer converts the text `Ｃｕｌｔｕｒｅ ｏｆ Ｊａｐａｎ` to the tokens `[ culture, o, f, japan ]` instead of `[ culture, of, japan ]`.
 
 To avoid this, add the [`icu_normalizer` character filter](/reference/elasticsearch-plugins/analysis-icu-normalization-charfilter.md) to a custom analyzer based on the `kuromoji` analyzer. The `icu_normalizer` character filter converts full-width characters to their normal equivalents.
 

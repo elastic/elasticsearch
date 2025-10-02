@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
@@ -31,6 +35,26 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  */
 public interface LucenePushdownPredicates {
     /**
+     * If we're extracting a query for {@code can_match} then this is the
+     * minimum transport version in the cluster. Otherwise, this is {@code null}.
+     * <p>
+     *     If this is not null {@link Expression}s should not claim to be
+     *     serializable unless their {@link QueryBuilder}
+     *     {@link QueryBuilder#supportsVersion supports} the version.
+     * </p>
+     * <p>
+     *     This is done on the coordinating node <strong>and</strong>. And for
+     *     cross cluster search this is done on the coordinating node on the
+     *     remote cluster. So! We actually <strong>have</strong> the minimum
+     *     cluster transport version.
+     * </p>
+     */
+    @Nullable
+    TransportVersion minTransportVersion();
+
+    EsqlFlags flags();
+
+    /**
      * For TEXT fields, we need to check if the field has a subfield of type KEYWORD that can be used instead.
      */
     boolean hasExactSubfield(FieldAttribute attr);
@@ -47,6 +71,8 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
+
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
@@ -57,13 +83,13 @@ public interface LucenePushdownPredicates {
      */
     default boolean isPushableFieldAttribute(Expression exp) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexedAndHasDocValues(fa)) {
-            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasExactSubfield(fa);
+            return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
         }
         return false;
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {
-        return exp instanceof FieldAttribute fa && (fa.dataType() == DataType.TEXT || fa.dataType() == DataType.SEMANTIC_TEXT);
+        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT;
     }
 
     static boolean isPushableMetadataAttribute(Expression exp) {
@@ -99,34 +125,68 @@ public interface LucenePushdownPredicates {
      * In particular, it assumes TEXT fields have no exact subfields (underlying keyword field),
      * and that isAggregatable means indexed and has hasDocValues.
      */
-    LucenePushdownPredicates DEFAULT = new LucenePushdownPredicates() {
-        @Override
-        public boolean hasExactSubfield(FieldAttribute attr) {
-            return false;
-        }
-
-        @Override
-        public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
-            // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
-            return attr.field().isAggregatable();
-        }
-
-        @Override
-        public boolean isIndexed(FieldAttribute attr) {
-            // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
-            return attr.field().isAggregatable();
-        }
-    };
+    LucenePushdownPredicates DEFAULT = forCanMatch(null, new EsqlFlags(true));
 
     /**
-     * If we have access to SearchStats over a collection of shards, we can make more fine-grained decisions about what can be pushed down.
-     * This should open up more opportunities for lucene pushdown.
+     * A {@link LucenePushdownPredicates} for use with the {@code can_match} phase.
      */
-    static LucenePushdownPredicates from(SearchStats stats) {
+    static LucenePushdownPredicates forCanMatch(TransportVersion minTransportVersion, EsqlFlags flags) {
         return new LucenePushdownPredicates() {
             @Override
+            public TransportVersion minTransportVersion() {
+                return minTransportVersion;
+            }
+
+            @Override
+            public EsqlFlags flags() {
+                return flags;
+            }
+
+            @Override
             public boolean hasExactSubfield(FieldAttribute attr) {
-                return stats.hasExactSubfield(attr.name());
+                return false;
+            }
+
+            @Override
+            public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
+                // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
+                return attr.field().isAggregatable();
+            }
+
+            @Override
+            public boolean isIndexed(FieldAttribute attr) {
+                // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
+                return attr.field().isAggregatable();
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return false;
+            }
+        };
+    }
+
+    /**
+     * If we have access to {@link SearchStats} over a collection of shards, we can make more fine-grained decisions about what can be
+     * pushed down. This should open up more opportunities for lucene pushdown.
+     */
+    static LucenePushdownPredicates from(SearchStats stats, EsqlFlags flags) {
+        // TODO: use FieldAttribute#fieldName, otherwise this doesn't apply to field attributes used for union types.
+        // C.f. https://github.com/elastic/elasticsearch/issues/128905
+        return new LucenePushdownPredicates() {
+            @Override
+            public TransportVersion minTransportVersion() {
+                return null;
+            }
+
+            @Override
+            public EsqlFlags flags() {
+                return flags;
+            }
+
+            @Override
+            public boolean hasExactSubfield(FieldAttribute attr) {
+                return stats.hasExactSubfield(new FieldAttribute.FieldName(attr.name()));
             }
 
             @Override
@@ -134,12 +194,19 @@ public interface LucenePushdownPredicates {
                 // We still consider the value of isAggregatable here, because some fields like ScriptFieldTypes are always aggregatable
                 // But this could hide issues with fields that are not indexed but are aggregatable
                 // This is the original behaviour for ES|QL, but is it correct?
-                return attr.field().isAggregatable() || stats.isIndexed(attr.name()) && stats.hasDocValues(attr.name());
+                return attr.field().isAggregatable()
+                    || stats.isIndexed(new FieldAttribute.FieldName(attr.name()))
+                        && stats.hasDocValues(new FieldAttribute.FieldName(attr.name()));
             }
 
             @Override
             public boolean isIndexed(FieldAttribute attr) {
-                return stats.isIndexed(attr.name());
+                return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
             }
         };
     }

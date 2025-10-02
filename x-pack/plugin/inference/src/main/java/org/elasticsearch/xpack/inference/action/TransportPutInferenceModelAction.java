@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,6 +66,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private volatile boolean skipValidationAndStart;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutInferenceModelAction(
@@ -74,7 +77,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Settings settings
+        Settings settings,
+        ProjectResolver projectResolver
     ) {
         super(
             PutInferenceModelAction.NAME,
@@ -92,6 +96,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -176,7 +181,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, request.ackTimeout(), listener);
+        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, request.getTimeout(), listener);
     }
 
     private void parseAndStoreModel(
@@ -211,7 +216,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             if (skipValidationAndStart) {
                 storeModelListener.onResponse(model);
             } else {
-                service.checkModelConfig(model, storeModelListener);
+                ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service)
+                    .validate(service, model, timeout, storeModelListener);
             }
         });
 
@@ -249,7 +255,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     @Override
     protected ClusterBlockException checkBlock(PutInferenceModelAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
 }

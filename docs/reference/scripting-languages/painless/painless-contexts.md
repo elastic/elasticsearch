@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-contexts.html
+products:
+  - id: painless
 ---
 
 # Painless contexts [painless-contexts]

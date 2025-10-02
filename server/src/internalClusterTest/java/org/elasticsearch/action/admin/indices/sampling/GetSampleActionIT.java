@@ -52,7 +52,6 @@ public class GetSampleActionIT extends ESIntegTestCase {
     }
 
     private void assertRawDocument(SamplingService.RawDocument rawDocument, String indexName) {
-        assertThat(rawDocument.projectId(), equalTo(ProjectId.DEFAULT));
         assertThat(rawDocument.indexName(), equalTo(indexName));
     }
 

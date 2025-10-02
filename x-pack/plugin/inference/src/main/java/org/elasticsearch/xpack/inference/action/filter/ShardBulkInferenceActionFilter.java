@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -729,37 +730,38 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             IndexSource indexSource = indexRequest.indexSource();
             int originalSourceSize = indexSource.byteLength();
-            BytesReference originalSource = indexSource.bytes();
-            if (useLegacyFormat) {
-                var newDocMap = indexSource.sourceAsMap();
-                for (var entry : inferenceFieldsMap.entrySet()) {
-                    XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
+            try (ReleasableBytesReference originalSource = indexSource.retainedBytes()) {
+                if (useLegacyFormat) {
+                    var newDocMap = indexSource.sourceAsMap();
+                    for (var entry : inferenceFieldsMap.entrySet()) {
+                        XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
+                    }
+                    indexSource.source(newDocMap, indexSource.contentType());
+                } else {
+                    try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
+                        appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);
+                        indexSource.source(builder);
+                    }
                 }
-                indexSource.source(newDocMap, indexSource.contentType());
-            } else {
-                try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
-                    appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);
-                    indexSource.source(builder);
-                }
-            }
-            long modifiedSourceSize = indexSource.byteLength();
+                long modifiedSourceSize = indexSource.byteLength();
 
-            // Add the indexing pressure from the source modifications.
-            // Don't increment operation count because we count one source update as one operation, and we already accounted for those
-            // in addFieldInferenceRequests.
-            try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
-            } catch (EsRejectedExecutionException e) {
-                indexSource.source(originalSource, indexSource.contentType());
-                item.abort(
-                    item.index(),
-                    new InferenceException(
-                        "Unable to insert inference results into document ["
-                            + indexRequest.id()
-                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
-                        e
-                    )
-                );
+                // Add the indexing pressure from the source modifications.
+                // Don't increment operation count because we count one source update as one operation, and we already accounted for those
+                // in addFieldInferenceRequests.
+                try {
+                    coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
+                } catch (EsRejectedExecutionException e) {
+                    indexSource.source(originalSource.retain(), indexSource.contentType());
+                    item.abort(
+                        item.index(),
+                        new InferenceException(
+                            "Unable to insert inference results into document ["
+                                + indexRequest.id()
+                                + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
+                            e
+                        )
+                    );
+                }
             }
         }
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -33,7 +34,7 @@ import java.util.Map;
 public class IndexSource implements Writeable, Releasable {
 
     private XContentType contentType;
-    private BytesReference source;
+    private ReleasableBytesReference source;
     private boolean isClosed = false;
 
     public IndexSource() {}
@@ -75,6 +76,11 @@ public class IndexSource implements Writeable, Releasable {
         return source;
     }
 
+    public ReleasableBytesReference retainedBytes() {
+        assert isClosed == false;
+        return source.retain();
+    }
+
     public boolean hasSource() {
         assert isClosed == false;
         return source != null;
@@ -93,6 +99,7 @@ public class IndexSource implements Writeable, Releasable {
     public void close() {
         assert isClosed == false;
         isClosed = true;
+        Releasables.close(source);
         source = null;
         contentType = null;
     }
@@ -243,8 +250,14 @@ public class IndexSource implements Writeable, Releasable {
     }
 
     private void setSource(BytesReference source, XContentType contentType) {
+        setSource(ReleasableBytesReference.wrap(source), contentType);
+    }
+
+    private void setSource(ReleasableBytesReference source, XContentType contentType) {
         assert isClosed == false;
+        Releasable toClose = this.source;
         this.source = source;
         this.contentType = contentType;
+        Releasables.close(toClose);
     }
 }

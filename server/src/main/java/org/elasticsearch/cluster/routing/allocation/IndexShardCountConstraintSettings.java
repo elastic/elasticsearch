@@ -14,22 +14,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 
 /**
- * Settings definitions for the write load allocation decider and associated infrastructure
+ * Settings definitions for the index shard count allocation decider and associated infrastructure
  */
 public class IndexShardCountConstraintSettings {
 
     private static final String SETTING_PREFIX = "cluster.routing.allocation.index_shard_count_decider.";
-    private static final FeatureFlag INDEX_COUNT_DECIDER_FEATURE_FLAG = new FeatureFlag("index_shard_count_decider");
+    private static final FeatureFlag INDEX_SHARD_COUNT_DECIDER_FEATURE_FLAG = new FeatureFlag("index_shard_count_decider");
 
     public enum IndexShardCountDeciderStatus {
-        /**
-         * The decider is disabled
-         */
         DISABLED,
-
-        /**
-         * Index shard count decider is turned on.
-         */
         ENABLED;
 
         public boolean enabled() {
@@ -44,7 +37,7 @@ public class IndexShardCountConstraintSettings {
     public static final Setting<IndexShardCountDeciderStatus> INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING = Setting.enumSetting(
         IndexShardCountDeciderStatus.class,
         SETTING_PREFIX + "enabled",
-        INDEX_COUNT_DECIDER_FEATURE_FLAG.isEnabled() ? IndexShardCountDeciderStatus.ENABLED : IndexShardCountDeciderStatus.DISABLED,
+        INDEX_SHARD_COUNT_DECIDER_FEATURE_FLAG.isEnabled() ? IndexShardCountDeciderStatus.ENABLED : IndexShardCountDeciderStatus.DISABLED,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -58,15 +51,13 @@ public class IndexShardCountConstraintSettings {
     public static final Setting<Double> INDEX_SHARD_COUNT_DECIDER_LOAD_SKEW_TOLERANCE = Setting.doubleSetting(
         SETTING_PREFIX + "load_skew_tolerance",
         1.5d,
-        0.0d,
+        1.0d,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     private volatile IndexShardCountDeciderStatus indexShardCountDeciderStatus;
     private volatile double loadSkewTolerance;
-
-
 
     public IndexShardCountConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING,

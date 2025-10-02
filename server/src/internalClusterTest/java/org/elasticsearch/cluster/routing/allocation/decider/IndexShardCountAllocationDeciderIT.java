@@ -38,7 +38,14 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
 
               Propose Allocation to move shard from B to C  -> Not preferred
 
-        random number of shards
+        Enable this decider
+        put very strict load skew tolerance basically ideal
+        with this in place the end result should be all not exceeding ideal
+
+
+        What happes
+
+        So basically first
 
 
      */
@@ -53,6 +60,8 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
      *
      */
     public void testIndexShardCountExceedsAverageAllocation() {
+
+        setUpIndex();
 
 
 

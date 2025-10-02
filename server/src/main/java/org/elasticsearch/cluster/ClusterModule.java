@@ -483,7 +483,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new IndexShardCountAllocationDecider());
+        addAllocationDecider(deciders, new IndexShardCountAllocationDecider(clusterSettings));
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())

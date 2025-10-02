@@ -46,7 +46,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.crossproject.CrossProjectResponseValidator;
+import org.elasticsearch.search.crossproject.ResponseValidator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -73,8 +73,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
-import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.lenientIndicesOptions;
-import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.resolveCrossProject;
+import static org.elasticsearch.search.crossproject.ResponseValidator.lenientIndicesOptions;
+import static org.elasticsearch.search.crossproject.ResponseValidator.shouldResolveCrossProject;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -619,7 +619,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
-            final boolean resolveCrossProject = resolveCrossProject(request);
+            final boolean resolveCrossProject = shouldResolveCrossProject(request);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 resolveCrossProject ? lenientIndicesOptions(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()
@@ -630,7 +630,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             resolveIndices(localIndices, projectState, indexNameExpressionResolver, indices, aliases, dataStreams, request.indexModes);
 
-            final ResolvedIndexExpressions primaryResolvedIndexExpressions = request.getResolvedIndexExpressions();
+            final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
@@ -648,9 +648,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 );
                                 return;
                             }
-                            final Exception ex = CrossProjectResponseValidator.validate(
+                            final Exception ex = ResponseValidator.validate(
                                 originalIndicesOptions,
-                                primaryResolvedIndexExpressions,
+                                localResolvedIndexExpressions,
                                 getResolvedExpressionsByRemote(remoteResponses)
                             );
                             if (ex != null) {
@@ -676,6 +676,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         originalIndices.indices(),
                         originalIndices.indicesOptions(),
                         EnumSet.noneOf(IndexMode.class),
+                        // if the original request is being handled cross-project, we need the remote to return resolved expressions
                         resolveCrossProject
                     );
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
@@ -690,18 +691,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 if (resolveCrossProject) {
                     // we still need to call response validation for local results, since qualified expressions like `_origin:index` or
                     // `<alias-pattern-matching-origin-only>:index` get deferred validation, also
-                    final Exception ex = CrossProjectResponseValidator.validate(
-                        originalIndicesOptions,
-                        primaryResolvedIndexExpressions,
-                        Map.of()
-                    );
+                    final Exception ex = ResponseValidator.validate(originalIndicesOptions, localResolvedIndexExpressions, Map.of());
                     if (ex != null) {
                         listener.onFailure(ex);
                         return;
                     }
                 }
                 listener.onResponse(
-                    new Response(indices, aliases, dataStreams, request.includeResolvedExpressions ? primaryResolvedIndexExpressions : null)
+                    new Response(indices, aliases, dataStreams, request.includeResolvedExpressions ? localResolvedIndexExpressions : null)
                 );
             }
         }

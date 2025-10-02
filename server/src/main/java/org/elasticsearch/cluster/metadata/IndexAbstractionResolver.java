@@ -41,12 +41,12 @@ public class IndexAbstractionResolver {
     }
 
     public ResolvedIndexExpressions resolveIndexAbstractions(
-        List<String> indices,
-        IndicesOptions indicesOptions,
-        ProjectMetadata projectMetadata,
-        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
-        BiPredicate<String, IndexComponentSelector> isAuthorized,
-        boolean includeDataStreams
+        final List<String> indices,
+        final IndicesOptions indicesOptions,
+        final ProjectMetadata projectMetadata,
+        final Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        final BiPredicate<String, IndexComponentSelector> isAuthorized,
+        final boolean includeDataStreams
     ) {
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
         boolean wildcardSeen = false;
@@ -68,13 +68,13 @@ public class IndexAbstractionResolver {
     }
 
     public ResolvedIndexExpressions resolveIndexAbstractions(
-        List<String> indices,
-        IndicesOptions indicesOptions,
-        ProjectMetadata projectMetadata,
-        Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
-        BiPredicate<String, IndexComponentSelector> isAuthorized,
-        TargetProjects targetProjects,
-        boolean includeDataStreams
+        final List<String> indices,
+        final IndicesOptions indicesOptions,
+        final ProjectMetadata projectMetadata,
+        final Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
+        final BiPredicate<String, IndexComponentSelector> isAuthorized,
+        final TargetProjects targetProjects,
+        final boolean includeDataStreams
     ) {
         assert targetProjects != TargetProjects.NOT_CROSS_PROJECT
             : "cannot resolve indices cross project if target set is NOT_CROSS_PROJECT";

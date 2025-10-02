@@ -49,7 +49,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
         Writeable {
 
     public ResolvedIndexExpression(StreamInput in) throws IOException {
-        this(in.readString(), new LocalExpressions(in), in.readCollectionAsSet(StreamInput::readString));
+        this(in.readString(), new LocalExpressions(in), in.readCollectionAsImmutableSet(StreamInput::readString));
     }
 
     @Override
@@ -91,7 +91,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
 
         public LocalExpressions(StreamInput in) throws IOException {
             this(
-                in.readCollectionAsSet(StreamInput::readString),
+                in.readCollectionAsImmutableSet(StreamInput::readString),
                 in.readEnum(LocalIndexResolutionResult.class),
                 ElasticsearchException.readException(in)
             );

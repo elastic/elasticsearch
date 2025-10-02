@@ -54,8 +54,8 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
-import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.lenientIndicesOptions;
-import static org.elasticsearch.search.crossproject.CrossProjectResponseValidator.resolveCrossProject;
+import static org.elasticsearch.search.crossproject.ResponseValidator.lenientIndicesOptions;
+import static org.elasticsearch.search.crossproject.ResponseValidator.shouldResolveCrossProject;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -365,7 +365,7 @@ class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 assert indicesRequest.indices() != null : "indices() cannot be null when resolving non-all-index expressions";
-                if (resolveCrossProject(replaceable)
+                if (shouldResolveCrossProject(replaceable)
                     // a none expression should not go through cross-project resolution -- fall back to local resolution logic
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";

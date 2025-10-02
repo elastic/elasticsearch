@@ -29,7 +29,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     public static final TransportVersion RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName("resolved_index_expressions");
 
     public ResolvedIndexExpressions(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(ResolvedIndexExpression::new));
+        this(in.readCollectionAsImmutableList(ResolvedIndexExpression::new));
     }
 
     public List<String> getLocalIndicesList() {

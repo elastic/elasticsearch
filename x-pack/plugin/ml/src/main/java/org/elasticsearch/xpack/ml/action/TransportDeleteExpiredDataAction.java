@@ -240,6 +240,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
         TaskId parentTaskId,
         AnomalyDetectionAuditor anomalyDetectionAuditor
     ) {
+
         return Arrays.asList(
             new ExpiredResultsRemover(
                 originClient,
@@ -252,8 +253,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
             new ExpiredModelSnapshotsRemover(
                 originClient,
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
-                threadPool,
                 parentTaskId,
+                threadPool,
                 jobResultsProvider,
                 anomalyDetectionAuditor
             ),
@@ -277,8 +278,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
             new ExpiredModelSnapshotsRemover(
                 client,
                 new VolatileCursorIterator<>(jobs),
-                threadPool,
                 parentTaskId,
+                threadPool,
                 jobResultsProvider,
                 anomalyDetectionAuditor
             ),

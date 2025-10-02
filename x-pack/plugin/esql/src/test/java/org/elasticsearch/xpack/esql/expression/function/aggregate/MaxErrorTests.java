@@ -33,7 +33,12 @@ public class MaxErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            typeErrorMessage(false, validPerPosition, signature, (v, p) -> "representable except unsigned_long and spatial types")
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types"
+            )
         );
     }
 }

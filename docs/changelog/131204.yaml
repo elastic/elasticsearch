@@ -1,0 +1,5 @@
+pr: 131204
+summary: Allow pruning columns added by `InlineJoin`
+area: ES|QL
+type: enhancement
+issues: []

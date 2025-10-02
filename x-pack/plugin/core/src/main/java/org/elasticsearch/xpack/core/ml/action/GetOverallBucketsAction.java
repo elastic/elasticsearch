@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
@@ -54,7 +54,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static final ParseField TOP_N = new ParseField("top_n");
         public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");

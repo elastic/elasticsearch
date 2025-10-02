@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
@@ -17,6 +18,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores $type$ values.
@@ -74,6 +76,19 @@ $endif$
     @Override
     $Type$Block filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default $Type$Block deepCopy(BlockFactory blockFactory) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     $Type$Block keepMask(BooleanVector mask);
 
@@ -127,15 +142,15 @@ $endif$
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayBlock b) {
+        } else if (this instanceof $Type$ArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+        } else if (this instanceof OrdinalBytesRefBlock b && b.isDense()) {
             out.writeByte(SERIALIZE_BLOCK_ORDINAL);
             b.writeOrdinalBlock(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayBlock b) {
+        } else if (this instanceof $Type$BigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
 $endif$

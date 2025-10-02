@@ -113,7 +113,7 @@ Elasticsearch supports sorting by array or multi-valued fields. The `mode` optio
 `median`
 :   Use the median of all values as sort value. Only applicable for number based array fields.
 
-The default sort mode in the ascending sort order is `min` — the lowest value is picked. The default sort mode in the descending order is `max` — the highest value is picked.
+The default sort mode in the ascending sort order is `min` — the lowest value is picked. The default sort mode in the descending order is `max` — the highest value is picked.
 
 
 ### Sort mode example usage [_sort_mode_example_usage]

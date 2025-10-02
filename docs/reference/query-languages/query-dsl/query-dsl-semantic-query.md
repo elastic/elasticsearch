@@ -2,6 +2,9 @@
 navigation_title: "Semantic"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-semantic-query.html
+applies_to:
+  stack: ga 9.0
+  serverless: ga
 ---
 
 # Semantic query [query-dsl-semantic-query]

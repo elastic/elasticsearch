@@ -876,7 +876,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollByDefault() {
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
@@ -884,7 +884,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(101, 1000));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -893,7 +893,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(1, 100));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
 
         assertThat(preparedSearchRequest.scroll(), nullValue());
     }
@@ -903,7 +903,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().size(100);
         testRequest.setAbortOnVersionConflict(false);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -941,6 +941,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction() {
             super(
                 testTask,
+                randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
                 AsyncBulkByScrollActionTests.this.logger,

@@ -42,7 +42,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -71,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
@@ -135,25 +135,28 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             try (var mockLog = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
                 mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "hot threads logging",
-                        NODE_ENVIRONMENT_LOGGER_NAME,
-                        Level.DEBUG,
-                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
-                    )
+                    new MockLog.SeenEventExpectation("hot threads logging", NODE_ENVIRONMENT_LOGGER_NAME, Level.DEBUG, """
+                        hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after [*ms]; \
+                        this shard lock is still held by a different instance of the shard and has been in state [1] for [*/*ms]*""")
                 );
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
                         "second attempt should be suppressed due to throttling",
                         NODE_ENVIRONMENT_LOGGER_NAME,
                         Level.DEBUG,
-                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                        "*obtaining shard lock for [3] timed out*"
                     )
                 );
 
                 assertEquals(new ShardId(index, 0), lock.getShardId());
 
-                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
+                assertThat(
+                    expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2")).getMessage(),
+                    matchesPattern("""
+                        \\[foo]\\[0]: obtaining shard lock for \\[2] timed out after \\[0ms]; \
+                        this shard lock is still held by a different instance of the shard \
+                        and has been in state \\[1] for \\[.*/[0-9]+ms]""")
+                );
 
                 for (Path path : env.indexPaths(index)) {
                     Files.createDirectories(path.resolve("0"));
@@ -582,9 +585,9 @@ public class NodeEnvironmentTests extends ESTestCase {
                     containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.CURRENT.major
-                                ? Version.CURRENT.minimumCompatibilityVersion()
-                                : previousNodeVersion)
+                            + (previousNodeVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                                ? previousNodeVersion
+                                : Version.CURRENT.minimumCompatibilityVersion())
                             + "]"
                     )
                 )
@@ -639,29 +642,37 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testGetBestDowngradeVersion() {
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
+        int prev = Version.CURRENT.minimumCompatibilityVersion().major;
+        int last = Version.CURRENT.minimumCompatibilityVersion().minor;
+        int old = prev - 1;
+
+        assumeTrue("The current compatibility rules are active only from 8.x onward", prev >= 7);
+        assertEquals(Version.CURRENT.major - 1, prev);
+
+        assertEquals(
+            "From an old major, recommend prev.last",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(old + ".0.0")),
+            BuildVersion.fromString(prev + "." + last + ".0")
         );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.5")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.5"))
+
+        if (last >= 1) {
+            assertEquals(
+                "From an old minor of the previous major, recommend prev.last",
+                NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + (last - 1) + ".0")),
+                BuildVersion.fromString(prev + "." + last + ".0")
+            );
+        }
+
+        assertEquals(
+            "From an old patch of prev.last, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + last + ".1")),
+            BuildVersion.fromString(prev + "." + last + ".1")
         );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.12")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.12"))
-        );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.19.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.19.0"))
-        );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.17.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
-        );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("7.17.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
+
+        assertEquals(
+            "From the first version of this major, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(Version.CURRENT.major + ".0.0")),
+            BuildVersion.fromString(Version.CURRENT.major + ".0.0")
         );
     }
 

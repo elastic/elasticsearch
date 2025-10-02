@@ -167,14 +167,9 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         String nodeId = "123";
         long totalBytesOnMachine = 100;
         long totalBytesFree = 70;
-        ClusterInfo clusterInfo = new ClusterInfo(
-            Map.of(),
-            Map.of(nodeId, new DiskUsage(nodeId, "", "", totalBytesOnMachine, totalBytesFree)),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .mostAvailableSpaceUsage(Map.of(nodeId, new DiskUsage(nodeId, "", "", totalBytesOnMachine, totalBytesFree)))
+            .build();
         DeprecationIssue issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
             nodeSettings,
             dynamicSettings,

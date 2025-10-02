@@ -10,12 +10,14 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.StringReader;
 
 import static org.elasticsearch.cli.Terminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
 
+@WithoutEntitlements // test & cli only - never running with entitlements enabled
 public class TerminalTests extends ESTestCase {
 
     public void testVerbosity() throws Exception {

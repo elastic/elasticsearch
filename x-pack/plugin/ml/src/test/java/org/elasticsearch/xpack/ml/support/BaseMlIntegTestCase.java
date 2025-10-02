@@ -122,7 +122,6 @@ import static org.mockito.Mockito.when;
  * Note for other type of integration tests you should use the external test cluster created by the Gradle integTest task.
  * For example tests extending this base class test with the non native autodetect process.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
@@ -170,8 +169,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void ensureTemplatesArePresent() throws Exception {
-        awaitClusterState(logger, MachineLearning::criticalTemplatesInstalled);
+    public void ensureTemplatesArePresent() {
+        if (cluster().size() > 0) {
+            awaitClusterState(MachineLearning::criticalTemplatesInstalled);
+        }
     }
 
     protected Job.Builder createJob(String id) {

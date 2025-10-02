@@ -890,7 +890,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         ShardGeneration generation
     ) throws IOException {
         return BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
-            repository.getMetadata().name(),
+            repository.getProjectRepo(),
             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
             generation.getGenerationUUID(),
             NamedXContentRegistry.EMPTY

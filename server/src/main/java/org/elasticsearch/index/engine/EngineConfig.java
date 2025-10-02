@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -149,6 +150,13 @@ public final class EngineConfig {
 
     private final EngineResetLock engineResetLock;
 
+    private final MergeMetrics mergeMetrics;
+
+    /**
+     * Allows to pass an {@link ElasticsearchIndexDeletionPolicy} wrapper to egine implementations.
+     */
+    private final Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
+
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
@@ -181,7 +189,9 @@ public final class EngineConfig {
         Engine.IndexCommitListener indexCommitListener,
         boolean promotableToPrimary,
         MapperService mapperService,
-        EngineResetLock engineResetLock
+        EngineResetLock engineResetLock,
+        MergeMetrics mergeMetrics,
+        Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -229,6 +239,8 @@ public final class EngineConfig {
         // always use compound on flush - reduces # of file-handles on refresh
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
         this.engineResetLock = engineResetLock;
+        this.mergeMetrics = mergeMetrics;
+        this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
     }
 
     /**
@@ -476,5 +488,16 @@ public final class EngineConfig {
 
     public EngineResetLock getEngineResetLock() {
         return engineResetLock;
+    }
+
+    public MergeMetrics getMergeMetrics() {
+        return mergeMetrics;
+    }
+
+    /**
+     * @return an {@link ElasticsearchIndexDeletionPolicy} wrapper, to be use by engine implementations.
+     */
+    public Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> getIndexDeletionPolicyWrapper() {
+        return indexDeletionPolicyWrapper;
     }
 }

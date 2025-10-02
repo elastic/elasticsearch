@@ -7,17 +7,28 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.util.function.Predicate;
 
 public interface ReservedRoleNameChecker {
     interface Factory {
-        ReservedRoleNameChecker create(Predicate<String> fileRoleStoreNameChecker);
+
+        ReservedRoleNameChecker create(
+            ClusterService clusterService,
+            ProjectResolver projectResolver,
+            Predicate<String> fileRoleStoreNameChecker
+        );
 
         class Default implements Factory {
             @Override
-            public ReservedRoleNameChecker create(Predicate<String> fileRoleStoreNameChecker) {
+            public ReservedRoleNameChecker create(
+                ClusterService clusterService,
+                ProjectResolver projectResolver,
+                Predicate<String> fileRoleStoreNameChecker
+            ) {
                 return new ReservedRoleNameChecker.Default();
             }
         }

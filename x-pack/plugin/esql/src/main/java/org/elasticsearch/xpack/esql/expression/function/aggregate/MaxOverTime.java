@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -34,9 +37,12 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
-        description = "The maximum over time value of a field.",
-        type = FunctionType.AGGREGATE
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        description = "Calculates the maximum over time value of a field.",
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries", tag = "max_over_time") }
     )
     public MaxOverTime(
         Source source,
@@ -53,7 +59,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
                 "ip",
                 "keyword",
                 "text",
-                "long",
+                "unsigned_long",
                 "version" }
         ) Expression field
     ) {

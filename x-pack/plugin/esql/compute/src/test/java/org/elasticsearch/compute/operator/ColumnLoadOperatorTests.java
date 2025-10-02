@@ -64,7 +64,7 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new ColumnLoadOperator.Factory(
             new ColumnLoadOperator.Values(
                 "values",

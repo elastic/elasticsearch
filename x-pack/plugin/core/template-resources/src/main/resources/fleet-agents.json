@@ -58,6 +58,9 @@
             }
           }
         },
+        "last_known_status": {
+          "type": "keyword"
+        },
         "unhealthy_reason": {
           "type": "keyword"
         },
@@ -94,6 +97,9 @@
                       "type": "keyword"
                     },
                     "snapshot": {
+                      "type": "boolean"
+                    },
+                    "complete": {
                       "type": "boolean"
                     },
                     "upgradeable": {
@@ -221,6 +227,9 @@
         "policy_id": {
           "type": "keyword"
         },
+        "agent_policy_id": {
+          "type": "keyword"
+        },
         "policy_output_permissions_hash": {
           "type": "keyword"
         },
@@ -305,6 +314,15 @@
                 },
                 "retry_until": {
                   "type": "date"
+                },
+                "reason": {
+                  "type":"text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
                 }
               }
             }

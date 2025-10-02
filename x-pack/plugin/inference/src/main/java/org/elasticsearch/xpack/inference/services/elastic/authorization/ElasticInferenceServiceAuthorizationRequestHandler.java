@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -24,7 +26,6 @@ import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferen
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +45,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
 
     private static ResponseHandler createAuthResponseHandler() {
         return new ElasticInferenceServiceResponseHandler(
-            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
+            Strings.format("%s authorization", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
             ElasticInferenceServiceAuthorizationResponseEntity::fromResponse
         );
     }
@@ -82,37 +83,33 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 return;
             }
 
-            // ensure that the sender is initialized
-            sender.start();
+            var handleFailuresListener = listener.delegateResponse((authModelListener, e) -> {
+                // unwrap because it's likely a retry exception
+                var exception = ExceptionsHelper.unwrapCause(e);
 
-            ActionListener<InferenceServiceResults> newListener = ActionListener.wrap(results -> {
-                if (results instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
-                    listener.onResponse(ElasticInferenceServiceAuthorizationModel.of(authResponseEntity));
-                } else {
-                    logger.warn(
-                        Strings.format(
-                            FAILED_TO_RETRIEVE_MESSAGE + " Received an invalid response type: %s",
-                            results.getClass().getSimpleName()
-                        )
-                    );
-                    listener.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
-                }
-                requestCompleteLatch.countDown();
-            }, e -> {
-                Throwable exception = e;
-                if (e instanceof ElasticsearchWrapperException wrapperException) {
-                    exception = wrapperException.getCause();
-                }
-
-                logger.warn(Strings.format(FAILED_TO_RETRIEVE_MESSAGE + " Encountered an exception: %s", exception));
-                listener.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
-                requestCompleteLatch.countDown();
+                logger.warn(Strings.format(FAILED_TO_RETRIEVE_MESSAGE + " Encountered an exception: %s", exception), exception);
+                authModelListener.onFailure(e);
             });
 
-            var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
-            var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata);
+            SubscribableListener.newForked(sender::startAsynchronously).<InferenceServiceResults>andThen((authListener) -> {
+                var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
+                var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata);
+                sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
+            }).andThenApply(authResult -> {
+                if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
+                    logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
+                    return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity);
+                }
 
-            sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, newListener);
+                var errorMessage = Strings.format(
+                    "%s Received an invalid response type from the Elastic Inference Service: %s",
+                    FAILED_TO_RETRIEVE_MESSAGE,
+                    authResult.getClass().getSimpleName()
+                );
+
+                logger.warn(errorMessage);
+                throw new ElasticsearchException(errorMessage);
+            }).addListener(ActionListener.runAfter(handleFailuresListener, requestCompleteLatch::countDown));
         } catch (Exception e) {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
             requestCompleteLatch.countDown();
@@ -120,7 +117,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     }
 
     private TraceContext getCurrentTraceInfo() {
-        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
         var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
 
         return new TraceContext(traceParent, traceState);

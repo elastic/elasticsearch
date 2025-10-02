@@ -16,6 +16,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
@@ -113,7 +114,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             System::nanoTime
         );
 
-        final ProjectState project = projectResolver.getProjectState(clusterService.state());
+        final ClusterState clusterState = clusterService.state();
+        final ProjectState project = projectResolver.getProjectState(clusterState);
         final ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             searchShardsRequest,
             project.metadata(),
@@ -125,17 +127,22 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + searchShardsRequest);
         }
 
+        // Set CCS minimize round-trips to null since search shards requests are guaranteed to only reference local indices
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null),
+            searchService.getRewriteContext(
+                timeProvider::absoluteStartMillis,
+                clusterState.getMinTransportVersion(),
+                searchShardsRequest.clusterAlias(),
+                resolvedIndices,
+                null,
+                null
+            ),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
-
                     project.metadata(),
-
                     searchRequest.indices()
-
                 );
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     project,
@@ -156,7 +163,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         new SearchShardsResponse(toGroups(shardIts), project.cluster().nodes().getAllNodes(), aliasFilters)
                     );
                 } else {
-                    new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                    CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
                     },
@@ -168,9 +175,13 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         timeProvider,
                         (SearchTask) task,
                         false,
-                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        delegate.map(its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters))
-                    ).start();
+                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    )
+                        .addListener(
+                            delegate.map(
+                                its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters)
+                            )
+                        );
                 }
             })
         );

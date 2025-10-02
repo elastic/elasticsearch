@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -32,13 +33,13 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
@@ -166,8 +167,14 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
          */
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
+                if (upperValue instanceof BytesRef br) {
+                    upperValue = BytesRefs.toString(br);
+                }
                 if (upperValue instanceof String upperString) {
                     upperValue = asDateTime(upperString);
+                }
+                if (lowerValue instanceof BytesRef br) {
+                    lowerValue = BytesRefs.toString(br);
                 }
                 if (lowerValue instanceof String lowerString) {
                     lowerValue = asDateTime(lowerString);
@@ -215,18 +222,18 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable();
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable() ? Translatable.YES : Translatable.NO;
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return translate(handler);
     }
 
     private RangeQuery translate(TranslatorHandler handler) {
-        Object l = valueOf(FoldContext.small() /* TODO remove me */, lower);
-        Object u = valueOf(FoldContext.small() /* TODO remove me */, upper);
+        Object l = literalValueOf(lower);
+        Object u = literalValueOf(upper);
         String format = null;
 
         DataType dataType = value.dataType();

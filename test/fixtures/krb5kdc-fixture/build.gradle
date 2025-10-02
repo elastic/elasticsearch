@@ -25,14 +25,6 @@ configurations {
   all {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
-  krb5ConfHdfsFile {
-    canBeConsumed = true
-    canBeResolved = false
-  }
-  krb5KeytabsHdfsDir {
-    canBeConsumed = true
-    canBeResolved = false
-  }
 }
 
 dependencies {

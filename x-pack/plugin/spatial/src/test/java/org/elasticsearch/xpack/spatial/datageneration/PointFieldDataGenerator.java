@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.spatial.datageneration;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.Wrappers;
+import org.elasticsearch.datageneration.FieldDataGenerator;
+import org.elasticsearch.datageneration.datasource.DataSource;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.fields.leaf.Wrappers;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.util.List;

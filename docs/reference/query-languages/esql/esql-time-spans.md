@@ -1,11 +1,13 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Time spans"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-time-spans.html
 ---
 
 # {{esql}} time spans [esql-time-spans]
-
 
 Time spans represent intervals between two datetime values. There are currently two supported types of time spans:
 

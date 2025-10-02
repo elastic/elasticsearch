@@ -63,7 +63,9 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
+        if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION && primaryTerm == Engine.UNKNOWN_PRIMARY_TERM) {
+            // read-only primary shards (like searchable snapshot shard) return Engine.RefreshResult.NO_REFRESH during refresh
+        } else if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
             validationException = addValidationError("segment generation is unknown", validationException);
         }
         return validationException;

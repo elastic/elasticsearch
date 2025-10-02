@@ -20,8 +20,8 @@ public class SecurityAssertions {
 
     public static void assertContainsWWWAuthenticateHeader(ElasticsearchSecurityException e) {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
-        assertThat(e.getHeaderKeys(), hasSize(1));
-        assertThat(e.getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(e.getHeader("WWW-Authenticate"), contains("Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\""));
+        assertThat(e.getBodyHeaderKeys(), hasSize(1));
+        assertThat(e.getBodyHeader("WWW-Authenticate"), notNullValue());
+        assertThat(e.getBodyHeader("WWW-Authenticate"), contains("Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\""));
     }
 }

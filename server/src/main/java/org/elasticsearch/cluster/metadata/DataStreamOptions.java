@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -37,8 +38,8 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE);
-    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
-    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false));
+    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true, null));
+    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false, null));
     public static final DataStreamOptions EMPTY = new DataStreamOptions(null);
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
@@ -72,7 +73,16 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(failureStore);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+            || failureStore == null
+            || failureStore().enabled() != null) {
+            out.writeOptionalWriteable(failureStore);
+        } else {
+            // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
+            // If the enabled flag is not defined, we treat it as null.
+            out.writeOptionalWriteable(null);
+        }
     }
 
     @Override
@@ -129,7 +139,19 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                || failureStore.get() == null
+                || failureStore().mapAndGet(DataStreamFailureStore.Template::enabled).get() != null) {
+                ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));
+                // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
+            } else {
+                // If the enabled flag is not defined, we treat failure store as not defined, if reset we treat the failure store as reset
+                ResettableValue<DataStreamFailureStore.Template> bwcFailureStore = failureStore.get().enabled().shouldReset()
+                    ? ResettableValue.reset()
+                    : ResettableValue.undefined();
+                ResettableValue.write(out, bwcFailureStore, (o, v) -> v.writeTo(o));
+            }
         }
 
         public static Template read(StreamInput in) throws IOException {
@@ -182,7 +204,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         /**
-         * Updates this builder with the values of the provided template. This is not a replacement necessarily, the
+         * Composes this builder with the values of the provided template. This is not a replacement necessarily, the
          * inner values will be merged.
          */
         public Builder composeTemplate(DataStreamOptions.Template options) {
@@ -190,7 +212,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         /**
-         * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
+         * Composes the current failure store configuration with the provided value. This is not a replacement necessarily, if both
          * instance contain data the configurations are merged.
          */
         public Builder failureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {

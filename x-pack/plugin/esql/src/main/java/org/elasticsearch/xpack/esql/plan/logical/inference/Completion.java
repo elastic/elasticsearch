@@ -12,18 +12,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,11 +33,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Completion extends InferencePlan<Completion>
-    implements
-        GeneratingPlan<Completion>,
-        SortAgnostic,
-        PostAnalysisVerificationAware {
+public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
@@ -49,6 +45,10 @@ public class Completion extends InferencePlan<Completion>
     private final Expression prompt;
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
+
+    public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField) {
+        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField);
+    }
 
     public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
         super(source, child, inferenceId);
@@ -83,6 +83,10 @@ public class Completion extends InferencePlan<Completion>
 
     @Override
     public Completion withInferenceId(Expression newInferenceId) {
+        if (inferenceId().equals(newInferenceId)) {
+            return this;
+        }
+
         return new Completion(source(), child(), newInferenceId, prompt, targetField);
     }
 
@@ -136,7 +140,7 @@ public class Completion extends InferencePlan<Completion>
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && prompt.resolved();
+        return super.expressionsResolved() && prompt.resolved() && targetField.resolved();
     }
 
     @Override

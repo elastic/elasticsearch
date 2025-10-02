@@ -441,6 +441,18 @@ public class MetadataCreateIndexService {
                 ? IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())
                 : null;
 
+            ComposableIndexTemplate templateFromRequest = request.matchingTemplate();
+            if (templateFromRequest != null) {
+                return applyCreateIndexRequestWithV2Template(
+                    currentState,
+                    request,
+                    silent,
+                    templateFromRequest,
+                    metadataTransformer,
+                    rerouteListener
+                );
+            }
+
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 projectMetadata,
@@ -549,7 +561,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
-                    temporaryIndexMeta.isSystem()
+                    temporaryIndexMeta.isSystem(),
+                    temporaryIndexMeta.getCustomData()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -705,7 +718,6 @@ public class MetadataCreateIndexService {
 
         final Metadata metadata = currentState.getMetadata();
         final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
-        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
         final boolean isDataStream = template.getDataStreamTemplate() != null;
@@ -719,11 +731,28 @@ public class MetadataCreateIndexService {
                     + "use create data stream api instead"
             );
         }
+        return applyCreateIndexRequestWithV2Template(currentState, request, silent, template, projectMetadataTransformer, rerouteListener);
+    }
+
+    private ClusterState applyCreateIndexRequestWithV2Template(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final ComposableIndexTemplate template,
+        final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final ActionListener<Void> rerouteListener
+    ) throws Exception {
+
+        final Metadata metadata = currentState.getMetadata();
+        final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
+
+        final boolean isDataStream = template.getDataStreamTemplate() != null;
 
         final List<CompressedXContent> mappings = collectV2Mappings(
             request.mappings(),
             projectMetadata,
-            templateName,
+            template,
             xContentRegistry,
             request.index()
         );
@@ -734,7 +763,7 @@ public class MetadataCreateIndexService {
             currentState.blocks(),
             routingTable,
             request,
-            resolveSettings(projectMetadata, templateName),
+            resolveSettings(template, projectMetadata.componentTemplates()),
             mappings,
             null,
             settings,
@@ -756,7 +785,7 @@ public class MetadataCreateIndexService {
                 request.index(),
                 // data stream aliases are created separately in MetadataCreateDataStreamService::createDataStream
                 isDataStream ? Set.of() : request.aliases(),
-                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(projectMetadata, templateName),
+                isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(projectMetadata, template),
                 projectMetadata,
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
@@ -764,7 +793,7 @@ public class MetadataCreateIndexService {
                 IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
-            Collections.singletonList(templateName),
+            Collections.singletonList("provided in request"),
             projectMetadataTransformer,
             rerouteListener
         );
@@ -906,22 +935,11 @@ public class MetadataCreateIndexService {
         return collectV2Mappings(null, templateMappings, xContentRegistry);
     }
 
-    public static List<CompressedXContent> collectV2Mappings(
-        @Nullable final String requestMappings,
-        final ProjectMetadata projectMetadata,
-        final String templateName,
-        final NamedXContentRegistry xContentRegistry,
-        final String indexName
-    ) throws Exception {
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(projectMetadata, templateName, indexName);
-        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
-    }
-
     private static List<CompressedXContent> collectV2Mappings(
         @Nullable final String requestMappings,
         final List<CompressedXContent> templateMappings,
         final NamedXContentRegistry xContentRegistry
-    ) throws Exception {
+    ) throws IOException {
         List<CompressedXContent> result = new ArrayList<>(templateMappings.size() + 1);
         result.addAll(templateMappings);
         if (requestMappings != null) {
@@ -931,6 +949,21 @@ public class MetadataCreateIndexService {
             }
         }
         return result;
+    }
+
+    public static List<CompressedXContent> collectV2Mappings(
+        @Nullable final String requestMappings,
+        final ProjectMetadata projectMetadata,
+        final ComposableIndexTemplate template,
+        final NamedXContentRegistry xContentRegistry,
+        final String indexName
+    ) throws IOException {
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
+            template,
+            projectMetadata.componentTemplates(),
+            indexName
+        );
+        return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 
     private ClusterState applyCreateIndexRequestWithExistingMetadata(
@@ -1067,10 +1100,26 @@ public class MetadataCreateIndexService {
         final Settings.Builder templateSettings = Settings.builder().put(combinedTemplateSettings);
         final Settings.Builder requestSettings = Settings.builder().put(request.settings());
 
+        // Create a combined builder that serves two purposes:
+        // 1) It is used to pass to the IndexSettingProviders so they can see the combined settings
+        // that will be applied to the new index
+        // 2) It is used to create the IndexVersion for the new index which will be passed in to the IndexSettingProviders.
+        // IndexSettingProviders are not allowed to set the index version.
+        // Otherwise, they wouldn't be able to rely on the version they receive because another provider would be able to change it.
+        Settings.Builder templateAndRequestSettingsBuilder = Settings.builder().put(combinedTemplateSettings).put(request.settings());
+        if (request.isFailureIndex()) {
+            DataStreamFailureStoreDefinition.filterUserDefinedSettings(templateAndRequestSettingsBuilder);
+        }
+        final Settings templateAndRequestSettings = templateAndRequestSettingsBuilder.build();
+        final IndexVersion createdVersion;
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.exists(templateAndRequestSettings)) {
+            createdVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(templateAndRequestSettings);
+        } else {
+            createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
+        }
+
         final Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
-            final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
-
             final IndexMode templateIndexMode = Optional.of(request)
                 .filter(r -> r.isFailureIndex() == false)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
@@ -1083,15 +1132,19 @@ public class MetadataCreateIndexService {
             final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             Set<String> overrulingSettings = new HashSet<>();
             for (IndexSettingProvider provider : indexSettingProviders) {
-                var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                Settings.Builder builder = Settings.builder();
+                provider.provideAdditionalSettings(
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,
-                    combinedTemplateMappings
+                    combinedTemplateMappings,
+                    createdVersion,
+                    builder
                 );
+                var newAdditionalSettings = builder.build();
                 validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                 additionalIndexSettings.put(newAdditionalSettings);
                 if (provider.overrulesTemplateAndRequestSettings()) {
@@ -1165,10 +1218,7 @@ public class MetadataCreateIndexService {
             }
         }
 
-        if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
-            IndexVersion createdVersion = IndexVersion.min(IndexVersion.current(), nodes.getMaxDataNodeCompatibleIndexVersion());
-            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
-        }
+        indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
@@ -1213,13 +1263,14 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates whether additional settings don't have keys that are already defined in all additional settings.
+     * Validates that additional settings don't have keys that are already defined in all additional settings
+     * and that they don't try to set {@link IndexMetadata#SETTING_VERSION_CREATED}.
      *
      * @param provider                  The {@link IndexSettingProvider} that produced <code>additionalSettings</code>
      * @param additionalSettings        The settings produced by the specified <code>provider</code>
      * @param allAdditionalSettings     A settings builder containing all additional settings produced by any {@link IndexSettingProvider}
      *                                  that already executed
-     * @throws IllegalArgumentException If keys in additionalSettings are already defined in allAdditionalSettings
+     * @throws IllegalArgumentException If any of the validations fail
      */
     public static void validateAdditionalSettings(
         IndexSettingProvider provider,
@@ -1230,6 +1281,15 @@ public class MetadataCreateIndexService {
             if (allAdditionalSettings.keys().contains(settingName)) {
                 var name = provider.getClass().getSimpleName();
                 var message = Strings.format("additional index setting [%s] added by [%s] is already present", settingName, name);
+                throw new IllegalArgumentException(message);
+            }
+            if (IndexMetadata.SETTING_VERSION_CREATED.equals(settingName)) {
+                var name = provider.getClass().getSimpleName();
+                var message = Strings.format(
+                    "setting [%s] added by [%s] is not allowed to be set via an IndexSettingProvider",
+                    settingName,
+                    name
+                );
                 throw new IllegalArgumentException(message);
             }
         }
@@ -1250,10 +1310,23 @@ public class MetadataCreateIndexService {
      * it will return the value configured for that index.
      */
     static int getIndexNumberOfRoutingShards(Settings indexSettings, @Nullable IndexMetadata sourceMetadata) {
+        final int routingNumShards = getIndexNumberOfRoutingShards(
+            indexSettings,
+            sourceMetadata == null ? 1 : sourceMetadata.getNumberOfShards(),
+            sourceMetadata == null ? 0 : sourceMetadata.getRoutingNumShards()
+        );
+        return routingNumShards;
+    }
+
+    /**
+     * Calculates the number of routing shards based on the configured value in indexSettings or if recovering from another index
+     * it will return the value configured for that index.
+     */
+    static int getIndexNumberOfRoutingShards(Settings indexSettings, final int sourceNumShards, final int sourceRoutingNumShards) {
         final int numTargetShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
         final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
         final int routingNumShards;
-        if (sourceMetadata == null || sourceMetadata.getNumberOfShards() == 1) {
+        if (sourceNumShards == 1) {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
@@ -1267,7 +1340,7 @@ public class MetadataCreateIndexService {
         } else {
             assert IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings) == false
                 : "index.number_of_routing_shards should not be present on the target index on resize";
-            routingNumShards = sourceMetadata.getRoutingNumShards();
+            routingNumShards = sourceRoutingNumShards;
         }
         return routingNumShards;
     }
@@ -1414,7 +1487,8 @@ public class MetadataCreateIndexService {
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
-        boolean isSystem
+        boolean isSystem,
+        Map<String, DiffableStringMap> customData
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1437,6 +1511,7 @@ public class MetadataCreateIndexService {
         }
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
+        indexMetadataBuilder.putCustom(customData);
         return indexMetadataBuilder.build();
     }
 
@@ -1516,12 +1591,12 @@ public class MetadataCreateIndexService {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ProjectMetadata projectMetadata, RoutingTable routingTable) {
         validateIndexName(request.index(), projectMetadata, routingTable);
-        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings && request.settingsSystemProvided() == false);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, null, forbidPrivateIndexSettings);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1530,25 +1605,41 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        @Nullable Settings systemProvided,
+        final boolean forbidPrivateIndexSettings
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
-            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
+            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, systemProvided, indexScopedSettings));
         }
         return validationErrors;
     }
 
-    private static List<String> validatePrivateSettingsNotExplicitlySet(Settings settings, IndexScopedSettings indexScopedSettings) {
+    private static List<String> validatePrivateSettingsNotExplicitlySet(
+        Settings settings,
+        @Nullable Settings systemProvided,
+        IndexScopedSettings indexScopedSettings
+    ) {
         List<String> validationErrors = new ArrayList<>();
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
                 assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
-            } else if (setting.isPrivateIndex()) {
+            } else if (setting.isPrivateIndex() && isSystemProvided(key, settings, systemProvided) == false) {
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }
         }
         return validationErrors;
+    }
+
+    /*
+     * System-provided settings are always allowed to configure private settings.
+     * These are typically coming from an IndexSettingProvider.
+     */
+    private static boolean isSystemProvided(String key, Settings settings, @Nullable Settings systemProvided) {
+        return systemProvided != null && settings.get(key).equals(systemProvided.get(key));
     }
 
     /**

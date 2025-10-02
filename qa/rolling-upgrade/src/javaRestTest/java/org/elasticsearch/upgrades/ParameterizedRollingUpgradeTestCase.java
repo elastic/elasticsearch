@@ -54,6 +54,12 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     protected abstract ElasticsearchCluster getUpgradeCluster();
 
+    protected void beforeUpgrade() {
+        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
+            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
+        }
+    }
+
     @Before
     public void upgradeNode() throws Exception {
         // extract old cluster features
@@ -96,6 +102,8 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
+        beforeUpgrade();
+
         // finally, upgrade node
         if (upgradedNodes.size() < requestedUpgradedNodes) {
             closeClients();
@@ -127,11 +135,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         upgradeFailed = false;
     }
 
-    @Deprecated // Use the new testing framework and oldClusterHasFeature(feature) instead
-    protected static String getOldClusterVersion() {
-        return OLD_CLUSTER_VERSION;
-    }
-
     protected static boolean oldClusterHasFeature(String featureId) {
         assert oldClusterTestFeatureService != null;
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
@@ -146,12 +149,20 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return oldIndexVersion;
     }
 
-    protected static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION);
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedRollingUpgradeTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
+        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
-    protected static boolean isOldClusterVersion(String nodeVersion) {
-        return OLD_CLUSTER_VERSION.equals(nodeVersion);
+    protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
+        String bwcRefSpec = System.getProperty("tests.bwc.refspec.main");
+        if (bwcRefSpec != null) {
+            return bwcRefSpec.equals(buildHash);
+        }
+        return getOldClusterVersion().equals(nodeVersion);
     }
 
     protected static boolean isOldCluster() {
@@ -206,7 +217,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     @Override
-    protected final Settings restClientSettings() {
+    protected Settings restClientSettings() {
         return Settings.builder()
             .put(super.restClientSettings())
             // increase the timeout here to 90 seconds to handle long waits for a green

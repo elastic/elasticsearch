@@ -1,5 +1,0 @@
-pr: 126637
-summary: Improve resiliency of `UpdateTimeSeriesRangeService`
-area: TSDB
-type: bug
-issues: []

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,7 @@ public class ProjectId implements Writeable, ToXContent {
     private static final String DEFAULT_STRING = "default";
     public static final ProjectId DEFAULT = new ProjectId(DEFAULT_STRING);
     public static final Reader<ProjectId> READER = ProjectId::readFrom;
+    public static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(READER);
     private static final int MAX_LENGTH = 128;
 
     private final String id;
@@ -90,11 +92,11 @@ public class ProjectId implements Writeable, ToXContent {
     }
 
     public static ProjectId fromXContent(XContentParser parser) throws IOException {
-        return new ProjectId(parser.text());
+        return fromId(parser.text());
     }
 
     public static ProjectId ofNullable(@Nullable String id, @Nullable ProjectId fallback) {
-        return id == null ? fallback : new ProjectId(id);
+        return id == null ? fallback : fromId(id);
     }
 
     @Override

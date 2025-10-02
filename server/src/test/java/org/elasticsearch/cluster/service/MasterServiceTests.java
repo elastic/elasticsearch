@@ -299,7 +299,6 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
-
                 final var expectedHeaders = new HashMap<String, String>();
                 expectedHeaders.put(randomIdentifier(), randomIdentifier());
                 for (final var copiedHeader : Task.HEADERS_TO_COPY) {
@@ -319,8 +318,10 @@ public class MasterServiceTests extends ESTestCase {
                     new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, masterTimeout), null) {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
-                            assertTrue(threadPool.getThreadContext().isSystemContext());
-                            assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
+                            // the task is executed in the context in which the task was originally created.
+                            // note: this is typically not a system context.
+                            assertExpectedThreadContext(Map.of());
+
                             expectedResponseHeaders.forEach(
                                 (name, values) -> values.forEach(v -> threadPool.getThreadContext().addResponseHeader(name, v))
                             );
@@ -2181,7 +2182,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
+                    if ((e instanceof NotMasterException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);
@@ -2360,7 +2361,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
+                    if ((e instanceof NotMasterException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -515,7 +516,8 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         }
 
         Tuple<ClusterState, Map<String, String>> execute(ClusterState state) {
-            IndexMetadata indexMetadata = state.metadata().getProject().index(concreteSecurityIndexName);
+            final var project = state.metadata().getProject();
+            IndexMetadata indexMetadata = project.index(concreteSecurityIndexName);
             if (indexMetadata == null) {
                 throw new IndexNotFoundException(concreteSecurityIndexName);
             }
@@ -528,10 +530,12 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                     indexMetadataBuilder.removeCustom(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
                 }
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
-                ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(state.metadata().getProject().indices());
+                ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(project.indices());
                 builder.put(concreteSecurityIndexName, indexMetadataBuilder.build());
                 return new Tuple<>(
-                    ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).indices(builder.build()).build()).build(),
+                    ClusterState.builder(state)
+                        .putProjectMetadata(ProjectMetadata.builder(project).indices(builder.build()).build())
+                        .build(),
                     newRoleDigests
                 );
             } else {

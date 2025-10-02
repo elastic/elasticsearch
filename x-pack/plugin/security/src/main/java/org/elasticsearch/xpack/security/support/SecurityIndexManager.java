@@ -482,9 +482,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                         consumer.accept(new IllegalStateException(error));
                     } else {
                         logger.info(
-                            "security index does not exist, creating [{}] with alias [{}]",
+                            "security index does not exist, creating [{}] with alias [{}] in project [{}]",
                             this.concreteIndexName,
-                            descriptorForVersion.getAliasName()
+                            descriptorForVersion.getAliasName(),
+                            this.projectId
                         );
                         // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and
                         // aliases

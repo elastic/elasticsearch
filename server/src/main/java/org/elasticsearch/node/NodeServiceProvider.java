@@ -10,11 +10,13 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
-import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
@@ -40,6 +42,8 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -63,9 +67,10 @@ class NodeServiceProvider {
         Settings settings,
         Map<String, ScriptEngine> engines,
         Map<String, ScriptContext<?>> contexts,
-        LongSupplier timeProvider
+        LongSupplier timeProvider,
+        ProjectResolver projectResolver
     ) {
-        return new ScriptService(settings, engines, contexts, timeProvider);
+        return new ScriptService(settings, engines, contexts, timeProvider, projectResolver);
     }
 
     ClusterInfoService newClusterInfoService(
@@ -75,7 +80,18 @@ class NodeServiceProvider {
         ThreadPool threadPool,
         NodeClient client
     ) {
-        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
+        final EstimatedHeapUsageCollector estimatedHeapUsageCollector = pluginsService.loadSingletonServiceProvider(
+            EstimatedHeapUsageCollector.class,
+            () -> EstimatedHeapUsageCollector.EMPTY
+        );
+        final InternalClusterInfoService service = new InternalClusterInfoService(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            estimatedHeapUsageCollector,
+            new NodeUsageStatsForThreadPoolsCollector()
+        );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
             clusterService.addListener(service);
@@ -104,9 +120,23 @@ class NodeServiceProvider {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         TaskManager taskManager,
-        Tracer tracer
+        Tracer tracer,
+        String nodeId,
+        LinkedProjectConfigService linkedProjectConfigService,
+        ProjectResolver projectResolver
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
+        return new TransportService(
+            settings,
+            transport,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
+            taskManager,
+            linkedProjectConfigService,
+            projectResolver
+        );
     }
 
     HttpServerTransport newHttpTransport(PluginsService pluginsService, NetworkModule networkModule) {
@@ -123,12 +153,9 @@ class NodeServiceProvider {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
-        OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
-            OnlinePrewarmingServiceProvider.class,
-            () -> OnlinePrewarmingServiceProvider.DEFAULT
-        ).create(clusterService.getSettings(), threadPool, clusterService);
         return new SearchService(
             clusterService,
             indicesService,

@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * Internally it uses {@link TransportPutSnapshotLifecycleAction} and
  * {@link TransportDeleteSnapshotLifecycleAction} to add, update and delete ILM policies.
  */
-public class ReservedSnapshotAction implements ReservedClusterStateHandler<ClusterState, List<SnapshotLifecyclePolicy>> {
+public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<SnapshotLifecyclePolicy>> {
 
     public static final String NAME = "slm";
 
@@ -77,8 +77,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<Clust
     }
 
     @Override
-    public TransformState<ClusterState> transform(List<SnapshotLifecyclePolicy> source, TransformState<ClusterState> prevState)
-        throws Exception {
+    public TransformState transform(List<SnapshotLifecyclePolicy> source, TransformState prevState) throws Exception {
         var requests = prepare(source, prevState.state());
 
         ClusterState state = prevState.state();
@@ -107,7 +106,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<Clust
             state = task.execute(state);
         }
 
-        return new TransformState<>(state, entities);
+        return new TransformState(state, entities);
     }
 
     @Override

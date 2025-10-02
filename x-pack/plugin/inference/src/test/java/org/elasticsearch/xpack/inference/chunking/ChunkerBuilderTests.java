@@ -27,6 +27,13 @@ public class ChunkerBuilderTests extends ESTestCase {
     }
 
     private Map<ChunkingStrategy, Class<? extends Chunker>> chunkingStrategyToExpectedChunkerClassMap() {
-        return Map.of(ChunkingStrategy.WORD, WordBoundaryChunker.class, ChunkingStrategy.SENTENCE, SentenceBoundaryChunker.class);
+        return Map.of(
+            ChunkingStrategy.NONE,
+            NoopChunker.class,
+            ChunkingStrategy.WORD,
+            WordBoundaryChunker.class,
+            ChunkingStrategy.SENTENCE,
+            SentenceBoundaryChunker.class
+        );
     }
 }

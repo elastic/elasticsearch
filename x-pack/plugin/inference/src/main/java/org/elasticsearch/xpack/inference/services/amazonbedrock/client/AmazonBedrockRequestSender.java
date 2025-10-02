@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,31 +37,46 @@ public class AmazonBedrockRequestSender implements Sender {
 
     public static class Factory {
         private final ServiceComponents serviceComponents;
-        private final ClusterService clusterService;
+        private final AmazonBedrockRequestExecutorService executorService;
+        private final CountDownLatch startCompleted = new CountDownLatch(1);
+        private final AmazonBedrockRequestSender bedrockRequestSender;
 
         public Factory(ServiceComponents serviceComponents, ClusterService clusterService) {
+            this(
+                serviceComponents,
+                clusterService,
+                new AmazonBedrockExecuteOnlyRequestSender(
+                    new AmazonBedrockInferenceClientCache(
+                        (model, timeout) -> AmazonBedrockInferenceClient.create(model, timeout, serviceComponents.threadPool()),
+                        Clock.systemUTC()
+                    ),
+                    serviceComponents.throttlerManager()
+                )
+            );
+        }
+
+        public Factory(
+            ServiceComponents serviceComponents,
+            ClusterService clusterService,
+            AmazonBedrockExecuteOnlyRequestSender requestSender
+        ) {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
-            this.clusterService = Objects.requireNonNull(clusterService);
+            Objects.requireNonNull(clusterService);
+
+            executorService = new AmazonBedrockRequestExecutorService(
+                serviceComponents.threadPool(),
+                startCompleted,
+                new RequestExecutorServiceSettings(serviceComponents.settings(), clusterService),
+                requestSender
+            );
+
+            bedrockRequestSender = new AmazonBedrockRequestSender(serviceComponents.threadPool(), executorService, startCompleted);
         }
 
         public Sender createSender() {
-            var clientCache = new AmazonBedrockInferenceClientCache(
-                (model, timeout) -> AmazonBedrockInferenceClient.create(model, timeout, serviceComponents.threadPool()),
-                Clock.systemUTC()
-            );
-            return createSender(new AmazonBedrockExecuteOnlyRequestSender(clientCache, serviceComponents.throttlerManager()));
-        }
-
-        Sender createSender(AmazonBedrockExecuteOnlyRequestSender requestSender) {
-            var sender = new AmazonBedrockRequestSender(
-                serviceComponents.threadPool(),
-                clusterService,
-                serviceComponents.settings(),
-                Objects.requireNonNull(requestSender)
-            );
             // ensure this is started
-            sender.start();
-            return sender;
+            bedrockRequestSender.startSynchronously();
+            return bedrockRequestSender;
         }
     }
 
@@ -71,30 +85,26 @@ public class AmazonBedrockRequestSender implements Sender {
     private final ThreadPool threadPool;
     private final AmazonBedrockRequestExecutorService executorService;
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final CountDownLatch startCompleted = new CountDownLatch(1);
+    private final CountDownLatch startCompleted;
 
     protected AmazonBedrockRequestSender(
         ThreadPool threadPool,
-        ClusterService clusterService,
-        Settings settings,
-        AmazonBedrockExecuteOnlyRequestSender requestSender
+        AmazonBedrockRequestExecutorService executorService,
+        CountDownLatch startCompleted
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
-        executorService = new AmazonBedrockRequestExecutorService(
-            threadPool,
-            startCompleted,
-            new RequestExecutorServiceSettings(settings, clusterService),
-            requestSender
-        );
+        this.executorService = Objects.requireNonNull(executorService);
+        this.startCompleted = Objects.requireNonNull(startCompleted);
     }
 
     @Override
-    public void updateRateLimitDivisor(int rateLimitDivisor) {
-        executorService.updateRateLimitDivisor(rateLimitDivisor);
+    public void startAsynchronously(ActionListener<Void> listener) {
+
+        throw new UnsupportedOperationException("not implemented");
     }
 
     @Override
-    public void start() {
+    public void startSynchronously() {
         if (started.compareAndSet(false, true)) {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request

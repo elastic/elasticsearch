@@ -103,7 +103,11 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
                 DoubleFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    new SearchLookup(
+                        field -> null,
+                        (ft, lookup, fdt) -> null,
+                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                    ),
                     OnScriptError.FAIL
                 );
                 DoubleFieldScript doubleFieldScript = leafFactory.newInstance(reader.leaves().get(0));

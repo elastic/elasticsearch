@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
@@ -70,12 +71,10 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, false));
 
         try {
-            createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
+            createRandomInstance().isConditionMet(indexMetadata.getIndex(), state);
             fail("expected the invocation to fail");
         } catch (IllegalStateException e) {
             assertThat(
@@ -118,14 +117,16 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndex, true).put(rolledIndex, true).build())
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
-            .build();
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
         assertThat(
             "the rolled index has both the primary and the replica shards started so the condition should be met",
-            createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState).complete(),
+            createRandomInstance().isConditionMet(originalIndex.getIndex(), state).complete(),
             is(true)
         );
     }
@@ -156,14 +157,16 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndex, true).put(rolledIndex, true).build())
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
-            .build();
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
         assertThat(
             "the index the alias is pointing to has both the primary and the replica shards started so the condition should be" + " met",
-            createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState).complete(),
+            createRandomInstance().isConditionMet(originalIndex.getIndex(), state).complete(),
             is(true)
         );
     }
@@ -221,29 +224,30 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             )
         );
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            dataStreamName,
-                            List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()),
-                            List.of(failureOriginalIndexMeta.getIndex(), failureRolledIndexMeta.getIndex())
-                        )
-                    )
-                    .put(originalIndexMeta, true)
-                    .put(rolledIndexMeta, true)
-                    .put(failureOriginalIndexMeta, true)
-                    .put(failureRolledIndexMeta, true)
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                DataStreamTestHelper.newInstance(
+                    dataStreamName,
+                    List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()),
+                    List.of(failureOriginalIndexMeta.getIndex(), failureRolledIndexMeta.getIndex())
+                )
             )
-            .routingTable(RoutingTable.builder().add(routingTable.build()).add(failureRoutingTable.build()).build())
+            .put(originalIndexMeta, true)
+            .put(rolledIndexMeta, true)
+            .put(failureOriginalIndexMeta, true)
+            .put(failureRolledIndexMeta, true)
             .build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).add(failureRoutingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
         WaitForActiveShardsStep waitForActiveShardsStep = createRandomInstance();
 
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureOriginalIndexMeta : originalIndexMeta;
-        ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(indexToOperateOn.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(indexToOperateOn.getIndex(), state);
         assertThat(result.complete(), is(false));
 
         XContentBuilder expected = new WaitForActiveShardsStep.ActiveShardsInfo(2, "3", false).toXContent(
@@ -282,12 +286,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         routingTable.addShard(
             TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
         );
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(originalIndex, true).put(rolledIndex, true).build())
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
-            .build();
+        var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(routingTable.build()).build())
+            .build()
+            .projectState(project.id());
 
-        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(originalIndex.getIndex(), state);
         assertThat(result.complete(), is(false));
 
         XContentBuilder expected = new WaitForActiveShardsStep.ActiveShardsInfo(2, "3", false).toXContent(
@@ -310,12 +316,10 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(rolledIndex, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(rolledIndex, false));
 
         WaitForActiveShardsStep step = createRandomInstance();
-        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("index-000000", UUID.randomUUID().toString()), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("index-000000", UUID.randomUUID().toString()), state);
         assertThat(result.complete(), is(false));
 
         String actualResultAsString = Strings.toString(result.informationContext());

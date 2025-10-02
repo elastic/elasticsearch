@@ -200,6 +200,30 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
+convert with zones#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+ROW str = "2025-04-11T05:00:00+0400"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00+0400" | 2025-04-11T01:00:00.000Z
+;
+
+equality with zones
+ROW dt = TO_DATETIME("2025-04-11T01:00:00.000Z")
+| EVAL bool = "2025-04-11T05:00:00+0400" == dt;
+
+dt:datetime              | bool:boolean
+2025-04-11T01:00:00.000Z | true
+;
+
+convert no zone#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+ROW str = "2025-04-11T05:00:00.000"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00.000" | 2025-04-11T05:00:00.000Z
+;
+
 convertFromString#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
 // tag::to_datetime-str[]
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
@@ -1557,4 +1581,450 @@ x:date                      | y:date
 
 ;
 
+evalDateTruncMonthIntervalWithGTEInRange
+FROM employees
+| SORT hire_date
+| WHERE hire_date >= "1990-01-01"
+| EVAL x = date_trunc(1 month, hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
 
+emp_no:integer | hire_date:date           | x:date
+10082          | 1990-01-03T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+10096          | 1990-01-14T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+10011          | 1990-01-22T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+10056          | 1990-02-01T00:00:00.000Z | 1990-02-01T00:00:00.000Z
+10086          | 1990-02-16T00:00:00.000Z | 1990-02-01T00:00:00.000Z
+;
+
+evalDateTruncHoursIntervalWithLTEInRange
+FROM employees
+| SORT hire_date desc
+| WHERE hire_date <= "1990-01-01"
+| EVAL x = date_trunc(240 hours, hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
+
+emp_no:integer | hire_date:date           | x:date
+10023          | 1989-12-17T00:00:00.000Z | 1989-12-17T00:00:00.000Z
+10041          | 1989-11-12T00:00:00.000Z | 1989-11-07T00:00:00.000Z
+10069          | 1989-11-05T00:00:00.000Z | 1989-10-28T00:00:00.000Z
+10092          | 1989-09-22T00:00:00.000Z | 1989-09-18T00:00:00.000Z
+10038          | 1989-09-20T00:00:00.000Z | 1989-09-18T00:00:00.000Z
+;
+
+evalDateTruncWeeklyIntervalWithLTGTInRange
+from employees
+| SORT hire_date
+| WHERE hire_date > "1986-01-01" and hire_date < "1988-01-01"
+| EVAL x = date_trunc(1 week, hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
+
+emp_no:integer | hire_date:date           | x:date
+10053          | 1986-02-04T00:00:00.000Z | 1986-02-03T00:00:00.000Z
+10066          | 1986-02-26T00:00:00.000Z | 1986-02-24T00:00:00.000Z
+10090          | 1986-03-14T00:00:00.000Z | 1986-03-10T00:00:00.000Z
+10079          | 1986-03-27T00:00:00.000Z | 1986-03-24T00:00:00.000Z
+10001          | 1986-06-26T00:00:00.000Z | 1986-06-23T00:00:00.000Z
+;
+
+evalDateTruncQuarterlyIntervalWithGTInRange
+from employees
+| SORT hire_date
+| WHERE hire_date > "1980-01-01"
+| EVAL x = date_trunc(3 month, hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
+
+emp_no:integer | hire_date:date                | x:date
+10009          | 1985-02-18T00:00:00.000Z      | 1985-01-01T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z      | 1985-01-01T00:00:00.000Z
+10098          | 1985-05-13T00:00:00.000Z      | 1985-04-01T00:00:00.000Z
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+10061          | 1985-09-17T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+;
+
+dateTruncGroupingYearIntervalWithLTInRange
+from employees
+| WHERE hire_date < "2025-01-01"
+| EVAL y = date_trunc(1 year, hire_date)
+| stats c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1985-01-01T00:00:00.000Z | 11
+1986-01-01T00:00:00.000Z | 11
+1987-01-01T00:00:00.000Z | 15
+1988-01-01T00:00:00.000Z | 9
+1989-01-01T00:00:00.000Z | 13
+;
+
+dateTruncGroupingYearIntervalWithLTOutOfRange
+from employees
+| WHERE hire_date < "1980-01-01"
+| EVAL y = date_trunc(1 year, hire_date)
+| stats c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                        | c:long
+;
+
+dateTruncGroupingYearIntervalWithGTOutOfRange
+from employees
+| WHERE hire_date > "2000-01-01"
+| EVAL y = date_trunc(1 year, hire_date)
+| stats c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                        | c:long
+;
+
+dateTruncGroupingMonthIntervalWithLTGTInRange
+from employees
+| WHERE hire_date > "1987-01-01" and hire_date < "1988-01-01"
+| EVAL y = date_trunc(1 month, hire_date)
+| stats c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1987-03-01T00:00:00.000Z | 5
+1987-04-01T00:00:00.000Z | 3
+1987-05-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dateTruncGroupingDayIntervalWithEQInRange
+from employees
+| WHERE hire_date == "1988-02-10"
+| EVAL y = date_trunc(1 day, hire_date)
+| stats c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1988-02-10T00:00:00.000Z | 1
+;
+
+dateTruncGroupingDayIntervalWithEQOutOfRange
+from employees
+| WHERE hire_date == "2025-01-01"
+| EVAL y = date_trunc(1 day, hire_date)
+| stats c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+;
+
+dateTruncWithEval
+from employees
+| EVAL x = hire_date
+| WHERE x > "1987-01-01" and hire_date < "1988-01-01"
+| EVAL y = date_trunc(1 month, x)
+| STATS c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1987-03-01T00:00:00.000Z | 5
+1987-04-01T00:00:00.000Z | 3
+1987-05-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dateTruncWithEvalExpression
+from employees
+| EVAL x = hire_date + 1 year
+| WHERE x > "1987-01-01" and x < "1988-01-01"
+| EVAL y = date_trunc(1 month, x)
+| STATS c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1987-02-01T00:00:00.000Z | 2
+1987-03-01T00:00:00.000Z | 2
+1987-06-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dateTruncWithRename
+FROM employees
+| RENAME hire_date as x
+| WHERE x > "1987-01-01" and x < "1988-01-01"
+| EVAL y = date_trunc(1 month, x)
+| STATS c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1987-03-01T00:00:00.000Z | 5
+1987-04-01T00:00:00.000Z | 3
+1987-05-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dateTruncWithRenameChain
+FROM employees
+| RENAME hire_date as a, a as x
+| WHERE x > "1987-01-01" and x < "1988-01-01"
+| EVAL y = date_trunc(1 month, x)
+| STATS c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1987-03-01T00:00:00.000Z | 5
+1987-04-01T00:00:00.000Z | 3
+1987-05-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dateTruncWithRenameBack
+FROM employees
+| RENAME hire_date as x, x as hire_date
+| WHERE hire_date > "1987-01-01" and hire_date < "1988-01-01"
+| EVAL y = date_trunc(1 month, hire_date)
+| STATS c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1987-03-01T00:00:00.000Z | 5
+1987-04-01T00:00:00.000Z | 3
+1987-05-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dateTruncWithEvalRename
+FROM employees
+| EVAL a = hire_date
+| RENAME hire_date as b
+| WHERE a > "1987-01-01" and a < "1988-01-01"
+| EVAL y = date_trunc(1 month, b)
+| STATS c = count(emp_no) by y
+| SORT y
+| KEEP y, c
+| LIMIT 5;
+
+y:date                   | c:long
+1987-03-01T00:00:00.000Z | 5
+1987-04-01T00:00:00.000Z | 3
+1987-05-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dayNameRowTest
+required_capability:fn_day_name
+// tag::docsDayName[]
+ROW dt = to_datetime("1953-09-02T00:00:00.000Z")
+| EVAL weekday = DAY_NAME(dt);
+// end::docsDayName[]
+
+dt:date   | weekday:keyword
+1953-09-02T00:00:00.000Z | Wednesday
+;
+
+dayNameSimple
+required_capability:fn_day_name
+from employees 
+| sort emp_no 
+| keep emp_no, hire_date
+| eval day = day_name(hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date             | day:keyword
+10001          | 1986-06-26T00:00:00.000Z   | Thursday     
+;
+
+dayNameTruncate
+required_capability:fn_day_name
+FROM employees
+| EVAL a = hire_date
+| RENAME hire_date as b
+| WHERE a > "1987-01-01" and a < "1988-01-01"
+| EVAL y = date_trunc(1 month, b) 
+| STATS c = count(emp_no) by y
+| EVAL week_day = day_name(y)
+| SORT y
+| KEEP y, c, week_day
+| LIMIT 5;
+
+y:date                   | c:long   | week_day:keyword
+1987-03-01T00:00:00.000Z | 5        | Sunday
+1987-04-01T00:00:00.000Z | 3        | Wednesday
+1987-05-01T00:00:00.000Z | 1        | Friday
+1987-07-01T00:00:00.000Z | 1        | Wednesday
+1987-08-01T00:00:00.000Z | 2        | Saturday
+;
+
+dayNameNestedCall
+required_capability:fn_day_name
+from employees 
+| sort emp_no 
+| eval first_day_of_month = day_name(date_trunc(1 month, hire_date))
+| keep emp_no, hire_date, first_day_of_month
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
+10001          | 1986-06-26T00:00:00.000Z | Sunday
+10002          | 1985-11-21T00:00:00.000Z | Friday
+10003          | 1986-08-28T00:00:00.000Z | Friday
+10004          | 1986-12-01T00:00:00.000Z | Monday
+10005          | 1989-09-12T00:00:00.000Z | Friday
+10006          | 1989-06-02T00:00:00.000Z | Thursday
+10007          | 1989-02-10T00:00:00.000Z | Wednesday
+10008          | 1994-09-15T00:00:00.000Z | Thursday
+10009          | 1985-02-18T00:00:00.000Z | Friday
+10010          | 1989-08-24T00:00:00.000Z | Tuesday
+;
+
+dayNameNestedCall
+required_capability:fn_day_name
+from employees 
+| sort emp_no desc
+| eval first_day_of_month = to_upper(day_name(date_trunc(1 month, hire_date)))
+| keep emp_no, hire_date, first_day_of_month
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
+10100          | 1987-09-21T00:00:00.000Z | TUESDAY
+10099          | 1988-10-18T00:00:00.000Z | SATURDAY
+10098          | 1985-05-13T00:00:00.000Z | WEDNESDAY
+10097          | 1990-09-15T00:00:00.000Z | SATURDAY
+10096          | 1990-01-14T00:00:00.000Z | MONDAY
+10095          | 1986-07-15T00:00:00.000Z | TUESDAY
+10094          | 1987-04-18T00:00:00.000Z | WEDNESDAY
+10093          | 1996-11-05T00:00:00.000Z | FRIDAY
+10092          | 1989-09-22T00:00:00.000Z | FRIDAY
+10091          | 1992-11-18T00:00:00.000Z | SUNDAY
+;
+
+dayNameNull
+required_capability:fn_day_name
+from employees | where emp_no == 10040 | eval x = day_name(birth_date) | keep emp_no, birth_date, hire_date, x;
+
+emp_no:integer | birth_date:date                     | hire_date:date             | x:keyword
+10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
+;
+
+
+monthNameRowTest
+required_capability:fn_month_name
+// tag::docsMonthName[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL monthName = MONTH_NAME(dt);
+// end::docsMonthName[]
+
+dt:date   | monthName:keyword
+1996-03-21T00:00:00.000Z | March
+;
+
+monthNameSimple
+required_capability:fn_month_name
+from employees 
+| sort emp_no 
+| keep emp_no, hire_date
+| eval monthName = month_name(hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date             | monthName:keyword
+10001          | 1986-06-26T00:00:00.000Z   | June     
+;
+
+monthNameTruncate
+required_capability:fn_month_name
+FROM employees
+| EVAL a = hire_date
+| RENAME hire_date as b
+| WHERE a > "1987-01-01" and a < "1988-01-01"
+| EVAL y = date_trunc(1 month, b) 
+| STATS c = count(emp_no) by y
+| EVAL monthName = month_name(y)
+| SORT y
+| KEEP y, c, monthName
+| LIMIT 5;
+
+y:date                   | c:long   | monthName:keyword
+1987-03-01T00:00:00.000Z | 5      | March
+1987-04-01T00:00:00.000Z | 3      | April
+1987-05-01T00:00:00.000Z | 1      | May
+1987-07-01T00:00:00.000Z | 1      | July
+1987-08-01T00:00:00.000Z | 2      | August
+;
+
+monthNameNestedCall
+required_capability:fn_month_name
+from employees 
+| sort emp_no 
+| eval monthName = month_name(date_trunc(1 month, hire_date))
+| keep emp_no, hire_date, monthName
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | monthName:keyword
+10001          | 1986-06-26T00:00:00.000Z | June
+10002          | 1985-11-21T00:00:00.000Z | November
+10003          | 1986-08-28T00:00:00.000Z | August
+10004          | 1986-12-01T00:00:00.000Z | December
+10005          | 1989-09-12T00:00:00.000Z | September
+10006          | 1989-06-02T00:00:00.000Z | June
+10007          | 1989-02-10T00:00:00.000Z | February
+10008          | 1994-09-15T00:00:00.000Z | September
+10009          | 1985-02-18T00:00:00.000Z | February
+10010          | 1989-08-24T00:00:00.000Z | August
+;
+
+monthNameNestedCall
+required_capability:fn_month_name
+from employees 
+| sort emp_no desc
+| eval monthName = to_upper(month_name(date_trunc(1 month, hire_date)))
+| keep emp_no, hire_date, monthName
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | monthName:keyword
+10100          | 1987-09-21T00:00:00.000Z | SEPTEMBER
+10099          | 1988-10-18T00:00:00.000Z | OCTOBER
+10098          | 1985-05-13T00:00:00.000Z | MAY
+10097          | 1990-09-15T00:00:00.000Z | SEPTEMBER
+10096          | 1990-01-14T00:00:00.000Z | JANUARY
+10095          | 1986-07-15T00:00:00.000Z | JULY
+10094          | 1987-04-18T00:00:00.000Z | APRIL
+10093          | 1996-11-05T00:00:00.000Z | NOVEMBER
+10092          | 1989-09-22T00:00:00.000Z | SEPTEMBER
+10091          | 1992-11-18T00:00:00.000Z | NOVEMBER
+;
+
+monthNameNull
+required_capability:fn_month_name
+from employees 
+| where emp_no == 10040 
+| eval monthName = month_name(birth_date) 
+| keep emp_no, birth_date, hire_date, monthName;
+
+emp_no:integer | birth_date:date                     | hire_date:date             | monthName:keyword
+10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
+;

@@ -313,15 +313,7 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundWeekOfWeekYear(1), is(epochMilli));
         assertThat(DateUtils.roundWeekOfWeekYear(-1), is(epochMilli));
 
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundWeekIntervalOfWeekYear(0, -1));
-        assertThat(exc.getMessage(), is("week interval must be strictly positive, got [-1]"));
-        assertThat(DateUtils.roundWeekIntervalOfWeekYear(0, 3), is(epochMilli));
-        assertThat(DateUtils.roundWeekIntervalOfWeekYear(1, 3), is(epochMilli));
-        assertThat(DateUtils.roundWeekIntervalOfWeekYear(-1, 2), is(epochMilli));
-
         epochMilli = Year.of(2025).atMonth(1).atDay(20).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundWeekOfWeekYear(1737378896000L), is(epochMilli));
-        epochMilli = Year.of(2025).atMonth(1).atDay(13).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
-        assertThat(DateUtils.roundWeekIntervalOfWeekYear(1737378896000L, 4), is(epochMilli));
     }
 }

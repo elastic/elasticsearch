@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -23,7 +22,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class RoleDescriptorRequestValidatorTests extends ESTestCase {
 
     public void testSelectorsValidation() {
-        assumeTrue("failure store feature flag must be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
         String[] invalidIndexNames = {
             "index::failures",
             ".fs-*::failures",

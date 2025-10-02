@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.io.InputStream;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     private static final String VALID_SECURE_SETTING_NAME = "some.setting.that.exists";

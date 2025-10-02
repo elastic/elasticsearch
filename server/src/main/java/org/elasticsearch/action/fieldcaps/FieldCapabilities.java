@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -80,8 +79,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
-     * @param indices The list of indices where this field name is defined as {@code type},
-     *                or null if all indices have the same {@code type} for the field.
+     * @param indices The list of indices where this field name is defined as {@code type}.
+     *                When {@code includeIndices} is set to {@code false}, this list is only
+     *                present if there is a mapping conflict (e.g. the same field has different
+     *                types across indices).
+     *                When {@code includeIndices} is set to {@code true}, this list is always
+     *                present and contains all indices where the field exists, regardless of
+     *                mapping conflicts.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
@@ -224,23 +228,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.isDimension = in.readBoolean();
-            this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
-        } else {
-            this.isDimension = false;
-            this.metricType = null;
-        }
+        this.isDimension = in.readBoolean();
+        this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.nonDimensionIndices = in.readOptionalStringArray();
-            this.metricConflictsIndices = in.readOptionalStringArray();
-        } else {
-            this.nonDimensionIndices = null;
-            this.metricConflictsIndices = null;
-        }
+        this.nonDimensionIndices = in.readOptionalStringArray();
+        this.metricConflictsIndices = in.readOptionalStringArray();
         meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
     }
 
@@ -251,17 +245,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(isDimension);
-            out.writeOptionalEnum(metricType);
-        }
+        out.writeBoolean(isDimension);
+        out.writeOptionalEnum(metricType);
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeOptionalStringArray(nonDimensionIndices);
-            out.writeOptionalStringArray(metricConflictsIndices);
-        }
+        out.writeOptionalStringArray(nonDimensionIndices);
+        out.writeOptionalStringArray(metricConflictsIndices);
         out.writeMap(meta, StreamOutput::writeStringCollection);
     }
 

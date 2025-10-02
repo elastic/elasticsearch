@@ -17,9 +17,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CachingServiceAccountTokenStoreTests extends ESTestCase {
 
@@ -53,14 +55,22 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         }
     }
 
+    private ServiceAccountToken newMockServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
+        ServiceAccountToken serviceAccountToken = mock(ServiceAccountToken.class);
+        var serviceAccountTokenId = new ServiceAccountToken.ServiceAccountTokenId(accountId, tokenName);
+        when(serviceAccountToken.getQualifiedName()).thenReturn(serviceAccountTokenId.getQualifiedName());
+        when(serviceAccountToken.getSecret()).thenReturn(secret);
+        return serviceAccountToken;
+    }
+
     public void testCache() throws ExecutionException, InterruptedException {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final SecureString validSecret = new SecureString("super-secret-value".toCharArray());
         final SecureString invalidSecret = new SecureString("some-fishy-value".toCharArray());
-        final ServiceAccountToken token1Valid = new ServiceAccountToken(accountId, "token1", validSecret);
-        final ServiceAccountToken token1Invalid = new ServiceAccountToken(accountId, "token1", invalidSecret);
-        final ServiceAccountToken token2Valid = new ServiceAccountToken(accountId, "token2", validSecret);
-        final ServiceAccountToken token2Invalid = new ServiceAccountToken(accountId, "token2", invalidSecret);
+        final ServiceAccountToken token1Valid = newMockServiceAccountToken(accountId, "token1", validSecret);
+        final ServiceAccountToken token1Invalid = newMockServiceAccountToken(accountId, "token1", invalidSecret);
+        final ServiceAccountToken token2Valid = newMockServiceAccountToken(accountId, "token2", validSecret);
+        final ServiceAccountToken token2Invalid = newMockServiceAccountToken(accountId, "token2", invalidSecret);
         final AtomicBoolean doAuthenticateInvoked = new AtomicBoolean(false);
         final TokenSource tokenSource = randomFrom(TokenSource.values());
 
@@ -68,7 +78,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 doAuthenticateInvoked.set(true);
-                listener.onResponse(new StoreAuthenticationResult(validSecret.equals(token.getSecret()), getTokenSource()));
+                listener.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), validSecret.equals(token.getSecret())));
             }
 
             @Override
@@ -160,7 +170,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(settings, threadPool) {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
-                listener.onResponse(new StoreAuthenticationResult(success, getTokenSource()));
+                listener.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), success));
             }
 
             @Override
@@ -181,7 +191,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
-                listener.onResponse(new StoreAuthenticationResult(true, getTokenSource()));
+                listener.onResponse(StoreAuthenticationResult.successful(getTokenSource()));
             }
 
             @Override

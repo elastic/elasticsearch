@@ -47,8 +47,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedi
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -269,7 +269,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullCategorizeGroupingNotFolded() {
-        Categorize categorize = new Categorize(EMPTY, NULL);
+        Categorize categorize = new Categorize(EMPTY, NULL, NULL);
         assertEquals(categorize, foldNull(categorize));
     }
 

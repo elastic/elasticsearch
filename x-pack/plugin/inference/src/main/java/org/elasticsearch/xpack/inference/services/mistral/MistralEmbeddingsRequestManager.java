@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureopenai.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.mistral.request.MistralEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.mistral.request.embeddings.MistralEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbeddingsResponseEntity;
 
 import java.util.List;
@@ -61,7 +61,7 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getStringInputs();
+        List<String> docsInput = inferenceInputs.castTo(EmbeddingsInput.class).getInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         MistralEmbeddingsRequest request = new MistralEmbeddingsRequest(truncator, truncatedInput, model);
 

@@ -21,7 +21,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -52,7 +51,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
         .distribution(DistributionType.DEFAULT)
         .name("fulfilling-cluster")
         .nodes(3)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .module("analysis-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
@@ -61,7 +59,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
     private static ElasticsearchCluster queryCluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .name("query-cluster")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .module("analysis-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")

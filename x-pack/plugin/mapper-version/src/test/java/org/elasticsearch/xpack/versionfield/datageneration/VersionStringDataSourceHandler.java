@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.versionfield.datageneration;
 
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.xpack.versionfield.VersionStringTestUtils;
 
 import java.util.HashMap;

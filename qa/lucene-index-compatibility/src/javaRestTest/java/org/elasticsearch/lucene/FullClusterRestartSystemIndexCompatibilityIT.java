@@ -22,6 +22,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -66,7 +67,7 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
             String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n-2_id");
             ensureGreen(asyncSearchIndex);
 
-            assertAsyncSearchHitCount(asyncId, numDocs);
+            assertBusy(() -> assertAsyncSearchHitCount(asyncId, numDocs));
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 1));
             assertThat(indexVersion(asyncSearchIndex, true), equalTo(VERSION_MINUS_2));
             return;
@@ -95,14 +96,14 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
                 } catch (IOException e) {
                     throw new AssertionError("System feature migration failed", e);
                 }
-            });
+            }, 30, TimeUnit.SECONDS);
 
             // check search results from n-2 search are still readable
             assertAsyncSearchHitCount(async_search_ids.get("n-2_id"), numDocs);
 
             // perform new async search and check its readable
             String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n-1_id");
-            assertAsyncSearchHitCount(asyncId, numDocs);
+            assertBusy(() -> assertAsyncSearchHitCount(asyncId, numDocs));
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 2));
 
             // in order to move to current version we need write block for n-2 index
@@ -116,7 +117,7 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
 
             // check system index is still writeable
             String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n_id");
-            assertAsyncSearchHitCount(asyncId, numDocs);
+            assertBusy(() -> assertAsyncSearchHitCount(asyncId, numDocs));
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 3));
         }
 
@@ -133,7 +134,13 @@ public class FullClusterRestartSystemIndexCompatibilityIT extends FullClusterRes
     private static void assertAsyncSearchHitCount(String asyncId, int numDocs) throws IOException {
         var asyncGet = new Request("GET", "/_async_search/" + asyncId);
         ObjectPath resp = ObjectPath.createFromResponse(client().performRequest(asyncGet));
-        assertEquals(Integer.valueOf(numDocs), resp.evaluate("response.hits.total.value"));
+        assertFalse("Async search is not complete", resp.evaluate("is_running"));
+        assertFalse("Async search has partial results", resp.evaluate("is_partial"));
+        assertEquals(
+            "Unexpected number of hits in search response. Response: \n" + resp.evaluate("response"),
+            Integer.valueOf(numDocs),
+            resp.evaluate("response.hits.total.value")
+        );
     }
 
     /**

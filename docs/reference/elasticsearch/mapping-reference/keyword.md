@@ -70,7 +70,19 @@ The following parameters are accepted by `keyword` fields:
 :   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
+:   Do not index any field containing a string with more characters than this value. This is important because {{es}}
+    will reject entire documents if they contain keyword fields that exceed `32766` UTF-8 encoded bytes.
+
+    To avoid any risk of document rejection, set this value to `8191` or less. Fields with strings exceeding this
+    length will be excluded from indexing.
+
+    The defaults are complicated:
+
+    | Index type | Default | Effect |
+    | ---------- | ------- | ------ |
+    | Standard indices | `2147483647` (effectively unbounded) | Documents will be rejected if this keyword exceeds `32766` UTF-8 encoded bytes. |
+    | `logsdb` indices | `8191` | This `keyword` field will never cause documents to be rejected. If this field is longer than `8191` characters it won't be indexed but its values are still available from `_source`. |
+    | [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields | `text` field with a [sub](/reference/elasticsearch/mapping-reference/multi-fields.md)-`keyword` field with an `ignore_above` of `256` | All string fields are available. Values longer than 256 characters are only available for full text search and won't have a value in their `.keyword` sub-field, so they can not be used for exact matching over _search. |
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.
@@ -113,19 +125,11 @@ The following parameters are accepted by `keyword` fields:
     The `index.mapping.dimension_fields.limit` [index setting](/reference/elasticsearch/index-settings/time-series.md) limits the number of dimensions in an index.
 
     Dimension fields have the following constraints:
-
     * The `doc_values` and `index` mapping parameters must be `true`.
-    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints:
-
-        * The field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
+    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints: the field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
 
 
 ## Synthetic `_source` [keyword-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 Synthetic source may sort `keyword` fields and remove duplicates. For example:
 
@@ -235,6 +239,42 @@ Will become:
 }
 ```
 
+If `null_value` is configured, `null` values are replaced with the `null_value` in synthetic source:
+
+$$$synthetic-source-keyword-example-null-value$$$
+
+```console
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "kwd": { "type": "keyword", "null_value": "NA" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", null, "bar"]
+}
+```
+
+Will become:
+
+```console-result
+{
+  "kwd": ["NA", "bar", "foo"]
+}
+```
+
 
 ## Constant keyword field type [constant-keyword-field-type]
 
@@ -267,14 +307,14 @@ It is both allowed to submit documents that don’t have a value for the field o
 ```console
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch",
   "level": "debug"
 }
 
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch"
 }
 ```

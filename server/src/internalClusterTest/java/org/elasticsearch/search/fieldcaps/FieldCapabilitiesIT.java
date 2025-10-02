@@ -47,7 +47,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -59,6 +59,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -78,6 +79,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -87,12 +89,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -192,7 +194,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class, BlockingOnRewriteQueryPlugin.class);
+        return List.of(TestMapperPlugin.class, BlockingOnRewriteQueryPlugin.class);
     }
 
     @Override
@@ -444,30 +446,36 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.get().get("some_dimension").get("keyword").nonDimensionIndices(), array(equalTo("new_index")));
     }
 
-    public void testFailures() throws InterruptedException {
+    public void testFailures() throws IOException {
         // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
         assertAcked(prepareCreate("index1-error"), prepareCreate("index2-error"));
         ensureGreen("index1-error", "index2-error");
-        FieldCapabilitiesResponse response = client().prepareFieldCaps()
+
+        // Closed shards will result to index error because shards must be in readable state
+        closeShards(internalCluster(), "index1-error", "index2-error");
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "index1-error", "index2-error")
             .setFields("*")
-            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertEquals(1, response.getFailures().size());
         assertEquals(2, response.getFailedIndicesCount());
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
-        assertEquals(IllegalArgumentException.class, failure.getClass());
-        assertEquals("I throw because I choose to.", failure.getMessage());
+        assertEquals(IllegalIndexShardStateException.class, failure.getClass());
+        assertEquals(
+            "CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]",
+            failure.getMessage()
+        );
 
         // the "indices" section should not include failed ones
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
 
         // if all requested indices failed, we fail the request by throwing the exception
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            client().prepareFieldCaps("index1-error", "index2-error").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+        IllegalIndexShardStateException ex = expectThrows(
+            IllegalIndexShardStateException.class,
+            client().prepareFieldCaps("index1-error", "index2-error").setFields("*")
         );
-        assertEquals("I throw because I choose to.", ex.getMessage());
+        assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", ex.getMessage());
     }
 
     private void populateTimeRangeIndices() throws Exception {
@@ -522,6 +530,88 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 MockTransportService.getInstance(node).clearAllRules();
             }
         }
+    }
+
+    private void populateIndices() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        assertAcked(
+            prepareCreate("index-1").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=keyword", "field3", "type=keyword"),
+            prepareCreate("index-2").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field2", "type=long", "field3", "type=long")
+        );
+    }
+
+    public void testIncludeIndices() throws Exception {
+        populateIndices();
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("index-*");
+        request.fields("*");
+        request.includeIndices(true);
+
+        final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+        assertThat(response.getIndices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining("index-2"));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining("index-1"));
+
+    }
+
+    public void testRandomIncludeIndices() throws Exception {
+        populateIndices();
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("index-*");
+        request.fields("*");
+        boolean shouldAlwaysIncludeIndices = randomBoolean();
+        request.includeIndices(shouldAlwaysIncludeIndices);
+
+        final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+        assertThat(response.getIndices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        assertThat(response.getField("timestamp"), aMapWithSize(1));
+        assertThat(response.getField("timestamp"), hasKey("date"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("timestamp").get("date").indices(), arrayContainingInAnyOrder("index-1", "index-2"));
+        } else {
+            assertNull(response.getField("timestamp").get("date").indices());
+        }
+
+        assertThat(response.getField("field1"), aMapWithSize(1));
+        assertThat(response.getField("field1"), hasKey("keyword"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field1").get("keyword").indices(), arrayContaining("index-1"));
+        } else {
+            assertNull(response.getField("field1").get("keyword").indices());
+        }
+
+        assertThat(response.getField("field2"), aMapWithSize(1));
+        assertThat(response.getField("field2"), hasKey("long"));
+        if (shouldAlwaysIncludeIndices) {
+            assertThat(response.getField("field2").get("long").indices(), arrayContaining("index-2"));
+        } else {
+            assertNull(response.getField("field2").get("long").indices());
+        }
+
+        assertThat(response.getField("field3"), aMapWithSize(2));
+        assertThat(response.getField("field3"), hasKey("long"));
+        assertThat(response.getField("field3"), hasKey("keyword"));
+        // mapping conflict, therefore indices is always present for `field3`
+        assertThat(response.getField("field3").get("long").indices(), arrayContaining("index-2"));
+        assertThat(response.getField("field3").get("keyword").indices(), arrayContaining("index-1"));
+
     }
 
     public void testNoActiveCopy() throws Exception {
@@ -718,7 +808,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     "clear resources",
                     TransportFieldCapabilitiesAction.class.getCanonicalName(),
                     Level.TRACE,
-                    "clear index responses on cancellation"
+                    "clear index responses on cancellation submitted"
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
@@ -830,45 +920,17 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertArrayEquals(indices, response.getIndices());
     }
 
-    /**
-     * Adds an "exception" query that  throws on rewrite if the index name contains the string "error"
-     */
-    public static class ExceptionOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
-
-        public ExceptionOnRewriteQueryPlugin() {}
-
-        @Override
-        public List<QuerySpec<?>> getQueries() {
-            return singletonList(
-                new QuerySpec<>("exception", ExceptionOnRewriteQueryBuilder::new, p -> new ExceptionOnRewriteQueryBuilder())
-            );
-        }
-    }
-
-    static class ExceptionOnRewriteQueryBuilder extends DummyQueryBuilder {
-
-        public static final String NAME = "exception";
-
-        ExceptionOnRewriteQueryBuilder() {}
-
-        ExceptionOnRewriteQueryBuilder(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-            SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
-            if (searchExecutionContext != null) {
-                if (searchExecutionContext.indexMatches("*error*")) {
-                    throw new IllegalArgumentException("I throw because I choose to.");
+    static void closeShards(InternalTestCluster cluster, String... indices) throws IOException {
+        final Set<String> indicesToClose = Set.of(indices);
+        for (String node : cluster.getNodeNames()) {
+            final IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
+            for (IndexService indexService : indicesService) {
+                if (indicesToClose.contains(indexService.getMetadata().getIndex().getName())) {
+                    for (IndexShard indexShard : indexService) {
+                        closeShardNoCheck(indexShard);
+                    }
                 }
             }
-            return this;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
         }
     }
 
@@ -906,6 +968,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            // skip rewriting on the coordinator
+            if (queryRewriteContext.convertToCoordinatorRewriteContext() != null) {
+                return this;
+            }
             try {
                 blockingLatch.await();
             } catch (InterruptedException e) {

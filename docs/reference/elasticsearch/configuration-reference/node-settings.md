@@ -55,9 +55,7 @@ $$$coordinating-only-node$$$If If you set `node.roles` to an empty array (`node.
 If you set `node.roles`, ensure you specify every node role your cluster needs. Every cluster requires the following node roles:
 
 * `master`
-*
-
-    `data_content` and `data_hot`<br> OR<br> `data`
+* `data_content` and `data_hot` OR `data`
 
 
 Some {{stack}} features also require specific node roles:
@@ -120,7 +118,7 @@ You can also set a node attribute using the `-E` command line argument when you 
 
 
 `node.attr.<attribute-name>`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) A custom attribute that you can assign to a node. For example, you might assign a `rack_id` attribute to each node to ensure that primary and replica shards are not allocated on the same rack. You can specify multiple attributes as a comma-separated list.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A custom attribute that you can assign to a node. For example, you might assign a `rack_id` attribute to each node to ensure that primary and replica shards are not allocated on the same rack. You can specify multiple attributes as a comma-separated list.
 
 
 ## Other node settings [other-node-settings]

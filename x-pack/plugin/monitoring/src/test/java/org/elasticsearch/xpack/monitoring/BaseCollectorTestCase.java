@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.function.Function;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +55,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         nodes = mock(DiscoveryNodes.class);
         metadata = mock(Metadata.class);
         projectMetadata = mock(ProjectMetadata.class);
-        when(metadata.getProject()).thenReturn(projectMetadata);
+        when(metadata.getProject(any())).thenReturn(projectMetadata);
         licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);

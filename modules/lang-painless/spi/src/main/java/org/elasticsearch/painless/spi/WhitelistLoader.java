@@ -19,8 +19,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -492,7 +490,7 @@ public final class WhitelistLoader {
             }
         }
 
-        ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) owner::getClassLoader);
+        ClassLoader loader = owner.getClassLoader();
 
         return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
     }

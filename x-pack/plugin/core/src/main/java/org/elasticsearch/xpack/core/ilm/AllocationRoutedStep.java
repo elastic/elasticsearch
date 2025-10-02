@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -45,18 +45,14 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
-        if (ActiveShardCount.ALL.enoughShardsActive(
-            clusterState.metadata().getProject(),
-            clusterState.routingTable(),
-            index.getName()
-        ) == false) {
+        if (ActiveShardCount.ALL.enoughShardsActive(currentState.metadata(), currentState.routingTable(), index.getName()) == false) {
             logger.debug(
                 "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
                 getKey().action(),
@@ -68,12 +64,12 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(
                 new FilterAllocationDecider(
-                    clusterState.getMetadata().settings(),
+                    currentState.cluster().metadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 )
             )
         );
-        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, clusterState);
+        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, currentState);
 
         if (allocationPendingAllShards > 0) {
             logger.debug(
@@ -89,14 +85,14 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         }
     }
 
-    static int getPendingAllocations(Index index, AllocationDeciders allocationDeciders, ClusterState clusterState) {
+    static int getPendingAllocations(Index index, AllocationDeciders allocationDeciders, ProjectState currentState) {
         // All the allocation attributes are already set so just need to check
         // if the allocation has happened
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, currentState.cluster(), null, null, System.nanoTime());
 
         int allocationPendingAllShards = 0;
 
-        final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
+        final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
             final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
             for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
@@ -104,7 +100,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = allocationDeciders.canRemain(
                     shardRouting,
-                    clusterState.getRoutingNodes().node(currentNodeId),
+                    currentState.cluster().getRoutingNodes().node(currentNodeId),
                     allocation
                 ).type() == Decision.Type.YES;
                 if (canRemainOnCurrentNode == false || shardRouting.started() == false) {

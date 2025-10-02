@@ -11,8 +11,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
@@ -22,9 +20,6 @@ import java.net.Authenticator;
 import java.net.HttpURLConnection;
 import java.net.PasswordAuthentication;
 import java.net.URL;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -88,46 +83,44 @@ class HttpClient {
 
         final String originalAuthority = new URL(url).getAuthority();
 
-        return doPrivileged(() -> {
-            String innerUrl = url;
-            HttpURLConnection conn = createConnection(auth, innerUrl);
+        String innerUrl = url;
+        HttpURLConnection conn = createConnection(auth, innerUrl);
 
-            int redirectsCount = 0;
-            while (true) {
-                switch (conn.getResponseCode()) {
-                    case HTTP_OK:
-                        return getInputStream(conn);
-                    case HTTP_MOVED_PERM:
-                    case HTTP_MOVED_TEMP:
-                    case HTTP_SEE_OTHER:
-                        if (redirectsCount++ > 50) {
-                            throw new IllegalStateException("too many redirects connection to [" + url + "]");
-                        }
+        int redirectsCount = 0;
+        while (true) {
+            switch (conn.getResponseCode()) {
+                case HTTP_OK:
+                    return getInputStream(conn);
+                case HTTP_MOVED_PERM:
+                case HTTP_MOVED_TEMP:
+                case HTTP_SEE_OTHER:
+                    if (redirectsCount++ > 50) {
+                        throw new IllegalStateException("too many redirects connection to [" + url + "]");
+                    }
 
-                        // deal with redirections (including relative urls)
-                        final String location = conn.getHeaderField("Location");
-                        final URL base = new URL(innerUrl);
-                        final URL next = new URL(base, location);
-                        innerUrl = next.toExternalForm();
+                    // deal with redirections (including relative urls)
+                    final String location = conn.getHeaderField("Location");
+                    final URL base = new URL(innerUrl);
+                    final URL next = new URL(base, location);
+                    innerUrl = next.toExternalForm();
 
-                        // compare the *original* authority and the next authority to determine whether to include auth details.
-                        // this means that the host and port (if it is provided explicitly) are considered. it also means that if we
-                        // were to ping-pong back to the original authority, then we'd start including the auth details again.
-                        final String nextAuthority = next.getAuthority();
-                        if (originalAuthority.equals(nextAuthority)) {
-                            conn = createConnection(auth, innerUrl);
-                        } else {
-                            conn = createConnection(NO_AUTH, innerUrl);
-                        }
-                        break;
-                    case HTTP_NOT_FOUND:
-                        throw new ResourceNotFoundException("{} not found", url);
-                    default:
-                        int responseCode = conn.getResponseCode();
-                        throw new ElasticsearchStatusException("error during downloading {}", RestStatus.fromCode(responseCode), url);
-                }
+                    // compare the *original* authority and the next authority to determine whether to include auth details.
+                    // this means that the host and port (if it is provided explicitly) are considered. it also means that if we
+                    // were to ping-pong back to the original authority, then we'd start including the auth details again.
+                    final String nextAuthority = next.getAuthority();
+                    if (originalAuthority.equals(nextAuthority)) {
+                        conn = createConnection(auth, innerUrl);
+                    } else {
+                        conn = createConnection(NO_AUTH, innerUrl);
+                    }
+                    break;
+                case HTTP_NOT_FOUND:
+                    throw new ResourceNotFoundException("{} not found", url);
+                default:
+                    int responseCode = conn.getResponseCode();
+                    throw new ElasticsearchStatusException("error during downloading {}", RestStatus.fromCode(responseCode), url);
             }
-        });
+        }
     }
 
     @SuppressForbidden(reason = "we need socket connection to download data from internet")
@@ -149,14 +142,5 @@ class HttpClient {
         conn.setDoOutput(false);
         conn.setInstanceFollowRedirects(false);
         return conn;
-    }
-
-    private static <R> R doPrivileged(final CheckedSupplier<R, IOException> supplier) throws IOException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<R>) supplier::get);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
     }
 }

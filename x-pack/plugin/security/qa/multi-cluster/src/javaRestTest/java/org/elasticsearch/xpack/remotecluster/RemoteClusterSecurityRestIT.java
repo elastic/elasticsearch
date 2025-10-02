@@ -18,6 +18,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -155,6 +156,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         final String indexName = "index_fulfilling";
         final String roleName = "taskCancellationRoleName";
         final String userName = "taskCancellationUsername";
+        String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
         try {
             // create some index on the fulfilling cluster, to be searched from the querying cluster
             {
@@ -206,13 +208,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         {
                           "name": "*:*",
                           "error_type": "exception",
-                          "stall_time_seconds": 60
+                          "stall_time_seconds": 10
                         }
                       ]
                     }
                   }
                 }""");
-            String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
             submitAsyncSearchRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", headerFromRandomAuthMethod(userName, PASS))
@@ -308,6 +309,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/user/" + userName)));
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/role/" + roleName)));
             assertOK(performRequestAgainstFulfillingCluster(new Request("DELETE", indexName)));
+            // wait for search related tasks to finish on the query cluster
+            assertBusy(() -> {
+                try {
+                    Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+                    assertOK(queryingClusterTasks);
+                    Map<String, Object> responseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(queryingClusterTasks.getEntity()),
+                        false
+                    );
+                    selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
+                        if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
+                            fail("there are still search tasks running");
+                        }
+                    });
+                } catch (ResponseException e) {
+                    fail(e.getMessage());
+                }
+            });
         }
     }
 
@@ -628,7 +648,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             // remote cluster is not reported in transport profiles
             assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
 
-            if (Boolean.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
+            if (Booleans.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
                 numberOfRemoteClusterServerNodes += 1;
                 final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
                 assertThat(boundAddresses, notNullValue());

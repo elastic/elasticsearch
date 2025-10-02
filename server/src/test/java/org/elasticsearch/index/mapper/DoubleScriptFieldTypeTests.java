@@ -28,6 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -40,6 +41,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +51,8 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
 
@@ -262,8 +266,72 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             );
             try (DirectoryReader reader = iw.getReader()) {
                 DoubleScriptFieldType fieldType = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType), equalTo(List.of(2d, 3d)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(2d, 3d)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(3d)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(2d, 3d)));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeField() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [1.1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [2.1]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                DoubleScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
+                assertThat(loader, instanceOf(DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader.class));
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, instanceOf(DoubleScriptBlockDocValuesReader.class));
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(rowStrideReader, instanceOf(DoubleScriptBlockDocValuesReader.class));
+
+                // Assert values:
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(1.1, 2.1)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(2.1)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(1.1, 2.1)));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+
+            var document1 = createDocumentWithIgnoredSource("[1.1]");
+            var document2 = createDocumentWithIgnoredSource("[2.1]");
+
+            iw.addDocuments(List.of(document1, document2));
+            try (DirectoryReader reader = iw.getReader()) {
+                DoubleScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, nullValue());
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(
+                    rowStrideReader.getClass().getName(),
+                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                );
+
+                // Assert values:
+                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(List.of(1.1, 2.1)));
             }
         }
     }
@@ -276,6 +344,10 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     protected DoubleScriptFieldType simpleMappedFieldType() {
         return build("read_foo", Map.of(), OnScriptError.FAIL);
+    }
+
+    private DoubleScriptFieldType simpleSourceOnlyMappedFieldType() {
+        return build("read_test", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -295,6 +367,31 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
     private static DoubleFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
+            case "read_test" -> new DoubleFieldScript.Factory() {
+                @Override
+                public DoubleFieldScript.LeafFactory newFactory(
+                    String fieldName,
+                    Map<String, Object> params,
+                    SearchLookup lookup,
+                    OnScriptError onScriptError
+                ) {
+                    return (ctx) -> new DoubleFieldScript(fieldName, params, lookup, onScriptError, ctx) {
+                        @Override
+                        @SuppressWarnings("unchecked")
+                        public void execute() {
+                            Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                            for (Object foo : (List<?>) source.get("test")) {
+                                emit(((Number) foo).doubleValue());
+                            }
+                        };
+                    };
+                }
+
+                @Override
+                public boolean isParsedFromSource() {
+                    return true;
+                }
+            };
             case "read_foo" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new DoubleFieldScript(
                 fieldName,
                 params,

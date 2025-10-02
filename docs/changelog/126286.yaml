@@ -1,6 +1,0 @@
-pr: 126286
-summary: Revert "Allow partial results by default in ES|QL"
-area: ES|QL
-type: bug
-issues:
- - 126275

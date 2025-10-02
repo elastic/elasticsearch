@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TopN extends UnaryPlan {
+public class TopN extends UnaryPlan implements PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
     private final List<Order> order;

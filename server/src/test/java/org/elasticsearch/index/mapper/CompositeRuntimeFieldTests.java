@@ -346,7 +346,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
                 (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
                     new FieldDataContext("test", null, lookupSupplier, mapperService.mappingLookup()::sourcePaths, fdo)
                 ).build(null, null),
-                SourceProvider.fromStoredFields()
+                SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
             );
 
             LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(reader.leaves().get(0));

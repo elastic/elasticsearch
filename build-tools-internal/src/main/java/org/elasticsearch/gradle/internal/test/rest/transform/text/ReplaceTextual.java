@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
@@ -25,17 +26,22 @@ import org.gradle.api.tasks.Optional;
 public class ReplaceTextual implements RestTestTransformByParentObject {
     private final String keyToReplaceName;
     private final String valueToBeReplaced;
-    private final TextNode replacementNode;
+    private final SerializableJsonNode<TextNode> replacementNode;
     private final String testName;
 
-    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode) {
+    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, SerializableJsonNode<TextNode> replacementNode) {
         this.keyToReplaceName = keyToReplaceName;
         this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;
         this.testName = null;
     }
 
-    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode, String testName) {
+    public ReplaceTextual(
+        String keyToReplaceName,
+        String valueToBeReplaced,
+        SerializableJsonNode<TextNode> replacementNode,
+        String testName
+    ) {
         this.keyToReplaceName = keyToReplaceName;
         this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;
@@ -60,7 +66,7 @@ public class ReplaceTextual implements RestTestTransformByParentObject {
 
     @Override
     public void transformTest(ObjectNode matchParent) {
-        matchParent.set(getKeyToFind(), replacementNode);
+        matchParent.set(getKeyToFind(), replacementNode.toJsonNode());
     }
 
     @Input
@@ -69,7 +75,7 @@ public class ReplaceTextual implements RestTestTransformByParentObject {
     }
 
     @Input
-    public JsonNode getReplacementNode() {
+    public SerializableJsonNode<TextNode> getReplacementNode() {
         return replacementNode;
     }
 

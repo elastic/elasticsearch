@@ -126,7 +126,9 @@ public class IngestGeoIpPlugin extends Plugin
             parameters.client,
             geoIpCache,
             parameters.genericExecutor,
-            parameters.ingestService.getClusterService()
+            parameters.ingestService.getClusterService(),
+            parameters.ingestService,
+            parameters.client.projectResolver()
         );
         databaseRegistry.set(registry);
         return Map.ofEntries(
@@ -139,7 +141,7 @@ public class IngestGeoIpPlugin extends Plugin
     public Collection<?> createComponents(PluginServices services) {
         try {
             String nodeId = services.nodeEnvironment().nodeId();
-            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get());
+            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -75,7 +75,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                         }
                         hitField = new DocumentField(scriptFieldName, values);
                         // script fields are never meta-fields
-                        hitContext.hit().setDocumentField(scriptFieldName, hitField);
+                        hitContext.hit().setDocumentField(hitField);
                     }
                 }
             }

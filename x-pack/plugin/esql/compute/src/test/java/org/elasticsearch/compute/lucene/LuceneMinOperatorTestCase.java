@@ -22,8 +22,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
+public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
 
     protected interface NumberTypeTest {
 
@@ -73,7 +73,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneMinFactory simple() {
+    protected LuceneMinFactory simple(SimpleOptions options) {
         return simple(getNumberTypeTest(), randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
@@ -116,7 +116,15 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
         } else {
             query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD_NAME, Long.MIN_VALUE, Long.MAX_VALUE);
         }
-        return new LuceneMinFactory(List.of(ctx), c -> query, dataPartitioning, between(1, 8), FIELD_NAME, getNumberType(), limit);
+        return new LuceneMinFactory(
+            List.of(ctx),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            dataPartitioning,
+            between(1, 8),
+            FIELD_NAME,
+            getNumberType(),
+            limit
+        );
     }
 
     public void testSimple() {

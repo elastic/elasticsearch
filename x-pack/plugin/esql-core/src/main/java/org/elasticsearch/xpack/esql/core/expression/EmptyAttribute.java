@@ -35,13 +35,31 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return this;
     }
 
     @Override
     protected String label() {
         return "e";
+    }
+
+    @Override
+    public boolean isDimension() {
+        return false;
+    }
+
+    @Override
+    public boolean isMetric() {
+        return false;
     }
 
     @Override

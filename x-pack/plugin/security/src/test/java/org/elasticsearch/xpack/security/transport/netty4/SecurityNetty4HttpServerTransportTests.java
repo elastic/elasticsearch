@@ -31,11 +31,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.Netty4FullHttpResponse;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
@@ -44,7 +44,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,6 +52,7 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.Before;
 
@@ -111,11 +112,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -138,11 +139,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -160,16 +161,17 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             .put("xpack.security.http.ssl.client_authentication", value)
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
+        final SslProfile httpSslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
         Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(httpSslProfile::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -192,11 +194,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -214,11 +216,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -237,11 +239,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -269,11 +271,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NetworkService(Collections.emptyList()),
             mock(ThreadPool.class),
             xContentRegistry(),
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -312,7 +314,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> {
@@ -387,7 +389,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 },
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> listener.onResponse(null)
@@ -486,7 +488,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> listener.onResponse(null)
@@ -569,7 +571,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> {
@@ -587,9 +589,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 {
                     EmbeddedChannel ch = new EmbeddedChannel(handler);
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("This is not a valid HTTP line"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("This is not a valid HTTP line", buf);
+                    appendCrLf(buf);
                     ch.writeInbound(buf);
                     ch.flushInbound();
                     assertThat(dispatchThrowableReference.get().toString(), containsString("NOT A VALID HTTP LINE"));
@@ -600,9 +601,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 {
                     EmbeddedChannel ch = new EmbeddedChannel(handler);
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("GET /this/is/a/valid/but/too/long/initial/line HTTP/1.1"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("GET /this/is/a/valid/but/too/long/initial/line HTTP/1.1", buf);
+                    appendCrLf(buf);
                     ch.writeInbound(buf);
                     ch.flushInbound();
                     assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP line is larger than"));
@@ -613,11 +613,9 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 {
                     EmbeddedChannel ch = new EmbeddedChannel(handler);
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                    ByteBufUtil.copy(AsciiString.of("Host"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("GET /url HTTP/1.1", buf);
+                    appendAsciiLine("Host", buf);
+                    appendCrLf(buf);
                     ch.writeInbound(buf);
                     ch.flushInbound();
                     assertThat(dispatchThrowableReference.get().toString(), containsString("No colon found"));
@@ -628,11 +626,9 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 {
                     EmbeddedChannel ch = new EmbeddedChannel(handler);
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                    ByteBufUtil.copy(AsciiString.of("Host: this.looks.like.a.good.url.but.is.longer.than.permitted"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("GET /url HTTP/1.1", buf);
+                    appendAsciiLine("Host: this.looks.like.a.good.url.but.is.longer.than.permitted", buf);
+                    appendCrLf(buf);
                     ch.writeInbound(buf);
                     ch.flushInbound();
                     assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP header is larger than"));
@@ -643,12 +639,11 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 {
                     EmbeddedChannel ch = new EmbeddedChannel(handler);
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("GET /url HTTP/1.1", buf);
                     ByteBufUtil.copy(AsciiString.of("Host: invalid header value"), buf);
                     buf.writeByte(0x01);
-                    buf.writeByte(HttpConstants.LF);
-                    buf.writeByte(HttpConstants.LF);
+                    appendCrLf(buf);
+                    appendCrLf(buf);
                     ch.writeInbound(buf);
                     ch.flushInbound();
                     assertThat(dispatchThrowableReference.get().toString(), containsString("Validation failed for header 'Host'"));
@@ -659,10 +654,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 {
                     EmbeddedChannel ch = new EmbeddedChannel(handler);
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
-                    buf.writeByte(HttpConstants.LF);
-                    ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("GET /url HTTP/1.1", buf);
+                    appendAsciiLine("Host: localhost", buf);
                     ch.writeInbound(buf);
                     ch.flushInbound();
                     safeGet(ch.close());
@@ -699,7 +692,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 (httpPreRequest, channel, listener) -> {
@@ -716,33 +709,24 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 // OPTIONS request with fixed length content written in one chunk
                 {
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/fixed-length-single-chunk HTTP/1.1"), buf);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("OPTIONS /url/whatever/fixed-length-single-chunk HTTP/1.1", buf);
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Host: localhost", buf);
                     }
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Accept: */*", buf);
                     }
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Content-Encoding: gzip", buf);
                     }
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(
-                            AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
-                            buf
-                        );
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8"), buf);
                     }
                     String content = randomAlphaOfLengthBetween(4, 1024);
                     // having a "Content-Length" request header is what makes it "fixed length"
-                    ByteBufUtil.copy(AsciiString.of("Content-Length: " + content.length()), buf);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("Content-Length: " + content.length(), buf);
                     // end of headers
-                    buf.writeByte(HttpConstants.LF);
+                    appendCrLf(buf);
                     ByteBufUtil.copy(AsciiString.of(content), buf);
                     // write everything in one single chunk
                     ch.writeInbound(buf);
@@ -759,63 +743,44 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 }
                 {
                     ByteBuf buf = ch.alloc().buffer();
-                    ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/chunked-transfer?encoding HTTP/1.1"), buf);
-                    buf.writeByte(HttpConstants.LF);
+                    appendAsciiLine("OPTIONS /url/whatever/chunked-transfer?encoding HTTP/1.1", buf);
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Host: localhost", buf);
                     }
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Accept: */*", buf);
                     }
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Content-Encoding: gzip", buf);
                     }
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(
-                            AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
-                            buf
-                        );
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8"), buf);
                     }
                     // do not write a "Content-Length" header to make the request "variable length"
                     if (randomBoolean()) {
-                        ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: " + randomFrom("chunked", "gzip, chunked")), buf);
+                        appendAsciiLine("Transfer-Encoding: " + randomFrom("chunked", "gzip, chunked"), buf);
                     } else {
-                        ByteBufUtil.copy(AsciiString.of("Transfer-Encoding: chunked"), buf);
+                        appendAsciiLine("Transfer-Encoding: chunked", buf);
                     }
-                    buf.writeByte(HttpConstants.LF);
-                    buf.writeByte(HttpConstants.LF);
+                    // End of headers
+                    appendCrLf(buf);
                     // maybe append some chunks as well
                     String[] contentParts = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
                     for (String content : contentParts) {
-                        ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf);
-                        buf.writeByte(HttpConstants.CR);
-                        buf.writeByte(HttpConstants.LF);
-                        ByteBufUtil.copy(AsciiString.of(content), buf);
-                        buf.writeByte(HttpConstants.CR);
-                        buf.writeByte(HttpConstants.LF);
+                        appendAsciiLine(Integer.toHexString(content.length()), buf);
+                        appendAsciiLine(content, buf);
                     }
                     ch.writeInbound(buf);
                     ch.flushInbound();
                     ByteBuf buf2 = ch.alloc().buffer();
                     contentParts = randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 64));
                     for (String content : contentParts) {
-                        ByteBufUtil.copy(AsciiString.of(Integer.toHexString(content.length())), buf2);
-                        buf2.writeByte(HttpConstants.CR);
-                        buf2.writeByte(HttpConstants.LF);
-                        ByteBufUtil.copy(AsciiString.of(content), buf2);
-                        buf2.writeByte(HttpConstants.CR);
-                        buf2.writeByte(HttpConstants.LF);
+                        appendAsciiLine(Integer.toHexString(content.length()), buf2);
+                        appendAsciiLine(content, buf2);
                     }
                     // finish chunked request
-                    ByteBufUtil.copy(AsciiString.of("0"), buf2);
-                    buf2.writeByte(HttpConstants.CR);
-                    buf2.writeByte(HttpConstants.LF);
-                    buf2.writeByte(HttpConstants.CR);
-                    buf2.writeByte(HttpConstants.LF);
+                    appendAsciiLine("0", buf2);
+                    appendCrLf(buf2);
                     ch.writeInbound(buf2);
                     ch.flushInbound();
                     ch.runPendingTasks();
@@ -834,4 +799,24 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         }
     }
 
+    /**
+     * Append a string as ASCII terminated by a CR/LF newline
+     *
+     * @param string The string to append
+     * @param buf The buffer to append to
+     */
+    private static void appendAsciiLine(String string, ByteBuf buf) {
+        ByteBufUtil.copy(AsciiString.of(string), buf);
+        appendCrLf(buf);
+    }
+
+    /**
+     * Append a CR/LF newline
+     *
+     * @param buf The buffer to append to
+     */
+    private static void appendCrLf(ByteBuf buf) {
+        buf.writeByte(HttpConstants.CR);
+        buf.writeByte(HttpConstants.LF);
+    }
 }

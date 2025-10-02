@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -99,6 +100,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
+        if (name.equals("double")) {
+            return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
+        }
         return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
@@ -530,6 +534,12 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 () -> sortBuilder.build(searchExecutionContext)
             );
             assertEquals("illegal longitude value [-360.0] for [GeoDistanceSort] for field [fieldName].", ex.getMessage());
+        }
+        {
+            GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("double", 0.0, 180.0);
+            sortBuilder.validation(GeoValidationMethod.STRICT);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> sortBuilder.build(searchExecutionContext));
+            assertEquals("unable to apply geo distance sort to field [double] of type [double]", ex.getMessage());
         }
     }
 

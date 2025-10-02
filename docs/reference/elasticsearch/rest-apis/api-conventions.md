@@ -55,7 +55,7 @@ For example, the following `traceparent` value would produce the following `trac
 
 ## GET and POST requests [get-requests]
 
-A number of {{es}} GET APIs—​most notably the search API—​support a request body. While the GET action makes sense in the context of retrieving information, GET requests with a body are not supported by all HTTP libraries. All {{es}} GET APIs that require a body can also be submitted as POST requests. Alternatively, you can pass the request body as the [`source` query string parameter](#api-request-body-query-string) when using GET.
+A number of {{es}} GET APIs— most notably the search API— support a request body. While the GET action makes sense in the context of retrieving information, GET requests with a body are not supported by all HTTP libraries. All {{es}} GET APIs that require a body can also be submitted as POST requests. Alternatively, you can pass the request body as the [`source` query string parameter](#api-request-body-query-string) when using GET.
 
 
 ## Cron expressions [api-cron-expressions]
@@ -120,10 +120,10 @@ All elements are required except for `year`. See [Cron special characters](#cron
 :   Increment. Use to separate values when specifying a time increment. The first value represents the starting point, and the second value represents the interval. For example, if you want the schedule to trigger every 20 minutes starting at the top of the hour, you could specify `0/20` in the `minutes` field. Similarly, specifying `1/5` in `day_of_month` field will trigger every 5 days starting on the first day of the month.
 
 `L`
-:   Last. Use in the `day_of_month` field to mean the last day of the month—​day 31 for January, day 28 for February in non-leap years, day 30 for April, and so on. Use alone in the `day_of_week` field in place of `7` or `SAT`, or after a particular day of the week to select the last day of that type in the month. For example `6L` means the last Friday of the month. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. Avoid using the `L` option when specifying lists or ranges of values, as the results likely won’t be what you expect.
+:   Last. Use in the `day_of_month` field to mean the last day of the month— day 31 for January, day 28 for February in non-leap years, day 30 for April, and so on. Use alone in the `day_of_week` field in place of `7` or `SAT`, or after a particular day of the week to select the last day of that type in the month. For example `6L` means the last Friday of the month. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. Avoid using the `L` option when specifying lists or ranges of values, as the results likely won’t be what you expect.
 
 `W`
-:   Weekday. Use to specify the weekday (Monday-Friday) nearest the given day. As an example, if you specify `15W` in the `day_of_month` field and the 15th is a Saturday, the schedule will trigger on the 14th. If the 15th is a Sunday, the schedule will trigger on Monday the 16th. If the 15th is a Tuesday, the schedule will trigger on Tuesday the 15th. However if you specify `1W` as the value for `day_of_month`, and the 1st is a Saturday, the schedule will trigger on Monday the 3rd—​it won’t jump over the month boundary. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. You can only use the `W` option when the `day_of_month` is a single day—​it is not valid when specifying a range or list of days.
+:   Weekday. Use to specify the weekday (Monday-Friday) nearest the given day. As an example, if you specify `15W` in the `day_of_month` field and the 15th is a Saturday, the schedule will trigger on the 14th. If the 15th is a Sunday, the schedule will trigger on Monday the 16th. If the 15th is a Tuesday, the schedule will trigger on Tuesday the 15th. However if you specify `1W` as the value for `day_of_month`, and the 1st is a Saturday, the schedule will trigger on Monday the 3rd— it won’t jump over the month boundary. You can specify `LW` in the `day_of_month` field to specify the last weekday of the month. You can only use the `W` option when the `day_of_month` is a single day— it is not valid when specifying a range or list of days.
 
 `#`
 :   Nth XXX day in a month. Use in the `day_of_week` field to specify the nth XXX day of the month. For example, if you specify `6#1`, the schedule will trigger on the first Friday of the month. Note that if you specify `3#5` and there are not 5 Tuesdays in a particular month, the schedule won’t trigger that month.
@@ -232,33 +232,17 @@ PUT /%3Cmy-index-%7Bnow%2Fd%7D%3E
 
 The special characters used for date rounding must be URI encoded as follows:
 
-`<`
-:   `%3C`
-
-`>`
-:   `%3E`
-
-`/`
-:   `%2F`
-
-`{`
-:   `%7B`
-
-`}`
-:   `%7D`
-
-`|`
-:   `%7C`
-
-`+`
-:   `%2B`
-
-`:`
-:   `%3A`
-
-`,`
-:   `%2C`
-
+| | |
+|---|---|
+| `<` | `%3C` |
+| `>` | `%3E` |
+| `/` | `%2F` |
+| `{` | `%7B` |
+| `}` | `%7D` |
+| `|` | `%7C` |
+| `+` | `%2B` |
+| `:` | `%3A` |
+| `,` | `%2C` |
 ::::
 
 
@@ -340,8 +324,9 @@ Some multi-target APIs that can target indices also support the following query 
 `ignore_throttled`
 :   (Optional, Boolean) If `true`, concrete, expanded or aliased indices are ignored when frozen. Defaults to `true`.
 
-    [7.16.0]
-
+    :::{admonition} Deprecated in 7.16.0
+    This parameter was deprecated in 7.16.0.
+    :::
 
 ::::{note}
 APIs with a single target, such as the [get document API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), do not support multi-target syntax.
@@ -435,6 +420,42 @@ GET /_nodes/rack:2
 GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 ```
+
+### Component selectors [api-component-selectors]
+```{applies_to}
+stack: ga 9.1
+```
+
+A data stream component is a logical grouping of indices that help organize data inside a data stream. All data streams contain a `data` component by default. The `data` component comprises the data stream's backing indices. When searching, managing, or indexing into a data stream, the `data` component is what you are interacting with by default.
+
+Some data stream features are exposed as additional components alongside its `data` component. These other components are comprised of separate sets of backing indices. These additional components store supplemental data independent of the data stream's regular backing indices. An example of another component is the `failures` component exposed by the data stream [failure store](docs-content://manage-data/data-store/data-streams/failure-store.md) feature, which captures documents that fail to be ingested in a separate set of backing indices on the data stream.
+
+Some APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path parameter also support *selector syntax* which defines which component on a data stream the API should operate on. To use a selector, it is appended to the index or data stream name. Selectors can be combined with other index pattern syntax like [date math](#api-date-math-index-names) and wildcards.
+
+There are two selector suffixes supported by {{es}} APIs:
+
+`::data`
+:   Refers to a data stream's backing indices containing regular data. Data streams always contain a data component.
+
+`::failures`
+:   This component refers to the internal indices used for a data stream's [failure store](docs-content://manage-data/data-store/data-streams/failure-store.md).
+
+As an example, [search]({{es-apis}}group/endpoint-search), [field capabilities]({{es-apis}}operation/operation-field-caps), and [index stats]({{es-apis}}operation/operation-indices-stats) APIs can all report results from a different component rather than from the default data.
+
+```console
+# Search a data stream normally
+GET my-data-stream/_search
+# Search a data stream's failure data if present
+GET my-data-stream::failures/_search
+
+# Syntax can be combined with other index pattern syntax (wildcards, multi-target, date math, cross cluster search, etc)
+GET logs-*::failures/_search
+GET logs-*::data,logs-*::failures/_count
+GET remote-cluster:logs-*-*::failures/_search
+GET *::data,*::failures,-logs-rdbms-*::failures/_stats
+GET <logs-{now/d}>::failures/_search
+```
+
 
 ## Parameters [api-conventions-parameters]
 

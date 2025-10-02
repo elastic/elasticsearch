@@ -9,9 +9,9 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
@@ -46,7 +46,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
+public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;

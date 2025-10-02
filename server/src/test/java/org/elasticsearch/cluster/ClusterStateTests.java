@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -26,9 +25,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataTests;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -43,6 +45,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -83,8 +89,10 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -92,6 +100,8 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ClusterStateTests extends ESTestCase {
+    private static final Setting<Integer> PROJECT_SETTING = Setting.intSetting("project.setting", 0, Setting.Property.ProjectScope);
+    private static final Setting<Integer> PROJECT_SETTING2 = Setting.intSetting("project.setting2", 0, Setting.Property.ProjectScope);
 
     public void testSupersedes() {
         final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
@@ -205,6 +215,9 @@ public class ClusterStateTests extends ESTestCase {
                3LftaL7hgfXAsF60Gm6jcD:
                   another-index:
                      5,index read-only (api), blocks WRITE,METADATA_WRITE
+               WHyuJ0uqBYOPgHX9kYUXlZ:
+                  _project_global_:
+                     15,project is under deletion, blocks READ,WRITE,METADATA_READ,METADATA_WRITE
                tb5W0bx765nDVIwqJPw92G:
                   common-index:
                      9,index metadata (api), blocks METADATA_READ,METADATA_WRITE
@@ -267,7 +280,7 @@ public class ClusterStateTests extends ESTestCase {
                 Map.ofEntries(
                     Map.entry(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
                     Map.entry("multi-project", "true"),
-                    Map.entry("metric", "version,master_node,blocks,nodes,metadata,routing_table,customs")
+                    Map.entry("metric", "version,master_node,blocks,nodes,metadata,routing_table,customs,projects_settings")
                     // not routing_nodes because the order is not predictable
                 )
             )
@@ -313,6 +326,16 @@ public class ClusterStateTests extends ESTestCase {
                               "description": "index read-only (api)",
                               "levels": [ "write", "metadata_write"]
                             }
+                          }
+                        }
+                      },
+                      {
+                        "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
+                        "project_globals": {
+                          "15": {
+                            "retryable": false,
+                            "description": "project is under deletion",
+                            "levels": [ "read", "write", "metadata_read", "metadata_write"]
                           }
                         }
                       }
@@ -498,8 +521,7 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       },
                       {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
@@ -556,15 +578,13 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       },
                       {
                         "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
                         "templates": {},
                         "indices": {},
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       }
                     ],
                     "reserved_state": {}
@@ -784,6 +804,30 @@ public class ClusterStateTests extends ESTestCase {
                         }
                       }
                     ]
+                  },
+                  "projects_registry": {
+                    "projects": [
+                      {
+                        "id": "3LftaL7hgfXAsF60Gm6jcD",
+                        "settings": {
+                          "project.setting": "42",
+                          "project.setting2": "43"
+                        },
+                        "reserved_state": {
+                          "file_settings": {
+                            "handlers": {
+                              "settings": {
+                                "keys": ["project.setting", "project.setting2"]
+                              }
+                            },
+                            "version": 42,
+                            "errors": null
+                          }
+                        },
+                        "marked_for_deletion": true
+                      }
+                    ],
+                    "projects_marked_for_deletion_generation": 1
                   }
                 }
                 """,
@@ -843,6 +887,8 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     private static ClusterState buildMultiProjectClusterState(DiscoveryNode... nodes) {
+        ProjectId projectId1 = ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD");
+        ProjectId projectId2 = ProjectId.fromId("tb5W0bx765nDVIwqJPw92G");
         final Metadata metadata = Metadata.builder()
             .clusterUUID("N8nJxElHSP23swO0bPLOcQ")
             .clusterUUIDCommitted(true)
@@ -854,7 +900,7 @@ public class ClusterStateTests extends ESTestCase {
                     .build()
             )
             .put(
-                ProjectMetadata.builder(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"))
+                ProjectMetadata.builder(projectId1)
                     .put(
                         IndexMetadata.builder("common-index")
                             .settings(
@@ -869,7 +915,7 @@ public class ClusterStateTests extends ESTestCase {
                     )
             )
             .put(
-                ProjectMetadata.builder(ProjectId.fromId("tb5W0bx765nDVIwqJPw92G"))
+                ProjectMetadata.builder(projectId2)
                     .put(
                         IndexMetadata.builder("common-index")
                             .settings(
@@ -890,11 +936,31 @@ public class ClusterStateTests extends ESTestCase {
             .metadata(metadata)
             .nodes(discoveryNodes.build())
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder()
+                    .putProjectSettings(
+                        projectId1,
+                        Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
+                    )
+                    .putReservedStateMetadata(
+                        projectId1,
+                        ReservedStateMetadata.builder("file_settings")
+                            .putHandler(
+                                new ReservedStateHandlerMetadata("settings", Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey()))
+                            )
+                            .version(42L)
+                            .build()
+                    )
+                    .markProjectForDeletion(projectId1)
+                    .build()
+            )
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)
-                    .addIndexBlock(ProjectId.fromId("tb5W0bx765nDVIwqJPw92G"), "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
-                    .addIndexBlock(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"), "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
+                    .addIndexBlock(projectId2, "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
+                    .addIndexBlock(projectId1, "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
+                    .addProjectGlobalBlock(ProjectId.fromId("WHyuJ0uqBYOPgHX9kYUXlZ"), ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
             )
             .build();
     }
@@ -2013,7 +2079,7 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
-        assertEquals(TransportVersions.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+        assertEquals(TransportVersion.minimumCompatible(), ClusterState.EMPTY_STATE.getMinTransportVersion());
 
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
@@ -2029,7 +2095,7 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
 
         assertEquals(
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             ClusterState.builder(newState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
                 .build()
@@ -2120,9 +2186,13 @@ public class ClusterStateTests extends ESTestCase {
                 chunkCount += clusterState.blocks().indices(Metadata.DEFAULT_PROJECT_ID).size();
             } else {
                 for (var projectId : clusterState.metadata().projects().keySet()) {
+                    chunkCount += 2; // for writing project id
                     final Map<String, Set<ClusterBlock>> indicesBlocks = clusterState.blocks().indices(projectId);
                     if (indicesBlocks.isEmpty() == false) {
                         chunkCount += 2 + indicesBlocks.size();
+                    }
+                    if (clusterState.blocks().projectBlocks(projectId).projectGlobals().isEmpty() == false) {
+                        chunkCount += 1;
                     }
                 }
             }
@@ -2181,6 +2251,8 @@ public class ClusterStateTests extends ESTestCase {
                     chunkCount += 2 + snapshotDeletionsInProgress.getEntries().size();
                 } else if (custom instanceof SnapshotsInProgress snapshotsInProgress) {
                     chunkCount += 2 + snapshotsInProgress.asStream().count();
+                } else if (custom instanceof ProjectStateRegistry projectStateRegistry) {
+                    chunkCount += 3 + projectStateRegistry.size();
                 } else {
                     // could be anything, we have to just try it
                     chunkCount += Iterables.size(
@@ -2191,5 +2263,26 @@ public class ClusterStateTests extends ESTestCase {
         }
 
         return Math.toIntExact(chunkCount);
+    }
+
+    public void testSerialization() throws IOException {
+        ClusterState clusterState = buildClusterState();
+        BytesStreamOutput out = new BytesStreamOutput();
+        clusterState.writeTo(out);
+
+        // check it deserializes ok
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        ClusterState deserialisedClusterState = ClusterState.readFrom(
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry),
+            null
+        );
+
+        // check it matches the original object
+        Metadata deserializedMetadata = deserialisedClusterState.metadata();
+        assertThat(deserializedMetadata.projects(), aMapWithSize(1));
+        assertThat(deserializedMetadata.projects(), hasKey(ProjectId.DEFAULT));
+
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).templates(), hasKey("template"));
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).indices(), hasKey("index"));
     }
 }

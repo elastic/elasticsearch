@@ -47,7 +47,10 @@ public class GetStackTracesResponseTests extends ESTestCase {
         long totalSamples = randomLongBetween(1L, 200L);
         String stackTraceID = randomAlphaOfLength(12);
         Map<TraceEventID, TraceEvent> stackTraceEvents = randomNullable(
-            Map.of(new TraceEventID("", "", "", stackTraceID), new TraceEvent(totalSamples))
+            Map.of(
+                new TraceEventID("", "", "", stackTraceID, TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY),
+                new TraceEvent(totalSamples)
+            )
         );
 
         return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0, totalSamples);
@@ -55,7 +58,7 @@ public class GetStackTracesResponseTests extends ESTestCase {
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> {
-            // start and {sampling_rate; end}; see GetStackTracesResponse.toXContentChunked()
+            // start and {sampling_rate; sampling_freq; end}; see GetStackTracesResponse.toXContentChunked()
             int chunks = 2;
             chunks += size(instance.getExecutables());
             chunks += size(instance.getStackFrames());

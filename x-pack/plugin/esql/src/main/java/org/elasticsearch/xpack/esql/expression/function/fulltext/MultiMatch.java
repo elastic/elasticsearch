@@ -23,14 +23,17 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
@@ -64,7 +67,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -78,6 +80,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery} .
@@ -335,7 +339,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
             var fieldAttribute = Match.fieldAsFieldAttribute(field);
@@ -343,7 +347,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             String fieldName = Match.getNameFromFieldAttribute(fieldAttribute);
             fieldsWithBoost.put(fieldName, 1.0f);
         }
-        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions());
+        return new MultiMatchQuery(source(), Foldables.queryAsString(query(), sourceText()), fieldsWithBoost, getOptions());
     }
 
     @Override
@@ -367,7 +371,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             return options;
         }
 
-        Match.populateOptionsMap((MapExpression) options(), options, THIRD, sourceText(), OPTIONS);
+        Options.populateMap((MapExpression) options(), options, source(), THIRD, OPTIONS);
         return options;
     }
 
@@ -379,7 +383,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     private TypeResolution resolveFields() {
         return fields.stream()
             .map(
-                (Expression field) -> isNotNull(field, sourceText(), FIRST).and(
+                (Expression field) -> isNotNull(field, sourceText(), SECOND).and(
                     isType(
                         field,
                         FIELD_DATA_TYPES::contains,
@@ -415,13 +419,21 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     private TypeResolution resolveQuery() {
-        return isType(
+        TypeResolution result = isType(
             query(),
             QUERY_DATA_TYPES::contains,
             sourceText(),
             FIRST,
             "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        ).and(isNotNullAndFoldable(query(), sourceText(), FIRST));
+        ).and(isNotNull(query(), sourceText(), FIRST));
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

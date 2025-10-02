@@ -36,7 +36,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -56,6 +55,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -913,7 +913,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public Releasable captureResponseHeaders() {
-            final var storedContext = threadContext.newStoredContext();
+            final var storedContext = threadContextSupplier.get();
             return Releasables.wrap(() -> {
                 final var newResponseHeaders = threadContext.getResponseHeaders();
                 if (newResponseHeaders.isEmpty()) {
@@ -1283,7 +1283,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 if (lifecycle.started()) {
                     nextBatch.run(batchCompletionListener);
                 } else {
-                    nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+                    nextBatch.onRejection(new NotMasterException("node closed", getRejectionException()));
                     batchCompletionListener.onResponse(null);
                 }
             });
@@ -1309,7 +1309,7 @@ public class MasterService extends AbstractLifecycleComponent {
         @Override
         public void onRejection(Exception e) {
             assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
+            drainQueueOnRejection(new NotMasterException("node closed", e));
         }
 
         @Override
@@ -1336,7 +1336,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private void forkQueueProcessor() {
         // single-threaded: started when totalQueueSize transitions from 0 to 1 and keeps calling itself until the queue is drained.
         if (lifecycle.started() == false) {
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+            drainQueueOnRejection(new NotMasterException("node closed", getRejectionException()));
             return;
         }
 
@@ -1353,7 +1353,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return new EsRejectedExecutionException("master service is in state [" + lifecycleState() + "]", true);
     }
 
-    private void drainQueueOnRejection(FailedToCommitClusterStateException e) {
+    private void drainQueueOnRejection(NotMasterException e) {
         assert totalQueueSize.get() > 0;
         do {
             assert currentlyExecutingBatch == null;
@@ -1407,12 +1407,11 @@ public class MasterService extends AbstractLifecycleComponent {
         /**
          * Called when the batch is rejected due to the master service shutting down.
          *
-         * @param e is a {@link FailedToCommitClusterStateException} to cause things like {@link TransportMasterNodeAction} to retry after
+         * @param e is a {@link NotMasterException} to cause things like {@link TransportMasterNodeAction} to retry after
          *          submitting a task to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
          *          {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
          */
-        // Should really be a NodeClosedException instead, but this exception type doesn't trigger retries today.
-        void onRejection(FailedToCommitClusterStateException e);
+        void onRejection(NotMasterException e);
 
         /**
          * @return number of tasks in this batch if the batch is pending, or {@code 0} if the batch is not pending.
@@ -1437,7 +1436,7 @@ public class MasterService extends AbstractLifecycleComponent {
      *
      * @param name The name of the queue, which is mostly useful for debugging.
      *
-     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorites other than {@link Priority#NORMAL}
+     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorities other than {@link Priority#NORMAL}
      *                 where possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks
      *                 should definitely re-use the same {@link MasterServiceTaskQueue} so that they are executed in batches.
      *
@@ -1634,7 +1633,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 return task;
             }
 
-            void onRejection(FailedToCommitClusterStateException e) {
+            void onRejection(NotMasterException e) {
                 final var task = acquireForExecution();
                 if (task != null) {
                     try (var ignored = storedContextSupplier.get()) {
@@ -1654,7 +1653,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private class Processor implements Batch {
             @Override
-            public void onRejection(FailedToCommitClusterStateException e) {
+            public void onRejection(NotMasterException e) {
                 final var items = queueSize.getAndSet(0);
                 for (int i = 0; i < items; i++) {
                     final var entry = queue.poll();

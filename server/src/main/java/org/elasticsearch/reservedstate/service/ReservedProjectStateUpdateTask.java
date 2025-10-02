@@ -14,15 +14,17 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.reservedstate.TransformState;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<ProjectMetadata> {
+public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<ReservedProjectStateHandler<?>> {
     private final ProjectId projectId;
 
     public ReservedProjectStateUpdateTask(
@@ -30,7 +32,7 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Proj
         String namespace,
         ReservedStateChunk stateChunk,
         ReservedStateVersionCheck versionCheck,
-        Map<String, ReservedClusterStateHandler<ProjectMetadata, ?>> handlers,
+        Map<String, ReservedProjectStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
@@ -45,6 +47,12 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Proj
     }
 
     @Override
+    protected TransformState transform(ReservedProjectStateHandler<?> handler, Object state, TransformState transformState)
+        throws Exception {
+        return ReservedClusterStateService.transform(handler, projectId, state, transformState);
+    }
+
+    @Override
     protected ClusterState execute(ClusterState currentState) {
         if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // If cluster state has become blocked, this task was submitted while the node was master but is now not master.
@@ -54,13 +62,27 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Proj
         }
 
         // use an empty project if it doesnt exist, this is then added to ClusterState below.
-        ProjectMetadata project = ReservedClusterStateService.getPotentiallyNewProject(currentState, projectId);
-
-        var result = execute(project, project.reservedStateMetadata());
+        ProjectMetadata currentProject = ReservedClusterStateService.getPotentiallyNewProject(currentState, projectId);
+        var result = execute(
+            ClusterState.builder(currentState).putProjectMetadata(currentProject).build(),
+            ProjectStateRegistry.get(currentState).reservedStateMetadata(projectId)
+        );
         if (result == null) {
             return currentState;
         }
 
-        return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(result.v1()).put(result.v2())).build();
+        ClusterState updatedClusterState = result.v1();
+        ProjectStateRegistry updatedProjectStateRegistry = updatedClusterState.custom(
+            ProjectStateRegistry.TYPE,
+            ProjectStateRegistry.EMPTY
+        );
+        ProjectMetadata updatedProjectMetadata = updatedClusterState.getMetadata().getProject(projectId);
+        return ClusterState.builder(currentState)
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder(updatedProjectStateRegistry).putReservedStateMetadata(projectId, result.v2()).build()
+            )
+            .putProjectMetadata(updatedProjectMetadata)
+            .build();
     }
 }

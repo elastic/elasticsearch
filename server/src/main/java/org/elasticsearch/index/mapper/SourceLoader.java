@@ -10,7 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -22,7 +24,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -111,13 +112,14 @@ public interface SourceLoader {
     }
 
     /**
-     * Reconstructs {@code _source} from doc values anf stored fields.
+     * Reconstructs {@code _source} from doc values and stored fields.
      */
     class Synthetic implements SourceLoader {
         private final SourceFilter filter;
         private final Supplier<SyntheticFieldLoader> syntheticFieldLoaderLeafSupplier;
         private final Set<String> requiredStoredFields;
         private final SourceFieldMetrics metrics;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
         /**
          * Creates a {@link SourceLoader} to reconstruct {@code _source} from doc values anf stored fields.
@@ -125,7 +127,12 @@ public interface SourceLoader {
          * @param fieldLoaderSupplier A supplier to create {@link SyntheticFieldLoader}, one for each leaf.
          * @param metrics Metrics for profiling.
          */
-        public Synthetic(@Nullable SourceFilter filter, Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
+        public Synthetic(
+            @Nullable SourceFilter filter,
+            Supplier<SyntheticFieldLoader> fieldLoaderSupplier,
+            SourceFieldMetrics metrics,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
             this.syntheticFieldLoaderLeafSupplier = fieldLoaderSupplier;
             this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
                 .storedFieldLoaders()
@@ -133,6 +140,7 @@ public interface SourceLoader {
                 .collect(Collectors.toSet());
             this.metrics = metrics;
             this.filter = filter;
+            this.ignoredSourceFormat = ignoredSourceFormat;
         }
 
         @Override
@@ -148,7 +156,10 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf)), metrics);
+            return new LeafWithMetrics(
+                new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat),
+                metrics
+            );
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
@@ -181,14 +192,21 @@ public interface SourceLoader {
             private final SyntheticFieldLoader loader;
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
+            private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-            private SyntheticLeaf(SourceFilter filter, SyntheticFieldLoader loader, SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+            private SyntheticLeaf(
+                SourceFilter filter,
+                SyntheticFieldLoader loader,
+                SyntheticFieldLoader.DocValuesLoader docValuesLoader,
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+            ) {
                 this.filter = filter;
                 this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
                 this.storedFieldLoaders = Map.copyOf(
                     loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                 );
+                this.ignoredSourceFormat = ignoredSourceFormat;
             }
 
             @Override
@@ -201,29 +219,19 @@ public interface SourceLoader {
 
             @Override
             public void write(LeafStoredFieldLoader storedFieldLoader, int docId, XContentBuilder b) throws IOException {
-                // Maps the names of existing objects to lists of ignored fields they contain.
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
-
                 for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
-                    SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
+                    SourceLoader.SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
                     if (loader != null) {
                         loader.load(e.getValue());
                     }
-                    if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
-                        for (Object value : e.getValue()) {
-                            if (objectsWithIgnoredFields == null) {
-                                objectsWithIgnoredFields = new HashMap<>();
-                            }
-                            IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
-                            if (filter != null
-                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
-                                // This path is filtered by the include/exclude rules
-                                continue;
-                            }
-                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
-                        }
-                    }
                 }
+
+                // Maps the names of existing objects to lists of ignored fields they contain.
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = ignoredSourceFormat.loadAllIgnoredFields(
+                    filter,
+                    storedFieldLoader.storedFields()
+                );
+
                 if (objectsWithIgnoredFields != null) {
                     loader.setIgnoredValues(objectsWithIgnoredFields);
                 }
@@ -401,6 +409,144 @@ public interface SourceLoader {
         public void reset() {
             // Not applicable to loaders using only doc values
             // since DocValuesLoader#advanceToDoc will reset the state anyway.
+        }
+    }
+
+    class SyntheticVectors implements SourceLoader {
+        final SourceLoader sourceLoader;
+        final SyntheticVectorsLoader patchLoader;
+
+        SyntheticVectors(@Nullable SourceFilter sourceFilter, SyntheticVectorsLoader patchLoader) {
+            this.sourceLoader = sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter);
+            this.patchLoader = patchLoader;
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return false;
+        }
+
+        @Override
+        public Set<String> requiredStoredFields() {
+            return sourceLoader.requiredStoredFields();
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            var sourceLeaf = sourceLoader.leaf(reader, docIdsInLeaf);
+            var patchLeaf = patchLoader.leaf(reader.getContext());
+            return new Leaf() {
+                @Override
+                public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                    Source source = sourceLeaf.source(storedFields, docId);
+                    if (patchLeaf == null) {
+                        return source;
+                    }
+                    List<SyntheticVectorPatch> patches = new ArrayList<>();
+                    patchLeaf.load(docId, patches);
+                    if (patches.size() == 0) {
+                        return source;
+                    }
+                    return applySyntheticVectors(source, patches);
+                }
+
+                @Override
+                public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
+                    throw new IllegalStateException("This operation is not allowed in the current context");
+                }
+            };
+        }
+    }
+
+    /**
+     * Applies a list of {@link SyntheticVectorPatch} instances to the given {@link Source}.
+     *
+     * @param originalSource the original source object
+     * @param patches        the list of patches to apply
+     * @return a new {@link Source} with the patches applied
+     */
+    static Source applySyntheticVectors(Source originalSource, List<SyntheticVectorPatch> patches) {
+        Map<String, Object> newMap = originalSource.source();
+        applyPatches("", newMap, patches);
+        return Source.fromMap(newMap, originalSource.sourceContentType());
+    }
+
+    /**
+     * Recursively applies synthetic vector patches to a nested map.
+     *
+     * @param rootPath the current root path for nested structures
+     * @param map      the map to apply patches to
+     * @param patches  the list of patches to apply
+     */
+    private static void applyPatches(String rootPath, Map<String, Object> map, List<SyntheticVectorPatch> patches) {
+        for (SyntheticVectorPatch patch : patches) {
+            if (patch instanceof LeafSyntheticVectorPath leaf) {
+                String key = extractRelativePath(rootPath, leaf.fullPath());
+                XContentMapValues.insertValue(key, map, leaf.value(), false);
+            } else if (patch instanceof NestedSyntheticVectorPath nested) {
+                String nestedPath = extractRelativePath(rootPath, nested.fullPath());
+                List<Map<?, ?>> nestedMaps = XContentMapValues.extractNestedSources(nestedPath, map);
+                for (SyntheticVectorPatch childPatch : nested.children()) {
+                    if (childPatch instanceof NestedOffsetSyntheticVectorPath offsetPatch) {
+                        Map<String, Object> nestedMap = XContentMapValues.nodeMapValue(nestedMaps.get(offsetPatch.offset()), nestedPath);
+                        applyPatches(nested.fullPath(), nestedMap, offsetPatch.children());
+                    } else {
+                        throw new IllegalStateException(
+                            "Unexpected child patch type of " + patch.getClass().getSimpleName() + " in nested structure."
+                        );
+                    }
+                }
+            } else {
+                throw new IllegalStateException("Unknown patch type: " + patch.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private static String extractRelativePath(String rootPath, String fullPath) {
+        return rootPath.isEmpty() ? fullPath : fullPath.substring(rootPath.length() + 1);
+    }
+
+    /**
+     * Represents a patch to be applied to a source structure.
+     */
+    sealed interface SyntheticVectorPatch permits NestedSyntheticVectorPath, NestedOffsetSyntheticVectorPath, LeafSyntheticVectorPath {}
+
+    /**
+     * A patch representing a nested path with further child patches.
+     *
+     * @param fullPath the full dot-separated path
+     * @param children the list of child patches
+     */
+    record NestedSyntheticVectorPath(String fullPath, List<SyntheticVectorPatch> children) implements SyntheticVectorPatch {}
+
+    /**
+     * A patch representing an indexed child within a nested structure.
+     *
+     * @param offset   the index of the nested element
+     * @param children the list of child patches to apply at this offset
+     */
+    record NestedOffsetSyntheticVectorPath(int offset, List<SyntheticVectorPatch> children) implements SyntheticVectorPatch {}
+
+    /**
+     * A patch representing a leaf field with a value to be applied.
+     *
+     * @param fullPath the fully-qualified field name
+     * @param value     the value to assign
+     */
+    record LeafSyntheticVectorPath(String fullPath, Object value) implements SyntheticVectorPatch {}
+
+    interface SyntheticVectorsLoader {
+        /**
+         * Returns a leaf loader if the provided context contains patches for the specified field;
+         * returns null otherwise.
+         */
+        SyntheticVectorsLoader.Leaf leaf(LeafReaderContext context) throws IOException;
+
+        interface Leaf {
+            /**
+             * Loads all patches for this field associated with the provided document into the specified {@code acc} list.
+             */
+            void load(int doc, List<SyntheticVectorPatch> acc) throws IOException;
         }
     }
 }

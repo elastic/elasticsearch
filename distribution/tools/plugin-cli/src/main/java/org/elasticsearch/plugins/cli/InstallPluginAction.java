@@ -922,7 +922,7 @@ public class InstallPluginAction implements Closeable {
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
 
-        Path legacyPolicyFile = tmpRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
+        Path legacyPolicyFile = tmpRoot.resolve("plugin-security.policy");
         if (Files.exists(legacyPolicyFile)) {
             terminal.errorPrintln(
                 "WARNING: this plugin contains a legacy Security Policy file. Starting with version 8.18, "

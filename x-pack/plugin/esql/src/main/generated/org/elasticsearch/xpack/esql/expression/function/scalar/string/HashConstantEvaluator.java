@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class HashConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HashConstantEvaluator.class);
+
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
@@ -58,6 +61,13 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += input.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock inputBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
@@ -73,7 +83,8 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+        BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, input));
       }
       return result.build();
     }
@@ -83,7 +94,8 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputVector.getBytesRef(p, inputScratch)));
+        BytesRef input = inputVector.getBytesRef(p, inputScratch);
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, input));
       }
       return result.build();
     }

@@ -10,9 +10,9 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -72,14 +72,6 @@ public class DriverContext {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.warningsMode = warningsMode;
-    }
-
-    public static DriverContext getLocalDriver() {
-        return new DriverContext(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            // TODO maybe this should have a small fixed limit?
-            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-        );
     }
 
     public BigArrays bigArrays() {
@@ -206,6 +198,26 @@ public class DriverContext {
     public enum WarningsMode {
         COLLECT,
         IGNORE
+    }
+
+    /**
+     * Marks the beginning of a run loop for assertion purposes.
+     */
+    public boolean assertBeginRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertBeginRunLoop();
+        }
+        return true;
+    }
+
+    /**
+     * Marks the end of a run loop for assertion purposes.
+     */
+    public boolean assertEndRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertEndRunLoop();
+        }
+        return true;
     }
 
     private static class AsyncActions {

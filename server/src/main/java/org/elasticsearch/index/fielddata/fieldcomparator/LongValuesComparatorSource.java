@@ -40,7 +40,7 @@ import java.util.function.Function;
  */
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    final IndexNumericFieldData indexFieldData;
     private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
     private final NumericType targetNumericType;
 
@@ -84,7 +84,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return converter != null ? converter.apply(values) : values;
     }
 
-    private NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
+    NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericDocValues values = loadDocValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);

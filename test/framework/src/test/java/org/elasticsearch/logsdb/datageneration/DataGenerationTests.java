@@ -10,12 +10,17 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +31,7 @@ import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -89,11 +95,16 @@ public class DataGenerationTests extends ESTestCase {
                 return testChildFieldGenerator;
             }
 
+            private static final FieldType[] SUPPORTED_FIELD_TYPES = Arrays.asList(FieldType.values())
+                .stream()
+                .filter(fieldType -> fieldType != FieldType.PASSTHROUGH)
+                .toArray(FieldType[]::new);
+
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
                     () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                        FieldType.values()[generatedFields++ % FieldType.values().length].toString()
+                        SUPPORTED_FIELD_TYPES[generatedFields++ % SUPPORTED_FIELD_TYPES.length].toString()
                     )
                 );
 

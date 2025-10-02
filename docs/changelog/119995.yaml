@@ -1,5 +1,0 @@
-pr: 119995
-summary: "apm-data: Use representative count as event.success_count if available"
-area: Ingest Node
-type: bug
-issues: []

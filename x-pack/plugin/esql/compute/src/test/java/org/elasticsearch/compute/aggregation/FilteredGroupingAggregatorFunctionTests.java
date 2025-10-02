@@ -11,14 +11,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.junit.After;
 
@@ -105,43 +103,6 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
         );
     }
 
-    /**
-     * Tests {@link GroupingAggregator#addIntermediateRow} by building results using the traditional
-     * add mechanism and using {@link GroupingAggregator#addIntermediateRow} then asserting that they
-     * produce the same output.
-     */
-    public void testAddIntermediateRowInput() {
-        DriverContext ctx = driverContext();
-        AggregatorFunctionSupplier supplier = aggregatorFunction();
-        List<Integer> channels = channels(AggregatorMode.SINGLE);
-        Block[] results = new Block[2];
-        try (
-            GroupingAggregatorFunction main = supplier.groupingAggregator(ctx, channels);
-            GroupingAggregatorFunction leaf = supplier.groupingAggregator(ctx, channels);
-            SourceOperator source = simpleInput(ctx.blockFactory(), 10);
-        ) {
-            Page p;
-            while ((p = source.getOutput()) != null) {
-                try (
-                    IntVector group = ctx.blockFactory().newConstantIntVector(0, p.getPositionCount());
-                    GroupingAggregatorFunction.AddInput addInput = leaf.prepareProcessPage(null, p)
-                ) {
-                    addInput.add(0, group);
-                } finally {
-                    p.releaseBlocks();
-                }
-            }
-            main.addIntermediateRowInput(0, leaf, 0);
-            try (IntVector selected = ctx.blockFactory().newConstantIntVector(0, 1)) {
-                main.evaluateFinal(results, 0, selected, new GroupingAggregatorEvaluationContext(ctx));
-                leaf.evaluateFinal(results, 1, selected, new GroupingAggregatorEvaluationContext(ctx));
-            }
-            assertThat(results[0], equalTo(results[1]));
-        } finally {
-            Releasables.close(results);
-        }
-    }
-
     @After
     public void checkUnclosed() {
         for (Exception tracker : unclosed) {
@@ -190,6 +151,11 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
                 }
                 return result.build().asBlock();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 0;
         }
 
         @Override

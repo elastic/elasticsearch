@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -43,8 +46,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -53,6 +58,8 @@ import static java.util.Collections.unmodifiableMap;
  * on specific indices
  */
 public final class IndicesPermission {
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
 
@@ -330,11 +337,23 @@ public final class IndicesPermission {
                 combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
                 IndexComponentSelector.FAILURES
             );
-        for (String forIndexPattern : checkForIndexPatterns) {
-            Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
-            if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
-                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
-            }
+        Map<String, Automaton> checkIndexPatterns = checkForIndexPatterns.stream()
+            .collect(Collectors.toMap(Function.identity(), pattern -> {
+                try {
+                    Automaton automaton = Automatons.patterns(pattern);
+                    if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(pattern)) {
+                        automaton = Automatons.minusAndMinimize(automaton, restrictedIndices.getAutomaton());
+                    }
+                    return automaton;
+                } catch (TooComplexToDeterminizeException e) {
+                    final String text = pattern.length() > 260 ? Strings.cleanTruncate(pattern, 256) + "..." : pattern;
+                    logger.info("refusing to check privileges against complex index pattern [{}]", text);
+                    throw new IllegalArgumentException("the provided index pattern [" + text + "] is too complex to be evaluated", e);
+                }
+            }));
+        for (var entry : checkIndexPatterns.entrySet()) {
+            final String forIndexPattern = entry.getKey();
+            final Automaton checkIndexAutomaton = entry.getValue();
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedPrivilegesAutomatonForDataSelector = getIndexPrivilegesAutomaton(
                     indexGroupAutomatonsForDataSelector,
@@ -442,6 +461,12 @@ public final class IndicesPermission {
             this.selector = selector;
         }
 
+        public List<Index> getFailureIndices(ProjectMetadata metadata) {
+            return indexAbstraction != null && IndexComponentSelector.FAILURES.equals(selector)
+                ? indexAbstraction.getFailureIndices(metadata)
+                : List.of();
+        }
+
         /**
          * @return {@code true} if-and-only-if this object is related to a data-stream, either by having a
          * {@link IndexAbstraction#getType()} of {@link IndexAbstraction.Type#DATA_STREAM} or by being the backing index for a
@@ -516,13 +541,12 @@ public final class IndicesPermission {
             }
         }
 
-        public Collection<String> resolveConcreteIndices(ProjectMetadata metadata) {
+        public Collection<String> resolveConcreteIndices(List<Index> failureIndices) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
             } else if (IndexComponentSelector.FAILURES.equals(selector)) {
-                final List<Index> failureIndices = indexAbstraction.getFailureIndices(metadata);
                 final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
                 for (var idx : failureIndices) {
                     concreteIndexNames.add(idx.getName());
@@ -585,12 +609,16 @@ public final class IndicesPermission {
 
         final boolean overallGranted = isActionGranted(action, resources.values());
         final int finalTotalResourceCount = totalResourceCount;
+        final var failureIndicesByResourceName = resources.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFailureIndices(metadata)));
+
         final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
             resources,
             finalTotalResourceCount,
             fieldPermissionsCache,
-            metadata
+            failureIndicesByResourceName
         );
 
         return new IndicesAccessControl(overallGranted, indexPermissions);
@@ -601,7 +629,7 @@ public final class IndicesPermission {
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
-        final ProjectMetadata metadata
+        final Map<String, List<Index>> failureIndicesByIndexResource
     ) {
 
         // now... every index that is associated with the request, must be granted
@@ -617,7 +645,9 @@ public final class IndicesPermission {
             boolean granted = false;
             final String resourceName = resourceEntry.getKey();
             final IndexResource resource = resourceEntry.getValue();
-            final Collection<String> concreteIndices = resource.resolveConcreteIndices(metadata);
+            final Collection<String> concreteIndices = resource.resolveConcreteIndices(
+                failureIndicesByIndexResource.get(resourceEntry.getKey())
+            );
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {

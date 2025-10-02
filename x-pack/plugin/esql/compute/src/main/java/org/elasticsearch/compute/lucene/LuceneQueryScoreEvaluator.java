@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ScoreOperator;
 
@@ -27,7 +26,7 @@ import java.io.IOException;
  * Elements that don't match will have a score of {@link #NO_MATCH_SCORE}.
  * @see LuceneQueryScoreEvaluator
  */
-public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector.Builder> implements ScoreOperator.ExpressionScorer {
+public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleBlock.Builder> implements ScoreOperator.ExpressionScorer {
 
     public static final double NO_MATCH_SCORE = 0.0;
 
@@ -46,22 +45,22 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector
     }
 
     @Override
-    protected Vector createNoMatchVector(BlockFactory blockFactory, int size) {
-        return blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, size);
+    protected DoubleBlock createNoMatchBlock(BlockFactory blockFactory, int size) {
+        return blockFactory.newConstantDoubleBlockWith(NO_MATCH_SCORE, size);
     }
 
     @Override
-    protected DoubleVector.Builder createVectorBuilder(BlockFactory blockFactory, int size) {
-        return blockFactory.newDoubleVectorFixedBuilder(size);
+    protected DoubleBlock.Builder createBlockBuilder(BlockFactory blockFactory, int size) {
+        return blockFactory.newDoubleBlockBuilder(size);
     }
 
     @Override
-    protected void appendNoMatch(DoubleVector.Builder builder) {
+    protected void appendNoMatch(DoubleBlock.Builder builder) {
         builder.appendDouble(NO_MATCH_SCORE);
     }
 
     @Override
-    protected void appendMatch(DoubleVector.Builder builder, Scorable scorer) throws IOException {
+    protected void appendMatch(DoubleBlock.Builder builder, Scorable scorer) throws IOException {
         builder.appendDouble(scorer.score());
     }
 

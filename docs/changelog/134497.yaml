@@ -1,0 +1,5 @@
+pr: 134497
+summary: Limit when we push topn to lucene
+area: ES|QL
+type: bug
+issues: []

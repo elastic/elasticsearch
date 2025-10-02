@@ -12,10 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
@@ -54,7 +55,7 @@ public class DownsampleStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -66,7 +67,7 @@ public class DownsampleStep extends AsyncActionStep {
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
         final String downsampleIndexName = lifecycleState.downsampleIndexName();
-        IndexMetadata downsampleIndexMetadata = currentState.metadata().getProject().index(downsampleIndexName);
+        IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
         if (downsampleIndexMetadata != null) {
             IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
                 downsampleIndexMetadata.getSettings()
@@ -85,10 +86,15 @@ public class DownsampleStep extends AsyncActionStep {
                 return;
             }
         }
-        performDownsampleIndex(indexName, downsampleIndexName, listener.delegateFailureAndWrap((l, r) -> l.onResponse(r)));
+        performDownsampleIndex(
+            currentState.projectId(),
+            indexName,
+            downsampleIndexName,
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r))
+        );
     }
 
-    void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
+    void performDownsampleIndex(ProjectId projectId, String indexName, String downsampleIndexName, ActionListener<Void> listener) {
         DownsampleConfig config = new DownsampleConfig(fixedInterval);
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.MAX_VALUE,
@@ -98,7 +104,11 @@ public class DownsampleStep extends AsyncActionStep {
             config
         );
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
-        getClient().execute(DownsampleAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
+        getClient(projectId).execute(
+            DownsampleAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
+        );
     }
 
     public DateHistogramInterval getFixedInterval() {

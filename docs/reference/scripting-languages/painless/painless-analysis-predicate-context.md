@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-analysis-predicate-context.html
+products:
+  - id: painless
 ---
 
 # Analysis Predicate Context [painless-analysis-predicate-context]

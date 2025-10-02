@@ -79,7 +79,14 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation coh
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS)
+            || version.isPatchFrom(TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS_8_19);
     }
 
     @Override

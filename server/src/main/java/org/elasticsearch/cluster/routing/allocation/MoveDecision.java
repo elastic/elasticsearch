@@ -179,6 +179,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * the result of this method is meaningless, as no rebalance decision was taken.  If {@link #isDecisionTaken()}
      * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     public boolean canRebalanceCluster() {
         checkDecisionState();
         return clusterRebalanceDecision != null && clusterRebalanceDecision.type() == Type.YES;
@@ -192,6 +193,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an
      * {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     @Nullable
     public Decision getClusterRebalanceDecision() {
         checkDecisionState();
@@ -232,7 +234,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                     ? Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE
                     : Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE;
                 case THROTTLE -> Explanations.Rebalance.CLUSTER_THROTTLE;
-                case YES -> {
+                case YES, NOT_PREFERRED -> {
                     if (getTargetNode() != null) {
                         yield canMoveDecision == AllocationDecision.THROTTLED
                             ? Explanations.Rebalance.NODE_THROTTLE

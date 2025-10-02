@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -86,20 +87,9 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         // Verify that we can still move shards around even while blocked
         final String newDataNodeName = internalCluster().startDataOnlyNode();
         final String newDataNodeId = clusterAdmin().prepareNodesInfo(newDataNodeName).get().getNodes().get(0).getNode().getId();
-        assertBusy(() -> {
-            final ShardRouting primaryShard = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                .clear()
-                .setRoutingTable(true)
-                .setNodes(true)
-                .setIndices(indexName)
-                .get()
-                .getState()
-                .routingTable()
-                .index(indexName)
-                .shard(0)
-                .primaryShard();
-            assertThat(primaryShard.state(), equalTo(ShardRoutingState.STARTED));
-            assertThat(primaryShard.currentNodeId(), equalTo(newDataNodeId));
+        awaitClusterState(state -> {
+            final ShardRouting primaryShard = state.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard();
+            return primaryShard.state() == ShardRoutingState.STARTED && newDataNodeId.equals(primaryShard.currentNodeId());
         });
 
         // Verify that the block is removed once the shard migration is complete

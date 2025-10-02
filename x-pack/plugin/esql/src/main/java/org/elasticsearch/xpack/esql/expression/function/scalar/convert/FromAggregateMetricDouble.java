@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.CompositeBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -32,14 +34,16 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public class FromAggregateMetricDouble extends EsqlScalarFunction {
+public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FromAggregateMetricDouble",
@@ -136,36 +140,56 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
             @Override
             public EvalOperator.ExpressionEvaluator get(DriverContext context) {
                 final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
-
-                return new EvalOperator.ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        Block block = eval.eval(page);
-                        if (block.areAllValuesNull()) {
-                            return block;
-                        }
-                        try {
-                            CompositeBlock compositeBlock = (CompositeBlock) block;
-                            Block resultBlock = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
-                            resultBlock.incRef();
-                            return resultBlock;
-                        } finally {
-                            block.close();
-                        }
-                    }
-
-                    @Override
-                    public void close() {
-                        Releasables.closeExpectNoException(eval);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "FromAggregateMetricDoubleEvaluator[field=" + eval + ",subfieldIndex=" + subfieldIndex + "]";
-                    }
-                };
-
+                final int subFieldIndex = ((Number) subfieldIndex.fold(FoldContext.small())).intValue();
+                return new Evaluator(context.blockFactory(), eval, subFieldIndex);
             }
         };
+    }
+
+    private record Evaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval, int subFieldIndex)
+        implements
+            EvalOperator.ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            Block block = eval.eval(page);
+            if (block.areAllValuesNull()) {
+                return block;
+            }
+            try {
+                Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(subFieldIndex);
+                resultBlock.incRef();
+                return resultBlock;
+            } finally {
+                block.close();
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + eval.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(eval);
+        }
+
+        @Override
+        public String toString() {
+            return "FromAggregateMetricDoubleEvaluator[field=" + eval + ",subfieldIndex=" + subFieldIndex + "]";
+        }
+    }
+
+    @Override
+    public Expression field() {
+        return field;
+    }
+
+    @Override
+    public Set<DataType> supportedTypes() {
+        return Set.of(AGGREGATE_METRIC_DOUBLE);
     }
 }

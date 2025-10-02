@@ -10,9 +10,11 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
@@ -142,7 +144,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             spEncryptionCredentials,
             reqAuthnCtxClassRef
         );
-        return new SamlAuthenticator(clock, idp, sp, maxSkew);
+        return new SamlAuthenticator(clock, idp, sp, maxSkew, attribute -> "batman".equals(attribute.getName()));
     }
 
     public void testParseEmptyContentIsRejected() throws Exception {
@@ -328,6 +330,12 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name().spNameQualifier, equalTo(SP_ENTITY_ID));
 
         assertThat(attributes.session(), equalTo(session));
+
+        assertThat(attributes.privateAttributes(), iterableWithSize(1));
+        final List<SecureString> batmanIdentity = attributes.getPrivateAttributeValues("batman");
+        assertThat(batmanIdentity, iterableWithSize(1));
+        assertThat(batmanIdentity.getFirst(), equalTo(new SecureString("Bruce Wayne".toCharArray())));
+
     }
 
     public void testSuccessfullyParseContentFromRawXmlWithSignedAssertion() throws Exception {
@@ -346,6 +354,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name(), notNullValue());
         assertThat(attributes.name().format, equalTo(TRANSIENT));
         assertThat(attributes.name().value, equalTo(nameId));
+        assertThat(attributes.privateAttributes(), iterableWithSize(1));
+        final List<SecureString> batmanIdentity = attributes.getPrivateAttributeValues("batman");
+        assertThat(batmanIdentity, iterableWithSize(1));
+        assertThat(batmanIdentity.getFirst(), equalTo(new SecureString("Bruce Wayne".toCharArray())));
+
     }
 
     public void testSuccessfullyParseContentFromRawXmlWithSignedUnicodeAssertion() throws Exception {
@@ -367,6 +380,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name(), notNullValue());
         assertThat(attributes.name().format, equalTo(nameIdFormat));
         assertThat(attributes.name().value, equalTo(nameId));
+
+        assertThat(attributes.privateAttributes(), iterableWithSize(1));
+        final List<SecureString> batmanIdentity = attributes.getPrivateAttributeValues("batman");
+        assertThat(batmanIdentity, iterableWithSize(1));
+        assertThat(batmanIdentity.getFirst(), equalTo(new SecureString("Bruce Wayne".toCharArray())));
     }
 
     public void testSuccessfullyParseContentFromEncryptedAssertion() throws Exception {
@@ -1484,7 +1502,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private Response toResponse(String xml) throws SAXException, IOException, ParserConfigurationException {
-        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        final DocumentBuilderFactory dbf = XmlUtils.getHardenedBuilderFactory();
         dbf.setNamespaceAware(true);
         final Document doc = dbf.newDocumentBuilder().parse(new InputSource(new StringReader(xml)));
         return authenticator.buildXmlObject(doc.getDocumentElement(), Response.class);
@@ -1628,8 +1646,15 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
             List.of("defenders", "netflix")
         );
+        final Attribute attribute3 = getAttribute(
+            "batman",
+            null,
+            "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
+            List.of("Bruce Wayne")
+        );
         attributeStatement.getAttributes().add(attribute1);
         attributeStatement.getAttributes().add(attribute2);
+        attributeStatement.getAttributes().add(attribute3);
         assertion.getAttributeStatements().add(attributeStatement);
         response.getAssertions().add(assertion);
         return response;
@@ -1680,6 +1705,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "         NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'"
             + "         Name='urn:oid:0.9.2342.19200300.100.1.1'>"
             + "        <assert:AttributeValue xsi:type='xs:string'>daredevil</assert:AttributeValue>"
+            + "      </assert:Attribute>"
+            + "    </assert:AttributeStatement>"
+            + "    <assert:AttributeStatement>"
+            + "      <assert:Attribute Name='batman' NameFormat='urn:oasis:names:tc:SAML:2.0:attrname-format:uri'>"
+            + "           <assert:AttributeValue xsi:type='xs:string'>Bruce Wayne</assert:AttributeValue>"
             + "      </assert:Attribute>"
             + "    </assert:AttributeStatement>"
             + "    <assert:AttributeStatement>"

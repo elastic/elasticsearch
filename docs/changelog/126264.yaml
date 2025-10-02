@@ -1,5 +1,0 @@
-pr: 126264
-summary: '`FileWatchingService` shoudld not throw for missing file'
-area: Infra/Settings
-type: enhancement
-issues: []

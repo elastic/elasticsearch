@@ -1,4 +1,4 @@
-# SQL Limitations [sql-limitations]
+# SQL limitations [sql-limitations]
 
 
 ## Large queries may throw `ParsingException` [large-parsing-trees]

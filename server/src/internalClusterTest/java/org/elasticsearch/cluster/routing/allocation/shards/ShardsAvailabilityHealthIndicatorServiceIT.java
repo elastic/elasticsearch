@@ -23,6 +23,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
@@ -144,7 +145,16 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
                 states.add(
                     new RoutingNodesAndHealth(
                         event.state().getRoutingNodes(),
-                        service.calculate(false, 1, new HealthInfo(Map.of(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of()))
+                        service.calculate(
+                            false,
+                            1,
+                            new HealthInfo(
+                                Map.of(),
+                                DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+                                Map.of(),
+                                FileSettingsHealthInfo.INDETERMINATE
+                            )
+                        )
                     )
                 );
             }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -45,8 +46,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
@@ -158,9 +157,9 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     // CopyPart is UploadPart with an x-amz-copy-source header
-                    final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
-                    if (sourceBlobName != null) {
-                        var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                    final var copySource = copySourceName(exchange);
+                    if (copySource != null) {
+                        var sourceBlob = blobs.get(copySource);
                         if (sourceBlob == null) {
                             exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                         } else {
@@ -189,8 +188,9 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isCompleteMultipartUploadRequest()) {
                 final byte[] responseBody;
+                boolean preconditionFailed = false;
                 synchronized (uploads) {
-                    final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                    final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                     if (upload == null) {
                         if (Randomness.get().nextBoolean()) {
                             responseBody = null;
@@ -206,19 +206,35 @@ public class S3HttpHandler implements HttpHandler {
                         }
                     } else {
                         final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                        blobs.put(request.path(), blobContents);
-                        responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            + "<CompleteMultipartUploadResult>\n"
-                            + "<Bucket>"
-                            + bucket
-                            + "</Bucket>\n"
-                            + "<Key>"
-                            + request.path()
-                            + "</Key>\n"
-                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+
+                        if (isProtectOverwrite(exchange)) {
+                            var previousValue = blobs.putIfAbsent(request.path(), blobContents);
+                            if (previousValue != null) {
+                                preconditionFailed = true;
+                            }
+                        } else {
+                            blobs.put(request.path(), blobContents);
+                        }
+
+                        if (preconditionFailed == false) {
+                            responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                + "<CompleteMultipartUploadResult>\n"
+                                + "<Bucket>"
+                                + bucket
+                                + "</Bucket>\n"
+                                + "<Key>"
+                                + request.path()
+                                + "</Key>\n"
+                                + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                            removeUpload(upload.getUploadId());
+                        } else {
+                            responseBody = null;
+                        }
                     }
                 }
-                if (responseBody == null) {
+                if (preconditionFailed) {
+                    exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
+                } else if (responseBody == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
@@ -230,10 +246,14 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isPutObjectRequest()) {
-                // a copy request is a put request with a copy source header
-                final var sourceBlobName = exchange.getRequestHeaders().get("X-amz-copy-source");
-                if (sourceBlobName != null) {
-                    var sourceBlob = blobs.get(sourceBlobName.getFirst());
+                // a copy request is a put request with an X-amz-copy-source header
+                final var copySource = copySourceName(exchange);
+                if (copySource != null) {
+                    if (isProtectOverwrite(exchange)) {
+                        throw new AssertionError("If-None-Match: * header is not supported here");
+                    }
+
+                    var sourceBlob = blobs.get(copySource);
                     if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {
@@ -248,9 +268,22 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    blobs.put(request.path(), blob.v2());
-                    exchange.getResponseHeaders().add("ETag", blob.v1());
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    boolean preconditionFailed = false;
+                    if (isProtectOverwrite(exchange)) {
+                        var previousValue = blobs.putIfAbsent(request.path(), blob.v2());
+                        if (previousValue != null) {
+                            preconditionFailed = true;
+                        }
+                    } else {
+                        blobs.put(request.path(), blob.v2());
+                    }
+
+                    if (preconditionFailed) {
+                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
+                    } else {
+                        exchange.getResponseHeaders().add("ETag", blob.v1());
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    }
                 }
 
             } else if (request.isListObjectsRequest()) {
@@ -471,7 +504,7 @@ public class S3HttpHandler implements HttpHandler {
 
     static List<String> extractPartEtags(BytesReference completeMultipartUploadBody) {
         try {
-            final var document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(completeMultipartUploadBody.streamInput());
+            final var document = XmlUtils.getHardenedBuilderFactory().newDocumentBuilder().parse(completeMultipartUploadBody.streamInput());
             final var parts = document.getElementsByTagName("Part");
             final var result = new ArrayList<String>(parts.getLength());
             for (int partIndex = 0; partIndex < parts.getLength(); partIndex++) {
@@ -514,6 +547,21 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
+    @Nullable // if no X-amz-copy-source header present
+    private static String copySourceName(final HttpExchange exchange) {
+        final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+        if (copySources != null) {
+            if (copySources.size() != 1) {
+                throw new AssertionError("multiple X-amz-copy-source headers found: " + copySources);
+            }
+            final var copySource = copySources.get(0);
+            // SDKv1 uses format /bucket/path/blob whereas SDKv2 omits the leading / so we must add it back in
+            return copySource.length() > 0 && copySource.charAt(0) == '/' ? copySource : ("/" + copySource);
+        } else {
+            return null;
+        }
+    }
+
     private static HttpHeaderParser.Range parsePartRange(final HttpExchange exchange) {
         final var sourceRangeHeaders = exchange.getRequestHeaders().get("X-amz-copy-source-range");
         if (sourceRangeHeaders == null) {
@@ -523,6 +571,24 @@ public class S3HttpHandler implements HttpHandler {
             throw new IllegalStateException("expected 1 x-amz-copy-source-range header, found " + sourceRangeHeaders.size());
         }
         return parseRangeHeader(sourceRangeHeaders.getFirst());
+    }
+
+    private static boolean isProtectOverwrite(final HttpExchange exchange) {
+        final var ifNoneMatch = exchange.getRequestHeaders().get("If-None-Match");
+
+        if (ifNoneMatch == null) {
+            return false;
+        }
+
+        if (ifNoneMatch.size() != 1) {
+            throw new AssertionError("multiple If-None-Match headers found: " + ifNoneMatch);
+        }
+
+        if (ifNoneMatch.getFirst().equals("*")) {
+            return true;
+        }
+
+        throw new AssertionError("invalid If-None-Match header: " + ifNoneMatch);
     }
 
     MultipartUpload putUpload(String path) {

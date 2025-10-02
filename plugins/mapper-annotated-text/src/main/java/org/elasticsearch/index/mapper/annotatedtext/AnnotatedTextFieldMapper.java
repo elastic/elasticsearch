@@ -82,7 +82,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
-        final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
+        final Parameter<Boolean> norms = Parameter.normsParam(m -> builder(m).norms.getValue(), true);
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -135,7 +135,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 store.getValue(),
                 tsi,
                 context.isSourceSynthetic(),
-                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
+                TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                 meta.getValue()
             );
         }

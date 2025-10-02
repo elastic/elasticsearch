@@ -2,19 +2,25 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-slowlog.html
 navigation_title: Slow log
+applies_to:
+  stack: all
 ---
 
 # Slow log settings [index-modules-slowlog]
 
+:::{include} _snippets/serverless-availability.md
+:::
+
 The slow log records database searching and indexing events that have execution durations above specified thresholds. You can use these logs to investigate analyze or troubleshoot your cluster’s historical search and indexing performance.
 
-Slow logs report task duration at the shard level for searches, and at the index level for indexing, but might not encompass the full task execution time observed on the client. For example, slow logs don’t surface HTTP network delays or the impact of [task queues](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md).
+Slow logs report task duration at the shard level for searches, and at the index level for indexing, but might not encompass the full task execution time observed on the client. For example, slow logs don’t surface HTTP network delays or the impact of [task queues](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md). For more information about the higher-level operations affecting response times, refer to [Reading and writing documents](docs-content://deploy-manage/distributed-architecture/reading-and-writing-documents.md).
 
 Events that meet the specified threshold are emitted into [{{es}} logging](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md) under the `fileset.name` of `slowlog`. These logs can be viewed in the following locations:
 
 * If [{{es}} monitoring](docs-content://deploy-manage/monitor/stack-monitoring.md) is enabled, from [Stack Monitoring](docs-content://deploy-manage/monitor/monitoring-data/visualizing-monitoring-data.md). Slow log events have a `logger` value of `index.search.slowlog` or `index.indexing.slowlog`.
 * From local {{es}} service logs directory. Slow log files have a suffix of `_index_search_slowlog.json` or `_index_indexing_slowlog.json`.
 
+See this [this video](https://www.youtube.com/watch?v=ulUPJshB5bU) for a walkthrough of setting and reviewing slow logs.
 
 ## Slow log format [slow-log-format]
 

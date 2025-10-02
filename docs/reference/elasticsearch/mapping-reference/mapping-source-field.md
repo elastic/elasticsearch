@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # _source field [mapping-source-field]
@@ -14,7 +17,11 @@ If disk usage is important to you, then consider the following options:
 
 ## Synthetic `_source` [synthetic-source]
 
-Though very handy to have around, the source field takes up a significant amount of space on disk. Instead of storing source documents on disk exactly as you send them, Elasticsearch can reconstruct source content on the fly upon retrieval. To enable this [subscription](https://www.elastic.co/subscriptions) feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
+:::{note}
+This feature requires a [subscription](https://www.elastic.co/subscriptions).
+:::
+
+Though very handy to have around, the source field takes up a significant amount of space on disk. Instead of storing source documents on disk exactly as you send them, Elasticsearch can reconstruct source content on the fly upon retrieval. To enable this feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
 
 $$$enable-synthetic-source-example$$$
 
@@ -48,7 +55,7 @@ For all other field types, the original value of the field is stored as is, in t
 
 Some field types have additional restrictions. These restrictions are documented in the **synthetic `_source`** section of the field type’s [documentation](/reference/elasticsearch/mapping-reference/field-data-types.md).
 
-Synthetic source is not supported in [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. To store indexes that use synthetic `_source`, choose a different repository type.
+Synthetic source is not supported in [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. To store indices that use synthetic `_source`, choose a different repository type.
 
 ### Synthetic `_source` modifications [synthetic-source-modifications]
 
@@ -305,13 +312,12 @@ PUT my-index-000001
 }
 ```
 
-::::{admonition} Think before disabling the `_source` field
-:class: warning
+::::{warning}
 
-Users often disable the `_source` field without thinking about the consequences, and then live to regret it. If the `_source` field isn’t available then a number of features are not supported:
+Do not disable the `_source` field, unless absolutely necessary. If you disable it, the following critical features will not be supported:
 
 * The [`update`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update), [`update_by_query`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query), and [`reindex`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) APIs.
-* In the {{kib}} [Discover](docs-content://explore-analyze/discover.md) application, field data will not be displayed.
+* Display of field data in the {{kib}} [Discover](docs-content://explore-analyze/discover.md) application.
 * On the fly [highlighting](/reference/elasticsearch/rest-apis/highlighting.md).
 * The ability to reindex from one Elasticsearch index to another, either to change mappings or analysis, or to upgrade an index to a new major version.
 * The ability to debug queries or aggregations by viewing the original document used at index time.
@@ -320,7 +326,7 @@ Users often disable the `_source` field without thinking about the consequences,
 ::::
 
 ::::{note}
-You can't disable the `_source` field for indexes with [`index_mode`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) set to `logsdb` or `time_series`.
+You can't disable the `_source` field for indices with [`index_mode`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) set to `logsdb` or `time_series`.
 ::::
 
 

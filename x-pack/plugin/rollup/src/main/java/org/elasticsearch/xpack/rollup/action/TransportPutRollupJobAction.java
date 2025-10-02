@@ -29,7 +29,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -78,6 +80,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     private final PersistentTasksService persistentTasksService;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutRollupJobAction(
@@ -86,7 +89,8 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         ActionFilters actionFilters,
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             PutRollupJobAction.NAME,
@@ -99,7 +103,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         );
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -113,10 +117,11 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
-        int numberOfCurrentRollupJobs = RollupUsageTransportAction.findNumberOfRollupJobs(clusterState);
+        final var project = projectResolver.getProjectMetadata(clusterState);
+        int numberOfCurrentRollupJobs = RollupUsageTransportAction.findNumberOfRollupJobs(project);
         if (numberOfCurrentRollupJobs == 0) {
             try {
-                boolean hasRollupIndices = hasRollupIndices(clusterState.getMetadata());
+                boolean hasRollupIndices = hasRollupIndices(project);
                 if (hasRollupIndices == false) {
                     listener.onFailure(
                         new IllegalArgumentException(
@@ -135,6 +140,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
+        final var projectId = project.id();
         client.fieldCaps(fieldCapsRequest, listener.delegateFailure((l, fieldCapabilitiesResponse) -> {
             ActionRequestValidationException validationException = request.validateMappings(fieldCapabilitiesResponse.get());
             if (validationException != null) {
@@ -143,7 +149,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             }
 
             RollupJob job = createRollupJob(request.getConfig(), threadPool);
-            createIndex(job, l, persistentTasksService, client, LOGGER);
+            createIndex(projectId, job, l, persistentTasksService, client, LOGGER);
         }));
     }
 
@@ -177,6 +183,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
     }
 
     static void createIndex(
+        ProjectId projectId,
         RollupJob job,
         ActionListener<AcknowledgedResponse> listener,
         PersistentTasksService persistentTasksService,
@@ -196,10 +203,10 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         client.execute(
             TransportCreateIndexAction.TYPE,
             request,
-            ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
+            ActionListener.wrap(createIndexResponse -> startPersistentTask(projectId, job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
                     logger.debug("Rolled index already exists for rollup job [" + job.getConfig().getId() + "], updating metadata.");
-                    updateMapping(job, listener, persistentTasksService, client, logger, request.masterNodeTimeout());
+                    updateMapping(projectId, job, listener, persistentTasksService, client, logger, request.masterNodeTimeout());
                 } else {
                     String msg = "Could not create index for rollup job [" + job.getConfig().getId() + "]";
                     logger.error(msg);
@@ -245,6 +252,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     @SuppressWarnings("unchecked")
     static void updateMapping(
+        ProjectId projectId,
         RollupJob job,
         ActionListener<AcknowledgedResponse> listener,
         PersistentTasksService persistentTasksService,
@@ -301,7 +309,10 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             client.execute(
                 TransportPutMappingAction.TYPE,
                 request,
-                ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService), listener::onFailure)
+                ActionListener.wrap(
+                    putMappingResponse -> startPersistentTask(projectId, job, listener, persistentTasksService),
+                    listener::onFailure
+                )
             );
         };
 
@@ -314,17 +325,19 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
     }
 
     static void startPersistentTask(
+        ProjectId projectId,
         RollupJob job,
         ActionListener<AcknowledgedResponse> listener,
         PersistentTasksService persistentTasksService
     ) {
         assertNoAuthorizationHeader(job.getHeaders());
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendProjectStartRequest(
+            projectId,
             job.getConfig().getId(),
             RollupField.TASK_NAME,
             job,
             TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
-            ActionListener.wrap(rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService), e -> {
+            ActionListener.wrap(rollupConfigPersistentTask -> waitForRollupStarted(projectId, job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot create job [" + job.getConfig().getId() + "] because it has already been created (task exists)",
@@ -338,11 +351,13 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
     }
 
     private static void waitForRollupStarted(
+        ProjectId projectId,
         RollupJob job,
         ActionListener<AcknowledgedResponse> listener,
         PersistentTasksService persistentTasksService
     ) {
         persistentTasksService.waitForPersistentTaskCondition(
+            projectId,
             job.getConfig().getId(),
             Objects::nonNull,
             job.getConfig().getTimeout(),
@@ -369,9 +384,9 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         );
     }
 
-    static boolean hasRollupIndices(Metadata metadata) throws IOException {
+    static boolean hasRollupIndices(ProjectMetadata project) throws IOException {
         // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
-        for (var imd : metadata.getProject()) {
+        for (var imd : project) {
             if (imd.mapping() == null) {
                 continue;
             }

@@ -76,6 +76,10 @@
           "type": "short",
           "index": false
         },
+        "Stacktrace.sampling_frequency": {
+          "type": "long",
+          "index": false
+        },
         "agent.version": {
           "type": "keyword"
         },

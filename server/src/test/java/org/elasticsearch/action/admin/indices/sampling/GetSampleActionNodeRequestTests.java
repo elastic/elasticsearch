@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -25,18 +24,13 @@ public class GetSampleActionNodeRequestTests extends AbstractWireSerializingTest
 
     @Override
     protected GetSampleAction.NodeRequest createTestInstance() {
-        return new GetSampleAction.NodeRequest(randomProjectIdOrDefault(), randomIdentifier());
+        return new GetSampleAction.NodeRequest(randomIdentifier());
     }
 
     @Override
     protected GetSampleAction.NodeRequest mutateInstance(GetSampleAction.NodeRequest instance) throws IOException {
-        ProjectId projectId = instance.getProjectId();
         String index = instance.indices()[0];
-        if (randomBoolean()) {
-            projectId = randomValueOtherThan(projectId, ESTestCase::randomProjectIdOrDefault);
-        } else {
-            index = randomValueOtherThan(index, ESTestCase::randomIdentifier);
-        }
-        return new GetSampleAction.NodeRequest(projectId, index);
+        index = randomValueOtherThan(index, ESTestCase::randomIdentifier);
+        return new GetSampleAction.NodeRequest(index);
     }
 }

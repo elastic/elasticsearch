@@ -86,6 +86,56 @@ public class ResponseValidatorTests extends ESTestCase {
         assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote));
     }
 
+    public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInTheSecondLinkedProject() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs", "P2:logs")
+                )
+            )
+        );
+
+        var remote = Map.of(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            ),
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        // we matched the flat resource in a linked project thus no error
+        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote));
+    }
+
     public void testMissingFlatExpressionWithStrictIgnoreUnavailable() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
@@ -121,7 +171,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
+        assertThat(e.getMessage(), containsString("no such index [logs]"));
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
@@ -404,7 +454,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
+        assertThat(e.getMessage(), containsString("no such index [logs*]"));
     }
 
     public void testUnauthorizedFlatExpressionWithStrictAllowNoIndices() {
@@ -442,7 +492,7 @@ public class ResponseValidatorTests extends ESTestCase {
         var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
+        assertThat(e.getMessage(), containsString("no such index [logs*]"));
     }
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {

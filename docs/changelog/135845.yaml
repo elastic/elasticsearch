@@ -1,0 +1,5 @@
+pr: 135845
+summary: Fix for creating semantic_text fields on pre-8.11 indices crashing Elasticsearch
+area: Mapping
+type: bug
+issues: []

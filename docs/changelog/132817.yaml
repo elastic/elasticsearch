@@ -1,0 +1,5 @@
+pr: 132817
+summary: Bump bc-fips to the latest version
+area: FIPS
+type: upgrade
+issues: []

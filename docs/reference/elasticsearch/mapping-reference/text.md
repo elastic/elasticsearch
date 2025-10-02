@@ -11,7 +11,7 @@ The text family includes the following field types:
 
 * [`text`](#text-field-type), the traditional field type for full-text content such as the body of an email or the description of a product.
 * [`match_only_text`](#match-only-text-field-type), a space-optimized variant of `text` that disables scoring and performs slower on queries that need positions. It is best suited for indexing log messages.
-* [`pattern_text`](#pattern-text-text-field-type), a variant of `text` with improved space efficiency when storing log messages.
+* [`pattern_text`](#pattern-text-field-type), a variant of `text` with improved space efficiency when storing log messages.
 
 
 ## Text field type [text-field-type]

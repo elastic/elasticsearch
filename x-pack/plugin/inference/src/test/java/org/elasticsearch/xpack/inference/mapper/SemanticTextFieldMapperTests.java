@@ -62,6 +62,7 @@ import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -122,6 +124,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
@@ -147,6 +150,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 return false;
             }
         });
+        registerDefaultEisEndpoint();
     }
 
     @After
@@ -167,6 +171,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 return () -> globalModelRegistry;
             }
         }, new XPackClientPlugin(), new TestInferenceServicePlugin());
+    }
+
+    private void registerDefaultEisEndpoint() {
+        globalModelRegistry.putDefaultIdIfAbsent(
+            new InferenceService.DefaultConfigId(
+                DEFAULT_ELSER_ENDPOINT_ID_V2,
+                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                mock(InferenceService.class)
+            )
+        );
     }
 
     private MapperService createMapperService(XContentBuilder mappings, boolean useLegacyFormat) throws IOException {
@@ -298,6 +312,39 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         // No indexable fields
         assertTrue(fields.isEmpty());
+    }
+
+    public void testDefaultInferenceIdUsesEisWhenAvailable() throws Exception {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_ENDPOINT_ID_V2, DEFAULT_ELSER_ENDPOINT_ID_V2);
+        DocumentMapper mapper = mapperService.documentMapper();
+        assertThat(mapper.mappingSource().toString(), containsString("\"inference_id\":\"" + DEFAULT_ELSER_ENDPOINT_ID_V2 + "\""));
+    }
+
+    public void testDefaultInferenceIdFallsBackWhenEisUnavailable() throws Exception {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        globalModelRegistry.clearDefaultIds();
+        try {
+            MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
+            assertInferenceEndpoints(
+                mapperService,
+                fieldName,
+                DEFAULT_FALLBACK_ELSER_INFERENCE_ID,
+                DEFAULT_FALLBACK_ELSER_INFERENCE_ID
+            );
+            DocumentMapper mapper = mapperService.documentMapper();
+            assertThat(
+                mapper.mappingSource().toString(),
+                containsString("\"inference_id\":\"" + DEFAULT_FALLBACK_ELSER_INFERENCE_ID + "\"")
+            );
+        } finally {
+            registerDefaultEisEndpoint();
+        }
     }
 
     public void testDynamicElserDefaultSelection() throws Exception {

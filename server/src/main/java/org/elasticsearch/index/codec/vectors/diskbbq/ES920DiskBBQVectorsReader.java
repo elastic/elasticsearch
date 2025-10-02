@@ -566,7 +566,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
                         qcDist
                     );
                     scoredDocs++;
-                    knnCollector.collect(doc, score);
+                    if (knnCollector.minCompetitiveSimilarity() < score) {
+                        knnCollector.collect(doc, score);
+                    }
                 } else {
                     indexInput.skipBytes(quantizedByteLength);
                 }

@@ -152,8 +152,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     );
 
     public static final String CONTENT_TYPE = "semantic_text";
-    public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
-    private static final String EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
+    public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
+    private static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
 
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
@@ -163,10 +163,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * This enables automatic selection of EIS for better performance while maintaining compatibility with on-prem deployments.
      */
     private static String getPreferredElserInferenceId(ModelRegistry modelRegistry) {
-        if (modelRegistry != null && modelRegistry.containsDefaultConfigId(EIS_ELSER_INFERENCE_ID)) {
-            return EIS_ELSER_INFERENCE_ID;
+        if (modelRegistry != null && modelRegistry.containsDefaultConfigId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
+            return DEFAULT_EIS_ELSER_INFERENCE_ID;
         }
-        return DEFAULT_ELSER_ID;
+        return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
     }
 
     static final String INDEX_OPTIONS_FIELD = "index_options";

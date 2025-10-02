@@ -75,12 +75,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             // not grouping
             List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();
 
-            // append channels to the layout
-            if (aggregatorMode.isOutputPartial()) {
-                layout.append(aggregateExec.output());
-            } else {
-                layout.append(aggregates);
-            }
+            layout.append(aggregateExec.output());
 
             // create the agg factories
             aggregatesToFactory(

@@ -22,13 +22,21 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -52,6 +60,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -93,7 +102,6 @@ public class Approximate {
         void run(LogicalPlan plan, ActionListener<Result> listener);
     }
 
-
     /**
      * These commands preserve all rows, making it easy to predict the number of output rows.
      */
@@ -112,10 +120,25 @@ public class Approximate {
         Rename.class
     );
 
+    private static final Set<Class<? extends AggregateFunction>> SUPPORTED_SINGLE_VALUED_AGGS = Set.of(
+        Avg.class,
+        Count.class,
+        Median.class,
+        MedianAbsoluteDeviation.class,
+        Percentile.class,
+        StdDev.class,
+        Sum.class,
+        WeightedAvg.class
+    );
+
+    private static final Set<Class<? extends AggregateFunction>> SUPPORTED_MULTI_VALUED_AGGS = Set.of(
+        org.elasticsearch.xpack.esql.expression.function.aggregate.Sample.class
+    );
+
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 100000;
 
-    private static final int BUCKET_COUNT = 3;
+    private static final int BUCKET_COUNT = 16;
 
     private static final Logger logger = LogManager.getLogger(Approximate.class);
 
@@ -153,7 +176,7 @@ public class Approximate {
         logicalPlan.forEachUp(plan -> {
             if (plan instanceof LeafPlan == false && plan instanceof UnaryPlan == false) {
                 throw new VerificationException(
-                    List.of(Failure.fail(plan, "query with [" + plan.nodeName() + "] cannot be approximated"))
+                    List.of(Failure.fail(plan, "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] cannot be approximated"))
                 );
             }
         });
@@ -162,8 +185,16 @@ public class Approximate {
         Holder<Boolean> hasFilters = new Holder<>(false);
         logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
-                if (plan instanceof Aggregate) {
+                if (plan instanceof Aggregate aggregate) {
                     encounteredStats.set(true);
+                    plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
+                        if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false && SUPPORTED_MULTI_VALUED_AGGS.contains(aggFn.getClass()) == false) {
+                            throw new VerificationException(
+                                List.of(Failure.fail(aggFn, "aggregation function [" + aggFn.nodeName().toUpperCase() + "] cannot be approximated"))
+                            );
+                        }
+                        return aggFn;
+                    });
                 } else if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false) {
                     hasFilters.set(true);
                 }
@@ -316,7 +347,7 @@ public class Approximate {
 
                 Eval addBucketId = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
                 List<NamedExpression> aggregates = new ArrayList<>();
-                Expression allBucketsNonNull = Literal.TRUE;
+                Expression allBucketsNonEmpty = Literal.TRUE;
                 for (NamedExpression aggOrKey : aggregate.aggregates()) {
                     if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
                         // This is a grouping key, not an aggregate function.
@@ -325,8 +356,10 @@ public class Approximate {
                     }
                     Alias aggAlias = (Alias) aggOrKey;
                     AggregateFunction agg = (AggregateFunction) aggAlias.child();
+                    boolean isMultiValued = SUPPORTED_MULTI_VALUED_AGGS.contains(agg.getClass());
+                    int bucketCount = isMultiValued ? 0 : BUCKET_COUNT;
                     List<Alias> bucketedAggs = new ArrayList<>();
-                    for (int bucketId = -1; bucketId < BUCKET_COUNT; bucketId++) {
+                    for (int bucketId = -1; bucketId < bucketCount; bucketId++) {
                         AggregateFunction bucketedAgg = agg.withFilter(
                             new MvContains(Source.EMPTY, bucketIdField.toAttribute(), Literal.integer(Source.EMPTY, bucketId)));
                         Expression correctedAgg = bucketedAgg instanceof NeedsSampleCorrection nsc
@@ -345,12 +378,17 @@ public class Approximate {
                         if (bucketId >= 0) {
                             bucketedAggs.add(correctedAggAlias);
                         }
-                        allBucketsNonNull = new And(Source.EMPTY, allBucketsNonNull, new IsNotNull(Source.EMPTY, correctedAggAlias.toAttribute()));
+                        allBucketsNonEmpty = new And(Source.EMPTY, allBucketsNonEmpty,
+                            agg instanceof Count
+                                ? new NotEquals(Source.EMPTY, correctedAggAlias.toAttribute(), Literal.integer(Source.EMPTY, 0))
+                                : new IsNotNull(Source.EMPTY, correctedAggAlias.toAttribute()));
                     }
-                    variablesWithConfidenceInterval.put(aggOrKey.id(), bucketedAggs);
+                    if (isMultiValued == false) {
+                        variablesWithConfidenceInterval.put(aggOrKey.id(), bucketedAggs);
+                    }
                 }
                 plan = aggregate.with(addBucketId, aggregate.groupings(), aggregates);
-                plan = new Filter(Source.EMPTY, plan, allBucketsNonNull);
+                plan = new Filter(Source.EMPTY, plan, allBucketsNonEmpty);
 
             } else if (encounteredStats.get()) {
                 switch (plan) {

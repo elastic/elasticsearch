@@ -12,6 +12,7 @@ import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
+import org.elasticsearch.geo.GeometryFieldTypeTestCase;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
@@ -20,7 +21,6 @@ import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
@@ -34,7 +34,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
+public class GeoShapeWithDocValuesFieldTypeTests extends GeometryFieldTypeTestCase {
 
     public void testFetchSourceValue() throws Exception {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
@@ -49,6 +49,13 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             geoFormatterFactory
         ).build(MapperBuilderContext.root(false, false)).fieldType();
 
+        Map<String, Object> mapLineString = Map.of(
+            "type",
+            "LineString",
+            "coordinates",
+            List.of(new double[] { 42.0, 27.1 }, new double[] { 30.0, 50.0 })
+        );
+        Map<String, Object> mapPoint = Map.of("type", "Point", "coordinates", new double[] { 14.0, 15.0 });
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
         Map<String, Object> jsonMalformed = Map.of("type", "Point", "coordinates", "foo");
@@ -63,7 +70,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         // Test a single shape in geojson format.
         Object sourceValue = jsonLineString;
-        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapLineString), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
         List<?> wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(1));
@@ -77,7 +84,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         // Test a list of shapes in geojson format.
         sourceValue = List.of(jsonLineString, jsonPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapLineString, mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
         wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(2));
@@ -86,7 +93,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         // Test a list of shapes including one malformed in geojson format
         sourceValue = List.of(jsonLineString, jsonMalformed, jsonPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapLineString, mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
         wkb = fetchSourceValue(mapper, sourceValue, "wkb");
         assertThat(wkb.size(), equalTo(2));
@@ -95,7 +102,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         // Test a single shape in wkt format.
         sourceValue = wktLineString;
-        assertEquals(List.of(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapLineString), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a single malformed shape in wkt format
@@ -105,12 +112,12 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         // Test a list of shapes in wkt format.
         sourceValue = List.of(wktLineString, wktPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapLineString, mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a list of shapes including one malformed in wkt format
         sourceValue = List.of(wktLineString, wktMalformed, wktPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(mapLineString, mapPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 
@@ -128,8 +135,13 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             geoFormatterFactory
         ).setStored(true).build(MapperBuilderContext.root(randomBoolean(), false)).fieldType();
 
-        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
-        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
+        Map<String, Object> mapLineString = Map.of(
+            "type",
+            "LineString",
+            "coordinates",
+            List.of(new double[] { 42.0, 27.1 }, new double[] { 30.0, 50.0 })
+        );
+        Map<String, Object> mapPoint = Map.of("type", "Point", "coordinates", new double[] { 14.0, 15.0 });
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
 
@@ -139,7 +151,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         BytesRef wkbPoint = new BytesRef(WellKnownBinary.toWKB(new Point(14.0, 15.0), ByteOrder.LITTLE_ENDIAN));
         // Test a single shape in wkb format.
         List<Object> storedValues = List.of(wkbLineString);
-        assertEquals(List.of(jsonLineString), fetchStoredValue(mapper, storedValues, null));
+        assertGeoJsonFetch(List.of(mapLineString), fetchStoredValue(mapper, storedValues, null));
         assertEquals(List.of(wktLineString), fetchStoredValue(mapper, storedValues, "wkt"));
         List<?> wkb = fetchStoredValue(mapper, storedValues, "wkb");
         assertThat(wkb.size(), equalTo(1));
@@ -147,7 +159,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         // Test a list of shapes in wkb format.
         storedValues = List.of(wkbLineString, wkbPoint);
-        assertEquals(List.of(jsonLineString, jsonPoint), fetchStoredValue(mapper, storedValues, null));
+        assertGeoJsonFetch(List.of(mapLineString, mapPoint), fetchStoredValue(mapper, storedValues, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchStoredValue(mapper, storedValues, "wkt"));
         wkb = fetchStoredValue(mapper, storedValues, "wkb");
         assertThat(wkb.size(), equalTo(2));
@@ -219,7 +231,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourcePolygonDateLine() throws Exception {
-        assertFetchGeometry(
+        assertGeoJsonFetchGeometry(
             "POLYGON((170 -10, -170 -10, -170 10, 170 10, 170 -10))",
             "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
                 + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))",
@@ -230,20 +242,20 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
                 List.of(
                     List.of(
                         List.of(
-                            List.of(180.0, -10.0),
-                            List.of(180.0, 10.0),
-                            List.of(170.0, 10.0),
-                            List.of(170.0, -10.0),
-                            List.of(180.0, -10.0)
+                            new double[] { 180.0, -10.0 },
+                            new double[] { 180.0, 10.0 },
+                            new double[] { 170.0, 10.0 },
+                            new double[] { 170.0, -10.0 },
+                            new double[] { 180.0, -10.0 }
                         )
                     ),
                     List.of(
                         List.of(
-                            List.of(-180.0, 10.0),
-                            List.of(-180.0, -10.0),
-                            List.of(-170.0, -10.0),
-                            List.of(-170.0, 10.0),
-                            List.of(-180.0, 10.0)
+                            new double[] { -180.0, 10.0 },
+                            new double[] { -180.0, -10.0 },
+                            new double[] { -170.0, -10.0 },
+                            new double[] { -170.0, 10.0 },
+                            new double[] { -180.0, 10.0 }
                         )
                     )
                 )
@@ -254,31 +266,31 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceEnvelope() throws Exception {
-        assertFetchGeometry(
+        assertGeoJsonFetchGeometry(
             "BBOX(-10, 10, 10, -10)",
             "BBOX (-10.0, 10.0, 10.0, -10.0)",
-            Map.of("type", "Envelope", "coordinates", List.of(List.of(-10.0, 10.0), List.of(10.0, -10.0))),
+            Map.of("type", "Envelope", "coordinates", List.of(new double[] { -10.0, 10.0 }, new double[] { 10.0, -10.0 })),
             "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10)))"
         );
     }
 
     public void testFetchSourceEnvelopeDateLine() throws Exception {
-        assertFetchGeometry(
+        assertGeoJsonFetchGeometry(
             "BBOX(10, -10, 10, -10)",
             "BBOX (10.0, -10.0, 10.0, -10.0)",
-            Map.of("type", "Envelope", "coordinates", List.of(List.of(10.0, 10.0), List.of(-10.0, -10.0))),
+            Map.of("type", "Envelope", "coordinates", List.of(new double[] { 10.0, 10.0 }, new double[] { -10.0, -10.0 })),
             "MULTIPOLYGON (((-180 -10, -10 -10, -10 10, -180 10, -180 -10)), ((10 -10, 180 -10, 180 10, 10 10, 10 -10)))"
         );
     }
 
-    private void assertFetchGeometry(Object sourceValue, String wktValue, Map<String, Object> jsonValue, String mvtEquivalentAsWKT)
+    private void assertGeoJsonFetchGeometry(Object sourceValue, String wktValue, Map<String, Object> jsonValue, String mvtEquivalentAsWKT)
         throws Exception {
-        assertFetchSourceGeometry(sourceValue, wktValue, jsonValue);
-        assertFetchSourceMVT(sourceValue, mvtEquivalentAsWKT);
-        assertFetchStoredGeometry(wktValue, jsonValue);
+        assertGeoJsonFetchSourceGeometry(sourceValue, wktValue, jsonValue);
+        assertGeoJsonFetchSourceMVT(sourceValue, mvtEquivalentAsWKT);
+        assertGeoJsonFetchStoredGeometry(wktValue, jsonValue);
     }
 
-    private void assertFetchSourceGeometry(Object sourceValue, String wktValue, Map<String, Object> jsonValue) throws IOException {
+    private void assertGeoJsonFetchSourceGeometry(Object sourceValue, String wktValue, Map<String, Object> jsonValue) throws IOException {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
         );
@@ -291,11 +303,11 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             geoFormatterFactory
         ).build(MapperBuilderContext.root(false, false)).fieldType();
 
-        assertEquals(List.of(jsonValue), fetchSourceValue(mapper, sourceValue, null));
+        assertGeoJsonFetch(List.of(jsonValue), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktValue), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 
-    private void assertFetchStoredGeometry(String wktValue, Map<String, Object> jsonValue) throws Exception {
+    private void assertGeoJsonFetchStoredGeometry(String wktValue, Map<String, Object> jsonValue) throws Exception {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
         );
@@ -312,11 +324,11 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
         BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(geometry, randomBoolean() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN));
 
-        assertEquals(List.of(jsonValue), fetchStoredValue(mapper, List.of(wkb), null));
+        assertGeoJsonFetch(List.of(jsonValue), fetchStoredValue(mapper, List.of(wkb), null));
         assertEquals(List.of(wktValue), fetchStoredValue(mapper, List.of(wkb), "wkt"));
     }
 
-    private void assertFetchSourceMVT(Object sourceValue, String mvtEquivalentAsWKT) throws IOException {
+    private void assertGeoJsonFetchSourceMVT(Object sourceValue, String mvtEquivalentAsWKT) throws IOException {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
         );

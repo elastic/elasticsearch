@@ -65,7 +65,6 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -103,10 +102,9 @@ public class TransportDownsampleActionTests extends ESTestCase {
     @Mock
     private MapperService mapperService;
 
-    private static final String TEMPLATE_MAPPING = """
+    private static final String MAPPING = """
         {
           "_doc": {
-            %s
             "properties": {
               "attributes.host": {
                 "type": "keyword",
@@ -119,23 +117,6 @@ public class TransportDownsampleActionTests extends ESTestCase {
             }
           }
         }""";
-
-    private static final String NO_METADATA_MAPPING = String.format(Locale.ROOT, TEMPLATE_MAPPING, "");
-    private static final String OTHER_METADATA_MAPPING = String.format(
-        Locale.ROOT,
-        TEMPLATE_MAPPING,
-        "\"_meta\":{\"downsample.forcemerge.enabled\":100},"
-    );
-    private static final String FORCE_MERGE_ENABLED_MAPPING = String.format(
-        Locale.ROOT,
-        TEMPLATE_MAPPING,
-        "\"_meta\":{\"downsample.forcemerge.enabled\":true},"
-    );
-    private static final String FORCE_MERGE_DISABLED_MAPPING = String.format(
-        Locale.ROOT,
-        TEMPLATE_MAPPING,
-        "\"_meta\":{\"downsample.forcemerge.enabled\":false},"
-    );
 
     private TransportDownsampleAction action;
 
@@ -175,11 +156,13 @@ public class TransportDownsampleActionTests extends ESTestCase {
         projectId = randomProjectIdOrDefault();
         task = new Task(1, "type", "action", "description", null, null);
 
+        // Initialise mocks for thread pool and cluster service
         var threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(clusterService.localNode()).thenReturn(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "node_name"));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
+        // Mock refresh & flush requests
         Answer<Void> mockBroadcastResponse = invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<BroadcastResponse>) invocation.getArgument(1, ActionListener.class);
@@ -187,17 +170,34 @@ public class TransportDownsampleActionTests extends ESTestCase {
             return null;
         };
         doAnswer(mockBroadcastResponse).when(indicesAdminClient).refresh(any(), any());
-        doAnswer(mockBroadcastResponse).when(indicesAdminClient).forceMerge(any(), any());
+        doAnswer(mockBroadcastResponse).when(indicesAdminClient).flush(any(), any());
+
+        // Mocks for updating downsampling metadata
         doAnswer(invocation -> {
             var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
             updateTask.listener.onResponse(randomBoolean() ? AcknowledgedResponse.TRUE : AcknowledgedResponse.FALSE);
             return null;
         }).when(taskQueue).submitTask(startsWith("update-downsample-metadata"), any(), any());
+
+        // Mocks for mapping retrieval & merging
         when(indicesService.createIndexMapperServiceForValidation(any())).thenReturn(mapperService);
         MappedFieldType timestampFieldMock = mock(MappedFieldType.class);
         when(timestampFieldMock.meta()).thenReturn(Map.of());
         when(mapperService.fieldType(any())).thenReturn(timestampFieldMock);
         when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetMappingsResponse>) invocation.getArgument(1, ActionListener.class);
+            listener.onResponse(
+                new GetMappingsResponse(
+                    Map.of(sourceIndex, new MappingMetadata("_doc", XContentHelper.convertToMap(JsonXContent.jsonXContent, MAPPING, true)))
+                )
+            );
+            return null;
+        }).when(indicesAdminClient).getMappings(any(), any());
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON(MAPPING));
+        when(mapperService.merge(anyString(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
     }
 
     @After
@@ -206,25 +206,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         mocks.close();
     }
 
-    public void testDownsamplingWithForceMerge() throws IOException {
-        String mapping = switch (randomIntBetween(0, 2)) {
-            case 0 -> NO_METADATA_MAPPING;
-            case 1 -> OTHER_METADATA_MAPPING;
-            default -> FORCE_MERGE_ENABLED_MAPPING;
-        };
-        downsample(mapping);
-        verify(indicesAdminClient).forceMerge(any(), any());
-    }
-
-    public void testDownsamplingSkipsForceMerge() throws IOException {
-        downsample(FORCE_MERGE_DISABLED_MAPPING);
-        verify(indicesAdminClient, never()).forceMerge(any(), any());
-    }
-
-    private void downsample(String mapping) throws IOException {
-        mockGetMapping(mapping);
-        mockMergedMapping(mapping);
-
+    public void testDownsampling() {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .build();
@@ -243,14 +225,14 @@ public class TransportDownsampleActionTests extends ESTestCase {
         }).when(taskQueue).submitTask(startsWith("create-downsample-index"), any(), any());
         Answer<Void> mockPersistentTask = invocation -> {
             ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = invocation.getArgument(4);
-            PersistentTasksCustomMetadata.PersistentTask<?> task = mock(PersistentTasksCustomMetadata.PersistentTask.class);
-            when(task.getId()).thenReturn(randomAlphaOfLength(10));
+            PersistentTasksCustomMetadata.PersistentTask<?> task1 = mock(PersistentTasksCustomMetadata.PersistentTask.class);
+            when(task1.getId()).thenReturn(randomAlphaOfLength(10));
             DownsampleShardPersistentTaskState runningTaskState = new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.COMPLETED,
                 null
             );
-            when(task.getState()).thenReturn(runningTaskState);
-            listener.onResponse(task);
+            when(task1.getState()).thenReturn(runningTaskState);
+            listener.onResponse(task1);
             return null;
         };
         doAnswer(mockPersistentTask).when(persistentTaskService).sendStartRequest(anyString(), anyString(), any(), any(), any());
@@ -275,18 +257,10 @@ public class TransportDownsampleActionTests extends ESTestCase {
             listener
         );
         safeGet(listener);
-        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+        verifyIndexFinalisation();
     }
 
     public void testDownsamplingForceMergeWithShortCircuitAfterCreation() {
-        String mapping = switch (randomIntBetween(0, 3)) {
-            case 0 -> NO_METADATA_MAPPING;
-            case 1 -> OTHER_METADATA_MAPPING;
-            case 2 -> FORCE_MERGE_ENABLED_MAPPING;
-            default -> FORCE_MERGE_DISABLED_MAPPING;
-        };
-        mockGetMapping(mapping);
-
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .put(createTargetIndexMetadata(targetIndex, primaryShards, replicaShards))
@@ -313,29 +287,10 @@ public class TransportDownsampleActionTests extends ESTestCase {
             listener
         );
         safeGet(listener);
-        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
-        verify(indicesAdminClient).forceMerge(any(), any());
+        verifyIndexFinalisation();
     }
 
-    public void testDownsamplingForceMergeWithShortCircuitDuringCreation() throws IOException {
-        String mapping = switch (randomIntBetween(0, 2)) {
-            case 0 -> NO_METADATA_MAPPING;
-            case 1 -> OTHER_METADATA_MAPPING;
-            default -> FORCE_MERGE_ENABLED_MAPPING;
-        };
-        downsampleWithShortCircuitDuringCreation(mapping);
-        verify(indicesAdminClient).forceMerge(any(), any());
-    }
-
-    public void testDownsamplingSkipsForceMergeWithShortCircuitDuringCreation() throws IOException {
-        downsampleWithShortCircuitDuringCreation(FORCE_MERGE_DISABLED_MAPPING);
-        verify(indicesAdminClient, never()).forceMerge(any(), any());
-    }
-
-    public void downsampleWithShortCircuitDuringCreation(String mapping) throws IOException {
-        mockGetMapping(mapping);
-        mockMergedMapping(mapping);
-
+    public void testDownsamplingWithShortCircuitDuringCreation() throws IOException {
         var projectMetadata = ProjectMetadata.builder(projectId)
             .put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards))
             .build();
@@ -374,26 +329,14 @@ public class TransportDownsampleActionTests extends ESTestCase {
             listener
         );
         safeGet(listener);
+        verifyIndexFinalisation();
+    }
+
+    private void verifyIndexFinalisation() {
         verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
-    }
-
-    private void mockGetMapping(String mapping) {
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<GetMappingsResponse>) invocation.getArgument(1, ActionListener.class);
-            listener.onResponse(
-                new GetMappingsResponse(
-                    Map.of(sourceIndex, new MappingMetadata("_doc", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true)))
-                )
-            );
-            return null;
-        }).when(indicesAdminClient).getMappings(any(), any());
-    }
-
-    private void mockMergedMapping(String mapping) throws IOException {
-        DocumentMapper documentMapper = mock(DocumentMapper.class);
-        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON(mapping));
-        when(mapperService.merge(anyString(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        verify(indicesAdminClient).refresh(any(), any());
+        verify(indicesAdminClient).flush(any(), any());
+        verify(indicesAdminClient, never()).forceMerge(any(), any());
     }
 
     private IndexMetadata.Builder createSourceIndexMetadata(String sourceIndex, int primaryShards, int replicaShards) {

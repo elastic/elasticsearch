@@ -1,0 +1,6 @@
+pr: 130337
+summary: Add `xml` ingest processor for parsing XML
+area: Ingest Node
+type: enhancement
+issues:
+ - 97364

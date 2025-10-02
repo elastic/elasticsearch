@@ -13,7 +13,6 @@ import org.apache.http.HttpEntity;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.NodeFeature;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
 
@@ -69,7 +67,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
@@ -122,9 +119,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private static boolean dataLoaded = false;
+    protected static boolean testClustersOk = true;
 
     @Before
     public void setup() throws IOException {
+        assumeTrue("test clusters were broken", testClustersOk);
         boolean supportsLookup = supportsIndexModeLookup();
         boolean supportsSourceMapping = supportsSourceFieldMapping();
         boolean supportsInferenceTestService = supportsInferenceTestService();
@@ -138,21 +137,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    @AfterClass
-    public static void wipeTestData() throws IOException {
-        try {
-            dataLoaded = false;
-            adminClient().performRequest(new Request("DELETE", "/*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-
-        deleteInferenceEndpoints(adminClient());
-    }
-
     public boolean logResults() {
         return false;
     }
@@ -162,11 +146,25 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             shouldSkipTest(testName);
             doTest();
         } catch (Exception e) {
+            ensureTestClustersAreOk(e);
             throw reworkException(e);
         }
     }
 
+    protected void ensureTestClustersAreOk(Exception failure) {
+        try {
+            ensureHealth(client(), "", (request) -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("level", "shards");
+            });
+        } catch (Exception inner) {
+            testClustersOk = false;
+            failure.addSuppressed(inner);
+        }
+    }
+
     protected void shouldSkipTest(String testName) throws IOException {
+        assumeTrue("test clusters were broken", testClustersOk);
         if (requiresInferenceEndpoint()) {
             assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
@@ -374,7 +372,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @After
     public void assertRequestBreakerEmptyAfterTests() throws Exception {
-        assertRequestBreakerEmpty();
+        if (testClustersOk) {
+            assertRequestBreakerEmpty();
+        }
     }
 
     public static void assertRequestBreakerEmpty() throws Exception {

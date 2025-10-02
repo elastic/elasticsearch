@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
@@ -19,6 +19,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -37,14 +39,13 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
+public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
+    public ESNextDiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);
     }
 
-    public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
-        throws IOException {
+    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         return new CentroidIterator() {
             CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
                 ? centroidIterator.nextPostingListOffsetAndLength()

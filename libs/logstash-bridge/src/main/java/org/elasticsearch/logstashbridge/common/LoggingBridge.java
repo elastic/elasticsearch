@@ -7,12 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.logstashbridge.common;
+
+import org.elasticsearch.common.logging.LogConfigurator;
 
 /**
- * Functional interface representing a function that takes an integer input
- * and produces a boolean output.
+ * An external bridge for the logging subsystem, exposing the minimum necessary
+ * to wire up the log4j-based implementation that is present in Logstash.
  */
-public interface IntToBooleanFunction {
-    boolean apply(int value);
+public class LoggingBridge {
+    private LoggingBridge() {}
+
+    public static void initialize() {
+        // wires up the ES logging front-end to a Log4j backend
+        LogConfigurator.configureESLogging();
+    }
 }

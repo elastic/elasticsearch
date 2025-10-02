@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
@@ -26,6 +26,14 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
@@ -45,13 +53,13 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
-    private static final Logger logger = LogManager.getLogger(ES920DiskBBQVectorsWriter.class);
+public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(ESNextDiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
 
-    public ES920DiskBBQVectorsWriter(
+    public ESNextDiskBBQVectorsWriter(
         String rawVectorFormatName,
         SegmentWriteState state,
         FlatVectorsWriter rawVectorDelegate,

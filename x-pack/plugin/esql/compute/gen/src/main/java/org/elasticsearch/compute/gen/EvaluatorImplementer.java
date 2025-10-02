@@ -219,7 +219,7 @@ public class EvaluatorImplementer {
 
                 StringBuilder pattern = new StringBuilder();
                 List<Object> args = new ArrayList<>();
-                pattern.append(processOutputsMultivalued ? "$T.$N(result, p, " : "$T.$N(");
+                pattern.append("$T.$N(");
                 args.add(declarationType);
                 args.add(processFunction.function.getSimpleName());
                 processFunction.args.stream().forEach(a -> {
@@ -312,10 +312,7 @@ public class EvaluatorImplementer {
                     }
                     builderArg = ba;
                 } else if (arg instanceof BlockArgument) {
-                    if (builderArg != null && args.size() == 2 && hasBlockType == false) {
-                        args.clear();
-                        hasBlockType = true;
-                    }
+                    hasBlockType = true;
                 }
                 args.add(arg);
             }

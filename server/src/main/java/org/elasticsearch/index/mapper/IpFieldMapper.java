@@ -42,7 +42,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
@@ -52,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -251,7 +249,7 @@ public class IpFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexed, stored, hasDocValues, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
@@ -278,6 +276,11 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public boolean isSearchable() {
             return isIndexed() || hasDocValues();
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override
@@ -480,44 +483,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
-            var reader = new FallbackSyntheticSourceBlockLoader.SingleValueReader<InetAddress>(nullValue) {
-                @Override
-                public void convertValue(Object value, List<InetAddress> accumulator) {
-                    if (value instanceof InetAddress ia) {
-                        accumulator.add(ia);
-                    }
-
-                    try {
-                        var address = InetAddresses.forString(value.toString());
-                        accumulator.add(address);
-                    } catch (Exception e) {
-                        // Malformed value, skip it
-                    }
-                }
-
-                @Override
-                protected void parseNonNullValue(XContentParser parser, List<InetAddress> accumulator) throws IOException {
-                    // aligned with #parseCreateField()
-                    String value = parser.text();
-
-                    try {
-                        var address = InetAddresses.forString(value);
-                        accumulator.add(address);
-                    } catch (Exception e) {
-                        // Malformed value, skip it
-                    }
-                }
-
-                @Override
-                public void writeToBlock(List<InetAddress> values, BlockLoader.Builder blockBuilder) {
-                    var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
-
-                    for (var value : values) {
-                        bytesRefBuilder.appendBytesRef(new BytesRef(InetAddressPoint.encode(value)));
-                    }
-                }
-            };
-
+            var reader = new IpFallbackSyntheticSourceReader(nullValue);
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 name(),

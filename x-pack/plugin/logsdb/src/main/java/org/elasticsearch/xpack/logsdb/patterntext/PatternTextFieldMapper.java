@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -50,7 +49,6 @@ import java.util.function.Supplier;
  */
 public class PatternTextFieldMapper extends FieldMapper {
 
-    public static final FeatureFlag PATTERN_TEXT_MAPPER = new FeatureFlag("pattern_text");
     private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
 
     /**
@@ -58,7 +56,7 @@ public class PatternTextFieldMapper extends FieldMapper {
      * no valid enterprise license.
      */
     public static final Setting<Boolean> DISABLE_TEMPLATING_SETTING = Setting.boolSetting(
-        "index.mapping.patterned_text.disable_templating",
+        "index.mapping.pattern_text.disable_templating",
         false,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex

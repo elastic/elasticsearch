@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
@@ -140,6 +141,10 @@ public class Approximate {
 
     private static final Set<Class<? extends AggregateFunction>> SUPPORTED_MULTI_VALUED_AGGS = Set.of(
         org.elasticsearch.xpack.esql.expression.function.aggregate.Sample.class
+    );
+
+    private static final Set<Class<? extends EsqlScalarFunction>> MULTI_VALUED_OUTPUT_FUNCTIONS = Set.of(
+        MvAppend.class
     );
 
     // TODO: find a good default value, or alternative ways of setting it
@@ -402,7 +407,7 @@ public class Approximate {
                     case Eval eval:
                         List<Alias> newFields = new ArrayList<>(eval.fields());
                         for (Alias field : eval.fields()) {
-                            if (field.dataType().isNumeric() == false || field.child().anyMatch(expr -> expr instanceof MvAppend)) {
+                            if (field.dataType().isNumeric() == false || field.child().anyMatch(expr -> MULTI_VALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
                                 continue;
                             }
                             if (field.child().anyMatch(expr -> expr instanceof NamedExpression named && variablesWithConfidenceInterval.containsKey(named.id()))) {

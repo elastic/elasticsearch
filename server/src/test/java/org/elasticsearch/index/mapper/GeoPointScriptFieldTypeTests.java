@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -23,7 +24,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
@@ -37,18 +41,37 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType.GEO_FORMATTER_FACTORY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    private static final GeoPoint EMPTY_POINT = null;
+    private static final GeoPoint MALFORMED_POINT = null;
+
+    private static final Function<List<GeoPoint>, List<Object>> FORMATTER = GEO_FORMATTER_FACTORY.getFormatter(
+        GeometryFormatterFactory.WKB,
+        p -> {
+            if (p != null) {
+                return new org.elasticsearch.geometry.Point(p.getLon(), p.getLat());
+            }
+            return null;
+        }
+    );
 
     @Override
     protected ScriptFactory parseFromSource() {
@@ -223,6 +246,140 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             equalTo("Geometry fields do not support exact searching, use dedicated geometry queries instead: [test]")
         );
 
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            // given
+            iw.addDocuments(
+                List.of(
+                    createDocumentWithIgnoredSource("""
+                        {"type": "Point", "coordinates": [11.22, -33.44]}
+                        """),
+                    createDocumentWithIgnoredSource("""
+                        ["POINT (23.45 -56.78)"]
+                        """),
+                    createDocumentWithIgnoredSource("""
+                        {"lat": 22.33, "lon" : -44.55}}
+                        """),
+                    createDocumentWithIgnoredSource("""
+                        [-33.44, 55.66]
+                        """),
+                    createDocumentWithIgnoredSource("""
+                        [-44.55, 66.77, 88.99]
+                        """),
+                    createDocumentWithIgnoredSource("""
+                        ["55.66,77.88"]
+                        """),
+                    createDocumentWithIgnoredSource("""
+                        ["drm3btev3e86"]
+                        """),
+                    // ensure empty points can be parsed
+                    createDocumentWithIgnoredSource("""
+                        []
+                        """),
+                    // ensure a malformed value doesn't crash
+                    createDocumentWithIgnoredSource("""
+                        ["potato", "tomato"]
+                        """)
+                )
+            );
+
+            Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+            GeoPointScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+            // note, the order of coordinates here differs from the documents above. This is expected - x and y coordinates get mapped to
+            // lon and lat differently depending on the underlying type of the geo point itself. Sometimes they match 1:1, others they swap
+            List<Object> expectedPoints = FORMATTER.apply(
+                Arrays.asList(
+                    new GeoPoint(-33.44, 11.22),
+                    new GeoPoint(-56.78, 23.45),
+                    new GeoPoint(22.33, -44.55),
+                    new GeoPoint(55.66, -33.44),
+                    new GeoPoint(66.77, -44.55),
+                    new GeoPoint(55.66, 77.88),
+                    new GeoPoint("drm3btev3e86")
+                )
+            );
+
+            // add these separately because the formatter doesn't like nulls
+            expectedPoints.add(EMPTY_POINT);
+            expectedPoints.add(MALFORMED_POINT);
+
+            // expected points converted to BytesRef
+            List<BytesRef> expected = expectedPoints.stream().map(gp -> {
+                if (gp instanceof byte[] wkb) {
+                    return new BytesRef(wkb);
+                }
+                return null;
+            }).toList();
+
+            try (DirectoryReader reader = iw.getReader()) {
+                // when
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+
+                // then
+
+                // assert loader is of expected instance type
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, nullValue());
+
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(
+                    rowStrideReader.getClass().getName(),
+                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                );
+
+                // assert values
+                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(expected));
+            }
+        }
+    }
+
+    /**
+     * Returns a source only mapped field type. This is useful, since the available build() function doesn't override isParsedFromSource()
+     */
+    private GeoPointScriptFieldType simpleSourceOnlyMappedFieldType() {
+        Script script = new Script(ScriptType.INLINE, "test", "", emptyMap());
+        GeoPointFieldScript.Factory factory = new GeoPointFieldScript.Factory() {
+            @Override
+            public GeoPointFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
+                return ctx -> new GeoPointFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public void execute() {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("test")) {
+                            try {
+                                // ignore the Z coordinate because we don't care about it anyway
+                                // this conversion matches GeoPointFieldScript.emitPoint()
+                                GeoPoint gp = GeoUtils.parseGeoPoint(foo, true);
+                                emit(gp.lat(), gp.lon());
+                            } catch (Exception e) {
+                                // skip
+                            }
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public boolean isParsedFromSource() {
+                return true;
+            }
+        };
+        return new GeoPointScriptFieldType("test", factory, script, emptyMap(), OnScriptError.FAIL);
     }
 
     @Override

@@ -278,9 +278,7 @@ public class MasterServiceTests extends ESTestCase {
                             )
                         );
                     } else {
-                        randomExecutor(threadPool).execute(
-                            () -> publishListener.onFailure(randomClusterStateUpdateException())
-                        );
+                        randomExecutor(threadPool).execute(() -> publishListener.onFailure(randomClusterStateUpdateException()));
                     }
                 }
             });
@@ -1071,7 +1069,9 @@ public class MasterServiceTests extends ESTestCase {
             assertNotNull(stateBeforeFailure);
 
             final var publicationFailedExceptionMessage = "simulated publication failure";
-            ElasticsearchException clusterStateUpdateException = randomBoolean() ? new FailedToPublishClusterStateException(publicationFailedExceptionMessage) : new FailedToCommitClusterStateException(publicationFailedExceptionMessage);
+            ElasticsearchException clusterStateUpdateException = randomBoolean()
+                ? new FailedToPublishClusterStateException(publicationFailedExceptionMessage)
+                : new FailedToCommitClusterStateException(publicationFailedExceptionMessage);
 
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
                 assertSame(stateBeforeFailure, clusterStatePublicationEvent.getOldState());
@@ -1613,11 +1613,11 @@ public class MasterServiceTests extends ESTestCase {
                 final CountDownLatch latch = new CountDownLatch(1);
 
                 String publicationFailedExceptionMessage = "mock exception";
-                ElasticsearchException clusterStateUpdateException = randomBoolean() ? new FailedToPublishClusterStateException(publicationFailedExceptionMessage) : new FailedToCommitClusterStateException(publicationFailedExceptionMessage);
+                ElasticsearchException clusterStateUpdateException = randomBoolean()
+                    ? new FailedToPublishClusterStateException(publicationFailedExceptionMessage)
+                    : new FailedToCommitClusterStateException(publicationFailedExceptionMessage);
                 publisherRef.set(
-                    (clusterChangedEvent, publishListener, ackListener) -> publishListener.onFailure(
-                        clusterStateUpdateException
-                    )
+                    (clusterChangedEvent, publishListener, ackListener) -> publishListener.onFailure(clusterStateUpdateException)
                 );
 
                 masterService.submitUnbatchedStateUpdateTask(

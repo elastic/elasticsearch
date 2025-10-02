@@ -102,7 +102,12 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
     @Override
     protected void handleFailure(Exception e) {
         Level level;
-        if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToPublishClusterStateException.class, FailedToCommitClusterStateException.class) != null) {
+        if (ExceptionsHelper.unwrap(
+            e,
+            NotMasterException.class,
+            FailedToPublishClusterStateException.class,
+            FailedToCommitClusterStateException.class
+        ) != null) {
             level = Level.DEBUG;
         } else {
             level = Level.ERROR;

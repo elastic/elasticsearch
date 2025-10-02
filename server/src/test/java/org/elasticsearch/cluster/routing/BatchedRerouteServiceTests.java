@@ -221,9 +221,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     .setClusterStatePublisher(
                         randomBoolean()
                             ? ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService())
-                            : (event, publishListener, ackListener) -> publishListener.onFailure(
-                                randomClusterStateUpdateException()
-                            )
+                            : (event, publishListener, ackListener) -> publishListener.onFailure(randomClusterStateUpdateException())
                     );
             }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +57,7 @@ public class IndexResolver {
     public static final String UNMAPPED = "unmapped";
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
-        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             IndicesOptions.WildcardOptions.builder()
                 .matchOpen(true)
@@ -91,10 +92,17 @@ public class IndexResolver {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
-            listener.delegateFailureAndWrap(
-                (l, response) -> l.onResponse(
-                    mergedMappings(indexWildcard, new FieldsInfo(response, supportsAggregateMetricDouble, supportsDenseVector))
-                )
+            ActionListener.wrap(
+                r -> listener.onResponse(
+                    mergedMappings(indexWildcard, new FieldsInfo(r, supportsAggregateMetricDouble, supportsDenseVector))
+                ),
+                f -> {
+                    if (f instanceof IndexNotFoundException e) {
+                        listener.onResponse(IndexResolution.notFound(e.getIndex().getName()));
+                    } else {
+                        listener.onFailure(f);
+                    }
+                }
             )
         );
     }
@@ -106,7 +114,7 @@ public class IndexResolver {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {
-            return IndexResolution.notFound(indexPattern);
+            return IndexResolution.empty(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index

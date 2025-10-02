@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -112,23 +111,20 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             assertOk(response);
             assertResultConcreteIndices(response, "index-1");// excludes pattern from pattern
         }
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*,-*]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-*,-* METADATA _index")) // exclude all resolves to empty
-        );
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-*,-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
     }
 
     public void testDoesNotResolveEmptyPattern() {
         assertAcked(client().admin().indices().prepareCreate("data"));
         indexRandom(true, "data", 1);
 
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))
-        );
-
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
         try (var response = run(syncEsqlQueryRequest().query("FROM data,index-* METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, "data");
@@ -224,21 +220,19 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testPartialResolution() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
-        assertAcked(client().admin().indices().prepareCreate("index-2"));
-        indexRandom(true, "index-2", 10);
-
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))) {
-            assertOk(response); // okay when present index is empty
+        if (randomBoolean()) {
+            indexRandom(true, "index-1", 10);
         }
+
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
+            VerificationException.class,
+            containsString("Unknown index [nonexisting-1]"),
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))
         );
         expectThrows(
-            IndexNotFoundException.class,
-            equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
+            VerificationException.class,
+            containsString("Unknown index [nonexisting-1]"), // only the first missing index is reported
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1,nonexisting-2"))
         );
     }
 

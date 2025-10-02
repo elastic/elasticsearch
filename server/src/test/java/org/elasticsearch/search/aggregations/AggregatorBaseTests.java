@@ -16,11 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
@@ -83,9 +79,8 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(
             fieldName,
             numType,
-            indexed,
+            indexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
             false,
-            true,
             false,
             null,
             Collections.emptyMap(),
@@ -106,7 +101,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
     ) {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(
             fieldName,
-            indexed,
+            indexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

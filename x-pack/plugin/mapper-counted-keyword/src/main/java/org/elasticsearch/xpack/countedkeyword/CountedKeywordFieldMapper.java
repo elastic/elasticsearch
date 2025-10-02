@@ -272,7 +272,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).mappedFieldType.isIndexed(), true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).fieldType == FIELD_TYPE_INDEXED, true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final SourceKeepMode indexSourceKeepMode;
 

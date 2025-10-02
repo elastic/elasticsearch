@@ -164,7 +164,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }));
         var ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(positionMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertThat(ft.indexType(), is(IndexType.DOC_VALUES_ONLY));
     }
 
     public void testMetricAndDocvalues() {
@@ -358,7 +358,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isIndexed(), equalTo(false));
+        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().indexType(), equalTo(IndexType.DOC_VALUES_ONLY));
         assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(true));
     }
 
@@ -545,7 +545,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
     }
 

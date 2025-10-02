@@ -65,16 +65,14 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 public abstract class MappedFieldType {
 
     private final String name;
-    private final boolean docValues;
-    private final boolean isIndexed;
+    protected final IndexType indexType;
     private final boolean isStored;
     private final Map<String, String> meta;
 
-    public MappedFieldType(String name, boolean isIndexed, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
+    public MappedFieldType(String name, IndexType indexType, boolean isStored, Map<String, String> meta) {
         this.name = Mapper.internFieldName(name);
-        this.isIndexed = isIndexed;
+        this.indexType = indexType;
         this.isStored = isStored;
-        this.docValues = hasDocValues;
         // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
         // irrelevant
         this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
@@ -123,7 +121,7 @@ public abstract class MappedFieldType {
     }
 
     public boolean hasDocValues() {
-        return docValues;
+        return IndexType.hasDocValues(indexType);
     }
 
     /**
@@ -146,14 +144,14 @@ public abstract class MappedFieldType {
      * Returns true if the field is searchable.
      */
     public boolean isSearchable() {
-        return isIndexed;
+        return indexType != IndexType.NONE;
     }
 
     /**
-     * Returns true if the field is indexed.
+     * Returns the IndexType of this field
      */
-    public final boolean isIndexed() {
-        return isIndexed;
+    public final IndexType indexType() {
+        return indexType;
     }
 
     /**
@@ -394,7 +392,7 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues() || (isIndexed() && getTextSearchInfo().hasNorms())) {
+        if (hasDocValues() || (IndexType.hasTerms(indexType) && getTextSearchInfo().hasNorms())) {
             return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
@@ -548,21 +546,21 @@ public abstract class MappedFieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (isIndexed == false) {
+        if (indexType == IndexType.NONE || indexType == IndexType.DOC_VALUES_ONLY) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
     }
 
     protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
-        if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
+        if (IndexType.hasDocValues(indexType) == false && context.indexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalArgumentException(
                 "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
             );
-        } else if (isIndexed == false && docValues == false) {
+        } else if (indexType == IndexType.NONE) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
-        } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {
+        } else if (indexType == IndexType.DOC_VALUES_ONLY && context.allowExpensiveQueries() == false) {
             // if query can only run using doc values, ensure running expensive queries are allowed
             throw new ElasticsearchException(
                 "Cannot search on field ["

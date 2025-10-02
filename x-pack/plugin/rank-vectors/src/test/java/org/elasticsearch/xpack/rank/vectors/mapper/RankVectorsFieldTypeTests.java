@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.vectors.mapper;
 
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.license.License;
@@ -51,9 +52,9 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsIndexed() {
         RankVectorsFieldType fft = createFloatFieldType();
-        assertFalse(fft.isIndexed());
+        assertThat(fft.indexType(), equalTo(IndexType.DOC_VALUES_ONLY));
         RankVectorsFieldType bft = createByteFieldType();
-        assertFalse(bft.isIndexed());
+        assertThat(bft.indexType(), equalTo(IndexType.DOC_VALUES_ONLY));
     }
 
     public void testIsSearchable() {

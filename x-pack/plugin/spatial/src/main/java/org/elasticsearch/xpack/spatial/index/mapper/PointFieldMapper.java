@@ -25,13 +25,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -161,7 +155,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     @Override
     protected void index(DocumentParserContext context, CartesianPoint point) {
-        final boolean indexed = fieldType().isIndexed();
+        final boolean indexed = IndexType.hasPoints(fieldType().indexType());
         final boolean hasDocValues = fieldType().hasDocValues();
         final boolean store = fieldType().isStored();
         if (indexed && hasDocValues) {
@@ -204,7 +198,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
+            super(name, IndexType.points(indexed, hasDocValues, false), stored, parser, nullValue, meta);
             this.isSyntheticSource = isSyntheticSource;
         }
 
@@ -231,7 +225,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return XYQueriesUtils.toXYPointQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
+            return XYQueriesUtils.toXYPointQuery(shape, fieldName, relation, indexType());
         }
 
         @Override

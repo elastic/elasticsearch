@@ -50,19 +50,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.DynamicFieldType;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.TextParams;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -294,7 +282,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
             this(
                 rootName,
-                ref.isIndexed(),
+                IndexType.hasTerms(ref.indexType()),
                 ref.hasDocValues(),
                 key,
                 ref.splitQueriesOnWhitespace,
@@ -890,7 +878,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return;
         }
 
-        if (mappedFieldType.isIndexed() == false && mappedFieldType.hasDocValues() == false) {
+        if (mappedFieldType.indexType() == IndexType.NONE) {
             context.parser().skipChildren();
             return;
         }

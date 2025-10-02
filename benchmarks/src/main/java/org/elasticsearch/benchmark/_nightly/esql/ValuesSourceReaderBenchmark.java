@@ -49,11 +49,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -290,9 +286,8 @@ public class ValuesSourceReaderBenchmark {
         return new NumberFieldMapper.NumberFieldType(
             w.name,
             numberType,
-            true,
+            docValues ? IndexType.POINTS : IndexType.POINTS_WITHOUT_DOC_VALUES,
             stored,
-            docValues,
             true,
             null,
             Map.of(),

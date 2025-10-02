@@ -19,13 +19,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -111,7 +107,7 @@ public class SearchContextStats implements SearchStats {
                     mixedFieldType = true;
                 }
                 exists |= true;
-                indexed &= type.isIndexed();
+                indexed &= IndexType.isIndexed(fieldType.indexType());
                 hasDocValues &= type.hasDocValues();
                 hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {

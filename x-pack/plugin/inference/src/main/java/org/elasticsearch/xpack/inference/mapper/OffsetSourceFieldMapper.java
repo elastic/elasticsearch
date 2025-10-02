@@ -12,11 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -132,7 +128,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         private final CharsetFormat charset;
 
         public OffsetSourceFieldType(String name, CharsetFormat charset, Map<String, String> meta) {
-            super(name, true, false, false, meta);
+            super(name, IndexType.TERMS_WITHOUT_DOC_VALUES, false, meta);
             this.charset = charset;
         }
 

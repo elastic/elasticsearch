@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.logging.LogManager;
@@ -104,7 +105,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
         // If we do not know the field type, the field is not indexed (e.g. runtime field) or the field
         // has no doc values we should not apply the optimization.
-        if (fieldType == null || fieldType.isIndexed() == false || fieldType.hasDocValues() == false) {
+        if (fieldType == null || IndexType.hasTerms(fieldType.indexType()) == false || fieldType.hasDocValues() == false) {
             return false;
         }
 

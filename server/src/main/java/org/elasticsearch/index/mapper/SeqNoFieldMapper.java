@@ -144,7 +144,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType NO_POINT = new SeqNoFieldType(false);
 
         private SeqNoFieldType(boolean indexed) {
-            super(NAME, indexed, false, true, Collections.emptyMap());
+            super(NAME, indexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY, false, Collections.emptyMap());
         }
 
         @Override
@@ -187,7 +187,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
-            if (isIndexed()) {
+            if (IndexType.hasPoints(indexType())) {
                 return LongPoint.newExactQuery(name(), v);
             } else {
                 return NumericDocValuesField.newSlowExactQuery(name(), v);
@@ -197,7 +197,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
-            if (isIndexed()) {
+            if (IndexType.hasPoints(indexType())) {
                 return LongPoint.newSetQuery(name(), v);
             } else {
                 return NumericDocValuesField.newSlowSetQuery(name(), v);
@@ -232,18 +232,23 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                     --u;
                 }
             }
-            return rangeQueryForSeqNo(isIndexed(), l, u);
+            return rangeQueryForSeqNo(IndexType.hasPoints(indexType()), l, u);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new, isIndexed());
+            return new SortedNumericIndexFieldData.Builder(
+                name(),
+                NumericType.LONG,
+                SeqNoDocValuesField::new,
+                IndexType.hasPoints(indexType())
+            );
         }
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return IndexType.hasPoints(indexType()) || hasDocValues();
         }
     }
 

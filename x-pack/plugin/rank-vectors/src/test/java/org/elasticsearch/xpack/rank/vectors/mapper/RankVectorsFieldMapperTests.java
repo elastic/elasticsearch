@@ -136,7 +136,6 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(RankVectorsFieldMapper.RankVectorsFieldType.class));
-        assertFalse(fieldType.isIndexed());
         assertFalse(fieldType.isSearchable());
     }
 

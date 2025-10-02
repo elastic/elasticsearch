@@ -298,7 +298,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }));
         var ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertThat(ft.indexType(), is(IndexType.DOC_VALUES_ONLY));
     }
 
     public void testMetricAndDocvalues() {

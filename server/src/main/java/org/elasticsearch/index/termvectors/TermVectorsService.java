@@ -30,18 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.NestedPathFieldMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
@@ -183,7 +172,7 @@ public class TermVectorsService {
             return false;
         }
         // and must be indexed
-        if (fieldType.isIndexed() == false) {
+        if (IndexType.hasTerms(fieldType.indexType()) == false) {
             return false;
         }
         // and must not be the nested path field

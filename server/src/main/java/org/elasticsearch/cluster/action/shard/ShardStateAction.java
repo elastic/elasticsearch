@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -164,6 +165,7 @@ public class ShardStateAction {
     private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[] {
         NotMasterException.class,
         ConnectTransportException.class,
+        FailedToPublishClusterStateException.class,
         FailedToCommitClusterStateException.class };
 
     private static boolean isMasterChannelException(Throwable exp) {
@@ -936,7 +938,7 @@ public class ShardStateAction {
         public void onFailure(Exception e) {
             if (e instanceof NotMasterException) {
                 logger.debug(() -> format("%s no longer master while starting shard [%s]", entry.shardId, entry));
-            } else if (e instanceof FailedToCommitClusterStateException) {
+            } else if (e instanceof FailedToPublishClusterStateException || e instanceof FailedToCommitClusterStateException) {
                 logger.debug(() -> format("%s unexpected failure while starting shard [%s]", entry.shardId, entry), e);
             } else {
                 logger.error(() -> format("%s unexpected failure while starting shard [%s]", entry.shardId, entry), e);

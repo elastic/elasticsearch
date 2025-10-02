@@ -629,10 +629,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                     clusterService,
                     ClusterState.builder(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes)).incrementVersion().build()
                 );
-                Exception failure = randomBoolean()
-                    ? new FailedToCommitClusterStateException("Fake error")
-                    : new NotMasterException("Fake error");
-                listener.onFailure(failure);
+                listener.onFailure(randomClusterStateUpdateException());
             }
         }, null, request, listener);
 

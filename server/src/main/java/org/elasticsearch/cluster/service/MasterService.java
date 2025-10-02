@@ -1015,7 +1015,9 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert failure != null;
                 var taskFailure = failure;
 
-                if (e instanceof FailedToCommitClusterStateException) {
+                if (e instanceof FailedToPublishClusterStateException) {
+                    failure = new FailedToPublishClusterStateException(e.getMessage(), e);
+                } else if (e instanceof FailedToCommitClusterStateException) {
                     failure = new FailedToCommitClusterStateException(e.getMessage(), e);
                 } else {
                     failure = new NotMasterException(e.getMessage(), e);
@@ -1281,7 +1283,9 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     public static boolean isPublishFailureException(Exception e) {
-        return e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException;
+        return e instanceof NotMasterException
+            || e instanceof FailedToCommitClusterStateException
+            || e instanceof FailedToPublishClusterStateException;
     }
 
     private final Runnable queuesProcessor = new AbstractRunnable() {

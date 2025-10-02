@@ -1570,7 +1570,12 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "_tsid" metadata field.
          */
-        METADATA_TSID_FIELD;
+        METADATA_TSID_FIELD,
+
+        /**
+         * Network direction function.
+         */
+        NETWORK_DIRECTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

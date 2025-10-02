@@ -69,6 +69,10 @@ public class GetSampleActionIT extends ESIntegTestCase {
 
     @SuppressWarnings("deprecation")
     private void addSamplingConfig(String indexName) throws Exception {
+        /*
+         * Note: The following code writes a sampling config directly to the cluster state. It can be replaced with a call to the action
+         * that does this once that action exists.
+         */
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitUnbatchedStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override

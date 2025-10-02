@@ -244,8 +244,9 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            fieldNames.add(MetadataAttribute.INDEX);
-            return new PreAnalysisResult(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()), wildcardJoinIndices);
+            HashSet<String> allFields = new HashSet<>(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()));
+            allFields.add(MetadataAttribute.INDEX);
+            return new PreAnalysisResult(allFields, wildcardJoinIndices);
         }
     }
 

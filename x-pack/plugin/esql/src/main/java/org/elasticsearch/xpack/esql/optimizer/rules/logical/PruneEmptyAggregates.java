@@ -15,6 +15,13 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.util.List;
 
+/**
+ * STATS with no aggregates and no groupings can be replaced with a single, empty row.
+ * This can happen due to expression pruning at optimization time, after all them are dropped,
+ * eg.
+ *
+ * STATS a = count(*) by b | drop a, b
+ */
 public final class PruneEmptyAggregates extends OptimizerRules.OptimizerRule<Aggregate> {
     @Override
     protected LogicalPlan rule(Aggregate agg) {

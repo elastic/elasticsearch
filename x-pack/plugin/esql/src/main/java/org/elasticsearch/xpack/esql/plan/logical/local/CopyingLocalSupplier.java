@@ -20,18 +20,18 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import java.io.IOException;
 
 /**
- * A {@link LocalSupplier} that allways creates a new copy of the {@link Block}s initially provided at creation time.
+ * A {@link LocalSupplier} that allways creates a new copy of the {@link Page} initially provided at creation time.
  * This is created specifically for {@link InlineStats} usage in {@link EsqlSession} for queries that use ROW command.
  *
- * The ROW which gets replaced by {@link ReplaceRowAsLocalRelation} with a {@link LocalRelation} will have its blocks
+ * The ROW which gets replaced by {@link ReplaceRowAsLocalRelation} with a {@link LocalRelation} will have its page
  * used (and released) at least twice:
  * - the {@link LocalRelation} from the left-hand side is used as a source for the right-hand side
  * - the same {@link LocalRelation} is then used to continue the execution of the query on the left-hand side
  *
  * It delegates all its operations to {@link ImmediateLocalSupplier} and, to prevent the double release, it will always
- * create a deep copy of the blocks received in the constructor initially.
+ * create a deep copy of the page received in the constructor initially.
  *
- * Example with the flow and the blocks reuse for a query like "row x = 1 | inline stats y = max(x)"
+ * Example with the flow and the page reuse for a query like "row x = 1 | inline stats y = max(x)"
  * Step 1:
  * Limit[1000[INTEGER],true]
  * \_InlineJoin[LEFT,[],[],[]]

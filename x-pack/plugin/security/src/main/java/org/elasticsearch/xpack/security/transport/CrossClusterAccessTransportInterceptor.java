@@ -328,7 +328,6 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         DestructiveOperations destructiveOperations
     ) {
         final SslConfiguration profileConfiguration = sslProfile.configuration();
-        assert profileConfiguration != null : "SSL Profile [" + sslProfile + "] has a null configuration";
         final boolean remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         final boolean remoteClusterServerSSLEnabled = XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
         if (remoteClusterServerEnabled) {

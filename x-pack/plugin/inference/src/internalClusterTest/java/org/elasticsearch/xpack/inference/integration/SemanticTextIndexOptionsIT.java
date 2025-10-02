@@ -123,8 +123,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
             randomIntBetween(1, 100),
             randomIntBetween(1, 10_000),
             null,
-            null,
-            false
+            null
         );
         assertAcked(
             safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions)).execute())

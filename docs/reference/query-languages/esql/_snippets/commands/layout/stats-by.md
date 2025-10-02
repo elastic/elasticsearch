@@ -75,7 +75,7 @@ and then grouping - that is not going to be faster.
 ::::
 
 
-**Examples**
+### Examples
 
 Calculating a statistic and grouping by the values of another column:
 
@@ -105,6 +105,8 @@ optional as well:
 :::
 
 $$$esql-stats-mv-group$$$
+#### Multivalued
+
 If the grouping key is multivalued then the input row is in all groups:
 
 :::{include} ../examples/stats.csv-spec/mv-group.md
@@ -146,6 +148,12 @@ letter of their last name:
 
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md
 :::
+
+Note: This can get confusing if you do something like `| STATS a + SUM(a) BY a`
+      if `a` is multivalued. If you do that and are having trouble see
+      [github](https://github.com/elastic/elasticsearch/issues/134792#issuecomment-3361168090).
+
+#### Naming
 
 Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query returns a column named

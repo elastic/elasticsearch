@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
@@ -55,6 +57,8 @@ import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isN
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
+
+    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
@@ -441,13 +445,14 @@ class IndicesAndAliasesResolver {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
             // see https://github.com/elastic/elasticsearch/issues/135799
+            String message = "resolved index expressions are already set to ["
+                + replaceable.getResolvedIndexExpressions()
+                + "] and should not be set again. Attempted to set to new expressions ["
+                + resolved
+                + "].";
+            logger.debug(message);
             // we are excepting `*,-*` below since we've observed this already -- keeping this assertion catch other cases
-            assert replaceable.indices() == null || isNoneExpression(replaceable.indices())
-                : "resolved index expressions are already set to ["
-                    + replaceable.getResolvedIndexExpressions()
-                    + "] and should not be set again. Attempted to set to new expressions ["
-                    + Arrays.toString(replaceable.indices())
-                    + "].";
+            assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
         }
     }
 

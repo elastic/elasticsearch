@@ -933,9 +933,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * allocate on the minimal eligible node.
              */
             final MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
-            if (moveDecision.getCanRemainDecision().type() == Type.NO
-                && moveDecision.canRemain() == false
-                && moveDecision.forceMove() == false) {
+            if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
                     return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);

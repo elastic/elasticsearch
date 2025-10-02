@@ -841,7 +841,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 final var moveDecision = shardMoved ? decideMove(index, shardRouting) : preferredMove.moveDecision();
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
-                    // We only ever move a single non-preferred shard at a time
+                    // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
                 } else {
                     logger.trace("[{}][{}] can no longer move (not-preferred)", shardRouting.index(), shardRouting.id());

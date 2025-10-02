@@ -541,9 +541,7 @@ public class EsqlFunctionRegistry {
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") },
             // random functions
-            new FunctionDefinition[] {
-                def(Random.class, uni(Random::new), "random")
-            }};
+            new FunctionDefinition[] { def(Random.class, uni(Random::new), "random") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

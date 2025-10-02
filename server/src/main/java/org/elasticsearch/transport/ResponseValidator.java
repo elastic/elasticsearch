@@ -84,82 +84,94 @@ public class ResponseValidator {
 
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
             String originalExpression = localResolvedIndices.original();
-
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
 
+            // Check if this is a qualified resource (project:index pattern)
+            boolean isQualifiedResource = RemoteClusterAware.isRemoteIndexName(originalExpression);
             String resource = originalExpression;
-            boolean isQualifiedResource = RemoteClusterAware.isRemoteIndexName(resource);
+
+            // Handle qualified resources specially
             if (isQualifiedResource) {
-                // handle qualified resource eg. P1:logs*
                 String[] splitResource = splitQualifiedResource(resource);
                 String projectAlias = splitResource[0];
                 resource = splitResource[1];
 
+                // Special handling for _origin prefixed resources
                 if (projectAlias.equals(ORIGIN)) {
-                    ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-                    boolean resourceFoundLocally = isResourceFoundLocally(localExpressions);
-
-                    if (resourceFoundLocally && localExpressions.expressions().size() == 1) {
-                        logger.debug(
-                            "Local cluster has canonical expression for original expression [{}], skipping extra checks",
-                            originalExpression
-                        );
-                    } else {
-                        // if we have origin we can treat the local resolution as a remote with alias "_origin" to avoid duplicating code.
-                        var localAsRemote = Map.of(ORIGIN, localResolvedExpressions);
-                        var e = checkSingleRemoteExpression(
-                            localAsRemote,
-                            false,
-                            projectAlias,
-                            resource,
-                            originalExpression,
-                            new ArrayList<>()
-                        );
-                        if (e != null) {
-                            return e;
-                        }
+                    ElasticsearchException error = validateOriginResource(
+                        localResolvedIndices,
+                        localResolvedExpressions,
+                        originalExpression
+                    );
+                    if (error != null) {
+                        return error;
                     }
                     continue;
                 }
             }
-            if (false == indicesOptions.allowNoIndices()) {
-                var e = checkAllowNoIndices(
-                    resource,
-                    originalExpression,
-                    localResolvedIndices,
-                    remoteResolvedExpressions,
-                    isQualifiedResource == false
-                );
-                if (e != null) {
-                    return e;
-                }
-            } else if (false == indicesOptions.ignoreUnavailable()) {
-                var e = checkIndicesOptions(
-                    originalExpression,
-                    localResolvedIndices,
-                    remoteResolvedExpressions,
-                    isQualifiedResource == false
-                );
-                if (e != null) {
-                    return e;
-                }
+
+            // Perform validation based on indices options
+            ElasticsearchException error = validateResourceWithOptions(
+                resource,
+                originalExpression,
+                localResolvedIndices,
+                remoteResolvedExpressions,
+                false == isQualifiedResource,
+                indicesOptions
+            );
+
+            if (error != null) {
+                return error;
             }
         }
+
         return null;
     }
 
-    private static ElasticsearchException checkAllowNoIndices(
-        String indexAlias,
+    private static ElasticsearchException validateOriginResource(
+        ResolvedIndexExpression localResolvedIndices,
+        ResolvedIndexExpressions localResolvedExpressions,
+        String originalExpression
+    ) {
+        ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
+        boolean resourceFoundLocally = isResourceFoundLocally(localExpressions);
+
+        if (resourceFoundLocally && localExpressions.expressions().size() == 1) {
+            logger.debug("Local cluster has canonical expression for original expression [{}], skipping extra checks", originalExpression);
+            return null;
+        }
+
+        // Treat local resolution as a remote with alias "_origin" to avoid duplicating code
+        var localAsRemote = Map.of(ORIGIN, localResolvedExpressions);
+        return checkSingleRemoteExpression(
+            localAsRemote,
+            false,
+            ORIGIN,
+            localResolvedIndices.original().substring(ORIGIN.length() + 1), // Remove "_origin:" prefix
+            originalExpression,
+            new ArrayList<>()
+        );
+    }
+
+    private static ElasticsearchException validateResourceWithOptions(
+        String resource,
         String originalExpression,
         ResolvedIndexExpression localResolvedIndices,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
-        boolean isFlatWorldResource
+        boolean isFlatWorldResource,
+        IndicesOptions indicesOptions
     ) {
-        // strict behaviour of allowNoIndices checks if a wildcard expression resolves to no concrete indices.
-        if (false == indexAlias.contains(WILDCARD)) {
-            return null;
+        // For wildcards with strict allowNoIndices
+        if (false == indicesOptions.allowNoIndices() && resource.contains(WILDCARD)) {
+            return checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isFlatWorldResource);
         }
-        return checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isFlatWorldResource);
+
+        // For concrete indices with strict ignoreUnavailable
+        if (false == indicesOptions.ignoreUnavailable()) {
+            return checkIndicesOptions(originalExpression, localResolvedIndices, remoteResolvedExpressions, isFlatWorldResource);
+        }
+
+        return null;
     }
 
     private static ElasticsearchException checkIndicesOptions(
@@ -169,42 +181,42 @@ public class ResponseValidator {
         boolean isFlatWorldResource
     ) {
         ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-        boolean resourceFoundLocally = isResourceFoundLocally(localExpressions);
 
-        if (resourceFoundLocally && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
-            logger.debug(
-                "Local cluster has canonical expression for original expression [{}], skipping remote existence check",
-                originalExpression
-            );
+        // Early return if we have local resource that satisfies conditions
+        if (isResourceFoundLocally(localExpressions) && (isFlatWorldResource || localExpressions.expressions().size() == 1)) {
+            logger.debug("Local cluster has canonical expression for [{}], skipping remote check", originalExpression);
             return null;
         }
+
+        // Track exceptions
         List<ElasticsearchException> exceptions = new ArrayList<>();
-        ElasticsearchException localException = localExpressions.exception();
-        if (localException != null) {
-            exceptions.add(localException);
+        if (localExpressions.exception() != null) {
+            exceptions.add(localExpressions.exception());
         }
 
+        // Process remote expressions
         for (String remoteExpression : localResolvedIndices.remoteExpressions()) {
-            assert RemoteClusterAware.isRemoteIndexName(remoteExpression) : "remote expression are always qualified";
+            // remoteExpressions are always qualified
+            assert RemoteClusterAware.isRemoteIndexName(remoteExpression);
+
             String[] splitResource = splitQualifiedResource(remoteExpression);
-            String projectAlias = splitResource[0];
-            String resource = splitResource[1];
-            var e = checkSingleRemoteExpression(
+            ElasticsearchException error = checkSingleRemoteExpression(
                 remoteResolvedExpressions,
                 isFlatWorldResource,
-                projectAlias,
-                resource,
+                splitResource[0], // projectAlias
+                splitResource[1], // resource
                 remoteExpression,
                 exceptions
             );
-            if (e != null) {
-                return e;
+
+            // Return immediately on error for qualified resources
+            if (error != null) {
+                return error;
             }
         }
-        if (false == exceptions.isEmpty()) {
-            return exceptions.get(0);
-        }
-        return null;
+
+        // Return first exception if any were collected (for flat world resources)
+        return exceptions.isEmpty() ? null : exceptions.get(0);
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(

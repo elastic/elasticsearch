@@ -5,6 +5,8 @@ applies_to:
   deployment:
     ess:
     self:
+    ece:
+    eck:
 ---
 
 # Networking settings [modules-network]

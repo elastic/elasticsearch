@@ -4,15 +4,19 @@ mapped_pages:
 applies_to:
   deployment:
     self: ga
+    ess: ga
+    eck: ga
+    ece: ga
+  serverless: unavailable
 products:
   - id: elasticsearch
 ---
 
 # Remote cluster settings [remote-clusters-settings]
 
-This document describes the client settings available when configuring a remote cluster connection. These settings control how your local cluster connects to and communicates with the remote cluster as a client.
+This document describes the client settings available when configuring a remote cluster connection. These settings control how your local cluster connects to and communicates with the remote cluster as a client. For a general overview of remote clusters and how to set them up, refer to [Remote clusters](docs-content://deploy-manage/remote-clusters.md).
 
-For settings related to configuring the remote cluster server interface (used with the new [API key-based security model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md)), refer to [Remote cluster network settings](/reference/elasticsearch/configuration-reference/networking-settings.md#remote-cluster-network-settings).
+For settings related to configuring the remote cluster server interface (used with the [API key-based security model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md)), refer to [Remote cluster network settings](/reference/elasticsearch/configuration-reference/networking-settings.md#remote-cluster-network-settings).
 
 ## General remote cluster settings
 

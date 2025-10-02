@@ -38,7 +38,7 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 
 If you are using [Kibana Console](docs-content://explore-analyze/query-filter/tools/console.md) (which is highly recommended), take advantage of the triple quotes `"""` when creating the query. This not only automatically escapes double quotes (`"`) inside the query string but also support multi-line as shown below:
 
-![console triple quotes](docs-content://explore-analyze/images/elasticsearch-reference-console-triple-quotes.png "")
+![console triple quotes](../images/elasticsearch-reference-console-triple-quotes.png "")
 
 ::::
 

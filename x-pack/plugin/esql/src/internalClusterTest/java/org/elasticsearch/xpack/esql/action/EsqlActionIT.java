@@ -39,6 +39,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -150,9 +151,22 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testRowWithFilter() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
-        try (EsqlQueryResponse response = run(syncEsqlQueryRequest().query("row " + value).filter(new BoolQueryBuilder().boost(1.0f)))) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest().query("ROW " + value).filter(randomQueryFilter()))) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
+    }
+
+    public void testInvalidRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown column [x]"),
+            () -> run(syncEsqlQueryRequest().query("ROW " + value + " | EVAL x==NULL").filter(randomQueryFilter()))
+        );
+    }
+
+    private static QueryBuilder randomQueryFilter() {
+        return randomFrom(new MatchAllQueryBuilder(), new BoolQueryBuilder().boost(1.0f));
     }
 
     public void testFromStatsGroupingAvgWithSort() {

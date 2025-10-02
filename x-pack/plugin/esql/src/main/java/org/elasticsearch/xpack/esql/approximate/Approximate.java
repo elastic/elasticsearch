@@ -192,7 +192,7 @@ public class Approximate {
         Holder<Boolean> hasFilters = new Holder<>(false);
         logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
-                if (plan instanceof Aggregate aggregate) {
+                if (plan instanceof Aggregate) {
                     encounteredStats.set(true);
                     plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
                         if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false && SUPPORTED_MULTI_VALUED_AGGS.contains(aggFn.getClass()) == false) {
@@ -204,6 +204,12 @@ public class Approximate {
                     });
                 } else if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false) {
                     hasFilters.set(true);
+                }
+            } else {
+                if (plan instanceof Aggregate) {
+                    throw new VerificationException(
+                        List.of(Failure.fail(plan, "query with multiple chained [STATS] cannot be approximated"))
+                    );
                 }
             }
             return plan;
@@ -330,15 +336,13 @@ public class Approximate {
             return logicalPlan;
         }
 
-        logger.info("### BEFORE APPROXIMATE:\n{}", logicalPlan);
-
         logger.debug("generating approximate plan (p={})", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Map<NameId, List<Alias>> variablesWithConfidenceInterval = new HashMap<>();
 
         Alias bucketIdField = new Alias(
             Source.EMPTY,
-            "$$bucket_id",
+            "$bucket_id",
             new MvAppend(
                 Source.EMPTY,
                 Literal.integer(Source.EMPTY, -1),
@@ -475,9 +479,10 @@ public class Approximate {
             keepAttributes
         );
 
-        logger.info("### AFTER APPROXIMATE:\n{}", approximatePlan);
-
         approximatePlan.setPreOptimized();
+
+        logger.debug("approximate plan:\n{}", approximatePlan);
+
         return approximatePlan;
     }
 

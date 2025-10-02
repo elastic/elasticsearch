@@ -580,9 +580,7 @@ public class EsqlFunctionRegistry {
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Hamming.class, Hamming::new, "v_hamming") },
             // random functions
-            new FunctionDefinition[] {
-                def(Random.class, uni(Random::new), "random")
-            }};
+            new FunctionDefinition[] { def(Random.class, uni(Random::new), "random") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

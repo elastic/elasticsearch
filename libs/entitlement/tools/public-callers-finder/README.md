@@ -1,4 +1,5 @@
-This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `securitymanager-scanner` tool), and looks for the "public surface" of these methods (i.e. any class/method accessible from regular Java code that calls into the original list, directly or transitively).
+This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `securitymanager-scanner` and `jdk-api-extractor` tools),
+and looks for the "public surface" of these methods (i.e. any class/method accessible from regular Java code that calls into the original list, directly or transitively).
 
 It acts basically as a recursive "Find Usages" in Intellij, stopping at the first fully accessible point (public method on a public class).
 The tool scans every method in every class inside the same java module; e.g.
@@ -14,11 +15,10 @@ it treats calls to `super` in `S.m` as regular calls (e.g. `example() -> S.m() -
 
 In order to run the tool, use:
 ```shell
-./gradlew :libs:entitlement:tools:public-callers-finder:run <input-file> [<bubble-up-from-public>]
+./gradlew :libs:entitlement:tools:public-callers-finder:run -Druntime.java=25 --args="<input-file> [<bubble-up-from-public>]"
 ```
 Where `input-file` is a CSV file (columns separated by `TAB`) that contains the following columns:
-Module name
-1. unused
+1. Module name
 2. unused
 3. unused
 4. Fully qualified class name (ASM style, with `/` separators)
@@ -26,7 +26,7 @@ Module name
 6. Method descriptor (ASM signature)
 7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
 
-And `bubble-up-from-public` is a boolean (`true|false`) indicating if the code should stop at the first public method (`false`: default, recommended) or continue to find usages recursively even after reaching the "public surface".
+And `bubble-up-from-public` is a boolean (`true|false`) indicating if the code should stop at the first public method (`false`: default) or continue to find usages recursively even after reaching the "public surface".
 
 The output of the tool is another CSV file, with one line for each entry-point, columns separated by `TAB`
 

@@ -188,6 +188,8 @@ public class JdkApiExtractor {
             return String.join(
                 SEPARATOR,
                 moduleClass.module,
+                "", // compatibility with public-callers-finder
+                "", // compatibility with public-callers-finder
                 moduleClass.clazz,
                 method,
                 descriptor,

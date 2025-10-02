@@ -56,6 +56,9 @@ public enum ExternalAccess {
         if ("PUBLIC".equals(accessAsString)) {
             return EnumSet.of(ExternalAccess.PUBLIC_CLASS, ExternalAccess.PUBLIC_METHOD);
         }
+        if("PROTECTED".equals(accessAsString)) {
+            return EnumSet.of(ExternalAccess.PUBLIC_CLASS, ExternalAccess.PROTECTED_METHOD);
+        }
         if ("PUBLIC-METHOD".equals(accessAsString)) {
             return EnumSet.of(ExternalAccess.PUBLIC_METHOD);
         }

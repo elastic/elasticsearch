@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.reshard.ReshardSearchFilters;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -675,6 +676,16 @@ public class SearchEngine extends Engine {
         if (source.equals(CAN_MATCH_SEARCH_SOURCE) || source.equals(SEARCH_SOURCE)) {
             lastSearcherAcquiredTime = engineConfig.getThreadPool().relativeTimeInMillis();
         }
+    }
+
+    @Override
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return ReshardSearchFilters.maybeWrapDirectoryReader(
+            reader,
+            shardId,
+            engineConfig.getIndexSettings().getIndexMetadata(),
+            engineConfig.getMapperService()
+        );
     }
 
     // visible for testing

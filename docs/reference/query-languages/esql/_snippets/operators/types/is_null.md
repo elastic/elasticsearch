@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | boolean |
 | boolean | boolean |
 | cartesian_point | boolean |
 | cartesian_shape | boolean |
@@ -12,6 +13,7 @@
 | counter_long | boolean |
 | date | boolean |
 | date_nanos | boolean |
+| dense_vector | boolean |
 | double | boolean |
 | geo_point | boolean |
 | geo_shape | boolean |

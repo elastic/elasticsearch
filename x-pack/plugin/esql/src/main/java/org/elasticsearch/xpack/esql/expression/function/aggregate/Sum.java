@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.xpack.esql.approximate.NeedsSampleCorrection;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -28,9 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
 import java.io.IOException;
@@ -46,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression, NeedsSampleCorrection {
+public class Sum extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::readFrom);
 
     private final Expression summationMode;
@@ -175,15 +172,5 @@ public class Sum extends NumericAggregate implements SurrogateExpression, NeedsS
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
         return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter())) : null;
-    }
-
-    @Override
-    public Expression sampleCorrection(Expression sampleProbability) {
-        Expression correctedSum = new Div(source(), new Sum(source(), field(), filter(), summationMode()), sampleProbability);
-        return switch (dataType()) {
-            case DOUBLE -> correctedSum;
-            case LONG -> new ToLong(source(), correctedSum);
-            default -> throw new IllegalStateException("unexpected data type [" + dataType() + "]");
-        };
     }
 }

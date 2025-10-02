@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
@@ -48,10 +48,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String NAME = "ES814ScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
 
     static final FlatVectorsScorer flatVectorScorer = new ESFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE)
+        new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
     );
 
     /** The minimum confidence interval */
@@ -130,7 +132,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         );
     }
 
-    static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
+    public static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
         final Lucene99ScalarQuantizedVectorsWriter delegate;
 

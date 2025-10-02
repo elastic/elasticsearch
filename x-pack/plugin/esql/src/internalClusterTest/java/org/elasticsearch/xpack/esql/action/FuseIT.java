@@ -28,7 +28,6 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V5.isEnabled());
         createAndPopulateIndex();
     }
 
@@ -137,6 +136,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFuseLinearWithWeightsAndNormalizer() {
+        assumeTrue("requires FUSE_L2_NORM capability", EsqlCapabilities.Cap.FUSE_L2_NORM.isEnabled());
+
         var query = """
             FROM test METADATA _score, _id, _index
             | WHERE id > 2

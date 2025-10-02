@@ -61,16 +61,16 @@ public final class RandomEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock boundBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (boundBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (boundBlock.getValueCount(p) != 1) {
-          if (boundBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (boundBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int bound = boundBlock.getInt(boundBlock.getFirstValueIndex(p));
         result.appendInt(Random.process(bound));

@@ -30,12 +30,14 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -129,6 +131,11 @@ public class Approximate {
         StdDev.class,
         Sum.class,
         WeightedAvg.class
+    );
+
+    private static final Set<Class<? extends AggregateFunction>> SAMPLE_CORRECTED_AGGS = Set.of(
+        Count.class,
+        Sum.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> SUPPORTED_MULTI_VALUED_AGGS = Set.of(
@@ -362,11 +369,7 @@ public class Approximate {
                     for (int bucketId = -1; bucketId < bucketCount; bucketId++) {
                         AggregateFunction bucketedAgg = agg.withFilter(
                             new MvContains(Source.EMPTY, bucketIdField.toAttribute(), Literal.integer(Source.EMPTY, bucketId)));
-                        Expression correctedAgg = bucketedAgg instanceof NeedsSampleCorrection nsc
-                            ? nsc.sampleCorrection(
-                                Literal.fromDouble(Source.EMPTY, bucketId == -1 ? sampleProbability : sampleProbability / BUCKET_COUNT)
-                              )
-                            : bucketedAgg;
+                        Expression correctedAgg = correctForSampling(bucketedAgg, bucketId == -1 ? sampleProbability : sampleProbability / BUCKET_COUNT);
                         Alias correctedAggAlias = bucketId == -1
                             ? aggAlias.replaceChild(correctedAgg)
                             : new Alias(
@@ -476,5 +479,17 @@ public class Approximate {
 
         approximatePlan.setPreOptimized();
         return approximatePlan;
+    }
+
+    private static Expression correctForSampling(AggregateFunction agg, double sampleProbability) {
+        if (SAMPLE_CORRECTED_AGGS.contains(agg.getClass()) == false) {
+            return agg;
+        }
+        Expression correctedAgg = new Div(agg.source(), agg, Literal.fromDouble(Source.EMPTY, sampleProbability));
+        return switch (agg.dataType()) {
+            case DOUBLE -> correctedAgg;
+            case LONG -> new ToLong(agg.source(), correctedAgg);
+            default -> throw new IllegalStateException("unexpected data type [" + agg.dataType() + "]");
+        };
     }
 }

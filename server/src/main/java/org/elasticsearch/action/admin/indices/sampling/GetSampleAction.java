@@ -145,6 +145,11 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ChunkedToXContent {
+        /*
+         * This is used to truncate the xcontent representaton of this response. The sample has been configured to have no more than maxSize
+         * items. When we pull all items from all ndoes, we might have more than maxSize. So we truncate the xcontent representation to
+         * avoid confusion.
+         */
         final int maxSize;
 
         public Response(StreamInput in) throws IOException {

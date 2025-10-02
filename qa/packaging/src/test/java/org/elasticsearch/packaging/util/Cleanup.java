@@ -13,12 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -211,11 +210,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             payloads = in.readVLong();
             termVectors = in.readVLong();
             points = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                knnVectors = in.readVLong();
-            } else {
-                knnVectors = 0;
-            }
+            knnVectors = in.readVLong();
         }
 
         @Override
@@ -233,9 +228,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(payloads);
             out.writeVLong(termVectors);
             out.writeVLong(points);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                out.writeVLong(knnVectors);
-            }
+            out.writeVLong(knnVectors);
         }
 
         @Override

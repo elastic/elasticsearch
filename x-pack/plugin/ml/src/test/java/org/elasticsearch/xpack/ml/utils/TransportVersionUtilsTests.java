@@ -21,8 +21,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportVersionUtilsTests extends ESTestCase {
 
     private static final Map<String, CompatibilityVersions> transportVersions = Map.of(
-        "Alfredo",
-        new CompatibilityVersions(TransportVersions.V_8_1_0, Map.of()),
         "Bertram",
         new CompatibilityVersions(TransportVersions.V_8_6_0, Map.of()),
         "Charles",

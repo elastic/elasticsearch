@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ValidationException;
@@ -179,12 +178,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                if (in.readBoolean()) {
-                    this.errors = in.readCollectionAsList(Error::new);
-                } else {
-                    this.errors = null;
-                }
+            if (in.readBoolean()) {
+                this.errors = in.readCollectionAsList(Error::new);
             } else {
                 this.errors = null;
             }
@@ -240,13 +235,11 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                if (errors != null) {
-                    out.writeBoolean(true);
-                    out.writeCollection(errors);
-                } else {
-                    out.writeBoolean(false);
-                }
+            if (errors != null) {
+                out.writeBoolean(true);
+                out.writeCollection(errors);
+            } else {
+                out.writeBoolean(false);
             }
         }
 

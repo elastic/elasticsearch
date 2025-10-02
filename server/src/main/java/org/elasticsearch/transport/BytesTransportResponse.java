@@ -9,7 +9,11 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -20,9 +24,29 @@ import java.io.IOException;
 public class BytesTransportResponse extends TransportResponse implements BytesTransportMessage {
 
     private final ReleasableBytesReference bytes;
+    private final TransportVersion version;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     public BytesTransportResponse(ReleasableBytesReference bytes) {
         this.bytes = bytes;
+        this.version = null;
+        this.namedWriteableRegistry = null;
+    }
+
+    public BytesTransportResponse(ReleasableBytesReference bytes, TransportVersion version, NamedWriteableRegistry namedWriteableRegistry) {
+        this.bytes = bytes;
+        this.version = version;
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
+
+    public boolean mustConvertResponseForVersion(TransportVersion targetVersion) {
+        return version != null && version.equals(targetVersion) == false;
+    }
+
+    public StreamInput streamInput() throws IOException {
+        NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(bytes().streamInput(), namedWriteableRegistry);
+        in.setTransportVersion(version);
+        return in;
     }
 
     @Override

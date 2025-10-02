@@ -845,7 +845,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
+            ActionListener.respondAndRelease(
+                channelListener,
+                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion(), namedWriteableRegistry)
+            );
         }
 
         private void maybeFreeContext(

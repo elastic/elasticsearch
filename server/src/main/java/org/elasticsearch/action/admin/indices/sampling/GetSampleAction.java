@@ -162,12 +162,10 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class Request extends BaseNodesRequest implements IndicesRequest.Replaceable {
-        private final ProjectId projectId;
         private String[] names;
 
-        public Request(ProjectId projectId, String[] names) {
+        public Request(String[] names) {
             super((String[]) null);
-            this.projectId = projectId;
             this.names = names;
         }
 
@@ -195,10 +193,6 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
                 );
             }
             return null;
-        }
-
-        public ProjectId getProjectId() {
-            return projectId;
         }
 
         @Override

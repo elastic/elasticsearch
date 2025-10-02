@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.SamplingService;
@@ -35,6 +36,7 @@ import static org.elasticsearch.action.admin.indices.sampling.GetSampleAction.Re
 public class TransportGetSampleAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SamplingService samplingService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetSampleAction(
@@ -43,7 +45,8 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SamplingService samplingService
+        SamplingService samplingService,
+        ProjectResolver projectResolver
     ) {
         super(
             GetSampleAction.NAME,
@@ -55,13 +58,14 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.samplingService = samplingService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected Void createActionContext(Task task, Request request) {
         String indexName = request.indices()[0];
         SamplingMetadata samplingMetadata = clusterService.state()
-            .projectState(request.getProjectId())
+            .projectState(projectResolver.getProjectId())
             .metadata()
             .custom(SamplingMetadata.TYPE);
         if (samplingMetadata == null || samplingMetadata.getIndexToSamplingConfigMap().get(indexName) == null) {
@@ -74,7 +78,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
         indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request);
         SamplingMetadata samplingMetadata = clusterService.state()
-            .projectState(request.getProjectId())
+            .projectState(projectResolver.getProjectId())
             .metadata()
             .custom(SamplingMetadata.TYPE);
         final int maxSamples;
@@ -89,7 +93,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
 
     @Override
     protected NodeRequest newNodeRequest(Request request) {
-        return new NodeRequest(request.getProjectId(), request.indices()[0]);
+        return new NodeRequest(projectResolver.getProjectId(), request.indices()[0]);
     }
 
     @Override

@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.sampling;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -22,11 +21,6 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSampleAction extends BaseRestHandler {
-    private final ProjectIdResolver projectIdResolver;
-
-    public RestGetSampleAction(ProjectIdResolver projectIdResolver) {
-        this.projectIdResolver = projectIdResolver;
-    }
 
     @Override
     public String getName() {
@@ -40,10 +34,7 @@ public class RestGetSampleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetSampleAction.Request getSampleRequest = new GetSampleAction.Request(
-            projectIdResolver.getProjectId(),
-            request.param("index").split(",")
-        );
+        GetSampleAction.Request getSampleRequest = new GetSampleAction.Request(request.param("index").split(","));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetSampleAction.INSTANCE,
             getSampleRequest,

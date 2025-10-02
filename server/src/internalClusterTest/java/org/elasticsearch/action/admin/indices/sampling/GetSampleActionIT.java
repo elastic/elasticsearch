@@ -45,7 +45,7 @@ public class GetSampleActionIT extends ESIntegTestCase {
         for (int i = 0; i < docsToIndex; i++) {
             indexDoc(indexName, randomIdentifier(), randomAlphanumericOfLength(10), randomAlphanumericOfLength(10));
         }
-        GetSampleAction.Request request = new GetSampleAction.Request(ProjectId.DEFAULT, new String[] { indexName });
+        GetSampleAction.Request request = new GetSampleAction.Request(new String[] { indexName });
         GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
         List<SamplingService.RawDocument> sample = response.getSample();
         assertThat(sample.size(), equalTo(docsToIndex));
@@ -60,14 +60,14 @@ public class GetSampleActionIT extends ESIntegTestCase {
     }
 
     private void assertEmptySample(String indexName) {
-        GetSampleAction.Request request = new GetSampleAction.Request(ProjectId.DEFAULT, new String[] { indexName });
+        GetSampleAction.Request request = new GetSampleAction.Request(new String[] { indexName });
         GetSampleAction.Response response = client().execute(GetSampleAction.INSTANCE, request).actionGet();
         List<SamplingService.RawDocument> sample = response.getSample();
         assertThat(sample, equalTo(List.of()));
     }
 
     private void assertGetSampleThrowsResourceNotFoundException(String indexName) {
-        GetSampleAction.Request request = new GetSampleAction.Request(ProjectId.DEFAULT, new String[] { indexName });
+        GetSampleAction.Request request = new GetSampleAction.Request(new String[] { indexName });
         assertThrows(ResourceNotFoundException.class, () -> client().execute(GetSampleAction.INSTANCE, request).actionGet());
     }
 

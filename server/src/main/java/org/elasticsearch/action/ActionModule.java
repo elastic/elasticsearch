@@ -1052,7 +1052,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteSynonymRuleAction());
 
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
-            registerHandler.accept(new RestGetSampleAction(projectIdResolver));
+            registerHandler.accept(new RestGetSampleAction());
         }
     }
 

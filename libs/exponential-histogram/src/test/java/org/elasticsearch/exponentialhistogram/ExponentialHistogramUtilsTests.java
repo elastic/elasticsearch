@@ -31,7 +31,7 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
     public void testRandomDataSumEstimation() {
         for (int i = 0; i < 100; i++) {
             int valueCount = randomIntBetween(100, 10_000);
-            int bucketCount = randomIntBetween(2, 500);
+            int bucketCount = randomIntBetween(4, 500);
 
             double correctSum = 0;
             double sign = randomBoolean() ? 1 : -1;

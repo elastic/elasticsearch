@@ -2915,8 +2915,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
         var plan = physicalPlan("""
@@ -7626,8 +7624,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoading() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
         String query = """
@@ -7703,8 +7699,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
                 "lookup_index1",
@@ -7756,8 +7750,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
                 "lookup_index1",
@@ -7796,8 +7788,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
         String query = """

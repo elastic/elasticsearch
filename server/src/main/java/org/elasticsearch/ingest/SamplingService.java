@@ -191,7 +191,7 @@ public class SamplingService implements ClusterStateListener {
                 stats.samplesRejectedForCondition.increment();
                 return;
             }
-            RawDocument sample = getRawDocumentForIndexRequest(projectId, indexName, indexRequest);
+            RawDocument sample = getRawDocumentForIndexRequest(indexName, indexRequest);
             if (sampleInfo.offer(sample)) {
                 stats.samples.increment();
                 logger.trace("Sampling " + indexRequest);
@@ -287,15 +287,14 @@ public class SamplingService implements ClusterStateListener {
      * This represents a raw document as the user sent it to us in an IndexRequest. It only holds onto the information needed for the
      * sampling API, rather than holding all of the fields a user might send in an IndexRequest.
      */
-    public record RawDocument(ProjectId projectId, String indexName, byte[] source, XContentType contentType) implements Writeable {
+    public record RawDocument(String indexName, byte[] source, XContentType contentType) implements Writeable {
 
         public RawDocument(StreamInput in) throws IOException {
-            this(ProjectId.readFrom(in), in.readString(), in.readByteArray(), in.readEnum(XContentType.class));
+            this(in.readString(), in.readByteArray(), in.readEnum(XContentType.class));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            projectId.writeTo(out);
             out.writeString(indexName);
             out.writeByteArray(source);
             XContentHelper.writeTo(out, contentType);
@@ -306,15 +305,14 @@ public class SamplingService implements ClusterStateListener {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             RawDocument rawDocument = (RawDocument) o;
-            return Objects.equals(projectId, rawDocument.projectId)
-                && Objects.equals(indexName, rawDocument.indexName)
+            return Objects.equals(indexName, rawDocument.indexName)
                 && Arrays.equals(source, rawDocument.source)
                 && contentType == rawDocument.contentType;
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(projectId, indexName, contentType);
+            int result = Objects.hash(indexName, contentType);
             result = 31 * result + Arrays.hashCode(source);
             return result;
         }
@@ -325,13 +323,13 @@ public class SamplingService implements ClusterStateListener {
      * RawDocument might be a relatively expensive object memory-wise. Since the bytes are copied, subsequent changes to the indexRequest
      * are not reflected in the RawDocument
      */
-    private RawDocument getRawDocumentForIndexRequest(ProjectId projectId, String indexName, IndexRequest indexRequest) {
+    private RawDocument getRawDocumentForIndexRequest(String indexName, IndexRequest indexRequest) {
         BytesReference sourceReference = indexRequest.source();
         assert sourceReference != null : "Cannot sample an IndexRequest with no source";
         byte[] source = sourceReference.array();
         final byte[] sourceCopy = new byte[sourceReference.length()];
         System.arraycopy(source, sourceReference.arrayOffset(), sourceCopy, 0, sourceReference.length());
-        return new RawDocument(projectId, indexName, sourceCopy, indexRequest.getContentType());
+        return new RawDocument(indexName, sourceCopy, indexRequest.getContentType());
     }
 
     public static final class SampleStats implements Writeable, ToXContent {

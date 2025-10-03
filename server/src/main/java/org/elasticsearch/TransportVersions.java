@@ -156,11 +156,6 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_CONTEXT_8_X = def(8_841_0_08);
     public static final TransportVersion ML_INFERENCE_DEEPSEEK_8_19 = def(8_841_0_09);
     public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE_8_19 = def(8_841_0_10);
-    public static final TransportVersion ESQL_FAILURE_FROM_REMOTE_8_19 = def(8_841_0_11);
-    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL_8_19 = def(8_841_0_12);
-    public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA_8_19 = def(8_841_0_13);
-    public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE_8_19 = def(8_841_0_14);
-    public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED_8_19 = def(8_841_0_15);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = def(9_006_0_00);
     public static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = def(9_007_00_0);
@@ -179,14 +174,9 @@ public class TransportVersions {
     public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
     public static final TransportVersion INFERENCE_CONTEXT = def(9_028_0_00);
     public static final TransportVersion ML_INFERENCE_DEEPSEEK = def(9_029_00_0);
-    public static final TransportVersion ESQL_FAILURE_FROM_REMOTE = def(9_030_00_0);
     public static final TransportVersion INDEX_RESHARDING_METADATA = def(9_031_0_00);
-    public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = def(9_032_0_00);
-    public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = def(9_033_0_00);
     public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
-    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = def(9_035_0_00);
     public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
-    public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = def(9_037_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOT = def(9_040_0_00);
     public static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = def(9_041_0_00);
     public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);

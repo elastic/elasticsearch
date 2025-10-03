@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -7006,6 +7007,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialLimit.child(), EsRelation.class);
         }
         {
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
             var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
@@ -7061,6 +7064,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
+        // Do not assert serialization:
+        // This has local LIMIT which does not serialize to a local LIMIT.
         var plan = physicalPlanNoSerializationCheck("""
             FROM test
             | LIMIT 10
@@ -7113,6 +7118,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
             var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
@@ -7130,6 +7137,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(eval.child(), EsRelation.class);
         }
         {
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
             var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
@@ -7150,6 +7159,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     public void testEnrichAfterTopN() {
         {
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
             var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
@@ -7186,6 +7197,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(partialTopN.child(), EsRelation.class);
         }
         {
+            // Do not assert serialization:
+            // This has local LIMIT which does not serialize to a local LIMIT.
             var plan = physicalPlanNoSerializationCheck("""
                 FROM test
                 | SORT emp_no
@@ -7197,13 +7210,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var dupTopN = as(fragment.fragment(), TopN.class);
-            assertThat(dupTopN.limit().toString(), equalTo("10"));
+            assertThat(Foldables.limitValue(dupTopN.limit(), dupTopN.sourceText()), equalTo(10));
             var enrich = as(dupTopN.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
             var partialTopN = as(evalFragment.child(), TopN.class);
-            assertThat(partialTopN.limit().toString(), equalTo("10"));
+            assertThat(Foldables.limitValue(partialTopN.limit(), partialTopN.sourceText()), equalTo(10));
+            assertTrue(partialTopN.local());
             as(partialTopN.child(), EsRelation.class);
         }
     }

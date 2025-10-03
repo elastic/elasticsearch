@@ -17,6 +17,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
@@ -40,8 +41,8 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  */
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
-        super(state, rawVectorsReader);
+    public ES920DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+        super(state, getFormatReader);
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
@@ -598,7 +599,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
                         qcDist
                     );
                     scoredDocs++;
-                    knnCollector.collect(doc, score);
+                    if (knnCollector.minCompetitiveSimilarity() < score) {
+                        knnCollector.collect(doc, score);
+                    }
                 } else {
                     indexInput.skipBytes(quantizedByteLength);
                 }

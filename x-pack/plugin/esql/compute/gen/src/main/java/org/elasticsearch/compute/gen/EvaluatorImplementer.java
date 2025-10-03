@@ -218,7 +218,7 @@ public class EvaluatorImplementer {
                         builder.endControlFlow();
                     }
                 } else {
-                    assert allNullsIsNull: "allNullsIsNull == false is only supported for block style.";
+                    assert allNullsIsNull : "allNullsIsNull == false is only supported for block style.";
                 }
                 processFunction.args.stream().forEach(a -> a.read(builder, blockStyle));
 

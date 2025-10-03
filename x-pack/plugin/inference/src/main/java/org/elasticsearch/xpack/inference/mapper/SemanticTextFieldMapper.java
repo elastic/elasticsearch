@@ -127,7 +127,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
-    public static final String UNSUPPORTED_INDEX_MESSAGE = "[semantic_text] is available on indices created with 8.11 or higher.";
+
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -153,6 +153,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
 
+    public static final String UNSUPPORTED_INDEX_MESSAGE = "["
+        + CONTENT_TYPE
+        + "] is available on indices created with 8.11 or higher. Please create a new index to use ["
+        + CONTENT_TYPE
+        + "]";
+
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     static final String INDEX_OPTIONS_FIELD = "index_options";
@@ -166,9 +172,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static BiConsumer<String, MappingParserContext> validateParserContext(String type) {
         return (n, c) -> {
-            if (c.getIndexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR)) {
-                throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
-            }
             if (InferenceMetadataFieldsMapper.isEnabled(c.getIndexSettings().getSettings()) == false) {
                 notInMultiFields(type).accept(n, c);
             }
@@ -588,16 +591,33 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         }
+
+        SemanticTextField semanticTextField;
         boolean isWithinLeaf = context.path().isWithinLeafObject();
         try {
             context.path().setWithinLeafObject(true);
-            return SemanticTextField.parse(
+            semanticTextField = SemanticTextField.parse(
                 context.parser(),
                 new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType())
             );
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
+
+        IndexVersion indexCreatedVersion = context.indexSettings().getIndexVersionCreated();
+        if (semanticTextField != null
+            && semanticTextField.inference().modelSettings() != null
+            && indexCreatedVersion.before(NEW_SPARSE_VECTOR)) {
+            // Explicitly fail to parse semantic text fields that meet the following criteria:
+            // - Are in pre 8.11 indices
+            // - Have model settings, indicating that they have embeddings to be indexed
+            //
+            // We can't fail earlier than this because it causes pre 8.11 indices with semantic text fields to either be in red state or
+            // cause Elasticsearch to not launch.
+            throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
+        }
+
+        return semanticTextField;
     }
 
     void parseCreateFieldFromContext(DocumentParserContext context, SemanticTextField field, XContentLocation xContentLocation)
@@ -1301,13 +1321,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions
     ) {
-        SimilarityMeasure similarity = modelSettings.similarity();
-        if (similarity != null) {
-            switch (similarity) {
-                case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
-                case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
-                case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
-                default -> throw new IllegalArgumentException("Unknown similarity measure in model_settings [" + similarity.name() + "]");
+        // Skip setting similarity on pre 8.11 indices. It causes dense vector field creation to fail because similarity can only be set
+        // on indexed fields, which is not done by default prior to 8.11. The fact that the dense vector field is partially configured is
+        // moot because we will explicitly fail to index docs into this semantic text field anyways.
+        if (indexVersionCreated.onOrAfter(NEW_SPARSE_VECTOR)) {
+            SimilarityMeasure similarity = modelSettings.similarity();
+            if (similarity != null) {
+                switch (similarity) {
+                    case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
+                    case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
+                    case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
+                    default -> throw new IllegalArgumentException(
+                        "Unknown similarity measure in model_settings [" + similarity.name() + "]"
+                    );
+                }
             }
         }
 

@@ -77,7 +77,14 @@ public class Kql extends FullTextFunction implements OptionalArgument {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = "Performs a KQL query. Returns true if the provided KQL query string matches the row.",
-        examples = { @Example(file = "kql-function", tag = "kql-with-field"), @Example(file = "kql-function", tag = "kql-with-options") }
+        examples = {
+            @Example(file = "kql-function", tag = "kql-with-field", description = "Use KQL to filter by a specific field value"),
+            @Example(
+                file = "kql-function",
+                tag = "kql-with-options",
+                description = "Use KQL with additional options for case-insensitive matching and custom settings",
+                applies_to = "stack: 9.3.0"
+            ) }
     )
     public Kql(
         Source source,
@@ -89,7 +96,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
         @MapParam(
             name = "options",
             description = "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-kql-query,KQL query>> for more information.",
+                + " Available in stack version 9.3.0 and later.",
             params = {
                 @MapParam.MapParamEntry(
                     name = "case_insensitive",

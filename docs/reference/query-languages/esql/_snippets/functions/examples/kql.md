@@ -15,6 +15,10 @@ FROM books
 | 2883 | William Faulkner |
 | 3293 | Danny Faulkner |
 
+```{applies_to}
+stack: 9.3.0
+```
+
 ```esql
 FROM employees
 | WHERE KQL("mary", {"case_insensitive": true, "default_field": "first_name", "boost": 1.5})

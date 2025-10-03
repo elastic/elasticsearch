@@ -56,6 +56,7 @@ import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -443,6 +444,13 @@ public class LocalExecutionPlanner {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
         PhysicalOperation source = plan(child, context);
+        if (Assertions.ENABLED) {
+            List<Attribute> inputAttributes = exchangeSink.child().output();
+            for (Attribute attr : inputAttributes) {
+                assert source.layout.get(attr.id()) != null
+                    : "input attribute [" + attr + "] does not exist in the source layout [" + source.layout + "]";
+            }
+        }
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }
 
@@ -656,7 +664,7 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        Block[] localData = localSourceExec.supplier().get();
+        Page localData = localSourceExec.supplier().get();
 
         RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
         int[] blockMapping = new int[join.leftFields().size()];
@@ -667,7 +675,7 @@ public class LocalExecutionPlanner {
             List<Attribute> output = join.joinData().output();
             for (int l = 0; l < output.size(); l++) {
                 if (output.get(l).name().equals(right.name())) {
-                    localField = localData[l];
+                    localField = localData.getBlock(l);
                 }
             }
             if (localField == null) {
@@ -688,7 +696,7 @@ public class LocalExecutionPlanner {
             Block localField = null;
             for (int l = 0; l < joinDataOutput.size(); l++) {
                 if (joinDataOutput.get(l).name().equals(f.name())) {
-                    localField = localData[l];
+                    localField = localData.getBlock(l);
                 }
             }
             if (localField == null) {
@@ -813,7 +821,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(localSourceExec.output());
-        LocalSourceOperator.BlockSupplier supplier = () -> localSourceExec.supplier().get();
+        LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
     }

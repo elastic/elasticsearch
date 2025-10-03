@@ -63,14 +63,14 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         switch (fieldValBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int fieldVal = fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p));
         result.appendInt(Abs.process(fieldVal));

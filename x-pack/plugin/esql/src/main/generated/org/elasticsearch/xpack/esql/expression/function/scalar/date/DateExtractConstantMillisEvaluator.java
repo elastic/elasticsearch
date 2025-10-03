@@ -71,14 +71,14 @@ public final class DateExtractConstantMillisEvaluator implements EvalOperator.Ex
       position: for (int p = 0; p < positionCount; p++) {
         switch (valueBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
         result.appendLong(DateExtract.processMillis(value, this.chronoField, this.zone));

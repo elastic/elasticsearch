@@ -74,14 +74,14 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
       position: for (int p = 0; p < positionCount; p++) {
         switch (inputBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
         result.appendBoolean(AutomataMatch.process(input, this.automaton, this.pattern));

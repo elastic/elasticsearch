@@ -73,25 +73,25 @@ public final class CopySignDoubleEvaluator implements EvalOperator.ExpressionEva
       position: for (int p = 0; p < positionCount; p++) {
         switch (magnitudeBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         switch (signBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double magnitude = magnitudeBlock.getDouble(magnitudeBlock.getFirstValueIndex(p));
         double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));

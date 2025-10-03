@@ -73,25 +73,25 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         switch (yBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         switch (xBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double y = yBlock.getDouble(yBlock.getFirstValueIndex(p));
         double x = xBlock.getDouble(xBlock.getFirstValueIndex(p));

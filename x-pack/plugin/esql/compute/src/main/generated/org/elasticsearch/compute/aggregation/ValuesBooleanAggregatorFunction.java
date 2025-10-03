@@ -101,12 +101,12 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
 
   private void addRawBlock(BooleanBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         ValuesBooleanAggregator.combine(state, vValue);
@@ -119,12 +119,12 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         ValuesBooleanAggregator.combine(state, vValue);

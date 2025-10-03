@@ -104,13 +104,13 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(BooleanBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         state.booleanValue(MinBooleanAggregator.combine(state.booleanValue(), vValue));
@@ -123,13 +123,13 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         state.booleanValue(MinBooleanAggregator.combine(state.booleanValue(), vValue));

@@ -106,12 +106,12 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
   private void addRawBlock(BytesRefBlock vBlock) {
     BytesRef vScratch = new BytesRef();
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         ValuesBytesRefAggregator.combine(state, vValue);
@@ -125,12 +125,12 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         ValuesBytesRefAggregator.combine(state, vValue);

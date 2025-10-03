@@ -71,14 +71,14 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
       position: for (int p = 0; p < positionCount; p++) {
         switch (lhsBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef lhs = lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch);
         result.appendBoolean(InsensitiveEquals.processConstant(lhs, this.rhs));

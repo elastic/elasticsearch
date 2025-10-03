@@ -112,12 +112,12 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(BytesRefBlock vBlock) {
     BytesRef vScratch = new BytesRef();
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         TopIpAggregator.combine(state, vValue);
@@ -131,12 +131,12 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         TopIpAggregator.combine(state, vValue);

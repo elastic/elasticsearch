@@ -105,12 +105,12 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
 
   private void addRawBlock(IntBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
@@ -123,12 +123,12 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int vValueValueCount = vBlock.getValueCount(p);
-      if (vValueValueCount == 0) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vValueValueCount;
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         MedianAbsoluteDeviationIntAggregator.combine(state, vValue);

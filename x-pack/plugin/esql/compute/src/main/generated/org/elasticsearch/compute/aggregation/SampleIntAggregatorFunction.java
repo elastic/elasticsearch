@@ -107,12 +107,12 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(IntBlock valueBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      int valueValueValueCount = valueBlock.getValueCount(p);
-      if (valueValueValueCount == 0) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueValueCount;
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         int valueValue = valueBlock.getInt(valueOffset);
         SampleIntAggregator.combine(state, valueValue);
@@ -125,12 +125,12 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int valueValueValueCount = valueBlock.getValueCount(p);
-      if (valueValueValueCount == 0) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueValueCount;
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         int valueValue = valueBlock.getInt(valueOffset);
         SampleIntAggregator.combine(state, valueValue);

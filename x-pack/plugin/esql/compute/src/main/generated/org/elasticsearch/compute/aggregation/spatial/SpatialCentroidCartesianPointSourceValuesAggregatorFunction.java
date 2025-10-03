@@ -116,12 +116,12 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
   private void addRawBlock(BytesRefBlock wkbBlock) {
     BytesRef wkbScratch = new BytesRef();
     for (int p = 0; p < wkbBlock.getPositionCount(); p++) {
-      int wkbValueValueCount = wkbBlock.getValueCount(p);
-      if (wkbValueValueCount == 0) {
+      int wkbValueCount = wkbBlock.getValueCount(p);
+      if (wkbValueCount == 0) {
         continue;
       }
       int wkbStart = wkbBlock.getFirstValueIndex(p);
-      int wkbEnd = wkbStart + wkbValueValueCount;
+      int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
         SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
@@ -135,12 +135,12 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int wkbValueValueCount = wkbBlock.getValueCount(p);
-      if (wkbValueValueCount == 0) {
+      int wkbValueCount = wkbBlock.getValueCount(p);
+      if (wkbValueCount == 0) {
         continue;
       }
       int wkbStart = wkbBlock.getFirstValueIndex(p);
-      int wkbEnd = wkbStart + wkbValueValueCount;
+      int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
         SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);

@@ -100,8 +100,8 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
 
   private void addRawBlock(IntBlock valuesBlock) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
-      int valuesValueValueCount = valuesBlock.getValueCount(p);
-      if (valuesValueValueCount == 0) {
+      int valuesValueCount = valuesBlock.getValueCount(p);
+      if (valuesValueCount == 0) {
         continue;
       }
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, p, valuesBlock);
@@ -113,8 +113,8 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int valuesValueValueCount = valuesBlock.getValueCount(p);
-      if (valuesValueValueCount == 0) {
+      int valuesValueCount = valuesBlock.getValueCount(p);
+      if (valuesValueCount == 0) {
         continue;
       }
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, p, valuesBlock);

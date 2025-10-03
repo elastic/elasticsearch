@@ -64,14 +64,14 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
       position: for (int p = 0; p < positionCount; p++) {
         switch (vBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
         try {

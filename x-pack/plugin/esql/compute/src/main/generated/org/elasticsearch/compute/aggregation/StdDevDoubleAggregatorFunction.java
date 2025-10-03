@@ -106,12 +106,12 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   private void addRawBlock(DoubleBlock valueBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      int valueValueValueCount = valueBlock.getValueCount(p);
-      if (valueValueValueCount == 0) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueValueCount;
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         StdDevDoubleAggregator.combine(state, valueValue);
@@ -124,12 +124,12 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int valueValueValueCount = valueBlock.getValueCount(p);
-      if (valueValueValueCount == 0) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueValueCount;
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         StdDevDoubleAggregator.combine(state, valueValue);

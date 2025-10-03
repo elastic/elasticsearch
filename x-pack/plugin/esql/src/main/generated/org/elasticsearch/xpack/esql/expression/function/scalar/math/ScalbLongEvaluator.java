@@ -76,25 +76,25 @@ public final class ScalbLongEvaluator implements EvalOperator.ExpressionEvaluato
       position: for (int p = 0; p < positionCount; p++) {
         switch (dBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         switch (scaleFactorBlock.getValueCount(p)) {
           case 0:
-          result.appendNull();
-          continue position;
+              result.appendNull();
+              continue position;
           case 1:
-          break;
+              break;
           default:
-          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
         long scaleFactor = scaleFactorBlock.getLong(scaleFactorBlock.getFirstValueIndex(p));

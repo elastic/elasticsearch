@@ -149,20 +149,20 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
 
   private void addRawBlock(DoubleBlock valueBlock, LongBlock timestampBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      int valueValueValueCount = valueBlock.getValueCount(p);
-      if (valueValueValueCount == 0) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int timestampValueValueCount = timestampBlock.getValueCount(p);
-      if (timestampValueValueCount == 0) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueValueCount;
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampValueValueCount;
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -182,20 +182,20 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int valueValueValueCount = valueBlock.getValueCount(p);
-      if (valueValueValueCount == 0) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int timestampValueValueCount = timestampBlock.getValueCount(p);
-      if (timestampValueValueCount == 0) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueValueCount;
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampValueValueCount;
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path

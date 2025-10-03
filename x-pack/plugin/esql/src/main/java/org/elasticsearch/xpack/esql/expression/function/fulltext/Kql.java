@@ -100,13 +100,13 @@ public class Kql extends FullTextFunction implements OptionalArgument {
                 @MapParam.MapParamEntry(
                     name = "time_zone",
                     type = "keyword",
-                    valueHint = {"UTC", "Europe/Paris", "America/New_York"},
+                    valueHint = { "UTC", "Europe/Paris", "America/New_York" },
                     description = "UTC offset or IANA time zone used to interpret date literals in the query string."
                 ),
                 @MapParam.MapParamEntry(
                     name = "default_field",
                     type = "keyword",
-                    valueHint = {"*", "logs.*", "title"},
+                    valueHint = { "*", "logs.*", "title" },
                     description = "Default field to search if no field is provided in the query string. Supports wildcards (*)."
                 ),
                 @MapParam.MapParamEntry(
@@ -114,7 +114,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
                     type = "float",
                     valueHint = { "2.5" },
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
-                )},
+                ) },
             optional = true
         ) Expression options
     ) {

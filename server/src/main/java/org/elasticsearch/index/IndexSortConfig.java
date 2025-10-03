@@ -192,6 +192,9 @@ public final class IndexSortConfig {
             }
 
             String indexMode = settings.get(IndexSettings.MODE.getKey());
+            if (indexMode != null) {
+                indexMode = indexMode.toLowerCase(Locale.ROOT);
+            }
 
             if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
                 return TIME_SERIES_SORT;

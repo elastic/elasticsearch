@@ -1593,7 +1593,12 @@ public class EsqlCapabilities {
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
-        FIX_NO_COLUMNS;
+        FIX_NO_COLUMNS,
+
+        /**
+         * Support for dots in FUSE attributes
+         */
+        DOTS_IN_FUSE;
 
         private final boolean enabled;
 

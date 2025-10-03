@@ -672,6 +672,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLuceneOnSortedIndex
   issue: https://github.com/elastic/elasticsearch/issues/135939
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testClosedIndices {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135941
 
 # Examples:
 #

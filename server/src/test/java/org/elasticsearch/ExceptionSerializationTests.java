@@ -238,7 +238,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     private <T extends Exception> T serialize(T exception) throws IOException {
-        return serialize(exception, TransportVersionUtils.randomVersion(random()));
+        return serialize(exception, TransportVersionUtils.randomCompatibleVersion(random()));
     }
 
     private <T extends Exception> T serialize(T exception, TransportVersion version) throws IOException {
@@ -366,7 +366,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            TransportVersions.V_8_0_0
+            TransportVersionUtils.randomCompatibleVersion(random())
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());

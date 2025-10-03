@@ -17,18 +17,19 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.vectors.es818;
+package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWriter;
 
 import java.io.IOException;
 
@@ -85,30 +86,19 @@ import java.io.IOException;
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-public class ES818BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat {
+public class ES93BinaryQuantizedVectorsFormat extends DirectIOCapableFlatVectorsFormat {
 
-    public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
-    public static final String NAME = "ES818BinaryQuantizedVectorsFormat";
+    public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 
-    static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
-    static final String META_CODEC_NAME = "ES818BinaryQuantizedVectorsFormatMeta";
-    static final String VECTOR_DATA_CODEC_NAME = "ES818BinaryQuantizedVectorsFormatData";
-    static final String META_EXTENSION = "vemb";
-    static final String VECTOR_DATA_EXTENSION = "veb";
-    static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
-
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
-    );
+    private final DirectIOCapableLucene99FlatVectorsFormat rawVectorFormat;
 
     private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
-    /** Creates a new instance with the default number of vectors per cluster. */
-    public ES818BinaryQuantizedVectorsFormat() {
+    public ES93BinaryQuantizedVectorsFormat() {
         super(NAME);
+        rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
     }
 
     @Override
@@ -124,5 +114,10 @@ public class ES818BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
+    }
+
+    @Override
+    public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
+        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state, useDirectIO), scorer);
     }
 }

@@ -63,18 +63,8 @@ public class CartesianPointDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYPointQuery(
-                    geometry,
-                    FIELD_NAME,
-                    relation,
-                    IndexType.POINTS_WITHOUT_DOC_VALUES
-                );
-                Query docValQuery = XYQueriesUtils.toXYPointQuery(
-                    geometry,
-                    FIELD_NAME,
-                    relation,
-                    IndexType.DOC_VALUES_ONLY
-                );
+                Query indexQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.POINTS_WITHOUT_DOC_VALUES);
+                Query docValQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.DOC_VALUES_ONLY);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -113,18 +103,8 @@ public class CartesianPointDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYPointQuery(
-                    geometry,
-                    FIELD_NAME,
-                    relation,
-                    IndexType.POINTS_WITHOUT_DOC_VALUES
-                );
-                Query docValQuery = XYQueriesUtils.toXYPointQuery(
-                    geometry,
-                    FIELD_NAME,
-                    relation,
-                    IndexType.DOC_VALUES_ONLY
-                );
+                Query indexQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.POINTS_WITHOUT_DOC_VALUES);
+                Query docValQuery = XYQueriesUtils.toXYPointQuery(geometry, FIELD_NAME, relation, IndexType.DOC_VALUES_ONLY);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }

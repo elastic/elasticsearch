@@ -218,11 +218,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 metric.get() != TimeSeriesParams.MetricType.POSITION,
                 context.isSourceSynthetic() && ignoreMalformedEnabled
             );
-            IndexType indexType = IndexType.points(
-                indexed.get(),
-                hasDocValues.get(),
-                indexCreatedVersion.isLegacyIndexVersion()
-            );
+            IndexType indexType = IndexType.points(indexed.get(), hasDocValues.get(), indexCreatedVersion.isLegacyIndexVersion());
             GeoPointFieldType ft = new GeoPointFieldType(
                 context.buildFullName(leafName()),
                 indexType,

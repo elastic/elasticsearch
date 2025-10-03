@@ -538,17 +538,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static DateFieldType fieldType(Resolution resolution, String format, String nullValue) {
         DateFormatter formatter = DateFormatter.forPattern(format);
-        return new DateFieldType(
-            "field",
-            IndexType.POINTS,
-            false,
-            true,
-            formatter,
-            resolution,
-            nullValue,
-            null,
-            Collections.emptyMap()
-        );
+        return new DateFieldType("field", IndexType.POINTS, false, true, formatter, resolution, nullValue, null, Collections.emptyMap());
     }
 
     public void testFetchSourceValue() throws IOException {

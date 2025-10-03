@@ -204,11 +204,7 @@ public class IpFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP
             );
-            IndexType indexType = IndexType.points(
-                indexed.get(),
-                hasDocValues.get(),
-                indexCreatedVersion.isLegacyIndexVersion()
-            );
+            IndexType indexType = IndexType.points(indexed.get(), hasDocValues.get(), indexCreatedVersion.isLegacyIndexVersion());
             return new IpFieldMapper(
                 leafName(),
                 new IpFieldType(

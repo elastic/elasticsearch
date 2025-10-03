@@ -430,10 +430,7 @@ public class ValuesSourceConfig {
      * the ordering.
      */
     public boolean alignesWithSearchIndex() {
-        return script() == null
-            && missing() == null
-            && fieldType() != null
-            && IndexType.supportsSortShortcuts(fieldType().indexType());
+        return script() == null && missing() == null && fieldType() != null && IndexType.supportsSortShortcuts(fieldType().indexType());
     }
 
     /**

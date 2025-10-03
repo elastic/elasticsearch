@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -68,10 +71,16 @@ import java.util.Map;
  * DATE_TRUNC properly handles timezone and daylight saving time (DST) transitions when using Period or Duration
  * intervals, while DATE_FORMAT does not account for these timezone-related considerations.
  */
-public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.ParameterizedOptimizerRule<
+    Aggregate,
+    LogicalOptimizerContext> {
+
+    public ReplaceAggregateNestedExpressionWithEval() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
 
     @Override
-    protected LogicalPlan rule(Aggregate aggregate) {
+    protected LogicalPlan rule(Aggregate aggregate, LogicalOptimizerContext ctx) {
         List<Alias> evalsBeforeAgg = new ArrayList<>();
         List<Alias> evalsAfterAgg = new ArrayList<>();
         Map<String, Attribute> evalNames = new HashMap<>();
@@ -100,27 +109,29 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     var attr = as.toAttribute();
                     if (asChild instanceof DateFormat df) {
                         // Extract the format pattern and field from DateFormat
-                        Literal format = (Literal) df.format();
-                        Expression field = df.field();
+                        Expression rawFormat = df.format();
+                        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(aggregate, ctx);
 
                         // Try to convert the format pattern to a minimal time interval
                         // This optimization attempts to simplify date formatting to DATE_TRUNC operations
-                        Literal interval = inferTruncIntervalFromFormat(BytesRefs.toString(format.value()), g.source());
-                        // If we can optimize the format to use DATE_TRUNC
-                        if (interval != null) {
-                            // Create a new DateTrunc operation with the optimized interval
-                            DateTrunc dateTrunc = new DateTrunc(df.source(), interval, field);
-                            // Create a synthetic alias for the DateTrunc operation
-                            var alias = new Alias(as.source(), as.name(), dateTrunc, null, true);
-                            attr = alias.toAttribute();
-                            // Replace the original DateFormat children with the new format and attribute
-                            Expression expression = df.replaceChildren(List.of(format, attr));
-                            // Create a new eval alias for the optimized expression
-                            Alias newEval = as.replaceChild(expression);
-                            evalsAfterAgg.add(newEval);
-                            referenceAttributes.put(attr, newEval.toAttribute());
-                            evalNames.put(as.name(), attr);
-                            as = alias;
+                        if (collectRefs.resolve(rawFormat, rawFormat) instanceof Literal format) {
+                            Literal interval = inferTruncIntervalFromFormat(BytesRefs.toString(format.value()), g.source());
+                            // If we can optimize the format to use DATE_TRUNC
+                            if (interval != null) {
+                                // Create a new DateTrunc operation with the optimized interval
+                                DateTrunc dateTrunc = new DateTrunc(df.source(), interval, df.field());
+                                // Create a synthetic alias for the DateTrunc operation
+                                var alias = new Alias(as.source(), as.name(), dateTrunc, null, true);
+                                attr = alias.toAttribute();
+                                // Replace the original DateFormat children with the new format and attribute
+                                Expression expression = df.replaceChildren(List.of(format, attr));
+                                // Create a new eval alias for the optimized expression
+                                Alias newEval = as.replaceChild(expression);
+                                evalsAfterAgg.add(newEval);
+                                referenceAttributes.put(attr, newEval.toAttribute());
+                                evalNames.put(as.name(), attr);
+                                as = alias;
+                            }
                         }
                     }
 

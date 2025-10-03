@@ -64,7 +64,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             null,
             null,
             null,
-            List.of() // empty limited-by role descriptor to simulate derived keys
+            List.of(), // empty limited-by role descriptor to simulate derived keys
+            null
         );
         ApiKey apiKeyInfo2 = createApiKeyInfo(
             "name2",
@@ -79,7 +80,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-type-y",
             Map.of(),
             List.of(),
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
         ApiKey apiKeyInfo3 = createApiKeyInfo(
             null,
@@ -94,7 +96,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-type-z",
             Map.of("foo", "bar"),
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
         final List<RoleDescriptor> crossClusterAccessRoleDescriptors = List.of(
             new RoleDescriptor(
@@ -119,7 +122,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-type-z",
             Map.of("foo", "bar"),
             crossClusterAccessRoleDescriptors,
-            null
+            null,
+            "CN=test,O=TestOrg"
         );
         String profileUid2 = "profileUid2";
         String profileUid4 = "profileUid4";
@@ -323,6 +327,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                       }
                     ]
                   },
+                  "certificate_identity": "CN=test,O=TestOrg",
                   "profile_uid": "profileUid4"
                 }
               ]
@@ -343,6 +348,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                 null,
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
+                null,
                 null,
                 null,
                 null,
@@ -369,7 +375,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
         String realmType,
         Map<String, Object> metadata,
         List<RoleDescriptor> roleDescriptors,
-        List<RoleDescriptor> limitedByRoleDescriptors
+        List<RoleDescriptor> limitedByRoleDescriptors,
+        String certificate_identity
     ) {
         return new ApiKey(
             name,
@@ -384,7 +391,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
             realmType,
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            certificate_identity
         );
     }
 

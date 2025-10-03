@@ -80,7 +80,6 @@ public class BulkRestMarkerSuffixIT extends HttpSmokeTestCase {
 
     public void testBulkRequestBodyImproperlyTerminated() throws IOException {
         Request request = new Request(randomBoolean() ? "POST" : "PUT", "/_bulk");
-
         // missing final line of the bulk body. cannot process
         request.setJsonEntity(
             "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
@@ -108,6 +107,7 @@ public class BulkRestMarkerSuffixIT extends HttpSmokeTestCase {
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         Request firstBulkRequest = new Request("POST", "/index_name/_bulk");
+
         String bulkBody = "{\"index\":{\"_index\":\"index_name\",\"_id\":\"1\"}}\n"
             + "{\"field\":1}\n"
             + "{\"index\":{\"_index\":\"index_name\",\"_id\":\"2\"}}\n"
@@ -191,7 +191,7 @@ public class BulkRestMarkerSuffixIT extends HttpSmokeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void sendLargeBulk() throws IOException {
+    private static void sendLargeBulk() throws IOException {
         Request bulkRequest = new Request("POST", "/index_name/_bulk");
 
         final StringBuilder bulk = new StringBuilder();

@@ -153,7 +153,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
-    private static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
+    public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
 
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 

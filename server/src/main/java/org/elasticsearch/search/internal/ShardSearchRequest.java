@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -233,8 +234,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT,
             false,
-            // TODO (resharding) take as a parameter
-            0
+            // This parameter is specific to the resharding feature.
+            // TODO
+            // It is currently only supported in _search API and is stubbed here as a result.
+            IndexReshardingMetadata.NOOP_RESHARD_SPLIT_SHARD_COUNT_SUMMARY
         );
     }
 

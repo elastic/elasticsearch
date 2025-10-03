@@ -25,12 +25,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.datastreams.TimeSeriesFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Objects;
@@ -168,26 +172,70 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
     }
 
     static class IlmDownsamplingStatsTracker extends DownsamplingStatsTracker {
+        // Delete is not relevant for the statistics we track
+        private static final List<String> ORDERED_RELEVANT_PHASES = List.of("hot", "warm", "cold", "frozen");
         private final Map<String, Map<String, Phase>> policies = new HashMap<>();
 
         void trackPolicy(LifecyclePolicy ilmPolicy) {
             policies.putIfAbsent(ilmPolicy.getName(), ilmPolicy.getPhases());
         }
 
-        Map<String, Long> getIlmPolicyStats() {
+        TimeSeriesFeatureSetUsage.IlmPolicyStats getIlmPolicyStats() {
             if (policies.isEmpty()) {
-                return Map.of();
+                return TimeSeriesFeatureSetUsage.IlmPolicyStats.EMPTY;
             }
+            long forceMergeExplicitlyEnabledCounter = 0;
+            long forceMergeExplicitlyDisabledCounter = 0;
+            long forceMergeDefaultCounter = 0;
+            long downsampledForceMergeNeededCounter = 0; // Meaning it's followed by a searchable snapshot with force-merge index false
             Map<String, Long> downsamplingPhases = new HashMap<>();
             for (String ilmPolicy : policies.keySet()) {
-                for (Phase phase : policies.get(ilmPolicy).values()) {
-                    if (phase.getActions().containsKey(DownsampleAction.NAME)) {
-                        Long current = downsamplingPhases.computeIfAbsent(phase.getName(), ignored -> 0L);
-                        downsamplingPhases.put(phase.getName(), current + 1);
+                Map<String, Phase> phases = policies.get(ilmPolicy);
+                boolean downsampledForceMergeNeeded = false;
+                for (String phase : ORDERED_RELEVANT_PHASES) {
+                    if (phases.containsKey(phase) == false) {
+                        continue;
+                    }
+                    Map<String, LifecycleAction> actions = phases.get(phase).getActions();
+                    if (actions.containsKey(DownsampleAction.NAME)) {
+                        // count the phase used
+                        Long current = downsamplingPhases.computeIfAbsent(phase, ignored -> 0L);
+                        downsamplingPhases.put(phase, current + 1);
+                        // Count force merge
+                        DownsampleAction downsampleAction = (DownsampleAction) actions.get(DownsampleAction.NAME);
+                        if (downsampleAction.forceMergeIndex() == null) {
+                            forceMergeDefaultCounter++;
+                            downsampledForceMergeNeeded = true; // this default force merge could be needed depending on the following steps
+                        } else if (downsampleAction.forceMergeIndex()) {
+                            forceMergeExplicitlyEnabledCounter++;
+                        } else {
+                            forceMergeExplicitlyDisabledCounter++;
+                        }
+                    }
+
+                    // If there is an explicit force merge action, we could consider the downsampling force merge redundant.
+                    if (actions.containsKey(ForceMergeAction.NAME)) {
+                        downsampledForceMergeNeeded = false;
+                    }
+                    if (downsampledForceMergeNeeded && actions.containsKey(SearchableSnapshotAction.NAME)) {
+                        SearchableSnapshotAction searchableSnapshotAction = (SearchableSnapshotAction) actions.get(
+                            SearchableSnapshotAction.NAME
+                        );
+                        if (searchableSnapshotAction.isForceMergeIndex() == false) {
+                            // If there was a searchable snapshot with force index false, then the downsample force merge has impact
+                            downsampledForceMergeNeededCounter++;
+                        }
+                        downsampledForceMergeNeeded = false;
                     }
                 }
             }
-            return downsamplingPhases;
+            return new TimeSeriesFeatureSetUsage.IlmPolicyStats(
+                downsamplingPhases,
+                forceMergeExplicitlyEnabledCounter,
+                forceMergeExplicitlyDisabledCounter,
+                forceMergeDefaultCounter,
+                downsampledForceMergeNeededCounter
+            );
         }
     }
 }

@@ -48,7 +48,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class DownsampleAction implements LifecycleAction {
 
     private static final Logger logger = LogManager.getLogger(DownsampleAction.class);
-    private static final TransportVersion ILM_FORCE_MERGE_IN_DOWNSAMPLING = TransportVersion.fromName("ilm_downsample_force_merge");
+    public static final TransportVersion ILM_FORCE_MERGE_IN_DOWNSAMPLING = TransportVersion.fromName("ilm_downsample_force_merge");
 
     public static final String NAME = "downsample";
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";

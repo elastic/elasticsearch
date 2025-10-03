@@ -645,9 +645,6 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSearch {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135927
-- class: org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilderTests
-  method: testBuildChunkingSettingsForElasticReranker_QueryTokenCountLessThanHalfOfTokenLimit
-  issue: https://github.com/elastic/elasticsearch/issues/135928
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testPeerRecoveryRetentionLeases {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135929

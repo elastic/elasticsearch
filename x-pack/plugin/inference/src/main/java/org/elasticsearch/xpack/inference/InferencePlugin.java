@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.PreconfiguredEndpointsRequestHandler;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
@@ -288,9 +289,6 @@ public class InferencePlugin extends Plugin
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client()));
-        services.clusterService().addListener(modelRegistry.get());
-
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();
         }
@@ -321,6 +319,11 @@ public class InferencePlugin extends Plugin
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool()
         );
+
+        var eisSender = elasicInferenceServiceFactory.get().createSender();
+        var preconfigEndpointsHandler = new PreconfiguredEndpointsRequestHandler(authorizationHandler, eisSender);
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), preconfigEndpointsHandler));
+        services.clusterService().addListener(modelRegistry.get());
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
@@ -385,7 +388,7 @@ public class InferencePlugin extends Plugin
         );
         components.add(inferenceStatsBinding);
         components.add(authorizationHandler);
-        components.add(new PluginComponentBinding<>(Sender.class, elasicInferenceServiceFactory.get().createSender()));
+        components.add(new PluginComponentBinding<>(Sender.class, eisSender));
         components.add(
             new InferenceEndpointRegistry(
                 services.clusterService(),

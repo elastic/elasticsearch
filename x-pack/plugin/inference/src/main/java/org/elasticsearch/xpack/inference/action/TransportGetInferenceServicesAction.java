@@ -21,7 +21,6 @@ import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -35,8 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-
 public class TransportGetInferenceServicesAction extends HandledTransportAction<
     GetInferenceServicesAction.Request,
     GetInferenceServicesAction.Response> {
@@ -46,13 +43,11 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
     private final InferenceServiceRegistry serviceRegistry;
     private final ElasticInferenceServiceAuthorizationRequestHandler eisAuthorizationRequestHandler;
     private final Sender eisSender;
-    private final ThreadPool threadPool;
 
     @Inject
     public TransportGetInferenceServicesAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        ThreadPool threadPool,
         InferenceServiceRegistry serviceRegistry,
         ElasticInferenceServiceAuthorizationRequestHandler eisAuthorizationRequestHandler,
         Sender sender
@@ -67,7 +62,6 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
         this.serviceRegistry = serviceRegistry;
         this.eisAuthorizationRequestHandler = eisAuthorizationRequestHandler;
         this.eisSender = sender;
-        this.threadPool = threadPool;
     }
 
     @Override
@@ -123,8 +117,7 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
         @Nullable TaskType requestedTaskType
     ) {
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(authModelListener -> {
-            // Executing on a separate thread because there's a chance the authorization call needs to do some initialization for the Sender
-            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> getEisAuthorization(authModelListener, eisSender));
+            getEisAuthorization(authModelListener, eisSender);
         }).<List<InferenceServiceConfiguration>>andThen((configurationListener, authorizationModel) -> {
             var serviceConfigs = getServiceConfigurationsForServices(availableServices);
 

@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -26,7 +25,6 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -85,6 +83,18 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrlMessage;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.CHAT_COMPLETION_V1_MINIMAL_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_CHAT_COMPLETION_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_ELSER_2_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_ELSER_ENDPOINT_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_MULTILINGUAL_EMBED_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_RERANK_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.DEFAULT_RERANK_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.ELSER_V2_MINIMAL_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.MULTILINGUAL_EMBED_MINIMAL_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings.RERANK_V1_MINIMAL_SETTINGS;
 
 public class ElasticInferenceService extends SenderService {
 
@@ -108,22 +118,6 @@ public class ElasticInferenceService extends SenderService {
     // The maximum batch size for dense text embeddings is proactively set to 16.
     // This mirrors the memory constraints observed with sparse embeddings
     private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
-
-    // rainbow-sprinkles
-    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
-    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
-
-    // elser-2
-    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
-
-    // multilingual-text-embed
-    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
-    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
-
-    // rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
-    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -198,7 +192,7 @@ public class ElasticInferenceService extends SenderService {
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.chatCompletion(NAME)
+                CHAT_COMPLETION_V1_MINIMAL_SETTINGS
             ),
             DEFAULT_ELSER_2_MODEL_ID,
             new DefaultModelConfig(
@@ -212,7 +206,7 @@ public class ElasticInferenceService extends SenderService {
                     elasticInferenceServiceComponents,
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
-                MinimalServiceSettings.sparseEmbedding(NAME)
+                ELSER_V2_MINIMAL_SETTINGS
             ),
             DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
             new DefaultModelConfig(
@@ -231,12 +225,7 @@ public class ElasticInferenceService extends SenderService {
                     elasticInferenceServiceComponents,
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
-                MinimalServiceSettings.textEmbedding(
-                    NAME,
-                    DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
-                    defaultDenseTextEmbeddingsSimilarity(),
-                    DenseVectorFieldMapper.ElementType.FLOAT
-                )
+                MULTILINGUAL_EMBED_MINIMAL_SETTINGS
             ),
             DEFAULT_RERANK_MODEL_ID_V1,
             new DefaultModelConfig(
@@ -249,7 +238,7 @@ public class ElasticInferenceService extends SenderService {
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.rerank(NAME)
+                RERANK_V1_MINIMAL_SETTINGS
             )
         );
     }

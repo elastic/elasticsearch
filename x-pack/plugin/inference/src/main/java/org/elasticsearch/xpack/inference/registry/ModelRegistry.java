@@ -76,6 +76,8 @@ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.PreconfiguredEndpointsRequestHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,6 +89,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -147,10 +150,15 @@ public class ModelRegistry implements ClusterStateListener {
     private final MasterServiceTaskQueue<MetadataTask> metadataTaskQueue;
     private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final PreconfiguredEndpointsRequestHandler preconfiguredEndpointsRequestHandler;
 
     private volatile Metadata lastMetadata;
 
-    public ModelRegistry(ClusterService clusterService, Client client) {
+    public ModelRegistry(
+        ClusterService clusterService,
+        Client client,
+        PreconfiguredEndpointsRequestHandler preconfiguredEndpointsRequestHandler
+    ) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
         this.defaultConfigIds = new ConcurrentHashMap<>();
         var executor = new SimpleBatchedAckListenerTaskExecutor<MetadataTask>() {
@@ -163,6 +171,7 @@ public class ModelRegistry implements ClusterStateListener {
             }
         };
         this.metadataTaskQueue = clusterService.createTaskQueue("model_registry", Priority.NORMAL, executor);
+        this.preconfiguredEndpointsRequestHandler = Objects.requireNonNull(preconfiguredEndpointsRequestHandler);
     }
 
     /**
@@ -249,6 +258,13 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        // If we know it's an EIS preconfigured endpoint, skip looking in the index because it could have an outdated version of the
+        // endpoint and go directly to EIS to retrieve it
+        if (ElasticInferenceServiceMinimalSettings.isEisPreconfiguredEndpoint(inferenceEntityId)) {
+            retrievePreconfiguredEndpointFromEisElseNotAuthorized(listener, inferenceEntityId);
+            return;
+        }
+
         SubscribableListener.<SearchResponse>newForked(searchResponseListener -> {
             QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
             SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
@@ -259,19 +275,21 @@ public class ModelRegistry implements ClusterStateListener {
 
             client.search(modelSearch, searchResponseListener);
         }).<UnparsedModel>andThen((unparsedModelListener, searchResponse) -> {
-            // There should be a hit for the configurations
-            if (searchResponse.getHits().getHits().length == 0) {
-                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
-                if (maybeDefault != null) {
-                    getDefaultConfig(true, maybeDefault, unparsedModelListener);
-                } else {
-                    unparsedModelListener.onFailure(inferenceNotFoundException(inferenceEntityId));
-                }
+            // We likely found the configuration, so parse it and return it
+            if (searchResponse.getHits().getHits().length != 0) {
+                unparsedModelListener.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
                 return;
             }
 
-            unparsedModelListener.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
-        } ).addListener(listener.delegateResponse((failureListener, e) -> {
+            // we didn't find the configuration in the inference index, so check if it is a pre-configured endpoint
+            var maybeDefault = defaultConfigIds.get(inferenceEntityId);
+            if (maybeDefault != null) {
+                getDefaultConfig(true, maybeDefault, unparsedModelListener);
+                return;
+            }
+
+            retrievePreconfiguredEndpointFromEisElseNotFound(unparsedModelListener, inferenceEntityId);
+        }).addListener(listener.delegateResponse((failureListener, e) -> {
             logger.warn(format("Failed to load inference endpoint with secrets [%s]", inferenceEntityId), e);
             failureListener.onFailure(
                 new ElasticsearchException(
@@ -280,44 +298,39 @@ public class ModelRegistry implements ClusterStateListener {
                 )
             );
         }));
+    }
 
-        // TODO add a SubscribableListener here
-        // 1. Do search
-        // 2. If we don't find it, check in defaultConfigIds
-        // 3. If we don't find it, make a call to EIS? maybe only if it has -elastic in the name?
-        // 4. If we still don't find it, return not found
+    private void retrievePreconfiguredEndpointFromEisElseNotAuthorized(ActionListener<UnparsedModel> listener, String inferenceEntityId) {
+        var eisFailureListener = listener.delegateResponse(
+            (delegate, e) -> { delegate.onFailure(eisNotAuthorizedException(inferenceEntityId)); }
+        );
 
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
-            // There should be a hit for the configurations
-            if (searchResponse.getHits().getHits().length == 0) {
-                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
-                if (maybeDefault != null) {
-                    getDefaultConfig(true, maybeDefault, listener);
-                } else {
-                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
-                }
-                return;
-            }
+        retrieveEisPreconfiguredEndpoint(eisFailureListener, inferenceEntityId);
+    }
 
-            listener.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
-        }, (e) -> {
-            logger.warn(format("Failed to load inference endpoint with secrets [%s]", inferenceEntityId), e);
-            listener.onFailure(
-                new ElasticsearchException(
-                    format("Failed to load inference endpoint with secrets [%s], error: [%s]", inferenceEntityId, e.getMessage()),
-                    e
-                )
-            );
+    private ElasticsearchStatusException eisNotAuthorizedException(String inferenceEntityId) {
+        return new ElasticsearchStatusException(
+            "Unauthorized to access inference endpoint [{}]",
+            RestStatus.UNAUTHORIZED,
+            inferenceEntityId
+        );
+    }
+
+    private void retrievePreconfiguredEndpointFromEisElseNotFound(ActionListener<UnparsedModel> listener, String inferenceEntityId) {
+        var eisFailureListener = listener.delegateResponse(
+            (delegate, e) -> { delegate.onFailure(inferenceNotFoundException(inferenceEntityId)); }
+        );
+
+        retrieveEisPreconfiguredEndpoint(eisFailureListener, inferenceEntityId);
+    }
+
+    private void retrieveEisPreconfiguredEndpoint(ActionListener<UnparsedModel> listener, String inferenceEntityId) {
+        var eisFailureListener = listener.delegateResponse((delegate, e) -> {
+            logger.debug("Failed to retrieve preconfigured endpoint from EIS", e);
+            delegate.onFailure(e);
         });
 
-        QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
-        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
-            .setQuery(queryBuilder)
-            .setSize(2)
-            .setAllowPartialSearchResults(false)
-            .request();
-
-        client.search(modelSearch, searchListener);
+        preconfiguredEndpointsRequestHandler.getPreconfiguredEndpointAsUnparsedModel(inferenceEntityId, eisFailureListener);
     }
 
     /**
@@ -327,6 +340,7 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+
         // TODO add a SubscribableListener here
         // 1. Do search
         // 2. If we don't find it, check in defaultConfigIds
@@ -370,7 +384,7 @@ public class ModelRegistry implements ClusterStateListener {
 
     private ResourceNotFoundException inferenceNotFoundException(String inferenceEntityId) {
         // TODO add some logic here to check if it is EIS related and return a message indicating that the endpoint may not be authorized
-        return new ResourceNotFoundException("Inference endpoint not found [{}]", inferenceEntityId);
+        return new ResourceNotFoundException("Inference endpoint [{}] not found or you are not authorized to access it", inferenceEntityId);
     }
 
     /**
@@ -380,6 +394,9 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Models listener
      */
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
+        // TODO we need to explicitly filter out any existing EIS PIEs because after we move the authorization logic to the master node we
+        // won't be removing them from the index anymore
+
         // TODO add a SubscribableListener here
         // 1. Do search
         // 2. If we don't find it, check in defaultConfigIds
@@ -418,11 +435,13 @@ public class ModelRegistry implements ClusterStateListener {
      */
     public void getAllModels(boolean persistDefaultEndpoints, ActionListener<List<UnparsedModel>> listener) {
         // TODO add a SubscribableListener here
+        // TODO we need to explicitly filter out any existing EIS PIEs because after we move the authorization logic to the master node we
+        // won't be removing them from the index anymore
+
         // 1. Do search
         // 2. If we don't find it, check in defaultConfigIds
         // 3. If we don't find it, make a call to EIS? maybe only if it has -elastic in the name?
         // 4. If we still don't find it, return not found
-
 
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var foundConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();

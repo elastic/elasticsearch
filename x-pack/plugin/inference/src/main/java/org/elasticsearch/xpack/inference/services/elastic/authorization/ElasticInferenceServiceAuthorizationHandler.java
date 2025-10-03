@@ -246,6 +246,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
             new AuthorizedContent(authorizedTaskTypesAndModels, authorizedDefaultConfigIds, authorizedDefaultModelObjects)
         );
 
+        // TODO remove adding it to the registry, I think we can still revoke for now though
         authorizedContent.get().configIds().forEach(modelRegistry::putDefaultIdIfAbsent);
         handleRevokedDefaultConfigs(authorizedDefaultModelIds);
     }

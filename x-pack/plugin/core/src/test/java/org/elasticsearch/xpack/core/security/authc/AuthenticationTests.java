@@ -681,8 +681,7 @@ public class AuthenticationTests extends ESTestCase {
             StreamInput in = out.bytes().streamInput();
             in.setTransportVersion(TransportVersion.minimumCompatible());
             Authentication testBack = new Authentication(in);
-            assertThat(testBack.getDomain(), nullValue());
-            assertThat(testBack.isAssignedToDomain(), is(false));
+            assertThat(testBack.getDomain(), equalTo(test.getDomain()));
         }
     }
 

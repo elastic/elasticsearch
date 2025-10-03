@@ -132,7 +132,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                         "nodes_versions": [
                           {
                             "node_id": "node0",
-                            "transport_version": "8000099",
+                            "transport_version": "%s",
                             "mappings_versions": {
                               ".system-index": {
                                 "version": 1,
@@ -218,6 +218,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 Version.CURRENT,
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
+                TransportVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current()
             ),

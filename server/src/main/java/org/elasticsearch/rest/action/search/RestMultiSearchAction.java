@@ -27,6 +27,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContent;
@@ -209,8 +210,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return true;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
     }
 
     @Override

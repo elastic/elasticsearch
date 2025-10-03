@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 
@@ -95,8 +96,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return true;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
@@ -100,8 +101,8 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return true;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
     }
 
     /**

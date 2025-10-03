@@ -156,22 +156,6 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(blank));
     }
 
-    public void testSupportsBulkContentTrue() {
-        when(handler.supportsBulkContent()).thenReturn(true);
-        assertTrue(
-            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
-                .supportsBulkContent()
-        );
-    }
-
-    public void testSupportsBulkContentFalse() {
-        when(handler.supportsBulkContent()).thenReturn(false);
-        assertFalse(
-            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
-                .supportsBulkContent()
-        );
-    }
-
     public void testDeprecationLevel() {
         DeprecationRestHandler handler = new DeprecationRestHandler(
             this.handler,

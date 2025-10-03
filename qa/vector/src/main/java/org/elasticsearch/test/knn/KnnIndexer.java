@@ -29,7 +29,9 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
@@ -65,7 +67,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
 class KnnIndexer {
-    private static final double WRITER_BUFFER_MB = 128;
+    private static final double WRITER_BUFFER_MB = 1024;
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
 
@@ -104,11 +106,13 @@ class KnnIndexer {
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
+        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
         iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
         iwc.setUseCompoundFile(false);
-        if (mergePolicy != null) {
-            iwc.setMergePolicy(mergePolicy);
-        }
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+//        if (mergePolicy != null) {
+//            iwc.setMergePolicy(mergePolicy);
+//        }
         iwc.setMaxFullFlushMergeWaitMillis(0);
 
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
@@ -212,6 +216,9 @@ class KnnIndexer {
 
     void forceMerge(KnnIndexTester.Results results) throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
+        iwc.setUseCompoundFile(false);
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
             public boolean isEnabled(String component) {
@@ -248,6 +255,9 @@ class KnnIndexer {
         private final float[] floatVectorBuffer;
         private final VectorReader in;
 
+        long readTime;
+        long docAddTime;
+
         private IndexerThread(
             IndexWriter iw,
             VectorReader in,
@@ -283,6 +293,7 @@ class KnnIndexer {
             } catch (IOException ioe) {
                 throw new UncheckedIOException(ioe);
             }
+            logger.info("Index thread times: [{}] read, [{}] add doc", readTime, docAddTime);
         }
 
         private void _run() throws IOException {
@@ -294,23 +305,35 @@ class KnnIndexer {
                     continue;
                 }
 
-                Document doc = new Document();
+                // read
+                var startRead = System.nanoTime();
+                final IndexableField field;
                 switch (vectorEncoding) {
                     case BYTE -> {
                         in.next(byteVectorBuffer);
-                        doc.add(new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType));
+                        field = new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType);
                     }
                     case FLOAT32 -> {
                         in.next(floatVectorBuffer);
-                        doc.add(new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType));
+                        field = new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType);
                     }
+                    default -> throw new UnsupportedOperationException();
                 }
+
+                long endRead = System.nanoTime();
+                readTime += (endRead - startRead);
+                // build doc
+                Document doc = new Document();
+                doc.add(field);
 
                 if ((id + 1) % 25000 == 0) {
                     logger.debug("Done indexing " + (id + 1) + " documents.");
                 }
                 doc.add(new StoredField(ID_FIELD, id));
                 iw.addDocument(doc);
+
+                var endDoc = System.nanoTime();
+                docAddTime += (endDoc - endRead);
             }
         }
     }

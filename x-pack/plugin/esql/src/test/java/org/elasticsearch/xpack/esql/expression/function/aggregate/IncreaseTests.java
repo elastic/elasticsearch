@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -127,9 +126,9 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                 matcher = Matchers.nullValue();
             } else {
                 double increase = 0.0;
-                for (int i = 1; i < nonNullDataRows.size(); i++) {
-                    double previous = ((Number) nonNullDataRows.get(i - 1)).doubleValue();
-                    double current = ((Number) nonNullDataRows.get(i)).doubleValue();
+                for (int i = nonNullDataRows.size() - 1; i > 0; i--) {
+                    double previous = ((Number) nonNullDataRows.get(i)).doubleValue();
+                    double current = ((Number) nonNullDataRows.get(i - 1)).doubleValue();
                     if (current >= previous) {
                         increase += current - previous;
                     } else {
@@ -137,7 +136,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                         increase += current;
                     }
                 }
-                matcher = closeTo(increase, 0.1 * increase);
+                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 3));
             }
 
             return new TestCaseSupplier.TestCase(

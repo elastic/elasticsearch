@@ -17,6 +17,24 @@
           "type" : "integer",
           "optional" : false,
           "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
         },
         {
           "name" : "order",
@@ -27,6 +45,24 @@
       ],
       "variadic" : false,
       "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
     },
     {
       "params" : [
@@ -65,6 +101,24 @@
           "type" : "integer",
           "optional" : false,
           "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
         },
         {
           "name" : "order",
@@ -75,6 +129,24 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
     },
     {
       "params" : [
@@ -113,6 +185,24 @@
           "type" : "integer",
           "optional" : false,
           "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
         },
         {
           "name" : "order",
@@ -123,6 +213,24 @@
       ],
       "variadic" : false,
       "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -161,6 +269,24 @@
           "type" : "integer",
           "optional" : false,
           "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
         },
         {
           "name" : "order",
@@ -171,6 +297,24 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The field to collect the top values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
     },
     {
       "params" : [

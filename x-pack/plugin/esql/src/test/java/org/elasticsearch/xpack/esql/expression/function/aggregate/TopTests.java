@@ -14,7 +14,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
@@ -40,7 +40,7 @@ public class TopTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 1000, false)) {
-            for (String order : List.of("asc", "desc")) {
+            for (String order : Arrays.asList("asc", "desc", null)) {
                 Stream.of(
                     MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
@@ -285,15 +285,7 @@ public class TopTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Object orderValue = ((Literal) args.get(2)).value();
-        boolean isAscending = orderValue != null && ((BytesRef) orderValue).utf8ToString().equalsIgnoreCase("asc");
-
-        if (isAscending) {
-            // Test the default order by dropping the order argument for some test cases
-            return new Top(source, args.get(0), args.get(1), randomBoolean() ? null : args.get(2));
-        } else {
-            return new Top(source, args.get(0), args.get(1), args.get(2));
-        }
+        return new Top(source, args.get(0), args.get(1), args.size() == 3 ? args.get(2) : null);
     }
 
     @SuppressWarnings("unchecked")
@@ -302,14 +294,21 @@ public class TopTests extends AbstractAggregationTestCase {
         TestCaseSupplier.TypedDataSupplier limitCaseSupplier,
         String order
     ) {
-        return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD), () -> {
+        boolean isAscending = order == null || order.equalsIgnoreCase("asc");
+        boolean noOrderSupplied = order == null;
+
+        List<DataType> dataTypes = noOrderSupplied
+            ? List.of(fieldSupplier.type(), DataType.INTEGER)
+            : List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD);
+
+        return new TestCaseSupplier(fieldSupplier.name(), dataTypes, () -> {
             var fieldTypedData = fieldSupplier.get();
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
             var expected = fieldTypedData.multiRowData()
                 .stream()
                 .map(v -> (Comparable<? super Comparable<?>>) v)
-                .sorted(order.equals("asc") ? Comparator.naturalOrder() : Comparator.reverseOrder())
+                .sorted(isAscending ? Comparator.naturalOrder() : Comparator.reverseOrder())
                 .limit(limit)
                 .toList();
 
@@ -318,19 +317,23 @@ public class TopTests extends AbstractAggregationTestCase {
                 baseName = "Top";
             } else {
                 // If the limit is 1 we rewrite TOP into MIN or MAX and never run our lovely TOP code.
-                if (order.equals("asc")) {
+                if (isAscending) {
                     baseName = "Min";
                 } else {
                     baseName = "Max";
                 }
             }
 
-            return new TestCaseSupplier.TestCase(
-                List.of(
+            List<TestCaseSupplier.TypedData> typedData = noOrderSupplied
+                ? List.of(fieldTypedData, limitTypedData)
+                : List.of(
                     fieldTypedData,
                     limitTypedData,
                     new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral()
-                ),
+                );
+
+            return new TestCaseSupplier.TestCase(
+                typedData,
                 standardAggregatorName(baseName, fieldTypedData.type()),
                 fieldSupplier.type(),
                 equalTo(expected.size() == 1 ? expected.get(0) : expected)

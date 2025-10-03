@@ -19,10 +19,7 @@ public record CertificateIdentity(@Nullable String value) {
             try {
                 Pattern.compile(value);
             } catch (PatternSyntaxException e) {
-                throw new IllegalArgumentException(
-                    "Invalid certificate_identity format: [" + value + "]. Must be a valid regex.",
-                    e
-                );
+                throw new IllegalArgumentException("Invalid certificate_identity format: [" + value + "]. Must be a valid regex.", e);
             }
         }
     }

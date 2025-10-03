@@ -9,15 +9,18 @@ package org.elasticsearch.compute.operator.fuse;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Updates the score column with new scores using the RRF formula.
@@ -27,10 +30,25 @@ import java.util.HashMap;
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int discriminatorPosition, int scorePosition, RrfConfig rrfConfig) implements OperatorFactory {
+    public record Factory(
+        int discriminatorPosition,
+        int scorePosition,
+        RrfConfig rrfConfig,
+        String sourceText,
+        int sourceLine,
+        int sourceColumn
+    ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RrfScoreEvalOperator(discriminatorPosition, scorePosition, rrfConfig);
+            return new RrfScoreEvalOperator(
+                driverContext,
+                discriminatorPosition,
+                scorePosition,
+                rrfConfig,
+                sourceText,
+                sourceLine,
+                sourceColumn
+            );
         }
 
         @Override
@@ -48,37 +66,62 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
     private final int scorePosition;
     private final int discriminatorPosition;
     private final RrfConfig config;
+    private Warnings warnings;
+    private final DriverContext driverContext;
+    private final String sourceText;
+    private final int sourceLine;
+    private final int sourceColumn;
 
     private HashMap<String, Integer> counters = new HashMap<>();
 
-    public RrfScoreEvalOperator(int discriminatorPosition, int scorePosition, RrfConfig config) {
+    public RrfScoreEvalOperator(
+        DriverContext driverContext,
+        int discriminatorPosition,
+        int scorePosition,
+        RrfConfig config,
+        String sourceText,
+        int sourceLine,
+        int sourceColumn
+    ) {
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
         this.config = config;
+        this.driverContext = driverContext;
+        this.sourceText = sourceText;
+        this.sourceLine = sourceLine;
+        this.sourceColumn = sourceColumn;
     }
 
     @Override
     protected Page process(Page page) {
-        BytesRefBlock discriminatorBlock = (BytesRefBlock) page.getBlock(discriminatorPosition);
-
-        DoubleVector.Builder scores = discriminatorBlock.blockFactory().newDoubleVectorBuilder(discriminatorBlock.getPositionCount());
+        BytesRefBlock discriminatorBlock = page.getBlock(discriminatorPosition);
+        DoubleBlock.Builder scores = discriminatorBlock.blockFactory().newDoubleBlockBuilder(discriminatorBlock.getPositionCount());
 
         for (int i = 0; i < page.getPositionCount(); i++) {
-            String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
+            Object value = BlockUtils.toJavaObject(discriminatorBlock, i);
 
-            int rank = counters.getOrDefault(discriminator, 1);
-            counters.put(discriminator, rank + 1);
-
-            var weight = config.weights().getOrDefault(discriminator, 1.0);
-
-            scores.appendDouble(1.0 / (config.rankConstant() + rank) * weight);
+            if (value == null) {
+                warnings().registerException(new IllegalArgumentException("group column has null values; assigning null scores"));
+                scores.appendNull();
+            } else if (value instanceof List<?>) {
+                warnings().registerException(
+                    new IllegalArgumentException("group column contains multivalued entries; assigning null scores")
+                );
+                scores.appendNull();
+            } else {
+                String discriminator = ((BytesRef) value).utf8ToString();
+                int rank = counters.getOrDefault(discriminator, 1);
+                var weight = config.weights().getOrDefault(discriminator, 1.0);
+                scores.appendDouble(1.0 / (config.rankConstant() + rank) * weight);
+                counters.put(discriminator, rank + 1);
+            }
         }
 
         Page newPage = null;
         Block scoreBlock = null;
 
         try {
-            scoreBlock = scores.build().asBlock();
+            scoreBlock = scores.build();
             newPage = page.appendBlock(scoreBlock);
 
             int[] projections = new int[newPage.getBlockCount() - 1];
@@ -104,5 +147,13 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
     @Override
     public String toString() {
         return "RrfScoreEvalOperator";
+    }
+
+    private Warnings warnings() {
+        if (warnings == null) {
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+        }
+
+        return warnings;
     }
 }

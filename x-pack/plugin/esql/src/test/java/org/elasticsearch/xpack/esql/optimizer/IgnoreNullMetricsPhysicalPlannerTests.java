@@ -31,7 +31,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
      * This tests that we get the same end result plan with an explicit isNotNull and the implicit one added by the rule
      */
     public void testSamePhysicalPlans() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         String testQuery = """
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
@@ -51,7 +51,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
     }
 
     public void testPushdownOfSimpleCounterQuery() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         String query = """
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
@@ -65,7 +65,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
     }
 
     public void testPushdownOfSimpleGagueQuery() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         String query = """
             TS k8s
             | STATS max(max_over_time(network.eth0.tx)) BY Bucket(@timestamp, 1 hour)

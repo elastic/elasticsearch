@@ -16,7 +16,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.Before;
@@ -56,7 +56,7 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         boolean smallChunks = randomBoolean();
         Request request = new Request("PUT", "/_cluster/settings");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject().startObject("persistent");
-        builder.field(PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getKey(), smallChunks ? "1kb" : null);
+        builder.field(PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getKey(), smallChunks ? "1kb" : null);
         request.setJsonEntity(Strings.toString(builder.endObject().endObject()));
         assertOK(client().performRequest(request));
     }

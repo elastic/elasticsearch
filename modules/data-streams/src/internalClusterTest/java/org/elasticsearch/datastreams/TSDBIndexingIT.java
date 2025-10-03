@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -65,7 +67,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -331,10 +332,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                     new Template(
                         Settings.builder()
                             .put("index.mode", "time_series")
-                            .put(
-                                "index.routing_path",
-                                randomBoolean() && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? null : "metricset"
-                            )
+                            .put("index.routing_path", randomBoolean() ? null : "metricset")
+                            .put("index.dimensions_tsid_strategy_enabled", randomDouble() < 0.8)
                             .build(),
                         new CompressedXContent(mappingTemplate),
                         null
@@ -642,12 +641,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     public void testAddDimensionToMapping() throws Exception {
         String dataStreamName = "my-ds";
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        boolean indexDimensionsTsidStrategyEnabled = randomBoolean();
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
                 .template(
                     new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
+                        Settings.builder()
+                            .put("index.mode", "time_series")
+                            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
+                            .build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
                         null
                     )
@@ -664,7 +667,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             "my-ds"
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
-        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+        if (indexDimensionsTsidStrategyEnabled) {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
         } else {
@@ -684,7 +687,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }
             """, XContentType.JSON);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
-        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+        if (indexDimensionsTsidStrategyEnabled) {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
         } else {
@@ -709,17 +712,20 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
               ]
             }
             """, XContentType.JSON);
-        assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
-        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+        ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
+        if (indexDimensionsTsidStrategyEnabled) {
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
             assertThat(
-                getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH),
-                containsInAnyOrder("metricset", "labels.*", "k8s.pod.name")
+                exception.getMessage(),
+                containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
             );
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
         } else {
-            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), containsInAnyOrder("metricset"));
+            assertAcked(putMappingFuture.actionGet());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
         }
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
-
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
     }
 

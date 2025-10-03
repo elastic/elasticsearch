@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -26,9 +27,12 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
@@ -72,6 +76,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         """;
 
     private LogsdbLicenseService logsdbLicenseService;
+    private LogsdbLicenseService basicLogsdbLicenseService;
     private final AtomicInteger newMapperServiceCounter = new AtomicInteger();
 
     @Before
@@ -84,6 +89,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         logsdbLicenseService.setLicenseState(licenseState);
         logsdbLicenseService.setLicenseService(mockLicenseService);
+
+        var basicLicenseState = new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.BASIC, true, null));
+        var basicLicenseService = mock(LicenseService.class);
+        when(basicLicenseService.getLicense()).thenReturn(null);
+        basicLogsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
+        basicLogsdbLicenseService.setLicenseState(basicLicenseState);
+        basicLogsdbLicenseService.setLicenseService(basicLicenseService);
     }
 
     private LogsdbIndexModeSettingsProvider withSyntheticSourceDemotionSupport(boolean enabled) {
@@ -121,13 +133,23 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     private Settings generateLogsdbSettings(Settings settings, String mapping, Version version) throws IOException {
-        var provider = new LogsdbIndexModeSettingsProvider(
-            logsdbLicenseService,
-            Settings.builder().put("cluster.logsdb.enabled", true).build()
-        );
+        return generateLogsdbSettings(settings, mapping, version, logsdbLicenseService);
+    }
+
+    private Settings generateLogsdbSettings(Settings settings, String mapping, Version version, LogsdbLicenseService licenseService)
+        throws IOException {
+        var provider = new LogsdbIndexModeSettingsProvider(licenseService, Settings.builder().put("cluster.logsdb.enabled", true).build());
+        var logsdbPlugin = new LogsDBPlugin(settings);
         provider.init(im -> {
             newMapperServiceCounter.incrementAndGet();
-            return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
+            return MapperTestUtils.newMapperService(
+                xContentRegistry(),
+                createTempDir(),
+                im.getSettings(),
+                new IndicesModule(List.of(logsdbPlugin)),
+                im.getIndex().getName(),
+                logsdbPlugin.getSettings().stream().filter(Setting::hasIndexScope).toArray(Setting<?>[]::new)
+            );
         }, IndexVersion::current, () -> version, true, true);
         Settings.Builder settingsBuilder = builder();
         provider.provideAdditionalSettings(
@@ -959,21 +981,34 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
     }
 
-    public void testPatternTextNotAllowedByLicense() throws Exception {
-        assumeTrue("pattern_text feature must be enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
+    public void testPatternTextNotAllowedByLicense() throws IOException {
+        String[] patternTextLicenceCheckedFieldMappings = {
+            "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"pattern_text\"}}}}",
+            "{\"_doc\":{\"properties\":{\"error\":{\"properties\":{\"message\":{\"type\":\"pattern_text\"}}}}}}",
+            "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"pattern_text\"}}}}",
+            "{\"_doc\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"pattern_text\"}}}}}}" };
 
-        MockLicenseState licenseState = MockLicenseState.createMock();
-        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERN_TEXT_TEMPLATING_FEATURE))).thenReturn(false);
-        logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
-        logsdbLicenseService.setLicenseState(licenseState);
-
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+        var expectedSettings = Settings.builder()
+            .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
             .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertTrue(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(result));
+
+        for (String mapping : patternTextLicenceCheckedFieldMappings) {
+            var result = generateLogsdbSettings(Settings.EMPTY, mapping, Version.CURRENT, basicLogsdbLicenseService);
+            assertEquals(expectedSettings, result);
+        }
+    }
+
+    public void testPatternTextNotAllowedByLicenseAlreadyDisallowed() throws IOException {
+        Settings settings = Settings.builder().put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), "true").build();
+        var result = generateLogsdbSettings(settings, null, Version.CURRENT, basicLogsdbLicenseService);
+        var expected = Settings.builder()
+            .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
+            .build();
+        assertEquals(expected, result);
     }
 
     public void testSortAndHostNamePropagateValue() throws Exception {

@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -57,6 +56,7 @@ import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -226,7 +226,7 @@ public class LocalExecutionPlanner {
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
         localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
-            a -> a.getMode() == AggregatorMode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
+            a -> a.getMode().isOutputPartial() ? a : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates()))
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
 
@@ -330,33 +330,35 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(fuse.child(), context);
+        Layout layout = source.layout;
 
-        int scorePosition = -1;
-        int discriminatorPosition = -1;
-        int pos = 0;
-
-        for (Attribute attr : fuse.child().output()) {
-            if (attr.name().equals(fuse.discriminator().name())) {
-                discriminatorPosition = pos;
-            }
-            if (attr.name().equals(fuse.score().name())) {
-                scorePosition = pos;
-            }
-
-            pos += 1;
-        }
-
-        if (scorePosition == -1) {
-            throw new IllegalStateException("can't find score attribute position");
-        }
-        if (discriminatorPosition == -1) {
-            throw new IllegalStateException("can't find discriminator attribute position");
-        }
+        int scorePosition = layout.get(fuse.score().id()).channel();
+        int discriminatorPosition = layout.get(fuse.discriminator().id()).channel();
 
         if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
-            return source.with(new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig), source.layout);
+            return source.with(
+                new RrfScoreEvalOperator.Factory(
+                    discriminatorPosition,
+                    scorePosition,
+                    rrfConfig,
+                    fuse.sourceText(),
+                    fuse.sourceLocation().getLineNumber(),
+                    fuse.sourceLocation().getColumnNumber()
+                ),
+                source.layout
+            );
         } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
-            return source.with(new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig), source.layout);
+            return source.with(
+                new LinearScoreEvalOperator.Factory(
+                    discriminatorPosition,
+                    scorePosition,
+                    linearConfig,
+                    fuse.sourceText(),
+                    fuse.sourceLocation().getLineNumber(),
+                    fuse.sourceLocation().getColumnNumber()
+                ),
+                source.layout
+            );
         }
 
         throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");
@@ -442,6 +444,13 @@ public class LocalExecutionPlanner {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
         PhysicalOperation source = plan(child, context);
+        if (Assertions.ENABLED) {
+            List<Attribute> inputAttributes = exchangeSink.child().output();
+            for (Attribute attr : inputAttributes) {
+                assert source.layout.get(attr.id()) != null
+                    : "input attribute [" + attr + "] does not exist in the source layout [" + source.layout + "]";
+            }
+        }
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }
 
@@ -655,7 +664,7 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        Block[] localData = localSourceExec.supplier().get();
+        Page localData = localSourceExec.supplier().get();
 
         RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
         int[] blockMapping = new int[join.leftFields().size()];
@@ -666,7 +675,7 @@ public class LocalExecutionPlanner {
             List<Attribute> output = join.joinData().output();
             for (int l = 0; l < output.size(); l++) {
                 if (output.get(l).name().equals(right.name())) {
-                    localField = localData[l];
+                    localField = localData.getBlock(l);
                 }
             }
             if (localField == null) {
@@ -687,7 +696,7 @@ public class LocalExecutionPlanner {
             Block localField = null;
             for (int l = 0; l < joinDataOutput.size(); l++) {
                 if (joinDataOutput.get(l).name().equals(f.name())) {
-                    localField = localData[l];
+                    localField = localData.getBlock(l);
                 }
             }
             if (localField == null) {
@@ -812,7 +821,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(localSourceExec.output());
-        LocalSourceOperator.BlockSupplier supplier = () -> localSourceExec.supplier().get();
+        LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
     }

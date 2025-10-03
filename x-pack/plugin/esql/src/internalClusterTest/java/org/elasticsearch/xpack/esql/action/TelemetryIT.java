@@ -197,9 +197,9 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         FROM idx, (FROM idx | WHERE host =="127.0.0.1")
                         | WHERE id > 10
                         """,
-                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled() ?
-                        Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2) :
-                        Collections.emptyMap(),
+                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
+                        ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2)
+                        : Collections.emptyMap(),
                     Collections.emptyMap(),
                     EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
                 ) }

@@ -707,6 +707,33 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    public static class BytesRefsFromSingletonBinaryBlockLoader extends DocValuesBlockLoader {
+        private final String fieldName;
+
+        public BytesRefsFromSingletonBinaryBlockLoader(String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public BytesRefBuilder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+            if (docValues != null) {
+                return new BytesRefsFromSingletonBinary(docValues);
+            }
+            return new ConstantNullsReader();
+        }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromSingletonBinaryBlockLoader[" + fieldName + "]";
+        }
+    }
+
     public static class BytesRefsFromOrdsBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 
@@ -1005,8 +1032,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
      * Read BinaryDocValues with no additional structure in the BytesRefs.
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
-    public static class BytesRefsFromBinary extends AbstractBytesRefsFromBinary {
-        public BytesRefsFromBinary(BinaryDocValues docValues) {
+    public static class BytesRefsFromSingletonBinary extends AbstractBytesRefsFromBinary {
+        public BytesRefsFromSingletonBinary(BinaryDocValues docValues) {
             super(docValues);
         }
 

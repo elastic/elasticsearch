@@ -31,6 +31,6 @@ public class PatternTextBlockLoader extends BlockDocValuesReader.DocValuesBlockL
         if (docValues == null) {
             return new ConstantNullsReader();
         }
-        return new BlockDocValuesReader.BytesRefsFromBinary(docValues);
+        return new BlockDocValuesReader.BytesRefsFromSingletonBinary(docValues);
     }
 }

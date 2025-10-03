@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.wildcard.mapper;
+
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -35,7 +38,7 @@ import java.util.Objects;
  * match a provided approximation query which is key to getting good performance).
  */
 
-abstract class BinaryDvConfirmedQuery extends Query {
+public abstract class BinaryDvConfirmedQuery extends Query {
 
     protected final String field;
     protected final Query approxQuery;
@@ -53,6 +56,10 @@ abstract class BinaryDvConfirmedQuery extends Query {
         return new BinaryDvConfirmedAutomatonQuery(approximation, field, matchPattern, automaton);
     }
 
+    public static Query fromAutomatonSingleValue(Query approximation, String field, String matchPattern, Automaton automaton) {
+        return new SingleValueBinaryDvConfirmedAutomatonQuery(approximation, field, matchPattern, automaton);
+    }
+
     /**
      * Returns a query that checks for equality of at leat one of the provided terms across
      * all binary doc values (but only for docs that also match a provided approximation query which
@@ -61,6 +68,11 @@ abstract class BinaryDvConfirmedQuery extends Query {
     public static Query fromTerms(Query approximation, String field, BytesRef... terms) {
         Arrays.sort(terms, BytesRef::compareTo);
         return new BinaryDvConfirmedTermsQuery(approximation, field, terms);
+    }
+
+    public static Query fromTermsSingleValue(Query approximation, String field, BytesRef... terms) {
+        Arrays.sort(terms, BytesRef::compareTo);
+        return new SingleValueBinaryDvConfirmedTermsQuery(approximation, field, terms);
     }
 
     protected abstract boolean matchesBinaryDV(ByteArrayStreamInput bytes, BytesRef bytesRef, BytesRef scratch) throws IOException;
@@ -146,7 +158,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         return Objects.hash(classHash(), field, approxQuery);
     }
 
-    Query getApproximationQuery() {
+    public Query getApproximationQuery() {
         return approxQuery;
     }
 
@@ -159,7 +171,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
     private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery {
 
-        private final ByteRunAutomaton byteRunAutomaton;
+        protected final ByteRunAutomaton byteRunAutomaton;
         private final String matchPattern;
 
         private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, Automaton automaton) {
@@ -209,9 +221,20 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
     }
 
+    private static class SingleValueBinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedAutomatonQuery{
+        private SingleValueBinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, Automaton automaton) {
+            super(approximation, field, matchPattern, automaton);
+        }
+
+        @Override
+        protected boolean matchesBinaryDV(ByteArrayStreamInput bytes, BytesRef bytesRef, BytesRef scratch) {
+            return byteRunAutomaton.run(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+    }
+
     private static class BinaryDvConfirmedTermsQuery extends BinaryDvConfirmedQuery {
 
-        private final BytesRef[] terms;
+        protected final BytesRef[] terms;
 
         private BinaryDvConfirmedTermsQuery(Query approximation, String field, BytesRef[] terms) {
             super(approximation, field);
@@ -273,6 +296,26 @@ abstract class BinaryDvConfirmedQuery extends Query {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), Arrays.hashCode(terms));
+        }
+    }
+
+    static class SingleValueBinaryDvConfirmedTermsQuery extends BinaryDvConfirmedTermsQuery  {
+        SingleValueBinaryDvConfirmedTermsQuery(Query approximation, String field, BytesRef[] terms) {
+            super(approximation, field, terms);
+        }
+
+        @Override
+        protected boolean matchesBinaryDV(ByteArrayStreamInput bytes, BytesRef bytesRef, BytesRef scratch) {
+            if (terms.length == 1) {
+                return terms[0].bytesEquals(bytesRef);
+            } else {
+                final int pos = Arrays.binarySearch(terms, bytesRef, BytesRef::compareTo);
+                if (pos >= 0) {
+                    assert terms[pos].bytesEquals(bytesRef) : "Expected term at position " + pos + " to match bytesRef, but it did not.";
+                    return true;
+                }
+                return false;
+            }
         }
     }
 }

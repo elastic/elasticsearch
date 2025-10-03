@@ -133,7 +133,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
         @Override
         public String toString() {
-            return "QueryBuilderAndTags{" + "queryBuilder=[" + query + "], tags=" + tags.toString() + "}";
+            // FIXME(gal, NOCOMMIT) Temp to make debugging less of a nightmare
+            return "QueryBuilderAndTags{" + "queryBuilder=[<temp removed>], |tags|=" + tags.size() + "}";
         }
     };
 

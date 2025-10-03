@@ -38,9 +38,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -265,14 +267,28 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  * 3. Tags are not supported by {@code LuceneCountOperator}, this rewrite does not apply to {@code EsStatsQueryExec}, count with grouping
  *    is not supported by {@code EsStatsQueryExec} today.
  */
+// FIXME(gal, NOCOMMIT) Note to gal: this rule (or one following it?) should remove the eval and aggregate exec and just end up with a
+// EsQueryStatsExec which would have the correct type and everything.
 public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    EvalExec,
+    AggregateExec,
     LocalPhysicalOptimizerContext> {
 
     private static final Logger logger = LogManager.getLogger(ReplaceRoundToWithQueryAndTags.class);
 
     @Override
-    protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
+    protected PhysicalPlan rule(AggregateExec aggExec, LocalPhysicalOptimizerContext ctx) {
+        // FIXME(gal, NOCOMMIT) Hack to avoid the aggregate exec in the data node, we don't need it and it screws things up since it assumes
+        // it's getting its input one line at a time.
+        if (aggExec.child() instanceof EvalExec childEvalExec) {
+            PhysicalPlan newChild = rule(childEvalExec, ctx);
+            if (newChild != childEvalExec) {
+                return new ProjectExec(Source.EMPTY, childEvalExec, aggExec.output());
+            }
+        }
+        return aggExec;
+    }
+
+    private PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = evalExec;
         // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
         // Lookup join is not supported yet

@@ -141,10 +141,16 @@ public class Driver implements Releasable, Describable {
         this.description = description;
         this.activeOperators = new ArrayList<>();
         this.activeOperators.add(source);
-        List<Operator> list = intermediateOperators.stream().filter(e -> e instanceof EvalOperator == false).toList();
+        // FIXME(gal, NOCOMMIT) hack
+        var badList = new ArrayList<>(intermediateOperators.stream().filter(e -> e instanceof EvalOperator && false).toList());
         if (source instanceof LuceneOperator) {
-            list = list.stream().filter(e -> e instanceof HashAggregationOperator == false).toList();
+            badList.addAll(intermediateOperators.stream().filter(e -> e instanceof HashAggregationOperator).toList());
         }
+        List<Operator> list = intermediateOperators;
+        // if (source instanceof LuceneOperator) {
+        // list = list.stream().filter(e -> e instanceof HashAggregationOperator == false).toList();
+        // }
+        badList.forEach(Releasable::close);
         this.activeOperators.addAll(list);
         this.activeOperators.add(sink);
         this.statusNanos = statusInterval.nanos();

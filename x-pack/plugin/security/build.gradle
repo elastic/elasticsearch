@@ -89,11 +89,11 @@ dependencies {
     api "com.nimbusds:nimbus-jose-jwt:10.0.2"
   }
   api "com.nimbusds:lang-tag:1.7"
-  api "com.sun.mail:jakarta.mail:1.6.3"
+  api "com.sun.mail:jakarta.mail:1.6.8"
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.5.2"
   api "net.minidev:accessors-smart:2.5.2"
-  api "org.ow2.asm:asm:9.7.1"
+  api "org.ow2.asm:asm:9.8"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -173,9 +173,9 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-artifacts {
+tasks.named('assemble').configure {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
+  dependsOn tasks.named('jar')
 }
 
 tasks.named("dependencyLicenses").configure {

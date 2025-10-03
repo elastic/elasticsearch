@@ -1,8 +1,8 @@
 {
   "text_structure.find_field_structure":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/find-field-structure.html",
-      "description":"Finds the structure of a text field in an index."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-text_structure",
+      "description":"Find the structure of a text field"
     },
     "stability":"stable",
     "visibility":"public",

@@ -1329,7 +1329,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (engine == null) {
             return 0;
         }
-        return engine.getWritingBytes();
+        try {
+            return engine.getWritingBytes();
+        } catch (AlreadyClosedException ex) {
+            return 0L;
+        }
     }
 
     public RefreshStats refreshStats() {

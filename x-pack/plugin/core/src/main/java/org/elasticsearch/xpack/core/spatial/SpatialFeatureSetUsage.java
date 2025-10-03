@@ -38,7 +38,7 @@ public class SpatialFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     SpatialStatsAction.Response statsResponse() {

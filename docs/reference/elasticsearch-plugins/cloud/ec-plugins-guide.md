@@ -49,7 +49,7 @@ curl -X POST \
   -H "Authorization: ApiKey $CLOUD_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-   "download_url" : "https://my_site/custom-plugin-8.4.3.zip",
+   "download_url" : "<MY_SITE_URL>/custom-plugin-8.4.3.zip",
    "extension_type" : "plugin",
    "name" : "custom-plugin",
    "version" : "8.4.3"
@@ -323,7 +323,7 @@ curl -X POST \
   -H "Authorization: ApiKey $CLOUD_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-   "download_url" : "https://my_site/custom-plugin-8.4.3-10212022.zip",
+   "download_url" : "<MY_SITE_URL>/custom-plugin-8.4.3-10212022.zip",
    "extension_type" : "plugin",
     "name": "custom-plugin-10212022",
    "version" : "8.4.3"

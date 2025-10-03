@@ -2,7 +2,7 @@
   "profiling.stacktraces":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/observability/current/universal-profiling.html",
-      "description":"Extracts raw stacktrace information from Universal Profiling."
+      "description":"Extracts raw stacktrace information from Universal Profiling"
     },
     "stability":"stable",
     "visibility":"private",

@@ -2,7 +2,7 @@
   "profiling.topn_functions":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/observability/current/universal-profiling.html",
-      "description":"Extracts a list of topN functions from Universal Profiling."
+      "description":"Extracts a list of topN functions from Universal Profiling"
     },
     "stability":"stable",
     "visibility":"private",

@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
@@ -162,7 +161,6 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     }
 
     public void testSnapshotDeletionsInProgressSerialization() throws Exception {
-
         boolean includeRestore = randomBoolean();
 
         ClusterState.Builder builder = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -204,7 +202,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         BytesStreamOutput outStream = new BytesStreamOutput();
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersion.current()
         );
         outStream.setTransportVersion(version);
@@ -401,7 +399,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
     }
@@ -440,7 +438,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with minimum compatibile version
         outStream = new BytesStreamOutput();
-        version = TransportVersions.MINIMUM_COMPATIBLE;
+        version = TransportVersion.minimumCompatible();
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -109,6 +108,6 @@ public final class GeoTileGridAggregationBuilder extends GeoGridAggregationBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

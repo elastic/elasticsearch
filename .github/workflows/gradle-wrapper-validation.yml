@@ -10,5 +10,5 @@ jobs:
     if: github.repository == 'elastic/elasticsearch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: gradle/wrapper-validation-action@699bb18358f12c5b78b37bb0111d3a0e2276e0e2 # Release v2.1.1
+      - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@ac638b010cf58a27ee6c972d7336334ccaf61c96 # Release v4.4.1

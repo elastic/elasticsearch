@@ -36,6 +36,8 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     private static final String FIELD_NAME = "fieldName";
     private static final String VALUE = "value";
+    private static final String QUERY_NAME = "match_query";
+    private static final float BOOST = 5.0f;
 
     @Before
     public void setup() {
@@ -77,6 +79,29 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
             rewritten instanceof MatchQueryBuilder
         );
         assertEquals(original, rewritten);
+    }
+
+    public void testBoostAndQueryNameInMatchQueryRewrite() throws IOException {
+        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            FIELD_NAME,
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME })
+        );
+        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
+        QueryBuilder original = createTestQueryBuilder();
+        original.boost(BOOST);
+        original.queryName(QUERY_NAME);
+        QueryBuilder rewritten = original.rewrite(context);
+        assertTrue(
+            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
+            rewritten instanceof InterceptedQueryBuilderWrapper
+        );
+        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(BOOST, intercepted.boost(), 0.0f);
+        assertEquals(QUERY_NAME, intercepted.queryName());
+        assertTrue(intercepted.queryBuilder instanceof SemanticQueryBuilder);
+        SemanticQueryBuilder semanticQueryBuilder = (SemanticQueryBuilder) intercepted.queryBuilder;
+        assertEquals(FIELD_NAME, semanticQueryBuilder.getFieldName());
+        assertEquals(VALUE, semanticQueryBuilder.getQuery());
     }
 
     private MatchQueryBuilder createTestQueryBuilder() {

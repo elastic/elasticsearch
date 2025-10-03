@@ -4,6 +4,38 @@ setup:
       reason: semantic_text introduced in 8.15.0
 
   - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-index
         body:
@@ -307,3 +339,29 @@ setup:
               another_field:
                 type: keyword
 
+---
+"Field caps with semantic query does not fail":
+  - requires:
+      cluster_features: "semantic_query.filter_field_caps_fix"
+      reason: "fixed bug with semantic query filtering in field_caps (#116106)"
+  # We need at least one document present to exercise can-match phase
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      field_caps:
+        index: test-index
+        fields: "*"
+        body:
+          index_filter:
+            semantic:
+              field: "sparse_field"
+              query: "test"
+
+  - match: { indices: [ "test-index" ] }
+  - match: { fields.sparse_field.text.searchable: true }

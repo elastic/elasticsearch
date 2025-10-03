@@ -57,6 +57,7 @@ toc:
           children:
             - file: index-settings/preloading-data-into-file-system-cache.md
         - file: index-settings/time-series.md
+        - file: index-settings/source.md
         - file: index-settings/translog.md
   - file: index-lifecycle-actions/index.md
     children:
@@ -85,6 +86,7 @@ toc:
             - file: rest-apis/filter-search-results.md
             - file: rest-apis/find-text-structure-examples.md
             - file: rest-apis/highlighting.md
+            - file: rest-apis/index-disk-usage.md
             - file: rest-apis/optimistic-concurrency-control.md
             - file: rest-apis/paginate-search-results.md
             - file: rest-apis/query-api-keys.md

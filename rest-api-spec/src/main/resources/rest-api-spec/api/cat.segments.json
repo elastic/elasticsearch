@@ -1,8 +1,8 @@
 {
   "cat.segments":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-segments.html",
-      "description":"Provides low-level information about the segments in the shards of an index."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-segments",
+      "description":"Get segment information"
     },
     "stability":"stable",
     "visibility":"public",

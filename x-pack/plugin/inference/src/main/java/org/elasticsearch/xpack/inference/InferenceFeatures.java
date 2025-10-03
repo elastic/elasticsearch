@@ -11,6 +11,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 
 import java.util.Set;
@@ -30,6 +31,9 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
     private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
         "test_reranking_service.parse_text_as_score"
+    );
+    private static final NodeFeature SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX = new NodeFeature(
+        "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
     );
 
     @Override
@@ -52,7 +56,9 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
             SEMANTIC_KNN_FILTER_FIX,
             SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER,
-            TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE
+            TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE,
+            SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX,
+            SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX
         );
     }
 }

@@ -481,6 +481,46 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // For source indices of the Cloud Detection & Response (CDR) packages
+                // that ships a transform and has ILM policy
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        "logs-m365_defender.vulnerability-*",
+                        "logs-microsoft_defender_endpoint.vulnerability-*",
+                        "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-sentinel_one.application_risk-*"
+                    )
+                    .privileges(
+                        "read",
+                        "view_index_metadata",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name()
+                    )
+                    .build(),
+                // For ExtraHop, QualysGAV, SentinelOne Application Dataset and Island Browser specific actions.
+                // Kibana reads, writes and manages this index
+                // for configured ILM policies.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        "logs-extrahop.investigation-*",
+                        "logs-qualys_gav.asset-*",
+                        "logs-sentinel_one.application-*",
+                        "logs-island_browser.user-*",
+                        "logs-island_browser.device-*"
+                    )
+                    .privileges(
+                        "manage",
+                        "create_index",
+                        "read",
+                        "index",
+                        "write",
+                        "delete",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name(),
+                        TransportIndicesAliasesAction.NAME,
+                        TransportAutoPutMappingAction.TYPE.name()
+                    )
+                    .build(),
                 // For alias indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform
                 RoleDescriptor.IndicesPrivileges.builder()

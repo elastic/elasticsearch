@@ -1,8 +1,8 @@
 {
   "ml.open_job":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
-      "description":"Opens one or more anomaly detection jobs."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-open-job",
+      "description":"Open anomaly detection jobs"
     },
     "stability":"stable",
     "visibility":"public",

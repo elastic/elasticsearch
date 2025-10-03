@@ -2,7 +2,7 @@
   "profiling.flamegraph":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/observability/current/universal-profiling.html",
-      "description":"Extracts a UI-optimized structure to render flamegraphs from Universal Profiling."
+      "description":"Extracts a UI-optimized structure to render flamegraphs from Universal Profiling"
     },
     "stability":"stable",
     "visibility":"private",

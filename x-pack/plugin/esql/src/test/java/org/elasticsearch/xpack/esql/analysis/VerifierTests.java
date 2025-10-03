@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,8 +34,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
@@ -2257,6 +2262,140 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | EVAL foo = 42 | INSIST_🐔 bar"),
             containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
         );
+    }
+
+    public void testRemoteEnrichAfterLookupJoin() {
+        EnrichResolution enrichResolution = new EnrichResolution();
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.REMOTE,
+            MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        var analyzer = AnalyzerTestUtils.analyzer(
+            loadMapping("mapping-default.json", "test"),
+            defaultLookupResolution(),
+            enrichResolution,
+            TEST_VERIFIER
+        );
+
+        String lookupCommand = randomBoolean() ? "LOOKUP JOIN test_lookup ON languages" : "LOOKUP JOIN languages_lookup ON language_code";
+
+        query(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | %s
+            """, lookupCommand), analyzer);
+
+        String err = error(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL language_code = languages
+            | %s
+            | ENRICH _remote:languages ON language_code
+            """, lookupCommand), analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+
+        err = error(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL language_code = languages
+            | %s
+            | ENRICH _remote:languages ON language_code
+            | %s
+            """, lookupCommand, lookupCommand), analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+
+        err = error(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL language_code = languages
+            | %s
+            | EVAL x = 1
+            | MV_EXPAND language_code
+            | ENRICH _remote:languages ON language_code
+            """, lookupCommand), analyzer);
+        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+    }
+
+    public void testRemoteEnrichAfterCoordinatorOnlyPlans() {
+        EnrichResolution enrichResolution = new EnrichResolution();
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.REMOTE,
+            MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.COORDINATOR,
+            MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        var analyzer = AnalyzerTestUtils.analyzer(
+            loadMapping("mapping-default.json", "test"),
+            defaultLookupResolution(),
+            enrichResolution,
+            TEST_VERIFIER
+        );
+
+        query("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | STATS count(*) BY language_name
+            """, analyzer);
+
+        String err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | STATS count(*) BY language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after STATS"));
+
+        err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | STATS count(*) BY language_code
+            | EVAL x = 1
+            | MV_EXPAND language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after STATS"));
+
+        query("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | ENRICH _coordinator:languages ON language_code
+            """, analyzer);
+
+        err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _coordinator:languages ON language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+
+        err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _coordinator:languages ON language_code
+            | EVAL x = 1
+            | MV_EXPAND language_name
+            | DISSECT language_name "%{foo}"
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
     }
 
     private void query(String query) {

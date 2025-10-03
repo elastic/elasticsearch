@@ -113,7 +113,7 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
-  fips "org.bouncycastle:bc-fips:1.0.2.5"
+  fips "org.bouncycastle:bc-fips:1.0.2.6"
   fips "org.bouncycastle:bctls-fips:1.0.19"
 }
 
@@ -643,7 +643,7 @@ subprojects { Project subProject ->
       it.setCompression(Compression.GZIP)
       it.getArchiveBaseName().set("elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-image")
       it.getArchiveVersion().set("")
-      it.getArchiveClassifier().set(architecture == Architecture.AARCH64 ? 'aarch64' : '')
+      it.getArchiveClassifier().set(architecture.dockerClassifier)
       it.getDestinationDirectory().set(new File(project.parent.buildDir, 'distributions'))
       it.dependsOn(exportTask)
     }
@@ -652,6 +652,11 @@ subprojects { Project subProject ->
       dependsOn compressExportTask
     }
 
+    tasks.named('assemble').configure {
+      dependsOn exportTask
+    }
+
+    // deprecated here for backwards compatibility of DistroTestPlugin and DistributionDownloadPlugin
     artifacts.add('default', file(tarFile)) {
       type = 'tar'
       name = artifactName

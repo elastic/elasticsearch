@@ -107,6 +107,35 @@ setup:
             "some_doc": { "foo": "xy", "bar": 12 }
           }
 
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+              find_me:
+                type: long
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "find_me": 1,
+            "nested": {
+              "foo": 1,
+              "bar": "bar",
+              "baz": 1.9
+            }
+          }
 ---
 unsupported:
   - requires:
@@ -409,27 +438,12 @@ unsupported with sort:
 ---
 nested declared inline:
   - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - { "index": { } }
-          - {
-            "find_me": 1,
-            "nested": {
-              "foo": 1,
-              "bar": "bar",
-              "baz": 1.9
-            }
-          }
-
-  - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE find_me == 1 | KEEP n*'
+          query: 'FROM test2 | WHERE find_me == 1 | KEEP n*'
 
   # The `nested` field is not visible, nor are any of it's subfields.
   - match: { columns: [{name: name, type: keyword}] }

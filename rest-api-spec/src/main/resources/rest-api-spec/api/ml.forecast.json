@@ -1,8 +1,8 @@
 {
   "ml.forecast":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-forecast.html",
-      "description":"Predicts the future behavior of a time series by using its historical behavior."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-forecast",
+      "description":"Predict future behavior of a time series"
     },
     "stability":"stable",
     "visibility":"public",

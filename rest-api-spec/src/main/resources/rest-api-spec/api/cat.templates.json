@@ -1,8 +1,8 @@
 {
   "cat.templates":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-templates.html",
-      "description":"Returns information about existing templates."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-templates",
+      "description":"Get index template information"
     },
     "stability":"stable",
     "visibility":"public",

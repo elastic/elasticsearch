@@ -1,8 +1,8 @@
 {
   "cluster.stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-stats.html",
-      "description":"Returns high-level overview of cluster statistics."
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-stats",
+      "description":"Get cluster statistics"
     },
     "stability":"stable",
     "visibility":"public",

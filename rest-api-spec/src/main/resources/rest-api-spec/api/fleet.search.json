@@ -2,7 +2,7 @@
   "fleet.search":{
     "documentation":{
       "url": null,
-      "description": "Search API where the search will only be executed after specified checkpoints are available due to a refresh. This API is designed for internal use by the fleet server project."
+      "description": "Run a Fleet search"
     },
     "stability":"experimental",
     "visibility":"public",

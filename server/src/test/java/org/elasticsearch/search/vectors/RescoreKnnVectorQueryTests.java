@@ -38,6 +38,7 @@ import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
@@ -217,6 +218,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         KnnVectorsFormat format = randomFrom(
             new ES818BinaryQuantizedVectorsFormat(),
             new ES818HnswBinaryQuantizedVectorsFormat(),
+            new ES93HnswBinaryQuantizedVectorsFormat(),
             new ES813Int8FlatVectorFormat(),
             new ES813Int8FlatVectorFormat(),
             new ES814HnswScalarQuantizedVectorsFormat()

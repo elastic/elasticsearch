@@ -1,23 +1,12 @@
 /*
- * @notice
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * Modifications copyright (C) 2024 Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.index.codec.vectors.es818;
+package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
@@ -30,30 +19,22 @@ import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.util.Set;
 
-/**
- * Copied from Lucene99FlatVectorsFormat in Lucene 10.1
- *
- * This is copied to change the implementation of {@link #fieldsReader} only.
- * The codec format itself is not changed, so we keep the original {@link #NAME}
- */
-public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat {
+public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
 
     static final String NAME = "Lucene99FlatVectorsFormat";
-
-    public static final int VERSION_START = 0;
-    public static final int VERSION_CURRENT = VERSION_START;
 
     private final FlatVectorsScorer vectorsScorer;
 
     /** Constructs a format */
-    public DirectIOLucene99FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
+    public DirectIOCapableLucene99FlatVectorsFormat(FlatVectorsScorer vectorsScorer) {
         super(NAME);
         this.vectorsScorer = vectorsScorer;
     }
@@ -68,14 +49,18 @@ public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat
         return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 
-    static boolean shouldUseDirectIO(SegmentReadState state) {
-        assert USE_DIRECT_IO;
+    static boolean canUseDirectIO(SegmentReadState state) {
         return FsDirectoryFactory.isHybridFs(state.directory);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        if (shouldUseDirectIO(state) && state.context.context() == IOContext.Context.DEFAULT) {
+        return fieldsReader(state, false);
+    }
+
+    @Override
+    public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
+        if (state.context.context() == IOContext.Context.DEFAULT && useDirectIO && canUseDirectIO(state)) {
             // only override the context for the random-access use case
             SegmentReadState directIOState = new SegmentReadState(
                 state.directory,
@@ -85,7 +70,6 @@ public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat
                 state.segmentSuffix
             );
             // Use mmap for merges and direct I/O for searches.
-            // TODO: Open the mmap file with sequential access instead of random (current behavior).
             return new MergeReaderWrapper(
                 new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
                 new Lucene99FlatVectorsReader(state, vectorsScorer)

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -50,7 +51,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 
-public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression, PostOptimizationVerificationAware {
+public class Top extends AggregateFunction
+    implements
+        OptionalArgument,
+        ToAggregator,
+        SurrogateExpression,
+        PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
 
     private static final String ORDER_ASC = "ASC";
@@ -71,16 +77,17 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
         @Param(
+            optional = true,
             name = "order",
             type = { "keyword" },
-            description = "The order to calculate the top values. Either `asc` or `desc`."
+            description = "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         ) Expression order
     ) {
         this(source, field, Literal.TRUE, limit, order);
     }
 
     public Top(Source source, Expression field, Expression filter, Expression limit, Expression order) {
-        super(source, field, filter, asList(limit, order));
+        super(source, field, filter, order == null ? asList(limit) : asList(limit, order));
     }
 
     private Top(StreamInput in) throws IOException {
@@ -107,7 +114,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     Expression orderField() {
-        return parameters().get(1);
+        return parameters().size() == 2 ? parameters().get(1) : null;
     }
 
     private Integer limitValue() {
@@ -115,7 +122,14 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private boolean orderValue() {
-        if (orderField() instanceof Literal literal) {
+        Expression expression = orderField();
+
+        if (expression == null) {
+            // Default to ascending order if no order was provided
+            return true;
+        }
+
+        if (expression instanceof Literal literal) {
             String order = BytesRefs.toString(literal.value());
             if (ORDER_ASC.equalsIgnoreCase(order) || ORDER_DESC.equalsIgnoreCase(order)) {
                 return order.equalsIgnoreCase(ORDER_ASC);
@@ -145,9 +159,12 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
             "string",
             "numeric except unsigned_long or counter types"
         ).and(isNotNull(limitField(), sourceText(), SECOND))
-            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
-            .and(isNotNull(orderField(), sourceText(), THIRD))
-            .and(isString(orderField(), sourceText(), THIRD));
+            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
+
+        if (orderField() != null) {
+            typeResolution = typeResolution.and(isNotNull(orderField(), sourceText(), THIRD))
+                .and(isString(orderField(), sourceText(), THIRD));
+        }
 
         if (typeResolution.unresolved()) {
             return typeResolution;
@@ -179,7 +196,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     private Expression.TypeResolution resolveTypeOrder(TypeResolutionValidator validator) {
         Expression order = orderField();
         if (order == null) {
-            validator.invalid(new TypeResolution(format(null, "Order must be a valid string in [{}], found [{}]", sourceText(), order)));
+            // no-op
         } else if (order instanceof Literal literal) {
             if (literal.value() == null) {
                 validator.invalid(
@@ -245,7 +262,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public Top replaceChildren(List<Expression> newChildren) {
-        return new Top(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        if (newChildren.size() == 4) {
+            return new Top(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        } else {
+            return new Top(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), null);
+        }
     }
 
     @Override

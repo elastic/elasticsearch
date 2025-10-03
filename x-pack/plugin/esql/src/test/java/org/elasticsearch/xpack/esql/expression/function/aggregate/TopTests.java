@@ -14,6 +14,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -284,7 +285,15 @@ public class TopTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Top(source, args.get(0), args.get(1), args.get(2));
+        Object orderValue = ((Literal) args.get(2)).value();
+        boolean isAscending = orderValue != null && ((BytesRef) orderValue).utf8ToString().equalsIgnoreCase("asc");
+
+        if (isAscending) {
+            // Test the default order by dropping the order argument for some test cases
+            return new Top(source, args.get(0), args.get(1), randomBoolean() ? null : args.get(2));
+        } else {
+            return new Top(source, args.get(0), args.get(1), args.get(2));
+        }
     }
 
     @SuppressWarnings("unchecked")

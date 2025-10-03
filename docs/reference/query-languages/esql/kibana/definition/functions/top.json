@@ -21,8 +21,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,
@@ -45,8 +45,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,
@@ -69,8 +69,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,
@@ -93,8 +93,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,
@@ -117,8 +117,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,
@@ -141,8 +141,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,
@@ -165,8 +165,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,
@@ -189,8 +189,8 @@
         {
           "name" : "order",
           "type" : "keyword",
-          "optional" : false,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`."
+          "optional" : true,
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         }
       ],
       "variadic" : false,

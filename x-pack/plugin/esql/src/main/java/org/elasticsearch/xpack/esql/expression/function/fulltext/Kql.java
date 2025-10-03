@@ -83,7 +83,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
                 file = "kql-function",
                 tag = "kql-with-options",
                 description = "Use KQL with additional options for case-insensitive matching and custom settings",
-                applies_to = "stack: 9.3.0"
+                applies_to = "stack: ga 9.3.0"
             ) }
     )
     public Kql(

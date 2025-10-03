@@ -2,6 +2,8 @@
 
 **Examples**
 
+Use KQL to filter by a specific field value
+
 ```esql
 FROM books
 | WHERE KQL("author: Faulkner")
@@ -16,8 +18,10 @@ FROM books
 | 3293 | Danny Faulkner |
 
 ```{applies_to}
-stack: 9.3.0
+stack: ga 9.3.0
 ```
+
+Use KQL with additional options for case-insensitive matching and custom settings
 
 ```esql
 FROM employees

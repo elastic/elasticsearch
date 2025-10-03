@@ -549,7 +549,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         ensureOpen();
         if (this.buffer != null) {
             try (RecyclerBytesStreamOutput toWrite = this.buffer) {
-
                 this.buffer = null;
                 this.bufferedBytes = 0;
                 return toWrite.moveToBytesReference();

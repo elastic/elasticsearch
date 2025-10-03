@@ -34,7 +34,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     public static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     static DownsampleAction randomInstance() {
-        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, randomBoolean());
+        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, randomBoolean() ? null : randomBoolean());
     }
 
     @Override
@@ -57,7 +57,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
             case 1 -> waitTimeout = TimeValue.timeValueMillis(
                 randomValueOtherThan(waitTimeout.millis(), () -> randomLongBetween(1, 10000))
             );
-            case 2 -> forceMerge = forceMerge == false;
+            case 2 -> forceMerge = forceMerge == null ? randomBoolean() : forceMerge == false;
         }
         return new DownsampleAction(interval, waitTimeout, forceMerge);
     }
@@ -74,7 +74,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     @Override
     public void testToSteps() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, true);
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, randomBoolean() ? null : true);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),

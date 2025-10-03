@@ -134,7 +134,7 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(SOURCE, "source");
         builder.addStatement("this.source = source");
-        processFunction.args.stream().forEach(a -> a.implementCtor(builder));
+        processFunction.args.forEach(a -> a.implementCtor(builder));
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
         return builder.build();
@@ -143,15 +143,15 @@ public class EvaluatorImplementer {
     private MethodSpec eval() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval").addAnnotation(Override.class);
         builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page");
-        processFunction.args.stream().forEach(a -> a.evalToBlock(builder));
+        processFunction.args.forEach(a -> a.evalToBlock(builder));
         String invokeBlockEval = invokeRealEval(true);
         if (processOutputsMultivalued) {
             builder.addStatement(invokeBlockEval);
         } else {
-            processFunction.args.stream().forEach(a -> a.resolveVectors(builder, invokeBlockEval));
+            processFunction.args.forEach(a -> a.resolveVectors(builder, invokeBlockEval));
             builder.addStatement(invokeRealEval(false));
         }
-        processFunction.args.stream().forEach(a -> a.closeEvalToBlock(builder));
+        processFunction.args.forEach(a -> a.closeEvalToBlock(builder));
         return builder.build();
     }
 
@@ -160,7 +160,7 @@ public class EvaluatorImplementer {
 
         String params = processFunction.args.stream()
             .map(a -> a.paramName(blockStyle))
-            .filter(a -> a != null)
+            .filter(Objects::nonNull)
             .collect(Collectors.joining(", "));
         if (params.length() > 0) {
             builder.append(", ");
@@ -192,23 +192,23 @@ public class EvaluatorImplementer {
             buildFromFactory(builderType)
         );
         {
-            processFunction.args.stream().forEach(a -> {
+            processFunction.args.forEach(a -> {
                 if (a.paramName(blockStyle) != null) {
                     builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
                 }
             });
 
-            processFunction.args.stream().forEach(a -> a.createScratch(builder));
+            processFunction.args.forEach(a -> a.createScratch(builder));
 
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
             {
                 if (blockStyle) {
                     if (processOutputsMultivalued == false) {
-                        processFunction.args.stream().forEach(a -> a.skipNull(builder));
+                        processFunction.args.forEach(a -> a.skipNull(builder));
                     } else if (allNullsIsNull) {
                         builder.addStatement("boolean allBlocksAreNulls = true");
                         // allow block type inputs to be null
-                        processFunction.args.stream().forEach(a -> a.allBlocksAreNull(builder));
+                        processFunction.args.forEach(a -> a.allBlocksAreNull(builder));
 
                         builder.beginControlFlow("if (allBlocksAreNulls)");
                         {
@@ -220,7 +220,7 @@ public class EvaluatorImplementer {
                 } else {
                     assert allNullsIsNull : "allNullsIsNull == false is only supported for block style.";
                 }
-                processFunction.args.stream().forEach(a -> a.read(builder, blockStyle));
+                processFunction.args.forEach(a -> a.read(builder, blockStyle));
 
                 StringBuilder pattern = new StringBuilder();
                 List<Object> args = new ArrayList<>();
@@ -240,7 +240,7 @@ public class EvaluatorImplementer {
                     } else {
                         builtPattern = "result.$L(" + pattern + ")";
                     }
-                    args.add(0, processFunction.appendMethod());
+                    args.addFirst(processFunction.appendMethod());
                 } else {
                     builtPattern = pattern.toString();
                 }
@@ -254,7 +254,7 @@ public class EvaluatorImplementer {
                     String catchPattern = "catch ("
                         + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
                         + " e)";
-                    builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
+                    builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(TypeName::get).toArray());
                     builder.addStatement("warnings().registerException(e)");
                     builder.addStatement("result.appendNull()");
                     builder.endControlFlow();
@@ -290,7 +290,7 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.STATIC);
 
         builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
-        processFunction.args.stream().forEach(a -> a.declareFactoryField(builder));
+        processFunction.args.forEach(a -> a.declareFactoryField(builder));
 
         builder.addMethod(processFunction.factoryCtor());
         builder.addMethod(processFunction.factoryGet(implementation));
@@ -379,7 +379,7 @@ public class EvaluatorImplementer {
             MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
             builder.addParameter(SOURCE, "source");
             builder.addStatement("this.source = source");
-            args.stream().forEach(a -> a.implementFactoryCtor(builder));
+            args.forEach(a -> a.implementFactoryCtor(builder));
             return builder.build();
         }
 

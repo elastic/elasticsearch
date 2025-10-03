@@ -17,6 +17,7 @@ import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Map;
@@ -167,7 +168,7 @@ public class CrossProjectIndexResolutionValidator {
 
     private static ElasticsearchSecurityException securityException(String originalExpression) {
         // TODO plug in proper recorded authorization exceptions instead, once available
-        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]");
+        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]", RestStatus.FORBIDDEN);
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(

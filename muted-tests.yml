@@ -693,6 +693,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testTurnOffTranslogRetentionAfterUpgraded {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135958
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSoftDeletes {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135959
 
 # Examples:
 #

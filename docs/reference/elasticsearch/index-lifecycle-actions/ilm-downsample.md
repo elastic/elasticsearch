@@ -7,7 +7,7 @@ mapped_pages:
 
 Phases allowed: hot, warm, cold.
 
-Aggregates a time series (TSDS) index and stores pre-computed statistical summaries (`min`, `max`, `sum`, `value_count` and `avg`) for each metric field grouped by a configured time interval. For example, a TSDS index that contains metrics sampled every 10 seconds can be downsampled to an hourly index. All documents within an hour interval are summarized and stored as a single document and stored in the downsample index.
+Aggregates a time series (TSDS) index and stores pre-computed statistical summaries (`min`, `max`, `sum`, and `value_count`) for each metric field grouped by a configured time interval. For example, a TSDS index that contains metrics sampled every 10 seconds can be downsampled to an hourly index. All documents within an hour interval are summarized and stored as a single document and stored in the downsample index.
 
 This action corresponds to the  [downsample API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-downsample).
 

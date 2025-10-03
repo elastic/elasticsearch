@@ -96,6 +96,7 @@ setup:
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
+  - set: { esql.features.subquery: subquery_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -251,6 +252,7 @@ setup:
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
+  - set: { esql.features.subquery: subquery_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }

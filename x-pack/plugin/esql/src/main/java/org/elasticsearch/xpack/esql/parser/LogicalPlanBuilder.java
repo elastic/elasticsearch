@@ -376,9 +376,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
 
+            if (remainingSubqueries.isEmpty()) {
+                return unresolvedRelation;
+            }
+
             List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(remainingSubqueries.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
                 mainQueryAndSubqueries.add(unresolvedRelation);
+                telemetryAccounting(unresolvedRelation);
             }
             mainQueryAndSubqueries.addAll(remainingSubqueries);
 
@@ -413,6 +418,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<Subquery> subqueries = new ArrayList<>();
         for (EsqlBaseParser.SubqueryContext ctx : ctxs) {
             LogicalPlan plan = visitSubquery(ctx);
+            telemetryAccounting(plan);
             subqueries.add(new Subquery(source(ctx), plan));
         }
         return subqueries;
@@ -429,6 +435,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             LogicalPlan parent = from;
             for (PlanFactory processingCommand : processingCommands) {
                 parent = processingCommand.apply(child);
+                telemetryAccounting(child);
                 child = parent;
             }
             return parent;

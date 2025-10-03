@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -190,7 +191,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
@@ -211,9 +211,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop salary
             """);
 
-        var relation = as(plan, LocalRelation.class);
-        assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.expressions(), is(empty()));
+        var limit = as(project.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
     }
 
     public void testEmptyProjectionInStat() {
@@ -222,10 +223,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | stats c = count(salary)
             | drop c
             """);
-
-        var relation = as(plan, LocalRelation.class);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), LocalRelation.class);
         assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        Page page = relation.supplier().get();
+        assertThat(page.getBlockCount(), is(0));
+        assertThat(page.getPositionCount(), is(1));
     }
 
     /**
@@ -252,8 +255,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         var singleRowRelation = as(limit.child(), LocalRelation.class);
         var singleRow = singleRowRelation.supplier().get();
-        assertThat(singleRow.length, equalTo(1));
-        assertThat(singleRow[0].getPositionCount(), equalTo(1));
+        assertThat(singleRow.getBlockCount(), equalTo(1));
+        assertThat(singleRow.getBlock(0).getPositionCount(), equalTo(1));
 
         var exprs = eval.fields();
         assertThat(exprs.size(), equalTo(1));
@@ -5169,8 +5172,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var eval = as(project.child(), Eval.class);
             var singleRowRelation = as(eval.child(), LocalRelation.class);
             var singleRow = singleRowRelation.supplier().get();
-            assertThat(singleRow.length, equalTo(1));
-            assertThat(singleRow[0].getPositionCount(), equalTo(1));
+            assertThat(singleRow.getBlockCount(), equalTo(1));
+            assertThat(singleRow.getBlock(0).getPositionCount(), equalTo(1));
 
             assertAggOfConstExprs(testCase, eval.fields());
         }

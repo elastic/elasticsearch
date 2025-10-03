@@ -413,26 +413,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewrittenQuery, instanceOf(MatchNoneQueryBuilder.class));
     }
 
-    public void testBWCVersionSerializationFilters() throws IOException {
-        KnnVectorQueryBuilder query = createTestQueryBuilder();
-        VectorData vectorData = VectorData.fromFloats(query.queryVector().asFloatVector());
-        KnnVectorQueryBuilder queryNoFilters = new KnnVectorQueryBuilder(
-            query.getFieldName(),
-            vectorData,
-            null,
-            query.numCands(),
-            null,
-            null,
-            null
-        ).queryName(query.queryName()).boost(query.boost());
-        TransportVersion beforeFilterVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersions.V_8_1_0
-        );
-        assertBWCSerialization(query, queryNoFilters, beforeFilterVersion);
-    }
-
     public void testBWCVersionSerializationSimilarity() throws IOException {
         KnnVectorQueryBuilder query = createTestQueryBuilder();
         VectorData vectorData = VectorData.fromFloats(query.queryVector().asFloatVector());

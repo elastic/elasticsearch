@@ -193,43 +193,6 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(original, securityContext.getAuthentication());
     }
 
-    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteNewApiKeyMetadata() throws IOException {
-        final Map<String, Object> metadata = new HashMap<>();
-        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
-        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
-        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"));
-        metadata.put(
-            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-            new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
-        );
-
-        final Authentication original = AuthenticationTestHelper.builder()
-            .apiKey()
-            .metadata(metadata)
-            .transportVersion(TransportVersions.V_8_0_0)
-            .build();
-        original.writeToContext(threadContext);
-
-        // If target is old node, rewrite new style API key metadata to old format
-        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
-            Authentication authentication = securityContext.getAuthentication();
-            assertEquals(
-                Map.of("a role", Map.of("cluster", List.of("all"))),
-                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
-            );
-            assertEquals(
-                Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
-                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-            );
-        }, TransportVersions.V_7_8_0);
-
-        // If target is new node, no need to rewrite the new style API key metadata
-        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
-            Authentication authentication = securityContext.getAuthentication();
-            assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
-    }
-
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
         final Authentication original = AuthenticationTestHelper.builder().apiKey().transportVersion(TransportVersions.V_7_8_0).build();
 

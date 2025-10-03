@@ -109,7 +109,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
             )
             : TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_8_0_0,
+                TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH)
             );
         final SamlServiceProviderDocument copy = copyWriteable(

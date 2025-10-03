@@ -677,10 +677,10 @@ public class AuthenticationTests extends ESTestCase {
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersions.V_8_0_0);
+            out.setTransportVersion(TransportVersion.minimumCompatible());
             test.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(TransportVersions.V_8_0_0);
+            in.setTransportVersion(TransportVersion.minimumCompatible());
             Authentication testBack = new Authentication(in);
             assertThat(testBack.getDomain(), nullValue());
             assertThat(testBack.isAssignedToDomain(), is(false));
@@ -865,38 +865,6 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV7.encode(), equalTo(headerV7));
     }
 
-    public void testMaybeRewriteForOlderVersionWithCrossClusterAccessThrowsOnUnsupportedVersion() {
-        final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
-            : AuthenticationTestHelper.builder().build();
-
-        final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
-            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-        );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            versionBeforeCrossClusterAccessRealm
-        );
-
-        if (authentication.isCrossClusterAccess()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.maybeRewriteForOlderVersion(version));
-            assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before ["
-                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                        + version.toReleaseVersion()
-                        + "]"
-                )
-            );
-        } else {
-            // Assert that rewriting took place; the details of rewriting logic are checked in other tests
-            assertThat(authentication.maybeRewriteForOlderVersion(version), not(equalTo(authentication)));
-        }
-    }
-
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
         final TransportVersion crossClusterAccessRealmVersion =
             RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -975,25 +943,6 @@ public class AuthenticationTests extends ESTestCase {
 
         // Test removing all metadata
         assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
-    }
-
-    public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-        );
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            .transportVersion(TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null))
-            .build();
-        assertThat(authentication.getEffectiveSubject().getTransportVersion().after(olderVersion), is(true));
-
-        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
-
-        assertThat(actual.getEffectiveSubject().getTransportVersion(), equalTo(olderVersion));
-        assertThat(actual.getAuthenticatingSubject().getRealm().getDomain(), nullValue());
-        assertThat(actual.getEffectiveSubject().getRealm().getDomain(), nullValue());
     }
 
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {

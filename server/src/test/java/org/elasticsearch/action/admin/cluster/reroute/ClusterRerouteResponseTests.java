@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -333,7 +334,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
             .putCompatibilityVersions(
                 node0.getId(),
-                TransportVersions.V_8_0_0,
+                TransportVersion.current(),
                 Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
             )
             .metadata(

@@ -88,11 +88,7 @@ public class TypeParsersTests extends ESTestCase {
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
         IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersion.current()
-        );
+        TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
         MappingParserContext context = new MappingParserContext(
             null,
             type -> typeParser,

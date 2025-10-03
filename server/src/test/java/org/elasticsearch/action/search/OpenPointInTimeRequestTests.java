@@ -95,19 +95,4 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
             default -> throw new AssertionError("Unknown option");
         };
     }
-
-    public void testUseDefaultConcurrentForOldVersion() throws Exception {
-        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_9_X);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_0_0, previousVersion);
-            output.setTransportVersion(version);
-            OpenPointInTimeRequest original = createTestInstance();
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), new NamedWriteableRegistry(List.of()))) {
-                in.setTransportVersion(version);
-                OpenPointInTimeRequest copy = new OpenPointInTimeRequest(in);
-                assertThat(copy.maxConcurrentShardRequests(), equalTo(5));
-            }
-        }
-    }
 }

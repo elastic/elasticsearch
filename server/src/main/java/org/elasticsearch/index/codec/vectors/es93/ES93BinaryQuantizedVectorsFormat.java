@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsRe
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWriter;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
@@ -86,19 +87,33 @@ import java.io.IOException;
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-public class ES93BinaryQuantizedVectorsFormat extends DirectIOCapableFlatVectorsFormat {
+public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsFormat {
 
     public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 
-    private final DirectIOCapableLucene99FlatVectorsFormat rawVectorFormat;
+    private static final DirectIOCapableFlatVectorsFormat rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+
+    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
+        rawVectorFormat.getName(),
+        rawVectorFormat
+    );
 
     private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    private final boolean useDirectIO;
+
     public ES93BinaryQuantizedVectorsFormat() {
         super(NAME);
-        rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
+        this.useDirectIO = false;
+    }
+
+    public ES93BinaryQuantizedVectorsFormat(boolean useDirectIO) {
+        super(NAME);
+        this.useDirectIO = useDirectIO;
     }
 
     @Override
@@ -107,17 +122,27 @@ public class ES93BinaryQuantizedVectorsFormat extends DirectIOCapableFlatVectors
     }
 
     @Override
+    protected boolean useDirectIOReads() {
+        return useDirectIO;
+    }
+
+    @Override
+    protected DirectIOCapableFlatVectorsFormat writeFlatVectorsFormat() {
+        return rawVectorFormat;
+    }
+
+    @Override
+    protected Map<String, DirectIOCapableFlatVectorsFormat> supportedReadFlatVectorsFormats() {
+        return supportedFormats;
+    }
+
+    @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
+        return new ES818BinaryQuantizedVectorsWriter(scorer, super.fieldsWriter(state), state);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
-    }
-
-    @Override
-    public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
-        return new ES818BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state, useDirectIO), scorer);
+        return new ES818BinaryQuantizedVectorsReader(state, super.fieldsReader(state), scorer);
     }
 }

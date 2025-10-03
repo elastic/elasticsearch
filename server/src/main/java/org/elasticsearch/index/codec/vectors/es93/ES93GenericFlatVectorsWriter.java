@@ -23,28 +23,31 @@ import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.codec.vectors.es93.ES93GenericHnswVectorsFormat.META_CODEC_NAME;
-import static org.elasticsearch.index.codec.vectors.es93.ES93GenericHnswVectorsFormat.VECTOR_FORMAT_INFO_EXTENSION;
-import static org.elasticsearch.index.codec.vectors.es93.ES93GenericHnswVectorsFormat.VERSION_CURRENT;
-
 class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     private final IndexOutput metaOut;
     private final FlatVectorsWriter rawVectorWriter;
 
     @SuppressWarnings("this-escape")
-    ES93GenericFlatVectorsWriter(String knnFormatName, boolean useDirectIOReads, SegmentWriteState state, FlatVectorsWriter rawWriter)
-        throws IOException {
+    ES93GenericFlatVectorsWriter(
+        GenericFormatMetaInformation metaInfo,
+        String knnFormatName,
+        boolean useDirectIOReads,
+        SegmentWriteState state,
+        FlatVectorsWriter rawWriter
+    ) throws IOException {
         super(rawWriter.getFlatVectorScorer());
         this.rawVectorWriter = rawWriter;
-        final String metaFileName = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            VECTOR_FORMAT_INFO_EXTENSION
-        );
+        final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaInfo.extension());
         try {
             this.metaOut = state.directory.createOutput(metaFileName, state.context);
-            CodecUtil.writeIndexHeader(metaOut, META_CODEC_NAME, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                metaOut,
+                metaInfo.codecName(),
+                metaInfo.versionCurrent(),
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
             // write the format name used for this segment
             metaOut.writeString(knnFormatName);
             metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);

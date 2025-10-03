@@ -25,11 +25,6 @@ import org.elasticsearch.core.IOUtils;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.codec.vectors.es93.ES93GenericHnswVectorsFormat.META_CODEC_NAME;
-import static org.elasticsearch.index.codec.vectors.es93.ES93GenericHnswVectorsFormat.VECTOR_FORMAT_INFO_EXTENSION;
-import static org.elasticsearch.index.codec.vectors.es93.ES93GenericHnswVectorsFormat.VERSION_CURRENT;
-import static org.elasticsearch.index.codec.vectors.es93.ES93GenericHnswVectorsFormat.VERSION_START;
-
 class ES93GenericFlatVectorsReader extends FlatVectorsReader {
 
     private final FlatVectorsReader vectorsReader;
@@ -39,14 +34,11 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
         FlatVectorsReader getReader(String formatName, boolean useDirectIO) throws IOException;
     }
 
-    ES93GenericFlatVectorsReader(SegmentReadState state, GetFormatReader getFormatReader) throws IOException {
-        super(null);    // Hacks ahoy!
+    ES93GenericFlatVectorsReader(GenericFormatMetaInformation metaInfo, SegmentReadState state, GetFormatReader getFormatReader)
+        throws IOException {
+        super(null);    // we can set this properly with flexible constructor bodies
         // read in the meta information
-        final String metaFileName = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            VECTOR_FORMAT_INFO_EXTENSION
-        );
+        final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaInfo.extension());
         int versionMeta = -1;
         FlatVectorsReader reader = null;
         try (var metaIn = state.directory.openChecksumInput(metaFileName)) {
@@ -54,9 +46,9 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     metaIn,
-                    META_CODEC_NAME,
-                    VERSION_START,
-                    VERSION_CURRENT,
+                    metaInfo.codecName(),
+                    metaInfo.versionStart(),
+                    metaInfo.versionCurrent(),
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );

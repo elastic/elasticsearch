@@ -75,12 +75,13 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES93HnswBinaryQuantizedVectorsFormat(10, 20, 1, null);
+                return new ES93HnswBinaryQuantizedVectorsFormat(10, 20, false, 1, null);
             }
         };
         String expectedPattern = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
-            + " writeFlatVectorFormat=ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
-            + " flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=%s";
+            + " flatVectorFormat=ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
+            + " writeFlatVectorFormat=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat,"
+            + " flatVectorScorer=%s())";
 
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
@@ -136,7 +137,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
         expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 3201));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 100, 1, new SameThreadExecutorService())
+            () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 100, false, 1, new SameThreadExecutorService())
         );
     }
 

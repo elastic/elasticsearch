@@ -19,5 +19,10 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
         super(name);
     }
 
+    @Override
+    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        return fieldsReader(state, false);
+    }
+
     public abstract FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException;
 }

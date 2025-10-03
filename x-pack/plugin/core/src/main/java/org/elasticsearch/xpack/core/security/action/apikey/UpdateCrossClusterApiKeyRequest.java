@@ -38,7 +38,7 @@ public final class UpdateCrossClusterApiKeyRequest extends BaseSingleUpdateApiKe
         ActionRequestValidationException validationException = super.validate();
         if (roleDescriptors == null && metadata == null && certificateIdentity == null) {
             validationException = addValidationError(
-                "must update [access] or [metadata] or [certificate_identity] for cross-cluster API keys",
+                "must update [access], [metadata], or [certificate_identity] for cross-cluster API keys",
                 validationException
             );
         }

@@ -23,7 +23,7 @@ public class UpdateCrossClusterApiKeyRequestTests extends ESTestCase {
         assertThat(ve, notNullValue());
         assertThat(
             ve.validationErrors(),
-            contains("must update [access] or" + " [metadata] or [certificate_identity] for cross-cluster API keys")
+            contains("must update [access], [metadata], or [certificate_identity] for cross-cluster API keys")
         );
     }
 

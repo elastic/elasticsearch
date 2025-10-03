@@ -14,7 +14,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.transport.TransportRequest;
 
-public record CrossProjectIndicesRequestHelper() {
+public final class CrossProjectIndicesRequestHelper {
+    private CrossProjectIndicesRequestHelper() {}
+
     public static boolean shouldResolveCrossProject(IndicesRequest.Replaceable request) {
         // TODO this needs to be based on the IndicesOptions flag instead, once available
         final boolean indicesOptionsResolveCrossProject = Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));

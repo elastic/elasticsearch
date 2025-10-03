@@ -31,7 +31,6 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "SentenceBoundaryChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.SENTENCE;
     private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 20;
-    private static final int MAX_CHUNK_SIZE_UPPER_LIMIT = 300;
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
         ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
@@ -52,6 +51,32 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         maxChunkSize = in.readInt();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             sentenceOverlap = in.readVInt();
+        }
+    }
+
+    @Override
+    public Integer maxChunkSize() {
+        return maxChunkSize;
+    }
+
+    @Override
+    public void validate() {
+        ValidationException validationException = new ValidationException();
+
+        if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
+            );
+        }
+
+        if (sentenceOverlap > 1 || sentenceOverlap < 0) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.SENTENCE_OVERLAP + "[" + sentenceOverlap + "] must be either 0 or 1"
+            );
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
         }
     }
 
@@ -77,11 +102,10 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerBetween(
+        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
             MAX_CHUNK_SIZE_LOWER_LIMIT,
-            MAX_CHUNK_SIZE_UPPER_LIMIT,
             ModelConfigurations.CHUNKING_SETTINGS,
             validationException
         );

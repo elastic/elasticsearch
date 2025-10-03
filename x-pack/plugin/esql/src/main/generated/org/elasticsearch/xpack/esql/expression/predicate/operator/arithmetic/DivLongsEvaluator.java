@@ -94,8 +94,10 @@ public final class DivLongsEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
+        long lhs = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
+        long rhs = rhsBlock.getLong(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Div.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+          result.appendLong(Div.processLongs(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,8 +110,10 @@ public final class DivLongsEvaluator implements EvalOperator.ExpressionEvaluator
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long lhs = lhsVector.getLong(p);
+        long rhs = rhsVector.getLong(p);
         try {
-          result.appendLong(Div.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+          result.appendLong(Div.processLongs(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

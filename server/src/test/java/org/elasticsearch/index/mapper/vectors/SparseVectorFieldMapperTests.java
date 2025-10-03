@@ -107,6 +107,16 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         b.field("type", "sparse_vector");
     }
 
+    @Override
+    protected boolean supportsEmptyInputArray() {
+        return false;
+    }
+
+    @Override
+    protected boolean addsValueWhenNotSupplied() {
+        return true;
+    }
+
     protected void minimalFieldMappingPreviousIndexDefaultsIncluded(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
         b.field("store", false);

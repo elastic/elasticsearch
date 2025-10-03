@@ -74,7 +74,8 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(LTrim.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
+        result.appendBytesRef(LTrim.process(val));
       }
       return result.build();
     }
@@ -84,7 +85,8 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(LTrim.process(valVector.getBytesRef(p, valScratch)));
+        BytesRef val = valVector.getBytesRef(p, valScratch);
+        result.appendBytesRef(LTrim.process(val));
       }
       return result.build();
     }

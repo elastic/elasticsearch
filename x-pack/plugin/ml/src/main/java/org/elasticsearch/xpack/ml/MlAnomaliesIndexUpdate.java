@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.TransportVersions.ML_ROLLOVER_LEGACY_INDICES;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
 import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.has6DigitSuffix;
@@ -51,8 +52,6 @@ import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.has6DigitSuf
 public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction {
 
     private static final Logger logger = LogManager.getLogger(MlAnomaliesIndexUpdate.class);
-
-    private static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = TransportVersion.fromName("ml_rollover_legacy_indices");
 
     private final IndexNameExpressionResolver expressionResolver;
     private final OriginSettingClient client;
@@ -66,7 +65,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Automatic rollover does not require any new features
         // but wait for all nodes to be upgraded anyway
-        return minTransportVersion.supports(ML_ROLLOVER_LEGACY_INDICES);
+        return minTransportVersion.onOrAfter(ML_ROLLOVER_LEGACY_INDICES);
     }
 
     @Override

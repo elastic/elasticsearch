@@ -878,7 +878,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
-            if (IgnoredFieldMapper.NAME.equals(field.getName()) || field.getName().startsWith(IgnoredSourceFieldMapper.NAME)) {
+            if (IgnoredFieldMapper.NAME.equals(field.getName()) || field.getName().equals(IgnoredSourceFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());

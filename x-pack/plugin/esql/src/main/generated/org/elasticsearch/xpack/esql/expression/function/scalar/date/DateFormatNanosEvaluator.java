@@ -101,7 +101,9 @@ public final class DateFormatNanosEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(DateFormat.processNanos(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), this.locale));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        BytesRef formatter = formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch);
+        result.appendBytesRef(DateFormat.processNanos(val, formatter, this.locale));
       }
       return result.build();
     }
@@ -112,7 +114,9 @@ public final class DateFormatNanosEvaluator implements EvalOperator.ExpressionEv
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DateFormat.processNanos(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), this.locale));
+        long val = valVector.getLong(p);
+        BytesRef formatter = formatterVector.getBytesRef(p, formatterScratch);
+        result.appendBytesRef(DateFormat.processNanos(val, formatter, this.locale));
       }
       return result.build();
     }

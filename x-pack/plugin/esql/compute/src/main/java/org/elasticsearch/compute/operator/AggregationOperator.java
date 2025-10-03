@@ -241,11 +241,7 @@ public class AggregationOperator implements Operator {
 
         protected Status(StreamInput in) throws IOException {
             aggregationNanos = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                aggregationFinishNanos = in.readOptionalVLong();
-            } else {
-                aggregationFinishNanos = null;
-            }
+            aggregationFinishNanos = in.readOptionalVLong();
             pagesProcessed = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
                 rowsReceived = in.readVLong();
@@ -259,9 +255,7 @@ public class AggregationOperator implements Operator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(aggregationNanos);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalVLong(aggregationFinishNanos);
-            }
+            out.writeOptionalVLong(aggregationFinishNanos);
             out.writeVInt(pagesProcessed);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
                 out.writeVLong(rowsReceived);

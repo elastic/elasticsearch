@@ -83,7 +83,8 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+        BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, input));
       }
       return result.build();
     }
@@ -93,7 +94,8 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputVector.getBytesRef(p, inputScratch)));
+        BytesRef input = inputVector.getBytesRef(p, inputScratch);
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, input));
       }
       return result.build();
     }

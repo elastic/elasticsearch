@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -233,73 +232,15 @@ public class AssignmentPlanTests extends ESTestCase {
         }
     }
 
-    public void testAssignModelToNode_GivenPreviouslyUnassignedModelDoesNotFit() {
-        Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
-        Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 2, Map.of(), 0, null, 0, 0);
-
-        AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 1));
-
-        assertThat(e.getMessage(), equalTo("not enough memory on node [n_1] to assign [1] allocations to deployment [m_1]"));
-    }
-
-    public void testAssignModelToNode_GivenPreviouslyAssignedModelDoesNotFit() {
-        { // old memory format
-            Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
-            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
-                "m_1",
-                "m_1",
-                ByteSizeValue.ofMb(50).getBytes(),
-                2,
-                2,
-                Map.of("n_1", 1),
-                0,
-                null,
-                0,
-                0
-            );
-
-            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-
-            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 2));
-            assertThat(e.getMessage(), containsString("not enough memory on node"));
-        }
-        { // new memory format
-            Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
-            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
-                "m_1",
-                "m_1",
-                ByteSizeValue.ofMb(30).getBytes(),
-                2,
-                2,
-                Map.of("n_1", 1),
-                0,
-                null,
-                ByteSizeValue.ofMb(300).getBytes(),
-                ByteSizeValue.ofMb(5).getBytes()
-            );
-
-            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-
-            Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 2));
-            assertThat(e.getMessage(), containsString("not enough memory on node"));
-        }
-    }
-
-    public void testAssignModelToNode_GivenNotEnoughCores_AndSingleThreadPerAllocation() {
+    public void testCanAssign_GivenNotEnoughCores_AndSingleThreadPerAllocation() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(500).getBytes(), 4);
         Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", ByteSizeValue.ofMb(100).getBytes(), 5, 1, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 5));
-
-        assertThat(
-            e.getMessage(),
-            equalTo("not enough cores on node [n_1] to assign [5] allocations to deployment [m_1]; required threads per allocation [1]")
-        );
+        assertThat(builder.canAssign(m, n, 5), is(false));
     }
 
-    public void testAssignModelToNode_GivenNotEnoughCores_AndMultipleThreadsPerAllocation() {
+    public void testCanAssign_GivenNotEnoughCores_AndMultipleThreadsPerAllocation() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(500).getBytes(), 5);
         AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
             "m_1",
@@ -315,12 +256,7 @@ public class AssignmentPlanTests extends ESTestCase {
         );
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 3));
-
-        assertThat(
-            e.getMessage(),
-            equalTo("not enough cores on node [n_1] to assign [3] allocations to deployment [m_1]; required threads per allocation [2]")
-        );
+        assertThat(builder.canAssign(m, n, 3), is(false));
     }
 
     public void testAssignModelToNode_GivenSameModelAssignedTwice() {

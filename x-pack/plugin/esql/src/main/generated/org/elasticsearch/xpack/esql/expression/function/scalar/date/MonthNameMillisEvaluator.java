@@ -82,7 +82,8 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(MonthName.processMillis(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.zoneId, this.locale));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendBytesRef(MonthName.processMillis(val, this.zoneId, this.locale));
       }
       return result.build();
     }
@@ -91,7 +92,8 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(MonthName.processMillis(valVector.getLong(p), this.zoneId, this.locale));
+        long val = valVector.getLong(p);
+        result.appendBytesRef(MonthName.processMillis(val, this.zoneId, this.locale));
       }
       return result.build();
     }

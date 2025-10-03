@@ -103,8 +103,10 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        int number = numberBlock.getInt(numberBlock.getFirstValueIndex(p));
         try {
-          result.appendBytesRef(Repeat.process(this.scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numberBlock.getInt(numberBlock.getFirstValueIndex(p))));
+          result.appendBytesRef(Repeat.process(this.scratch, str, number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -118,8 +120,10 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        int number = numberVector.getInt(p);
         try {
-          result.appendBytesRef(Repeat.process(this.scratch, strVector.getBytesRef(p, strScratch), numberVector.getInt(p)));
+          result.appendBytesRef(Repeat.process(this.scratch, str, number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -11,6 +11,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -36,9 +38,13 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final Settings settings;
+    private final boolean inCpsContext;
 
-    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.settings = settings;
+        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     @Override
@@ -58,6 +64,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (inCpsContext) {
+            // accept but drop project_routing param until fully supported
+            request.param("project_routing");
+        }
+
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(
@@ -65,7 +76,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request,
             null,
             clusterSupportsFeature,
-            size -> searchRequest.source().size(size)
+            size -> searchRequest.source().size(size),
+            // This endpoint is CPS-enabled so propagate the right value.
+            Optional.of(inCpsContext)
         );
 
         // Creates the search template request

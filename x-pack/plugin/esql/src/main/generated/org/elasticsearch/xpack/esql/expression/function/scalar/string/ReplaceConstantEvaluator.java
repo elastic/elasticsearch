@@ -100,8 +100,10 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef newStr = newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+          result.appendBytesRef(Replace.process(str, this.regex, newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -117,8 +119,10 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
       BytesRef strScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef newStr = newStrVector.getBytesRef(p, newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), this.regex, newStrVector.getBytesRef(p, newStrScratch)));
+          result.appendBytesRef(Replace.process(str, this.regex, newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

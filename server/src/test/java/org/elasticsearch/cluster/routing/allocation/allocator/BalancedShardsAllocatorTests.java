@@ -38,8 +38,10 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -60,6 +62,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.mapping;
@@ -677,6 +680,135 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(shardBalancedPartition.get("shardsOnly-2"), hasSize(3));
     }
 
+    public void testReturnEarlyOnShardAssignmentChanges() {
+        var allocationService = new MockAllocationService(
+            prefixAllocationDeciders(),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+
+        final var nodeNames = List.of("large-1", "large-2", "small-1");
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (String nodeName : nodeNames) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+        final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+
+        // An index with 2 unassigned primary shards, no replica
+        final IndexMetadata unassignedPrimary = anIndex("large-unassigned-primary", indexSettings(IndexVersion.current(), 2, 0)).build();
+        projectMetadataBuilder.put(unassignedPrimary, false);
+        routingTableBuilder.addAsNew(unassignedPrimary);
+
+        // An index with 1 started primary and 1 unassigned replica
+        final IndexMetadata unassignedReplica = anIndex("large-unassigned-replica", indexSettings(IndexVersion.current(), 1, 1))
+            .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID()))
+            .build();
+        projectMetadataBuilder.put(unassignedReplica, false);
+        routingTableBuilder.add(
+            IndexRoutingTable.builder(unassignedReplica.getIndex())
+                .addShard(
+                    shardRoutingBuilder(unassignedReplica.getIndex().getName(), 0, "large-1", true, ShardRoutingState.STARTED)
+                        .withAllocationId(AllocationId.newInitializing(unassignedReplica.inSyncAllocationIds(0).iterator().next()))
+                        .build()
+                )
+                .addShard(shardRoutingBuilder(unassignedReplica.getIndex().getName(), 0, null, false, ShardRoutingState.UNASSIGNED).build())
+        );
+
+        // A started index with undesired allocation (cannot remain)
+        final IndexMetadata undesiredAllocation = anIndex("large-undesired-allocation", indexSettings(IndexVersion.current(), 1, 0))
+            .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID()))
+            .build();
+        projectMetadataBuilder.put(undesiredAllocation, false);
+        routingTableBuilder.add(
+            IndexRoutingTable.builder(undesiredAllocation.getIndex())
+                .addShard(
+                    shardRoutingBuilder(undesiredAllocation.getIndex().getName(), 0, "small-1", true, ShardRoutingState.STARTED)
+                        .withAllocationId(AllocationId.newInitializing(undesiredAllocation.inSyncAllocationIds(0).iterator().next()))
+                        .build()
+                )
+        );
+
+        // Indices with unbalanced weight of write loads
+        final var numWriteLoadIndices = between(3, 5);
+        for (int i = 0; i < numWriteLoadIndices; i++) {
+            final IndexMetadata writeLoadIndex = anIndex("large-write-load-" + i, indexSettings(IndexVersion.current(), 1, 0))
+                .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID()))
+                .indexWriteLoadForecast(100.0)
+                .build();
+            projectMetadataBuilder.put(writeLoadIndex, false);
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(writeLoadIndex.getIndex())
+                    .addShard(
+                        shardRoutingBuilder(writeLoadIndex.getIndex().getName(), 0, "large-1", true, ShardRoutingState.STARTED)
+                            .withAllocationId(AllocationId.newInitializing(writeLoadIndex.inSyncAllocationIds(0).iterator().next()))
+                            .build()
+                    )
+            );
+        }
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .putProjectMetadata(projectMetadataBuilder)
+            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
+            .build();
+
+        // First reroute
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        {
+            // Unassigned primary and replica shards are assigned
+            final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+            for (int shardId = 0; shardId < 2; shardId++) {
+                final var shard = routingTable.shardRoutingTable(unassignedPrimary.getIndex().getName(), shardId).primaryShard();
+                assertTrue("unexpected shard state: " + shard, shard.initializing());
+            }
+            final var replicaShard = routingTable.shardRoutingTable(unassignedReplica.getIndex().getName(), 0).replicaShards().getFirst();
+            assertTrue("unexpected shard state: " + replicaShard, replicaShard.initializing());
+
+            // Undesired allocation is not moved because allocate call returns early
+            final var shard = routingTable.shardRoutingTable(undesiredAllocation.getIndex().getName(), 0).primaryShard();
+            assertTrue("unexpected shard state: " + shard, shard.started());
+
+            // Also no rebalancing for indices with unbalanced write loads due to returning early
+            for (int i = 0; i < numWriteLoadIndices; i++) {
+                final var writeLoadShard = routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard();
+                assertTrue("unexpected shard state: " + writeLoadShard, writeLoadShard.started());
+            }
+        }
+
+        // Second reroute
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        {
+            // Undesired allocation is now relocating
+            final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+            final var shard = routingTable.shardRoutingTable(undesiredAllocation.getIndex().getName(), 0).primaryShard();
+            assertTrue("unexpected shard state: " + shard, shard.relocating());
+
+            // Still no rebalancing for indices with unbalanced write loads due to returning early
+            for (int i = 0; i < numWriteLoadIndices; i++) {
+                final var writeLoadShard = routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard();
+                assertTrue("unexpected shard state: " + writeLoadShard, writeLoadShard.started());
+            }
+        }
+
+        // Third reroute
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        {
+            // Rebalance should happen for one and only one of the indices with unbalanced write loads due to returning early
+            final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+            final List<ShardRouting> relocatingShards = IntStream.range(0, numWriteLoadIndices)
+                .mapToObj(i -> routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard())
+                .filter(ShardRouting::relocating)
+                .toList();
+            assertThat(relocatingShards, hasSize(1));
+        }
+
+        // Ensure allocate to the balancer eventually stop after sufficient iterations
+        applyStartedShardsUntilNoChange(clusterState, allocationService);
+    }
+
     private Map<String, Integer> getTargetShardPerNodeCount(IndexRoutingTable indexRoutingTable) {
         var counts = new HashMap<String, Integer>();
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
@@ -882,7 +1014,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 var nodePrefix = prefix(node.node().getId());
                 return nodePrefix.equals(indexPrefix) ? Decision.YES : Decision.NO;
             }
-        }));
+        }, new SameShardAllocationDecider(ClusterSettings.createBuiltInClusterSettings())));
     }
 
     private static String prefix(String value) {

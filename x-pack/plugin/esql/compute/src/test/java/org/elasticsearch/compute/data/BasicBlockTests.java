@@ -1784,10 +1784,13 @@ public class BasicBlockTests extends ESTestCase {
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));
 
-            assertThat(
-                deepCopy.asVector() != null && deepCopy.asVector().isConstant(),
-                equalTo(block.asVector() != null && block.asVector().isConstant())
-            );
+            if (block.asVector() != null && block.asVector().isConstant()) {
+                /*
+                 * If we were a constant, we will still be one. If we were not a constant,
+                 * deepCopy might make a constant in the rare case that we have a single element array.
+                 */
+                assertThat(deepCopy.asVector() != null && deepCopy.asVector().isConstant(), equalTo(true));
+            }
         }
         Block untracked = block.deepCopy(TestBlockFactory.getNonBreakingInstance());
         assertThat(untracked, equalTo(block));

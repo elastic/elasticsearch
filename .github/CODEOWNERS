@@ -34,6 +34,11 @@ x-pack/plugin/apm-data/src/yamlRestTest/resources @elastic/obs-ds-intake-service
 x-pack/plugin/otel-data/src/main/resources @elastic/obs-ds-intake-services
 x-pack/plugin/otel-data/src/yamlRestTest/resources @elastic/obs-ds-intake-services
 
+# Storage Engine
+x-pack/plugin/otel-data/src/main/java/org/elasticsearch/xpack/oteldata/otlp @elastic/es-storage-engine
+x-pack/plugin/otel-data/src/test/java/org/elasticsearch/xpack/oteldata/otlp @elastic/es-storage-engine
+x-pack/plugin/otel-data/src/javaRestTest/java/org/elasticsearch/xpack/oteldata/otlp @elastic/es-storage-engine
+
 # Delivery
 gradle @elastic/es-delivery
 build-conventions @elastic/es-delivery

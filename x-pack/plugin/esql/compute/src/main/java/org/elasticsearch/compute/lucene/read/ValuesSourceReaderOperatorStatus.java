@@ -21,16 +21,17 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
-
 public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToIteratorOperator.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Operator.Status.class,
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
-    private static final TransportVersion SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
+
+    private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
+        "esql_documents_found_and_values_loaded"
+    );
+    private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
 
     private final Map<String, Integer> readersBuilt;
     private final long valuesLoaded;
@@ -101,12 +102,11 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     }
 
     private static boolean supportsSplitOnBigValues(TransportVersion version) {
-        return version.supports(SPLIT_ON_BIG_VALUES);
+        return version.supports(ESQL_SPLIT_ON_BIG_VALUES);
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
-        return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
-            || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
+        return version.supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
     }
 
     @Override

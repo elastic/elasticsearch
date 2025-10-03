@@ -74,7 +74,8 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Cast.castLongToDouble(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+        long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
+        result.appendDouble(Cast.castLongToDouble(v));
       }
       return result.build();
     }
@@ -83,7 +84,8 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
   public DoubleVector eval(int positionCount, LongVector vVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Cast.castLongToDouble(vVector.getLong(p)));
+        long v = vVector.getLong(p);
+        result.appendDouble(p, Cast.castLongToDouble(v));
       }
       return result.build();
     }

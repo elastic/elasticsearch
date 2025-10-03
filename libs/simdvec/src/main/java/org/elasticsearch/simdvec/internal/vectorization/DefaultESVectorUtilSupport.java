@@ -403,4 +403,9 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
         quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
     }
+
+    @Override
+    public int indexOf(byte[] bytes, int offset, int length, byte marker) {
+        return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
 }

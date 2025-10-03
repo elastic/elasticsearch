@@ -103,7 +103,8 @@ public final class RoundToDouble10Evaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        result.appendDouble(RoundToDouble.process(fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
+        double field = fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p));
+        result.appendDouble(RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
       }
       return result.build();
     }
@@ -112,7 +113,8 @@ public final class RoundToDouble10Evaluator implements EvalOperator.ExpressionEv
   public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, RoundToDouble.process(fieldVector.getDouble(p), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
+        double field = fieldVector.getDouble(p);
+        result.appendDouble(p, RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
       }
       return result.build();
     }

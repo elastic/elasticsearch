@@ -195,6 +195,16 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls) {
+        policyChecker.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$$newInstance(Class<?> callerClass, URL[] urls, ClassLoader parent) {
+        policyChecker.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
     public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
         policyChecker.checkCreateClassLoader(callerClass);
     }
@@ -499,7 +509,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr) {
+    public void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, InetAddress addr, int port) {
         policyChecker.checkAllNetworkAccess(callerClass);
     }
 

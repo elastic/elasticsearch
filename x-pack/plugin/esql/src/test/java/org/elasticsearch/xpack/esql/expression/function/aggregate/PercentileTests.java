@@ -69,18 +69,18 @@ public class PercentileTests extends AbstractAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var percentileTypedData = percentileSupplier.get().forceLiteral();
 
-            var percentile = ((Number) percentileTypedData.data()).intValue();
+            var percentile = ((Number) percentileTypedData.data()).doubleValue();
 
             try (var digest = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), 1000)) {
                 for (var value : fieldTypedData.multiRowData()) {
                     digest.add(((Number) value).doubleValue());
                 }
 
-                var expected = digest.size() == 0 ? null : digest.quantile((double) percentile / 100);
+                var expected = digest.size() == 0 ? null : digest.quantile(percentile / 100);
 
                 return new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, percentileTypedData),
-                    "Percentile[number=Attribute[channel=0],percentile=Attribute[channel=1]]",
+                    standardAggregatorName("Percentile", fieldSupplier.type()),
                     DataType.DOUBLE,
                     equalTo(expected)
                 );

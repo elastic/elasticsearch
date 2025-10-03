@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Multivalued fields"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-multivalued-fields.html
@@ -6,7 +9,7 @@ mapped_pages:
 
 # {{esql}} multivalued fields [esql-multivalued-fields]
 
-{{esql}} is fine reading from multivalued fields:
+{{esql}} can read from multivalued fields:
 
 $$$esql-multivalued-fields-reorders$$$
 

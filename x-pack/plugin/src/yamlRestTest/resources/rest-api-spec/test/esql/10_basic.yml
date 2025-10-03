@@ -413,6 +413,38 @@ FROM EVAL SORT LIMIT with documents_found:
   - match: {values.2: ["1",2.0,null,true,123,1674835275193]}
 
 ---
+"Test Unnamed, Multivalued Input Params":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_params_multi_values ]
+      reason: "multivalued parameters"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ? | keep x, y, z, t, u | limit 3'
+          params: [["1", "2"], [2.0, 3.0], [true, false], [123, 456], [1674835275193, 1674835275193]]
+
+  - length: {columns: 5}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "z"}
+  - match: {columns.2.type: "boolean"}
+  - match: {columns.3.name: "t"}
+  - match: {columns.3.type: "integer"}
+  - match: {columns.4.name: "u"}
+  - match: {columns.4.type: "long"}
+  - length: {values: 3}
+  - match: {values.0: [["1", "2"], [2.0, 3.0], [true, false], [123, 456], [1674835275193, 1674835275193]]}
+  - match: {values.1: [["1", "2"], [2.0, 3.0], [true, false], [123, 456], [1674835275193, 1674835275193]]}
+  - match: {values.2: [["1", "2"], [2.0, 3.0], [true, false], [123, 456], [1674835275193, 1674835275193]]}
+
+---
 "Test Unnamed Input Params Also For Limit And Sample":
   - requires:
         test_runner_features: [ capabilities ]
@@ -485,6 +517,39 @@ FROM EVAL SORT LIMIT with documents_found:
   - match: {values.0: ["1",2.0,null,true,123,1674835275193]}
   - match: {values.1: ["1",2.0,null,true,123,1674835275193]}
   - match: {values.2: ["1",2.0,null,true,123,1674835275193]}
+
+---
+"Test Named, Multivalued Input Params":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ parameter_for_limit, parameter_for_sample, query_params_multi_values ]
+      reason: "named or positional parameters, multivalued parameters"
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = ?n1, y = ?n2, z = ?n3, t = ?n4, u = ?n5 | keep x, y, z, t, u | limit ?l'
+          params: [{"n1" : ["1", "2"]}, {"n2" : [2.0, 3.0]}, {"n3" : [true, false]}, {"n4" : [123, 456]}, {"n5": [1674835275193, -1674835275193]}, {"l": 3}]
+
+  - length: {columns: 5}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "z"}
+  - match: {columns.2.type: "boolean"}
+  - match: {columns.3.name: "t"}
+  - match: {columns.3.type: "integer"}
+  - match: {columns.4.name: "u"}
+  - match: {columns.4.type: "long"}
+  - length: {values: 3}
+  - match: {values.0: [["1", "2"], [2.0, 3.0], [true, false] ,[123, 456], [1674835275193, -1674835275193]]}
+  - match: {values.1: [["1", "2"], [2.0, 3.0], [true, false] ,[123, 456], [1674835275193, -1674835275193]]}
+  - match: {values.2: [["1", "2"], [2.0, 3.0], [true, false] ,[123, 456], [1674835275193, -1674835275193]]}
 
 ---
 "Test Interval in Input Params":
@@ -596,3 +661,223 @@ version is not allowed:
   - length: {values: 2}
   - match: {values.0: ["1981-01-12T15:00:00.000Z","2000-01-01T00:00:00.000Z"]}
   - match: {values.1: ["1999-12-31T20:59:00.000Z", null]}
+
+
+---
+"No columns left after drop":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_no_columns]
+      reason: "plans witn no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test_range | keep date_1 | drop date_1 | limit 2'
+
+  - length: {columns: 0}
+  - length: {values: 2}
+  - length: {values.0: 0 }
+  - length: {values.1: 0 }
+
+
+---
+"Drop all columns after stats":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_no_columns]
+      reason: "plans witn no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats by color | keep color | drop color'
+
+  - length: {columns: 0}
+  - length: {values: 3}
+  - length: {values.0: 0 }
+  - length: {values.1: 0 }
+  - length: {values.2: 0 }
+
+---
+"Drop all columns after eval where false":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_no_columns]
+      reason: "plans witn no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep color | eval c = 1 | drop c, color | where false'
+
+  - length: {columns: 0}
+  - length: {values: 0}
+
+---
+"Drop all columns with inline stats ":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_no_columns]
+      reason: "plans witn no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep color | drop color | eval x = 1 | inline stats a = count(), b = max(x) | limit 3'
+
+  - length: {columns: 3}
+  - match: { columns.0.name: "x" }
+  - match: { columns.1.name: "a" }
+  - match: { columns.2.name: "b" }
+  - length: {values: 3}
+  - match: {values.0: [1, 40, 1]}
+  - match: {values.1: [1, 40, 1]}
+  - match: {values.2: [1, 40, 1]}
+
+---
+"Drop all columns with inline stats and by":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_no_columns]
+      reason: "plans witn no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep color | drop color | eval x = 1, y = 1 | inline stats a = count(), b = max(x) by y | limit 3'
+
+  - length: {columns: 4}
+  - match: { columns.0.name: "x" }
+  - match: { columns.1.name: "a" }
+  - match: { columns.2.name: "b" }
+  - match: { columns.3.name: "y" }
+  - length: {values: 3}
+  - match: {values.0: [1, 40, 1, 1]}
+  - match: {values.1: [1, 40, 1, 1]}
+  - match: {values.2: [1, 40, 1, 1]}
+
+---
+"Drop all columns with mutiple indices":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fix_no_columns ]
+      reason: "plans witn no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | keep color | drop color | eval x = 1, y = 1 | inline stats a = count(), b = max(x) by y | limit 3'
+  - length: { columns: 4 }
+  - match: { columns.0.name: "x" }
+  - match: { columns.1.name: "a" }
+  - match: { columns.2.name: "b" }
+  - match: { columns.3.name: "y" }
+  - length: { values: 3 }
+  - match: {values.0: [1, 43, 1, 1]}
+  - match: {values.1: [1, 43, 1, 1]}
+  - match: {values.2: [1, 43, 1, 1]}
+
+---
+"Drop all columns with fork":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fix_no_columns ]
+      reason: "plans witn no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep color | drop color | fork (stats c=count()) (stats c=count())'
+
+  - length: { columns: 2 }
+  - match: { columns.0.name: "c" }
+  - match: { columns.1.name: "_fork" }
+  - length: { values: 2 }
+  - match: {values.0.0: 40}
+  - match: {values.1.0: 40}
+
+
+---
+"Drop all columns with fork drop all":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fix_no_columns ]
+      reason: "plans witn no columns only recently supported"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep color | drop color | fork (stats c=count()) (stats c=count()) | drop _fork*, c'
+
+  - length: { columns: 0 }
+  - length: { values: 2 }
+
+
+---
+"Drop all columns with fork drop all count":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fix_no_columns ]
+      reason: "plans witn no columns only recently supported"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep color | drop color | fork (stats c=count()) (stats c=count()) | drop _fork*, c | stats count(*)'
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: {values.0.0: 2}

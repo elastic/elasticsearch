@@ -31,7 +31,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -48,6 +50,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongUnaryOperator;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING;
@@ -372,7 +375,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    private void abortMergeTask(MergeTask mergeTask) {
+    void abortMergeTask(MergeTask mergeTask) {
         assert mergeTask.hasStartedRunning() == false;
         assert runningMergeTasks.contains(mergeTask) == false;
         try {
@@ -382,6 +385,25 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
             mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
+        }
+    }
+
+    private void abortMergeTasks(Collection<MergeTask> mergeTasks) {
+        if (mergeTasks != null && mergeTasks.isEmpty() == false) {
+            for (var mergeTask : mergeTasks) {
+                abortMergeTask(mergeTask);
+            }
+        }
+    }
+
+    /**
+     * Removes all {@link MergeTask} that match the predicate and aborts them.
+     * @param predicate             the predicate to filter merge tasks to be aborted
+     */
+    void abortQueuedMergeTasks(Predicate<MergeTask> predicate) {
+        final var queuedMergesToAbort = new HashSet<MergeTask>();
+        if (queuedMergeTasks.drainMatchingElementsTo(predicate, queuedMergesToAbort) > 0) {
+            abortMergeTasks(queuedMergesToAbort);
         }
     }
 
@@ -675,6 +697,25 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
         }
 
+        int drainMatchingElementsTo(Predicate<E> predicate, Collection<? super E> c) {
+            int removed = 0;
+            final ReentrantLock lock = this.lock;
+            lock.lock();
+            try {
+                for (Iterator<Tuple<E, Long>> iterator = enqueuedByBudget.iterator(); iterator.hasNext();) {
+                    E item = iterator.next().v1();
+                    if (predicate.test(item)) {
+                        iterator.remove();
+                        c.add(item);
+                        removed++;
+                    }
+                }
+                return removed;
+            } finally {
+                lock.unlock();
+            }
+        }
+
         /**
          * Updates the available budged given the passed-in argument, from which it deducts the budget hold up by taken elements
          * that are still in use. The elements budget is also updated by re-applying the budget function.
@@ -704,7 +745,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
         void postBudgetUpdate() {
             assert lock.isHeldByCurrentThread();
-        };
+        }
 
         private void updateBudgetOfEnqueuedElementsAndReorderQueue() {
             assert this.lock.isHeldByCurrentThread();

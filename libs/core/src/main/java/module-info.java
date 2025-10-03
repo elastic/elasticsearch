@@ -12,6 +12,7 @@ import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 module org.elasticsearch.base {
     requires static jsr305;
     requires org.elasticsearch.logging;
+    requires java.xml;
 
     exports org.elasticsearch.core;
     exports org.elasticsearch.jdk;

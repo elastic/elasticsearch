@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -573,21 +574,21 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceStats
         );
 
-        XContentBuilder doc0Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
-        XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
-        XContentBuilder doc2Source = IndexRequest.getXContentBuilder(
+        XContentBuilder doc0Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
+        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
+        XContentBuilder doc2Source = IndexSource.getXContentBuilder(
             XContentType.JSON,
             "sparse_field",
             "a test value",
             "dense_field",
             "another test value"
         );
-        XContentBuilder doc3Source = IndexRequest.getXContentBuilder(
+        XContentBuilder doc3Source = IndexSource.getXContentBuilder(
             XContentType.JSON,
             "dense_field",
             List.of("value one", "  ", "value two")
         );
-        XContentBuilder doc4Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "   ");
+        XContentBuilder doc4Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "   ");
         XContentBuilder doc5Source = XContentFactory.contentBuilder(XContentType.JSON);
         {
             doc5Source.startObject();
@@ -601,8 +602,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             );
             doc5Source.endObject();
         }
-        XContentBuilder doc0UpdateSource = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "an updated value");
-        XContentBuilder doc1UpdateSource = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", null);
+        XContentBuilder doc0UpdateSource = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "an updated value");
+        XContentBuilder doc1UpdateSource = IndexSource.getXContentBuilder(XContentType.JSON, "dense_field", null);
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
@@ -692,7 +693,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceStats
         );
 
-        XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
@@ -761,7 +762,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexingPressureTripsOnInferenceResponseHandling() throws Exception {
-        final XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        final XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
             Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), (length(doc1Source) + 1) + "b").build()
         );
@@ -848,8 +849,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testIndexingPressurePartialFailure() throws Exception {
         // Use different length strings so that doc 1 and doc 2 sources are different sizes
-        final XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
-        final XContentBuilder doc2Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "bazzz");
+        final XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        final XContentBuilder doc2Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bazzz");
 
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ChunkedInferenceEmbedding barEmbedding = randomChunkedInferenceEmbedding(sparseModel, List.of("bar"));

@@ -364,6 +364,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService != ALL_FEATURES;
     }
 
+    /**
+     * Whether the old cluster version is not of the released versions, but a detached build.
+     * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
+     */
+    protected static boolean isOldClusterDetachedVersion() {
+        return System.getProperty("tests.bwc.refspec.main") != null;
+    }
+
     @BeforeClass
     public static void initializeProjectIds() {
         // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
@@ -2727,16 +2735,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("plans", instanceOf(List.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         }
-        if (includeMetadata) {
-            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-        }
+        mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         // Older version may not have is_partial
         if (includePartial) {
             mapMatcher = mapMatcher.entry("is_partial", false);
@@ -2748,7 +2754,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"), result.containsKey("documents_found"));
+        return getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found"));
     }
 
     /**

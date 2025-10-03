@@ -30,7 +30,7 @@ import java.io.IOException;
  *
  * <p>It is copied from the BKD implementation.
  */
-final class DocIdsWriter {
+public final class DocIdsWriter {
 
     private static final byte CONTINUOUS_IDS = (byte) -2;
     private static final byte DELTA_BPV_16 = (byte) 16;
@@ -40,7 +40,7 @@ final class DocIdsWriter {
 
     private int[] scratch = new int[0];
 
-    DocIdsWriter() {}
+    public DocIdsWriter() {}
 
     /**
      * Calculate the best encoding that will be used to write blocks of doc ids of blockSize.
@@ -51,7 +51,7 @@ final class DocIdsWriter {
      * @param blockSize the block size
      * @return the byte encoding to use for the blocks
      */
-    byte calculateBlockEncoding(IntToIntFunction docIds, int count, int blockSize) {
+    public byte calculateBlockEncoding(IntToIntFunction docIds, int count, int blockSize) {
         if (count == 0) {
             return CONTINUOUS_IDS;
         }
@@ -90,7 +90,7 @@ final class DocIdsWriter {
         }
     }
 
-    void writeDocIds(IntToIntFunction docIds, int count, byte encoding, DataOutput out) throws IOException {
+    public void writeDocIds(IntToIntFunction docIds, int count, byte encoding, DataOutput out) throws IOException {
         if (count == 0) {
             return;
         }
@@ -103,23 +103,12 @@ final class DocIdsWriter {
             min = Math.min(min, current);
         }
         switch (encoding) {
-            case CONTINUOUS_IDS:
-                writeContinuousIds(docIds, count, out);
-                break;
-            case DELTA_BPV_16:
-                writeDelta16(docIds, count, min, out);
-                break;
-            case BPV_21:
-                write21(docIds, count, min, out);
-                break;
-            case BPV_24:
-                write24(docIds, count, min, out);
-                break;
-            case BPV_32:
-                write32(docIds, count, min, out);
-                break;
-            default:
-                throw new IOException("Unsupported number of bits per value: " + encoding);
+            case CONTINUOUS_IDS -> writeContinuousIds(docIds, count, out);
+            case DELTA_BPV_16 -> writeDelta16(docIds, count, min, out);
+            case BPV_21 -> write21(docIds, count, min, out);
+            case BPV_24 -> write24(docIds, count, min, out);
+            case BPV_32 -> write32(docIds, count, min, out);
+            default -> throw new IOException("Unsupported number of bits per value: " + encoding);
         }
     }
 
@@ -217,7 +206,7 @@ final class DocIdsWriter {
         return new int[] { (strictlySorted && min2max == count) ? 1 : 0, max, min2max };
     }
 
-    void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
+    public void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
         if (count == 0) {
             return;
         }
@@ -264,7 +253,7 @@ final class DocIdsWriter {
         }
     }
 
-    void readInts(IndexInput in, int count, byte encoding, int[] docIDs) throws IOException {
+    public void readInts(IndexInput in, int count, byte encoding, int[] docIDs) throws IOException {
         if (count == 0) {
             return;
         }
@@ -272,28 +261,17 @@ final class DocIdsWriter {
             scratch = new int[count];
         }
         switch (encoding) {
-            case CONTINUOUS_IDS:
-                readContinuousIds(in, count, docIDs);
-                break;
-            case DELTA_BPV_16:
-                readDelta16(in, count, docIDs);
-                break;
-            case BPV_21:
-                readInts21(in, count, docIDs);
-                break;
-            case BPV_24:
-                readInts24(in, count, docIDs);
-                break;
-            case BPV_32:
-                readInts32(in, count, docIDs);
-                break;
-            default:
-                throw new IOException("Unsupported number of bits per value: " + encoding);
+            case CONTINUOUS_IDS -> readContinuousIds(in, count, docIDs);
+            case DELTA_BPV_16 -> readDelta16(in, count, docIDs);
+            case BPV_21 -> readInts21(in, count, docIDs);
+            case BPV_24 -> readInts24(in, count, docIDs);
+            case BPV_32 -> readInts32(in, count, docIDs);
+            default -> throw new IOException("Unsupported number of bits per value: " + encoding);
         }
     }
 
     /** Read {@code count} integers into {@code docIDs}. */
-    void readInts(IndexInput in, int count, int[] docIDs) throws IOException {
+    public void readInts(IndexInput in, int count, int[] docIDs) throws IOException {
         if (count == 0) {
             return;
         }

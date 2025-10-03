@@ -479,7 +479,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
-     * Build a {@link LeafIteratorLookup} which checks for norms of a text field.
+     * Build a {@link LeafIteratorLookup} which matches all documents in a segment
      */
     public static LeafIteratorLookup lookupMatchingAll() {
         return new LeafIteratorLookup() {

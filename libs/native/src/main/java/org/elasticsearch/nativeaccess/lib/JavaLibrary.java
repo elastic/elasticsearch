@@ -12,5 +12,7 @@ package org.elasticsearch.nativeaccess.lib;
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
 public non-sealed interface JavaLibrary extends NativeLibrary {
-    CloseableByteBuffer newBuffer(int len);
+    CloseableByteBuffer newSharedBuffer(int len);
+
+    CloseableByteBuffer newConfinedBuffer(int len);
 }

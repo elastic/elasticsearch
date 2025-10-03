@@ -633,6 +633,9 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettingsMappingsMerging
   issue: https://github.com/elastic/elasticsearch/issues/135884
+- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
+  method: testRollupIndex {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135906
 
 # Examples:
 #

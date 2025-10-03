@@ -2002,19 +2002,19 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public boolean isSearchable() {
-            return indexType() == IndexType.POINTS || hasDocValues();
+            return IndexType.hasPoints(indexType) || hasDocValues();
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, indexType() == IndexType.POINTS);
+            return type.termQuery(name(), value, IndexType.hasPoints(indexType));
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (indexType() == IndexType.POINTS) {
+            if (IndexType.hasPoints(indexType)) {
                 return type.termsQuery(name(), values);
             } else {
                 return super.termsQuery(values, context);
@@ -2038,13 +2038,13 @@ public class NumberFieldMapper extends FieldMapper {
                 includeUpper,
                 hasDocValues(),
                 context,
-                indexType() == IndexType.POINTS
+                IndexType.hasPoints(indexType)
             );
         }
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (indexType() == IndexType.POINTS) {
+            if (IndexType.hasPoints(indexType)) {
                 return this::parsePoint;
             }
             return null;

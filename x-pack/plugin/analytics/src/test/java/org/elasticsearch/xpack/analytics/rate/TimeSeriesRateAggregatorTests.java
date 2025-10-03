@@ -17,6 +17,7 @@ import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregat
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -197,7 +199,20 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType counterField(String name) {
-        return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
+        return new NumberFieldMapper.NumberFieldType(
+            name,
+            NumberFieldMapper.NumberType.LONG,
+            IndexType.POINTS,
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            TimeSeriesParams.MetricType.COUNTER,
+            IndexMode.TIME_SERIES,
+            false
+        );
     }
 
     private DateFieldMapper.DateFieldType timeStampField() {

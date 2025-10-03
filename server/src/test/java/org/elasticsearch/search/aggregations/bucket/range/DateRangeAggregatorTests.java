@@ -213,8 +213,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
                 new DateFieldMapper.DateFieldType(
                     DATE_FIELD_NAME,
-                    randomFrom(IndexType.POINTS, IndexType.DOC_VALUES_ONLY, IndexType.NONE),
-                    true,
+                    randomFrom(IndexType.POINTS, IndexType.DOC_VALUES_ONLY),
+                    false,
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     Resolution.MILLISECONDS,
                     null,

@@ -155,6 +155,11 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            return false;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {

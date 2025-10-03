@@ -371,6 +371,7 @@ class IndicesAndAliasesResolver {
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
                     assert recordResolvedIndexExpressions : "cross-project requests must record resolved index expressions";
+
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
                         crossProjectFanoutIndicesOptions(indicesOptions),
@@ -380,9 +381,20 @@ class IndicesAndAliasesResolver {
                         authorizedProjects,
                         indicesRequest.includeDataStreams()
                     );
+
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
+
+                    // TODO explain why we're doing this
+                    if (resolvedIndicesBuilder.isEmpty()) {
+                        markWithNoneExpression(replaceable, resolvedIndicesBuilder);
+                    } else {
+                        replaceable.indices(resolvedIndicesBuilder.build().toArray());
+                    }
+
+                    return resolvedIndicesBuilder.build();
                 } else {
                     final ResolvedIndices split;
                     if (replaceable.allowsRemoteIndices()) {
@@ -410,12 +422,8 @@ class IndicesAndAliasesResolver {
             }
             if (resolvedIndicesBuilder.isEmpty()) {
                 if (indicesOptions.allowNoIndices()) {
-                    // this is how we tell es core to return an empty response, we can let the request through being sure
-                    // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
-                    // as that would be resolved to _all by es core.
-                    replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                     indicesReplacedWithNoIndices = true;
-                    resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
+                    markWithNoneExpression(replaceable, resolvedIndicesBuilder);
                 } else {
                     throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
                 }
@@ -471,6 +479,15 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    private static void markWithNoneExpression(IndicesRequest.Replaceable replaceable, ResolvedIndices.Builder resolvedIndicesBuilder) {
+        assert resolvedIndicesBuilder.isEmpty() : "we only mark with none expression on empty resolved indices";
+        // this is how we tell es core to return an empty response, we can let the request through being sure
+        // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
+        // as that would be resolved to _all by es core.
+        replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
+        resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
     }
 
     private static void setResolvedIndexExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {

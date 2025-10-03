@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -36,6 +37,8 @@ public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
     public static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
+
+    private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
 
     private final String clusterName;
     private final String username;
@@ -112,7 +115,7 @@ public class Configuration implements Writeable {
         } else {
             this.allowPartialResults = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TIMESERIES_DEFAULT_LIMIT)) {
+        if (in.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             this.resultTruncationMaxSizeTimeseries = in.readVInt();
             this.resultTruncationDefaultSizeTimeseries = in.readVInt();
         } else {
@@ -141,7 +144,7 @@ public class Configuration implements Writeable {
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             out.writeBoolean(allowPartialResults);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TIMESERIES_DEFAULT_LIMIT)) {
+        if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }

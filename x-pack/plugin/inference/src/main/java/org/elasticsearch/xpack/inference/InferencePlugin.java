@@ -663,7 +663,7 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, false));
+        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true));
     }
 
     @Override

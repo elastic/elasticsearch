@@ -147,6 +147,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         }
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
+            // No indices at all!
             listener.onResponse(
                 new EsqlResolveFieldsResponse(
                     new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()),

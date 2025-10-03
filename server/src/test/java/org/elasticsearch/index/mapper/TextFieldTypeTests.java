@@ -59,7 +59,7 @@ import static org.mockito.Mockito.mock;
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
     private static TextFieldType createFieldType() {
-        return new TextFieldType("field", randomBoolean());
+        return new TextFieldType("field", randomBoolean(), false);
     }
 
     public void testIsAggregatableDependsOnFieldData() {
@@ -301,7 +301,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void test_block_loader_uses_synthetic_source_delegate_when_ignore_above_is_not_set() {
+    public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
         // given
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
@@ -316,6 +316,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -331,7 +332,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertThat(((BlockLoader.Delegating) blockLoader).delegatingTo(), equalTo("child"));
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSet() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -344,6 +345,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         doReturn(settings).when(mappingParserContext).getSettings();
         doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+        doReturn(true).when(mappingParserContext).isWithinMultiField();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
         builder.ignoreAbove(123);
@@ -364,6 +366,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -378,7 +381,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertFalse(blockLoader instanceof BlockLoader.Delegating);
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set_at_index_level() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSetAtIndexLevel() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -392,6 +395,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         doReturn(settings).when(mappingParserContext).getSettings();
         doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+        doReturn(true).when(mappingParserContext).isWithinMultiField();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
 
@@ -411,6 +415,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,

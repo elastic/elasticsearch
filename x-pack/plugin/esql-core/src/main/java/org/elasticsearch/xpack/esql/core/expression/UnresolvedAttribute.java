@@ -112,6 +112,12 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return this;
     }
 
+    // Cannot just use the super method because that requires a data type.
+    @Override
+    public UnresolvedAttribute withId(NameId id) {
+        return new UnresolvedAttribute(source(), qualifier(), name(), id, unresolvedMessage(), resolutionMetadata());
+    }
+
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
         return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata());
     }

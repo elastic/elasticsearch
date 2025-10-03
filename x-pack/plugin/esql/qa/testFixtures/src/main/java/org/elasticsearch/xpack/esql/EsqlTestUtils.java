@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -113,6 +114,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.hamcrest.Matcher;
+import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.hamcrest.core.IsEqual;
 import org.junit.Assert;
 
@@ -1015,12 +1018,26 @@ public final class EsqlTestUtils {
         }
     }
 
+    public static void assertEqualsIgnoringIds(Object expected, Object actual) {
+        assertThat(actual, equalToIgnoringIds(expected));
+    }
+
     /**
      * Returns a matcher that matches if the examined object is logically equal to the specified
      * operand, ignoring the {@link NameId}s of any {@link NamedExpression}s (e.g. {@link Alias} and {@link Attribute}).
      */
     public static <T> org.hamcrest.Matcher<T> equalToIgnoringIds(T operand) {
         return new IsEqualIgnoringIds<T>(operand);
+    }
+
+    @SafeVarargs
+    public static <T> org.hamcrest.Matcher<java.lang.Iterable<? extends T>> containsInAnyOrderIgnoringIds(T... items) {
+        List<Matcher<? super T>> matchers = new ArrayList<>();
+        for (T item : items) {
+            matchers.add(equalToIgnoringIds(item));
+        }
+
+        return new IsIterableContainingInAnyOrder<>(matchers);
     }
 
     private static class IsEqualIgnoringIds<T> extends IsEqual<T> {
@@ -1055,6 +1072,10 @@ public final class EsqlTestUtils {
     }
 
     private static LogicalPlan ignoreIdsInLogicalPlan(LogicalPlan plan) {
+        if (plan instanceof Explain explain) {
+            return new Explain(explain.source(), ignoreIdsInLogicalPlan(explain.query()));
+        }
+
         return plan.transformExpressionsDown(
             NamedExpression.class,
             ne -> ne instanceof Alias alias ? alias.withId(DUMMY_ID) : ne instanceof Attribute attr ? attr.withId(DUMMY_ID) : ne

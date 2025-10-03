@@ -1,0 +1,5 @@
+pr: 135834
+summary: Move force merge from the downsmapling request to the ILM action
+area: "Downsampling, ILM+SLM"
+type: enhancement
+issues: []

@@ -133,6 +133,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
     }
 
+    private static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = TransportVersion.fromName("introduce_failures_lifecycle");
+
     private final LifecycleType lifecycleType;
     private final boolean enabled;
     @Nullable
@@ -344,8 +346,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             out.writeBoolean(enabled());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
             lifecycleType.writeTo(out);
         }
     }
@@ -373,10 +374,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             downsampling = null;
             enabled = true;
         }
-        lifecycleType = in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
-                ? LifecycleType.read(in)
-                : LifecycleType.DATA;
+        lifecycleType = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? LifecycleType.read(in) : LifecycleType.DATA;
     }
 
     /**
@@ -739,8 +737,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 }
                 out.writeBoolean(enabled);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
                 lifecycleType.writeTo(out);
             }
         }
@@ -802,10 +799,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 }
                 enabled = in.readBoolean();
             }
-            var lifecycleTarget = in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
-                    ? LifecycleType.read(in)
-                    : LifecycleType.DATA;
+            var lifecycleTarget = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
+                ? LifecycleType.read(in)
+                : LifecycleType.DATA;
             return new Template(lifecycleTarget, enabled, dataRetention, downsampling);
         }
 

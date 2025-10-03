@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -26,6 +26,8 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
 
     @SuppressWarnings("deprecation")
     private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new LegacySemanticMatchQueryRewriteInterceptor();
+
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
 
     public InterceptedInferenceMatchQueryBuilder(MatchQueryBuilder originalQuery) {
         super(originalQuery);
@@ -63,7 +65,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     @Override
     protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
         QueryBuilder rewritten = this;
-        if (queryRewriteContext.getMinTransportVersion().before(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+        if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
         }
 

@@ -202,10 +202,10 @@ public class EvaluatorImplementer {
 
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
             {
-                if (blockStyle && allNullsIsNull) {
+                if (blockStyle) {
                     if (processOutputsMultivalued == false) {
                         processFunction.args.stream().forEach(a -> a.skipNull(builder));
-                    } else {
+                    } else if (allNullsIsNull) {
                         builder.addStatement("boolean allBlocksAreNulls = true");
                         // allow block type inputs to be null
                         processFunction.args.stream().forEach(a -> a.allBlocksAreNull(builder));
@@ -217,6 +217,8 @@ public class EvaluatorImplementer {
                         }
                         builder.endControlFlow();
                     }
+                } else {
+                    assert allNullsIsNull: "allNullsIsNull == false is only supported for block style.";
                 }
                 processFunction.args.stream().forEach(a -> a.read(builder, blockStyle));
 

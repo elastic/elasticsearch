@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -283,6 +284,158 @@ public class TransportActionProxyTests extends ESTestCase {
             serviceB,
             "internal:test",
             cancellable,
+            // For a proxy node proxying to itself, the response is sent directly, without it being read by the proxy layer
+            r -> { throw new AssertionError(); },
+            new NamedWriteableRegistry(Collections.emptyList())
+        );
+        AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
+
+        // Node A -> Proxy Node B (Local execution)
+        serviceA.sendRequest(
+            nodeB,
+            TransportActionProxy.getProxyAction("internal:test"),
+            TransportActionProxy.wrapRequest(nodeB, new SimpleTestRequest("TS_A", cancellable)), // Request
+            new TransportResponseHandler<SimpleTestResponse>() {
+                @Override
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
+                }
+
+                @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
+                public void handleResponse(SimpleTestResponse response) {
+                    try {
+                        assertEquals("TS_B", response.targetNode);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    try {
+                        throw new AssertionError(exp);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            }
+        );
+        latch.await();
+
+        final var responseInstance = response.get();
+        assertThat(responseInstance, notNullValue());
+        responseInstance.decRef();
+        assertBusy(() -> assertThat(responseInstance.hasReferences(), equalTo(false)));
+    }
+
+    public void testSendLocalRequestBytesTransportResponseSameVersion() throws Exception {
+        final AtomicReference<BytesTransportResponse> response = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        final boolean cancellable = randomBoolean();
+        serviceB.registerRequestHandler("internal:test", randomExecutor(threadPool), SimpleTestRequest::new, (request, channel, task) -> {
+            try {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+
+                SimpleTestResponse tsB = new SimpleTestResponse("TS_B");
+                try (RecyclerBytesStreamOutput out = serviceB.newNetworkBytesStream()) {
+                    out.setTransportVersion(transportVersion1);
+                    tsB.writeTo(out);
+                    // simulate what happens in SearchQueryThenFetchAsyncAction with NodeQueryResponse
+                    final BytesTransportResponse responseB = new BytesTransportResponse(out.moveToBytesReference(), transportVersion1);
+                    channel.sendResponse(responseB);
+                    response.set(responseB);
+                } finally {
+                    tsB.decRef();
+                }
+            } finally {
+                latch.countDown();
+            }
+        });
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, in -> {
+            throw new AssertionError("read should not be called for local proxying when versions align");
+        }, new NamedWriteableRegistry(Collections.emptyList()));
+        AbstractSimpleTransportTestCase.connectToNode(serviceC, nodeB);
+
+        // Node C -> Proxy Node B (Local execution)
+        serviceC.sendRequest(
+            nodeB,
+            TransportActionProxy.getProxyAction("internal:test"),
+            TransportActionProxy.wrapRequest(nodeB, new SimpleTestRequest("TS_A", cancellable)), // Request
+            new TransportResponseHandler<SimpleTestResponse>() {
+                @Override
+                public SimpleTestResponse read(StreamInput in) throws IOException {
+                    return new SimpleTestResponse(in);
+                }
+
+                @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
+                public void handleResponse(SimpleTestResponse response) {
+                    try {
+                        assertEquals("TS_B", response.targetNode);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    try {
+                        throw new AssertionError(exp);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+            }
+        );
+        latch.await();
+
+        final var responseInstance = response.get();
+        assertThat(responseInstance, notNullValue());
+        responseInstance.decRef();
+        assertBusy(() -> assertThat(responseInstance.hasReferences(), equalTo(false)));
+    }
+
+    public void testSendLocalRequestBytesTransportResponseDifferentVersions() throws Exception {
+        final AtomicReference<BytesTransportResponse> response = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        final boolean cancellable = randomBoolean();
+        serviceB.registerRequestHandler("internal:test", randomExecutor(threadPool), SimpleTestRequest::new, (request, channel, task) -> {
+            try {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+
+                SimpleTestResponse tsB = new SimpleTestResponse("TS_B");
+                try (RecyclerBytesStreamOutput out = serviceB.newNetworkBytesStream()) {
+                    out.setTransportVersion(transportVersion1);
+                    tsB.writeTo(out);
+                    // simulate what happens in SearchQueryThenFetchAsyncAction with NodeQueryResponse
+                    final BytesTransportResponse responseB = new BytesTransportResponse(out.moveToBytesReference(), transportVersion1);
+                    channel.sendResponse(responseB);
+                    response.set(responseB);
+                } finally {
+                    tsB.decRef();
+                }
+            } finally {
+                latch.countDown();
+            }
+        });
+        TransportActionProxy.registerProxyAction(
+            serviceB,
+            "internal:test",
+            cancellable,
+            // this is called by the conversion layer in ProxyRequestHandler
             SimpleTestResponse::new,
             new NamedWriteableRegistry(Collections.emptyList())
         );
@@ -459,11 +612,17 @@ public class TransportActionProxyTests extends ESTestCase {
 
         SimpleTestResponse(StreamInput in) throws IOException {
             this.targetNode = in.readString();
+            if (in.getTransportVersion().supports(transportVersion1)) {
+                in.readBoolean();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(targetNode);
+            if (out.getTransportVersion().supports(transportVersion1)) {
+                out.writeBoolean(true);
+            }
         }
 
         @Override

@@ -72,17 +72,24 @@ public final class TransportActionProxy {
                     // node in the expected format when a proxy data node proxies the request to itself. The response would otherwise
                     // be sent directly via DirectResponseChannel, skipping the read and write step that this handler normally performs.
                     if (response instanceof BytesTransportResponse btr && btr.mustConvertResponseForVersion(channel.getVersion())) {
-                        try {
+                        try (
                             NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(
                                 btr.streamInput(),
                                 namedWriteableRegistry
-                            );
-                            response = responseFunction.apply(wrappedRequest).read(in);
+                            )
+                        ) {
+                            TransportResponse convertedResponse = responseFunction.apply(wrappedRequest).read(in);
+                            try {
+                                channel.sendResponse(convertedResponse);
+                            } finally {
+                                convertedResponse.decRef();
+                            }
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
+                    } else {
+                        channel.sendResponse(response);
                     }
-                    channel.sendResponse(response);
                 }
 
                 @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -110,6 +111,7 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testSendMessage() throws InterruptedException {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         serviceA.registerRequestHandler(
             "internal:test",
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -123,7 +125,7 @@ public class TransportActionProxyTests extends ESTestCase {
             }
         );
         final boolean cancellable = randomBoolean();
-        TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new, namedWriteableRegistry);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
         serviceB.registerRequestHandler(
@@ -139,7 +141,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertThat(response.hasReferences(), equalTo(false));
             }
         );
-        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new, namedWriteableRegistry);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
         serviceC.registerRequestHandler(
             "internal:test",
@@ -155,7 +157,7 @@ public class TransportActionProxyTests extends ESTestCase {
             }
         );
 
-        TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new, namedWriteableRegistry);
         // Node A -> Node B -> Node C: different versions - serialize the response
         {
             final List<TransportResponse> responses = Collections.synchronizedList(new ArrayList<>());
@@ -277,7 +279,13 @@ public class TransportActionProxyTests extends ESTestCase {
                 latch.countDown();
             }
         });
-        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(
+            serviceB,
+            "internal:test",
+            cancellable,
+            SimpleTestResponse::new,
+            new NamedWriteableRegistry(Collections.emptyList())
+        );
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
         // Node A -> Proxy Node B (Local execution)
@@ -324,6 +332,7 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testException() throws InterruptedException {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         boolean cancellable = randomBoolean();
         serviceA.registerRequestHandler(
             "internal:test",
@@ -335,7 +344,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 channel.sendResponse(response);
             }
         );
-        TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new, namedWriteableRegistry);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
         serviceB.registerRequestHandler(
@@ -348,7 +357,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 channel.sendResponse(response);
             }
         );
-        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new, namedWriteableRegistry);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
         serviceC.registerRequestHandler(
             "internal:test",
@@ -358,7 +367,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 throw new ElasticsearchException("greetings from TS_C");
             }
         );
-        TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
+        TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new, namedWriteableRegistry);
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(

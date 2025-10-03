@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -51,7 +52,8 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
             String actionName,
             ActionFilters actionFilters,
             TransportService transportService,
-            CcrRestoreSourceService ccrRestoreService
+            CcrRestoreSourceService ccrRestoreService,
+            NamedWriteableRegistry namedWriteableRegistry
         ) {
             super(
                 actionName,
@@ -60,7 +62,13 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
                 ClearCcrRestoreSessionRequest::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
             );
-            TransportActionProxy.registerProxyAction(transportService, actionName, false, in -> ActionResponse.Empty.INSTANCE);
+            TransportActionProxy.registerProxyAction(
+                transportService,
+                actionName,
+                false,
+                in -> ActionResponse.Empty.INSTANCE,
+                namedWriteableRegistry
+            );
             this.ccrRestoreService = ccrRestoreService;
         }
 
@@ -80,16 +88,22 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         public InternalTransportAction(
             ActionFilters actionFilters,
             TransportService transportService,
-            CcrRestoreSourceService ccrRestoreService
+            CcrRestoreSourceService ccrRestoreService,
+            NamedWriteableRegistry namedWriteableRegistry
         ) {
-            super(INTERNAL_NAME, actionFilters, transportService, ccrRestoreService);
+            super(INTERNAL_NAME, actionFilters, transportService, ccrRestoreService, namedWriteableRegistry);
         }
     }
 
     public static class TransportAction extends TransportDeleteCcrRestoreSessionAction {
         @Inject
-        public TransportAction(ActionFilters actionFilters, TransportService transportService, CcrRestoreSourceService ccrRestoreService) {
-            super(NAME, actionFilters, transportService, ccrRestoreService);
+        public TransportAction(
+            ActionFilters actionFilters,
+            TransportService transportService,
+            CcrRestoreSourceService ccrRestoreService,
+            NamedWriteableRegistry namedWriteableRegistry
+        ) {
+            super(NAME, actionFilters, transportService, ccrRestoreService, namedWriteableRegistry);
         }
 
         @Override

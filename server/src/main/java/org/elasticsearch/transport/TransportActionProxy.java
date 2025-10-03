@@ -9,6 +9,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,15 +39,18 @@ public final class TransportActionProxy {
         private final TransportService service;
         private final String action;
         private final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction;
+        private final NamedWriteableRegistry namedWriteableRegistry;
 
         ProxyRequestHandler(
             TransportService service,
             String action,
-            Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+            Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction,
+            NamedWriteableRegistry namedWriteableRegistry
         ) {
             this.service = service;
             this.action = action;
             this.responseFunction = responseFunction;
+            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override
@@ -63,10 +68,16 @@ public final class TransportActionProxy {
 
                 @Override
                 public void handleResponse(TransportResponse response) {
+                    // This is a short term solution to ensure data node responses for batched search go back to the coordinating
+                    // node in the expected format when a proxy data node proxies the request to itself. The response would otherwise
+                    // be sent directly via DirectResponseChannel, skipping the read and write step that this handler normally performs.
                     if (response instanceof BytesTransportResponse btr && btr.mustConvertResponseForVersion(channel.getVersion())) {
                         try {
-                            StreamInput streamInput = btr.streamInput();
-                            response = read(streamInput);
+                            NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(
+                                btr.streamInput(),
+                                namedWriteableRegistry
+                            );
+                            response = responseFunction.apply(wrappedRequest).read(in);
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
@@ -82,7 +93,7 @@ public final class TransportActionProxy {
                 @Override
                 public TransportResponse read(StreamInput in) throws IOException {
                     if (in.getTransportVersion().equals(channel.getVersion()) && in.supportReadAllToReleasableBytesReference()) {
-                        return new BytesTransportResponse(in.readAllToReleasableBytesReference());
+                        return new BytesTransportResponse(in.readAllToReleasableBytesReference(), channel.getVersion());
                     } else {
                         return responseFunction.apply(wrappedRequest).read(in);
                     }
@@ -153,7 +164,9 @@ public final class TransportActionProxy {
         TransportService service,
         String action,
         boolean cancellable,
-        Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+        Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction,
+        NamedWriteableRegistry namedWriteableRegistry
+
     ) {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
@@ -164,7 +177,7 @@ public final class TransportActionProxy {
             in -> cancellable
                 ? new CancellableProxyRequest<>(in, requestHandler::newRequest)
                 : new ProxyRequest<>(in, requestHandler::newRequest),
-            new ProxyRequestHandler<>(service, action, responseFunction)
+            new ProxyRequestHandler<>(service, action, responseFunction, namedWriteableRegistry)
         );
     }
 
@@ -176,9 +189,10 @@ public final class TransportActionProxy {
         TransportService service,
         String action,
         boolean cancellable,
-        Writeable.Reader<? extends TransportResponse> reader
+        Writeable.Reader<? extends TransportResponse> reader,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
-        registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader);
+        registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader, namedWriteableRegistry);
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";

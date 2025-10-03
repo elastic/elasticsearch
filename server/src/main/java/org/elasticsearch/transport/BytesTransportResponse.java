@@ -11,8 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -25,28 +23,26 @@ public class BytesTransportResponse extends TransportResponse implements BytesTr
 
     private final ReleasableBytesReference bytes;
     private final TransportVersion version;
-    private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public BytesTransportResponse(ReleasableBytesReference bytes) {
-        this.bytes = bytes;
-        this.version = null;
-        this.namedWriteableRegistry = null;
-    }
-
-    public BytesTransportResponse(ReleasableBytesReference bytes, TransportVersion version, NamedWriteableRegistry namedWriteableRegistry) {
+    public BytesTransportResponse(ReleasableBytesReference bytes, TransportVersion version) {
         this.bytes = bytes;
         this.version = version;
-        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
+    /**
+     * Does the binary response need conversion before being sent to the provided target version?
+     */
     public boolean mustConvertResponseForVersion(TransportVersion targetVersion) {
         return version != null && version.equals(targetVersion) == false;
     }
 
+    /**
+     * Returns a {@link StreamInput} configured to read the underlying bytes that this response holds.
+     */
     public StreamInput streamInput() throws IOException {
-        NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(bytes().streamInput(), namedWriteableRegistry);
-        in.setTransportVersion(version);
-        return in;
+        StreamInput streamInput = bytes.streamInput();
+        streamInput.setTransportVersion(version);
+        return streamInput;
     }
 
     @Override

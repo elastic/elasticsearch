@@ -13,10 +13,12 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.support.NestedScope;
 
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,7 +80,22 @@ public class KqlParsingContext {
     }
 
     public Set<String> resolveDefaultFieldNames() {
-        return resolveFieldNames(defaultField);
+        if (defaultField != null) {
+            return resolveFieldNames(defaultField);
+        }
+
+        assert queryRewriteContext.getIndexSettings() != null;
+
+        if (queryRewriteContext.getIndexSettings().getDefaultFields().isEmpty()) {
+            return resolveFieldNames("*");
+        }
+
+        Set<String> fieldNames = new HashSet<>();
+        queryRewriteContext.getIndexSettings().getDefaultFields().forEach(fieldNamePattern -> {
+            fieldNames.addAll(resolveFieldNames(fieldNamePattern));
+        });
+
+        return fieldNames;
     }
 
     public MappedFieldType fieldType(String fieldName) {
@@ -89,8 +106,17 @@ public class KqlParsingContext {
         return fieldType instanceof AbstractScriptFieldType<?>;
     }
 
+    public boolean isDateField(String fieldName) {
+        return isDateField(fieldType(fieldName));
+    }
+
+    public boolean isRangeField(String fieldName) {
+        return fieldType(fieldName) != null && fieldType(fieldName) instanceof RangeFieldMapper.RangeFieldType;
+    }
+
     public static boolean isDateField(MappedFieldType fieldType) {
-        return fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE);
+        return fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
+            || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
     }
 
     public static boolean isKeywordField(MappedFieldType fieldType) {
@@ -139,7 +165,7 @@ public class KqlParsingContext {
 
     public static class Builder {
         private final QueryRewriteContext queryRewriteContext;
-        private boolean caseInsensitive = true;
+        private boolean caseInsensitive = false;
         private ZoneId timeZone = null;
         private String defaultField = null;
 

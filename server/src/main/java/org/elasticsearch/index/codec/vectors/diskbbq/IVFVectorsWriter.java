@@ -127,12 +127,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
+    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
         throws IOException;
 
-    record CentroidOffsetAndLength(LongValues offsets, LongValues lengths) {}
+    public record CentroidOffsetAndLength(LongValues offsets, LongValues lengths) {}
 
-    abstract void writeCentroids(
+    public abstract void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
@@ -140,7 +140,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException;
 
-    abstract CentroidOffsetAndLength buildAndWritePostingsLists(
+    public abstract CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -150,7 +150,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         int[] overspillAssignments
     ) throws IOException;
 
-    abstract CentroidOffsetAndLength buildAndWritePostingsLists(
+    public abstract CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -161,7 +161,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         int[] overspillAssignments
     ) throws IOException;
 
-    abstract CentroidSupplier createCentroidSupplier(
+    public abstract CentroidSupplier createCentroidSupplier(
         IndexInput centroidsInput,
         int numCentroids,
         FieldInfo fieldInfo,

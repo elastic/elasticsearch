@@ -9,19 +9,11 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 

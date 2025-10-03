@@ -51,7 +51,6 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;

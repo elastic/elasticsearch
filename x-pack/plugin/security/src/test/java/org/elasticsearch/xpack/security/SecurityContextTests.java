@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -38,7 +37,6 @@ import org.mockito.Mockito;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;

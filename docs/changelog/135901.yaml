@@ -1,5 +1,5 @@
 pr: 135901
-summary: Support dot for attribute names in FUSE GROUP BY
+summary: Add support for dot-separated attribute names (e.g. `foo.bar`) in FUSE GROUP BY
 area: ES|QL
 type: bug
 issues: []

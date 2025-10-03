@@ -408,9 +408,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894
-- class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
-  method: testUniqueDeprecationResponsesMergedTogether
-  issue: https://github.com/elastic/elasticsearch/issues/132895
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggs
   issue: https://github.com/elastic/elasticsearch/issues/132879
@@ -507,9 +504,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/134853
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryInlinestats
-  issue: https://github.com/elastic/elasticsearch/issues/134854
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865
@@ -525,9 +519,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.CountDistinctWithConditions}
   issue: https://github.com/elastic/elasticsearch/issues/134993
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/135032
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBeforeStatsWithWhere}
   issue: https://github.com/elastic/elasticsearch/issues/135041
@@ -612,18 +603,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/135787
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSampleWithLowRate
-  issue: https://github.com/elastic/elasticsearch/issues/135808
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSample
-  issue: https://github.com/elastic/elasticsearch/issues/135809
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSampleWithCondition
-  issue: https://github.com/elastic/elasticsearch/issues/135810
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSampleMaxSamples
-  issue: https://github.com/elastic/elasticsearch/issues/135811
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
   method: testGroupingAggregate {TestCase=<positive ints>}
   issue: https://github.com/elastic/elasticsearch/issues/135814
@@ -639,6 +618,72 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/135820
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.ForkAfterEnrich}
+  issue: https://github.com/elastic/elasticsearch/issues/135830
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/124055
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsMappingsMerging
+  issue: https://github.com/elastic/elasticsearch/issues/135884
+- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
+  method: testRollupIndex {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135906
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testNewReplicasTimeSeriesMode {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135907
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135908
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testResize {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135909
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSystemIndexMetadataIsUpgraded {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135923
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSearch {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135927
+- class: org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilderTests
+  method: testBuildChunkingSettingsForElasticReranker_QueryTokenCountLessThanHalfOfTokenLimit
+  issue: https://github.com/elastic/elasticsearch/issues/135928
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testPeerRecoveryRetentionLeases {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135929
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testPersianAnalyzerBWC {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135930
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135933
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testForbidDisableSoftDeletesOnRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135937
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testShrinkAfterUpgrade {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135938
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testTopNPushedToLuceneOnSortedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/135939
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testClosedIndices {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135941
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testOperationBasedRecovery {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135944
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testRomanianAnalyzerBWC {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135948
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testEmptyShard {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135951
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testRollover {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135952
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testRecovery {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135953
 
 # Examples:
 #

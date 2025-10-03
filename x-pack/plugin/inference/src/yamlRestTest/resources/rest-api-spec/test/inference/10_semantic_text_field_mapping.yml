@@ -461,6 +461,9 @@ setup:
           capabilities: [ default_elser_2 ]
 
   - do:
+      inference.get: {}
+
+  - do:
       indices.create:
         index: test-always-include-inference-id-index
         body:
@@ -473,7 +476,68 @@ setup:
       indices.get_mapping:
         index: test-always-include-inference-id-index
 
-  - exists: test-always-include-inference-id-index.mappings.properties.semantic_field.inference_id
+  - match: { test-always-include-inference-id-index.mappings.properties.semantic_field.inference_id: ".elser-2-elastic" }
+  - match: { test-always-include-inference-id-index.mappings.properties.semantic_field.search_inference_id: ".elser-2-elastic" }
+
+---
+"Mapping falls back to elastic inference when EIS default removed":
+  - requires:
+      cluster_features: "semantic_text.always_emit_inference_id_fix"
+      reason: always emit inference ID fix added in 8.17.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ default_elser_2 ]
+
+  - do:
+      inference.get: {}
+
+  - do:
+      capabilities: { }
+
+  - do:
+      inference.delete:
+        task_type: sparse_embedding
+        inference_id: ".elser-2-elastic"
+        force: true
+
+  - do:
+      indices.create:
+        index: test-inference-default-fallback
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+
+  - do:
+      indices.get_mapping:
+        index: test-inference-default-fallback
+
+  - match: { test-inference-default-fallback.mappings.properties.semantic_field.inference_id: ".elastic-inference" }
+  - match: { test-inference-default-fallback.mappings.properties.semantic_field.search_inference_id: ".elastic-inference" }
+
+  # Restore the preferred default inference endpoint for subsequent tests.
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: ".elser-2-elastic"
+        body: >
+          {
+            "service": "default_inference_test_service",
+            "service_settings": {
+              "model": "default_eis_model",
+              "api_key": "default_eis_api_key"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.delete:
+        index: test-inference-default-fallback
+        ignore_unavailable: true
 
 ---
 "Field caps exclude chunks and embedding fields":

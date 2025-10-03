@@ -61,14 +61,14 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
           result.appendNull();
           continue position;
-        }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

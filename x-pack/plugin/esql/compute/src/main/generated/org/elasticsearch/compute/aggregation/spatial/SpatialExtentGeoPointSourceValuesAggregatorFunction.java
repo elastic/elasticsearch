@@ -115,11 +115,12 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
   private void addRawBlock(BytesRefBlock bytesBlock) {
     BytesRef bytesScratch = new BytesRef();
     for (int p = 0; p < bytesBlock.getPositionCount(); p++) {
-      if (bytesBlock.isNull(p)) {
+      int bytesValueValueCount = bytesBlock.getValueCount(p);
+      if (bytesValueValueCount == 0) {
         continue;
       }
       int bytesStart = bytesBlock.getFirstValueIndex(p);
-      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      int bytesEnd = bytesStart + bytesValueValueCount;
       for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
         BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
         SpatialExtentGeoPointSourceValuesAggregator.combine(state, bytesValue);
@@ -133,11 +134,12 @@ public final class SpatialExtentGeoPointSourceValuesAggregatorFunction implement
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (bytesBlock.isNull(p)) {
+      int bytesValueValueCount = bytesBlock.getValueCount(p);
+      if (bytesValueValueCount == 0) {
         continue;
       }
       int bytesStart = bytesBlock.getFirstValueIndex(p);
-      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      int bytesEnd = bytesStart + bytesValueValueCount;
       for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
         BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
         SpatialExtentGeoPointSourceValuesAggregator.combine(state, bytesValue);

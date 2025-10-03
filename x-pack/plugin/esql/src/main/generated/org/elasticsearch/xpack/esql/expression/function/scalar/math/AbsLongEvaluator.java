@@ -61,14 +61,14 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
           result.appendNull();
           continue position;
-        }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

@@ -108,11 +108,12 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   private void addRawBlock(IntBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueValueCount = vBlock.getValueCount(p);
+      if (vValueValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         CountDistinctIntAggregator.combine(state, vValue);
@@ -125,11 +126,12 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueValueCount = vBlock.getValueCount(p);
+      if (vValueValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         CountDistinctIntAggregator.combine(state, vValue);

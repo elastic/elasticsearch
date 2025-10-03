@@ -68,14 +68,14 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
           result.appendNull();
           continue position;
-        }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

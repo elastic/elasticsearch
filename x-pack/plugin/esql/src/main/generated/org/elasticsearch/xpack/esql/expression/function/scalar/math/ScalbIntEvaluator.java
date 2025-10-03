@@ -74,25 +74,25 @@ public final class ScalbIntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock, IntBlock scaleFactorBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (dBlock.isNull(p)) {
+        switch (dBlock.getValueCount(p)) {
+          case 0:
+          result.appendNull();
+          continue position;
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }
-        if (dBlock.getValueCount(p) != 1) {
-          if (dBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        switch (scaleFactorBlock.getValueCount(p)) {
+          case 0:
           result.appendNull();
           continue position;
-        }
-        if (scaleFactorBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (scaleFactorBlock.getValueCount(p) != 1) {
-          if (scaleFactorBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

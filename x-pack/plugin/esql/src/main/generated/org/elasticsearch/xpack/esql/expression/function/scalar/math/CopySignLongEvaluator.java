@@ -73,25 +73,25 @@ public final class CopySignLongEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongBlock magnitudeBlock, DoubleBlock signBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (magnitudeBlock.isNull(p)) {
+        switch (magnitudeBlock.getValueCount(p)) {
+          case 0:
+          result.appendNull();
+          continue position;
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }
-        if (magnitudeBlock.getValueCount(p) != 1) {
-          if (magnitudeBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        switch (signBlock.getValueCount(p)) {
+          case 0:
           result.appendNull();
           continue position;
-        }
-        if (signBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (signBlock.getValueCount(p) != 1) {
-          if (signBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

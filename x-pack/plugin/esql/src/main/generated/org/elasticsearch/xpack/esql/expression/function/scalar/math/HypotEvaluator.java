@@ -71,25 +71,25 @@ public final class HypotEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock n1Block, DoubleBlock n2Block) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (n1Block.isNull(p)) {
+        switch (n1Block.getValueCount(p)) {
+          case 0:
+          result.appendNull();
+          continue position;
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }
-        if (n1Block.getValueCount(p) != 1) {
-          if (n1Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        switch (n2Block.getValueCount(p)) {
+          case 0:
           result.appendNull();
           continue position;
-        }
-        if (n2Block.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (n2Block.getValueCount(p) != 1) {
-          if (n2Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

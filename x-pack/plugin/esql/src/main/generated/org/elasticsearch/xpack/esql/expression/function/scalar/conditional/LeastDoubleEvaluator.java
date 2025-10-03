@@ -74,14 +74,14 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
-          if (valuesBlocks[i].isNull(p)) {
+          switch (valuesBlocks[i].getValueCount(p)) {
+            case 0:
             result.appendNull();
             continue position;
-          }
-          if (valuesBlocks[i].getValueCount(p) != 1) {
-            if (valuesBlocks[i].getValueCount(p) > 1) {
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-            }
+            case 1:
+            break;
+            default:
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
             result.appendNull();
             continue position;
           }

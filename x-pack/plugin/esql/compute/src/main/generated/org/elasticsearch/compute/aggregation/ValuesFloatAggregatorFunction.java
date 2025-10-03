@@ -102,11 +102,12 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(FloatBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueValueCount = vBlock.getValueCount(p);
+      if (vValueValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         ValuesFloatAggregator.combine(state, vValue);
@@ -119,11 +120,12 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueValueCount = vBlock.getValueCount(p);
+      if (vValueValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         ValuesFloatAggregator.combine(state, vValue);

@@ -76,25 +76,25 @@ public final class MvSliceLongEvaluator implements EvalOperator.ExpressionEvalua
         if (!fieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (startBlock.isNull(p)) {
+        switch (startBlock.getValueCount(p)) {
+          case 0:
+          result.appendNull();
+          continue position;
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }
-        if (startBlock.getValueCount(p) != 1) {
-          if (startBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        switch (endBlock.getValueCount(p)) {
+          case 0:
           result.appendNull();
           continue position;
-        }
-        if (endBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endBlock.getValueCount(p) != 1) {
-          if (endBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+          case 1:
+          break;
+          default:
+          warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

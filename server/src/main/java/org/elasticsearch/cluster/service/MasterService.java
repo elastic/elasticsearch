@@ -1407,10 +1407,11 @@ public class MasterService extends AbstractLifecycleComponent {
         /**
          * Called when the batch is rejected due to the master service shutting down.
          *
-         * @param e is a {@link NotMasterException} to cause things like {@link TransportMasterNodeAction} to retry after
-         *          submitting a task to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
-         *          {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
+         * @param e is a {@link NotMasterException} to cause things like {@link TransportMasterNodeAction} to retry after submitting a task
+         *         to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
+         *         {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
          */
+        // Should really be a NodeClosedException instead, but this exception type doesn't trigger retries today.
         void onRejection(NotMasterException e);
 
         /**

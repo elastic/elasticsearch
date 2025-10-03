@@ -1404,6 +1404,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             baseConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
         }
 
+        // Limit the number of allocated processors for all nodes in the cluster by default.
+        // This is to ensure that the tests run consistently across different environments.
+        String processorCount = shouldConfigureTestClustersWithOneProcessor() ? "1" : "2";
+        if (getVersion().onOrAfter("7.6.0")) {
+            baseConfig.put("node.processors", processorCount);
+        } else {
+            baseConfig.put("processors", processorCount);
+        }
+
         baseConfig.put("action.destructive_requires_name", "false");
 
         HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
@@ -1788,5 +1797,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         LinkCreationException(String message, IOException cause) {
             super(message, cause);
         }
+    }
+
+    private boolean shouldConfigureTestClustersWithOneProcessor() {
+        return Boolean.parseBoolean(System.getProperty("tests.configure_test_clusters_with_one_processor", "false"));
     }
 }

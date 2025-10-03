@@ -93,7 +93,7 @@ public final class TransportActionProxy {
                 @Override
                 public TransportResponse read(StreamInput in) throws IOException {
                     if (in.getTransportVersion().equals(channel.getVersion()) && in.supportReadAllToReleasableBytesReference()) {
-                        return new BytesTransportResponse(in.readAllToReleasableBytesReference(), channel.getVersion());
+                        return new BytesTransportResponse(in.readAllToReleasableBytesReference(), in.getTransportVersion());
                     } else {
                         return responseFunction.apply(wrappedRequest).read(in);
                     }

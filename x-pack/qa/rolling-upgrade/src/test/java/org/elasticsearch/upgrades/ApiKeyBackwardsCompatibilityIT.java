@@ -7,7 +7,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
@@ -31,15 +30,12 @@ import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
@@ -57,9 +53,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
-
-    private RestClient oldVersionClient = null;
-    private RestClient newVersionClient = null;
 
     public void testQueryRestTypeKeys() throws IOException {
         assumeTrue(
@@ -398,34 +391,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
-    private void createClientsByCapability(Function<Map<String, Object>, Boolean> capabilityChecker) throws IOException {
-        var clientsByCapability = getRestClientByCapability(capabilityChecker);
-        if (clientsByCapability.size() == 2) {
-            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
-                if (client.getKey() == false) {
-                    oldVersionClient = client.getValue();
-                } else {
-                    newVersionClient = client.getValue();
-                }
-            }
-            assertThat(oldVersionClient, notNullValue());
-            assertThat(newVersionClient, notNullValue());
-        } else {
-            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
-        }
-    }
-
-    private void closeClientsByVersion() throws IOException {
-        if (oldVersionClient != null) {
-            oldVersionClient.close();
-            oldVersionClient = null;
-        }
-        if (newVersionClient != null) {
-            newVersionClient.close();
-            newVersionClient = null;
-        }
-    }
-
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteDescriptors) {
         final Set<String> excludedPrivileges = Set.of(
             "read_failure_store",
@@ -466,30 +431,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         Version nodeVersion = Version.fromString(nodeVersionString);
         // Certificate identity was introduced in 9.3.0
         return nodeVersion.onOrAfter(Version.V_9_3_0);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<Boolean, RestClient> getRestClientByCapability(Function<Map<String, Object>, Boolean> capabilityChecker)
-        throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
-        assertOK(response);
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
-
-        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
-            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            var capabilitySupported = capabilityChecker.apply(nodeDetails);
-            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
-                .add(HttpHost.create((String) httpInfo.get("publish_address")));
-        }
-
-        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
-        for (var entry : hostsByCapability.entrySet()) {
-            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
-        }
-        return clientsByCapability;
     }
 
     private Tuple<String, String> createCrossClusterApiKeyWithCertIdentity(String certificateIdentity) throws IOException {

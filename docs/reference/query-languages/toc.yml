@@ -108,6 +108,7 @@ toc:
                   - file: esql/commands/enrich.md
                   - file: esql/commands/eval.md
                   - file: esql/commands/fork.md
+                  - file: esql/commands/fuse.md
                   - file: esql/commands/grok.md
                   - file: esql/commands/inlinestats-by.md
                   - file: esql/commands/keep.md

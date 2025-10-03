@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -38,10 +39,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final Settings settings;
+    private final boolean inCpsContext;
 
     public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.clusterSupportsFeature = clusterSupportsFeature;
         this.settings = settings;
+        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     @Override
@@ -61,7 +64,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        if (inCpsContext) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
@@ -73,7 +76,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request,
             null,
             clusterSupportsFeature,
-            size -> searchRequest.source().size(size)
+            size -> searchRequest.source().size(size),
+            // This endpoint is CPS-enabled so propagate the right value.
+            Optional.of(inCpsContext)
         );
 
         // Creates the search template request

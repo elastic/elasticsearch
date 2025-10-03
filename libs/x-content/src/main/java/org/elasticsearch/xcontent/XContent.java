@@ -31,7 +31,7 @@ public interface XContent {
      * exception.
      * <p>
      * In practice, this is {@code true} for content with canonical type {@link XContentType#JSON} or {@link XContentType#SMILE} and
-     * {@link false} for content with canonical type {@link XContentType#CBOR} or {@link XContentType#YAML}.
+     * {@code false} for content with canonical type {@link XContentType#CBOR} or {@link XContentType#YAML}.
      */
     boolean hasBulkSeparator();
 

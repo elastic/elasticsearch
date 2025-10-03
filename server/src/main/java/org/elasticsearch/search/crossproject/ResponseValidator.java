@@ -19,10 +19,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
@@ -88,10 +86,6 @@ public class ResponseValidator {
             indicesOptions
         );
 
-        Map<String, Map<String, ResolvedIndexExpression.LocalExpressions>> mappedLocalExpressions = null == remoteResolvedExpressions
-            ? Map.of()
-            : toMappedLocalExpressions(remoteResolvedExpressions);
-
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
             String originalExpression = localResolvedIndices.original();
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
@@ -116,7 +110,7 @@ public class ResponseValidator {
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
                     ElasticsearchException exception = checkSingleRemoteExpression(
-                        mappedLocalExpressions,
+                        remoteResolvedExpressions,
                         splitResource[0], // projectAlias
                         splitResource[1], // resource
                         remoteExpression,
@@ -143,7 +137,7 @@ public class ResponseValidator {
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
                     ElasticsearchException exception = checkSingleRemoteExpression(
-                        mappedLocalExpressions,
+                        remoteResolvedExpressions,
                         splitResource[0], // projectAlias
                         splitResource[1], // resource
                         remoteExpression,
@@ -177,16 +171,16 @@ public class ResponseValidator {
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(
-        Map<String, Map<String, ResolvedIndexExpression.LocalExpressions>> remoteResolvedExpressions,
+        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         String projectAlias,
         String resource,
         String remoteExpression,
         IndicesOptions indicesOptions
     ) {
-        Map<String, ResolvedIndexExpression.LocalExpressions> resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
+        ResolvedIndexExpressions resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
         assert resolvedExpressionsInProject != null : "We should always have resolved expressions from linked project";
 
-        ResolvedIndexExpression.LocalExpressions matchingExpression = resolvedExpressionsInProject.remove(resource);
+        ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
             assert false : "Expected to find matching expression [" + resource + "] in project [" + projectAlias + "]";
             return new IndexNotFoundException(remoteExpression);
@@ -211,26 +205,17 @@ public class ResponseValidator {
         return splitResource;
     }
 
-    /**
-     * Transforms remote resolved expressions into a lookup-optimized nested map structure.
-     *
-     * @param remoteResolvedExpressions Map of project aliases to their resolved expressions
-     * @return A nested map structure that organizes expressions by project and original expression
-     *         for efficient lookup: `Map&lt;ProjectAlias, Map&lt;OriginalExpression, LocalExpressions>>`
-     */
-    private static Map<String, Map<String, ResolvedIndexExpression.LocalExpressions>> toMappedLocalExpressions(
-        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
+    // TODO optimize with a precomputed Map<String, ResolvedIndexExpression.LocalExpressions> instead
+    private static ResolvedIndexExpression.LocalExpressions findMatchingExpression(
+        ResolvedIndexExpressions projectExpressions,
+        String resource
     ) {
-        Map<String, Map<String, ResolvedIndexExpression.LocalExpressions>> mappedLocalExpressions = new HashMap<>(
-            remoteResolvedExpressions.size()
-        );
-        remoteResolvedExpressions.forEach(
-            (k, v) -> mappedLocalExpressions.put(
-                k,
-                v.expressions().stream().collect(Collectors.toMap(ResolvedIndexExpression::original, item -> item.localExpressions()))
-            )
-        );
-        return mappedLocalExpressions;
+        return projectExpressions.expressions()
+            .stream()
+            .filter(expr -> expr.original().equals(resource))
+            .map(ResolvedIndexExpression::localExpressions)
+            .findFirst()
+            .orElse(null);
     }
 
     private static ElasticsearchException checkResolutionFailure(

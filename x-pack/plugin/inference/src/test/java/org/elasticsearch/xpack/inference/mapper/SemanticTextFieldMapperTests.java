@@ -110,8 +110,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_ELSER_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
@@ -122,8 +122,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
@@ -330,12 +330,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         globalModelRegistry.clearDefaultIds();
         try {
             MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
-            assertInferenceEndpoints(
-                mapperService,
-                fieldName,
-                DEFAULT_FALLBACK_ELSER_INFERENCE_ID,
-                DEFAULT_FALLBACK_ELSER_INFERENCE_ID
-            );
+            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
             DocumentMapper mapper = mapperService.documentMapper();
             assertThat(
                 mapper.mappingSource().toString(),

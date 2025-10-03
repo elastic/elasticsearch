@@ -50,9 +50,9 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
                 spec.getParameters().getTransportResourcesDirectory().set(transportResources);
                 spec.getParameters().getRootDirectory().set(project.getLayout().getSettingsDirectory().getAsFile());
-                Provider<String> upstreamRef = project.getProviders().gradleProperty("org.elasticsearch.transport.upstreamRef");
+                Provider<String> upstreamRef = project.getProviders().gradleProperty("org.elasticsearch.transport.baseRef");
                 if (upstreamRef.isPresent()) {
-                    spec.getParameters().getUpstreamRefOverride().set(upstreamRef.get());
+                    spec.getParameters().getBaseRefOverride().set(upstreamRef.get());
                 }
             });
 

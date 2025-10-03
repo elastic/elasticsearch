@@ -42,7 +42,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersAndDenseVector;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -145,12 +145,12 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersAndDenseVector(left(), sourceText(), FIRST);
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
         if (left().dataType() == DataType.NULL) {
-            return isRepresentableExceptCountersAndDenseVector(right(), sourceText(), SECOND);
+            return isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(right(), sourceText(), SECOND);
         }
         return isType(right(), t -> t.noText() == left().dataType().noText(), sourceText(), SECOND, left().dataType().noText().typeName());
     }

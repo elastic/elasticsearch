@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
@@ -147,9 +146,7 @@ public class FieldNameUtils {
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
-                if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    joinRefs.addAll(usingJoinType.columns());
-                }
+                joinRefs.addAll(join.config().leftFields());
                 if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
@@ -244,7 +241,9 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            return new PreAnalysisResult(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()), wildcardJoinIndices);
+            HashSet<String> allFields = new HashSet<>(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()));
+            allFields.add(MetadataAttribute.INDEX);
+            return new PreAnalysisResult(allFields, wildcardJoinIndices);
         }
     }
 

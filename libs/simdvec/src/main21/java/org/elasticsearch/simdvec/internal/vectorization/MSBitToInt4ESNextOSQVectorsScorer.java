@@ -48,7 +48,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
     private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
-    public MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, MemorySegment memorySegment) {
+    MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, memorySegment);
     }
 

@@ -112,7 +112,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         );
     }
 
-    static abstract sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer {
+    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer {
         protected final MemorySegment memorySegment;
         protected final IndexInput in;
         protected final int length;

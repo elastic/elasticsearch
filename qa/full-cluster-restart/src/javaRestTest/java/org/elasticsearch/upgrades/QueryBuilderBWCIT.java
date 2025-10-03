@@ -74,7 +74,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(org.elasticsearch.test.cluster.util.Version.fromString(OLD_CLUSTER_VERSION))
+        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
         .nodes(2)
         .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.FAILURE_STORE_ENABLED)

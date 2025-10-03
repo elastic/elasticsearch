@@ -65,7 +65,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -139,7 +139,6 @@ public class OpenAiService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
             );
 
@@ -159,8 +158,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        @Nullable Map<String, Object> secretSettings
     ) {
         return createModel(
             inferenceEntityId,
@@ -169,7 +167,6 @@ public class OpenAiService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -181,7 +178,6 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
@@ -204,7 +200,7 @@ public class OpenAiService extends SenderService {
                 secretSettings,
                 context
             );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         };
     }
 
@@ -232,8 +228,7 @@ public class OpenAiService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             chunkingSettings,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            secretSettingsMap
         );
     }
 
@@ -249,15 +244,7 @@ public class OpenAiService extends SenderService {
 
         moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
-        );
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override

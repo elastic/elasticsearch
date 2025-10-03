@@ -16,6 +16,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
@@ -39,11 +40,12 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  */
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
-        super(state, rawVectorsReader);
+    public ES920DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+        super(state, getFormatReader);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
+    public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
+        throws IOException {
         return new CentroidIterator() {
             CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
                 ? centroidIterator.nextPostingListOffsetAndLength()
@@ -80,7 +82,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    CentroidIterator getCentroidIterator(
+    public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
@@ -348,7 +350,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs) throws IOException {
+    public PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs)
+        throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         final int maxPostingListSize = indexInput.readVInt();
         return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, maxPostingListSize, acceptDocs);
@@ -566,7 +569,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
                         qcDist
                     );
                     scoredDocs++;
-                    knnCollector.collect(doc, score);
+                    if (knnCollector.minCompetitiveSimilarity() < score) {
+                        knnCollector.collect(doc, score);
+                    }
                 } else {
                     indexInput.skipBytes(quantizedByteLength);
                 }

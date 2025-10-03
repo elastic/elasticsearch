@@ -140,25 +140,83 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        assert allocation.isSimulating() == false || balancerSettings.completeEarlyOnShardAssignmentChange()
+            : "inconsistent states: isSimulating ["
+                + allocation.isSimulating()
+                + "] vs completeEarlyOnShardAssignmentChange ["
+                + balancerSettings.completeEarlyOnShardAssignmentChange()
+                + "]";
         if (allocation.metadata().hasAnyIndices()) {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }
 
         assert allocation.ignoreDisable() == false;
+        assert allocation.isSimulating() == false || allocation.routingNodes().hasInactiveShards() == false
+            : "expect no initializing shard, but got " + allocation.routingNodes();
+        // TODO: ES-12943 cannot assert the following because shards moved by commands are not simulated promptly in DesiredBalanceComputer
+        // assert allocation.isSimulating() == false || allocation.routingNodes().getRelocatingShardCount() == 0
+        // : "expect no relocating shard, but got " + allocation.routingNodes();
 
         if (allocation.routingNodes().size() == 0) {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
         final BalancingWeights balancingWeights = balancingWeightsFactory.create();
-        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), balancingWeights);
-        balancer.allocateUnassigned();
-        balancer.moveShards();
-        balancer.balance();
+        final Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancerSettings.getThreshold(),
+            balancingWeights,
+            balancerSettings.completeEarlyOnShardAssignmentChange()
+        );
 
-        // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
-        collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
+        boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
+        try {
+            shardAssigned = balancer.allocateUnassigned();
+            if (shardAssigned && balancerSettings.completeEarlyOnShardAssignmentChange()) {
+                return;
+            }
+
+            shardMoved = balancer.moveShards();
+            if (shardMoved && balancerSettings.completeEarlyOnShardAssignmentChange()) {
+                return;
+            }
+
+            shardBalanced = balancer.balance();
+        } finally {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "shards assigned: {}, shards moved: {}, shards balanced: {}, "
+                        + "routingNodes hasInactiveShards [{}], relocation count [{}]",
+                    shardAssigned,
+                    shardMoved,
+                    shardBalanced,
+                    allocation.routingNodes().hasInactiveShards(),
+                    allocation.routingNodes().getRelocatingShardCount()
+                );
+            }
+            assert assertShardAssignmentChanges(allocation, shardAssigned, shardMoved, shardBalanced);
+            // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
+            collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
+        }
+    }
+
+    private boolean assertShardAssignmentChanges(
+        RoutingAllocation allocation,
+        boolean shardAssigned,
+        boolean shardMoved,
+        boolean shardBalanced
+    ) {
+        if (allocation.isSimulating() == false) {
+            return true;
+        }
+        assert shardAssigned == false || allocation.routingNodes().hasInactiveShards()
+            : "expect initializing shard, but got " + allocation.routingNodes();
+
+        assert (shardMoved == false && shardBalanced == false) || allocation.routingNodes().getRelocatingShardCount() > 0
+            : "expect relocating shard, but got " + allocation.routingNodes();
+        return true;
     }
 
     private void collectAndRecordNodeWeightStats(Balancer balancer, BalancingWeights balancingWeights, RoutingAllocation allocation) {
@@ -188,7 +246,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             writeLoadForecaster,
             allocation,
             balancerSettings.getThreshold(),
-            balancingWeightsFactory.create()
+            balancingWeightsFactory.create(),
+            balancerSettings.completeEarlyOnShardAssignmentChange()
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -248,12 +307,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelNode> nodes;
         private final BalancingWeights balancingWeights;
         private final NodeSorters nodeSorters;
+        private final boolean completeEarlyOnShardAssignmentChange;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             float threshold,
-            BalancingWeights balancingWeights
+            BalancingWeights balancingWeights,
+            boolean completeEarlyOnShardAssignmentChange
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -266,6 +327,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
+            this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -358,7 +420,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * Balances the nodes on the cluster model according to the weight function.
          * The actual balancing is delegated to {@link #balanceByWeights(NodeSorter)}
          */
-        private void balance() {
+        private boolean balance() {
             if (logger.isTraceEnabled()) {
                 logger.trace("Start balancing cluster");
             }
@@ -371,21 +433,27 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                  * Therefore we only do a rebalance if we have fetched all information.
                  */
                 logger.debug("skipping rebalance due to in-flight shard/store fetches");
-                return;
+                return false;
             }
             if (allocation.deciders().canRebalance(allocation).type() != Type.YES) {
                 logger.trace("skipping rebalance as it is disabled");
-                return;
+                return false;
             }
 
+            boolean shardBalanced = false;
             // Balance each partition
             for (NodeSorter nodeSorter : nodeSorters) {
                 if (nodeSorter.modelNodes.length < 2) { /* skip if we only have one node */
                     logger.trace("skipping rebalance as the partition has single node only");
                     continue;
                 }
-                balanceByWeights(nodeSorter);
+                shardBalanced |= balanceByWeights(nodeSorter);
+                // TODO: We could choose to account shardBalanced separately for each partition since they do not overlap.
+                if (shardBalanced && completeEarlyOnShardAssignmentChange) {
+                    return true;
+                }
             }
+            return shardBalanced;
         }
 
         /**
@@ -531,7 +599,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * only, or in other words relocations that move the weight delta closer
          * to {@code 0.0}
          */
-        private void balanceByWeights(NodeSorter sorter) {
+        private boolean balanceByWeights(NodeSorter sorter) {
+            boolean shardBalanced = false;
             final AllocationDeciders deciders = allocation.deciders();
             final ModelNode[] modelNodes = sorter.modelNodes;
             final float[] weights = sorter.weights;
@@ -630,6 +699,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             sorter.sort(0, relevantNodes);
                             lowIdx = 0;
                             highIdx = relevantNodes - 1;
+
+                            if (routingNodes.getRelocatingShardCount() > 0) {
+                                // ES-12955: Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
+                                // This should rarely happen since in most cases, we don't throttle unless there is an existing relocation.
+                                // But it can happen in production for frozen indices when the cache is still being prepared. It can also
+                                // happen in tests because we have decider like RandomAllocationDecider that can randomly return THROTTLE
+                                // when there is no existing relocation.
+                                shardBalanced = true;
+                            }
+                            if (completeEarlyOnShardAssignmentChange && shardBalanced) {
+                                return true;
+                            }
                             continue;
                         }
                     }
@@ -651,6 +732,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     }
                 }
             }
+            return shardBalanced;
         }
 
         /**
@@ -721,7 +803,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * shard is created with an incremented version in the state
          * {@link ShardRoutingState#INITIALIZING}.
          */
-        public void moveShards() {
+        public boolean moveShards() {
+            boolean shardMoved = false;
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
@@ -745,10 +828,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }
+                    shardMoved = true;
+                    if (completeEarlyOnShardAssignmentChange) {
+                        return true;
+                    }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }
+            return shardMoved;
         }
 
         /**
@@ -888,14 +976,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * Allocates all given shards on the minimal eligible node for the shards index
          * with respect to the weight function. All given shards must be unassigned.
          */
-        private void allocateUnassigned() {
+        private boolean allocateUnassigned() {
             RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
             assert nodes.isEmpty() == false;
             if (logger.isTraceEnabled()) {
                 logger.trace("Start allocating unassigned shards");
             }
             if (unassigned.isEmpty()) {
-                return;
+                return false;
             }
 
             /*
@@ -932,6 +1020,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             int secondaryLength = 0;
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
+            boolean shardAssignmentChanged = false;
             do {
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];
@@ -949,6 +1038,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                         final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                         shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
+                        shardAssignmentChanged = true;
                         minNode.addShard(index, shard);
                         if (shard.primary() == false) {
                             // copy over the same replica shards to the secondary array so they will get allocated
@@ -972,6 +1062,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                             minNode.addShard(projectIndex(shard), shard.initialize(minNode.getNodeId(), null, shardSize));
+                            // If we see a throttle decision in simulation, there must be other shards that got assigned before it.
+                            assert allocation.isSimulating() == false || shardAssignmentChanged
+                                : "shard " + shard + " was throttled but no other shards were assigned";
                         } else {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("No Node found to assign shard [{}]", shard);
@@ -994,6 +1087,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 secondaryLength = 0;
             } while (primaryLength > 0);
             // clear everything we have either added it or moved to ignoreUnassigned
+            return shardAssignmentChanged;
         }
 
         private ProjectIndex projectIndex(ShardRouting shardRouting) {

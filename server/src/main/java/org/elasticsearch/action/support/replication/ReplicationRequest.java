@@ -38,7 +38,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     implements
         IndicesRequest {
 
+    // superseded
     private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SUMMARY = TransportVersion.fromName("index_reshard_shardcount_summary");
+    // bumped to use VInt instead of Int
+    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SMALL = TransportVersion.fromName("index_reshard_shardcount_small");
 
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(1);
 
@@ -126,14 +129,16 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
-        if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
-            if (thinRead) {
-                this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
-            } else {
-                this.reshardSplitShardCountSummary = in.readInt();
-            }
+        if (thinRead) {
+            this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
         } else {
-            this.reshardSplitShardCountSummary = 0;
+            if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
+                this.reshardSplitShardCountSummary = in.readVInt();
+            } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
+                this.reshardSplitShardCountSummary = in.readInt();
+            } else {
+                this.reshardSplitShardCountSummary = 0;
+            }
         }
     }
 
@@ -262,7 +267,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
+        if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
+            out.writeVInt(reshardSplitShardCountSummary);
+        } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
             out.writeInt(reshardSplitShardCountSummary);
         }
     }

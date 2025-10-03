@@ -24,6 +24,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class Utils {
+    private static final FileSystem JRT_FS = FileSystems.getFileSystem(URI.create("jrt:/"));
 
     // TODO Currently ServerProcessBuilder is using --add-modules=ALL-MODULE-PATH, should this rather
     // reflect below excludes (except for java.desktop which requires a special handling)?
@@ -47,9 +48,9 @@ public class Utils {
         && m.contains(".internal.") == false
         && m.contains(".incubator.") == false;
 
-    private static Map<String, Set<String>> findModuleExports(FileSystem fs) throws IOException {
+    public static Map<String, Set<String>> findModuleExports() throws IOException {
         var modulesExports = new HashMap<String, Set<String>>();
-        try (var stream = Files.walk(fs.getPath("modules"))) {
+        try (var stream = Files.walk(JRT_FS.getPath("modules"))) {
             stream.filter(p -> p.getFileName().toString().equals("module-info.class")).forEach(x -> {
                 try (var is = Files.newInputStream(x)) {
                     var md = ModuleDescriptor.read(is);
@@ -74,21 +75,20 @@ public class Utils {
     }
 
     public static void walkJdkModules(JdkModuleConsumer c) throws IOException {
-        walkJdkModules(DEFAULT_MODULE_PREDICATE, c);
+        walkJdkModules(DEFAULT_MODULE_PREDICATE, Utils.findModuleExports(), c);
     }
 
-    public static void walkJdkModules(Predicate<String> modulePredicate, JdkModuleConsumer c) throws IOException {
-        FileSystem fs = FileSystems.getFileSystem(URI.create("jrt:/"));
-
-        var moduleExports = Utils.findModuleExports(fs);
-        try (var stream = Files.walk(fs.getPath("modules"))) {
-            var modules = stream.filter(x -> x.toString().endsWith(".class"))
-                .collect(Collectors.groupingBy(x -> x.subpath(1, 2).toString()));
+    public static void walkJdkModules(Predicate<String> modulePredicate, Map<String, Set<String>> exportsByModule, JdkModuleConsumer c)
+        throws IOException {
+        try (var stream = Files.walk(JRT_FS.getPath("modules"))) {
+            var modules = stream.filter(
+                x -> x.toString().endsWith(".class") && x.getFileName().toString().equals("module-info.class") == false
+            ).collect(Collectors.groupingBy(x -> x.subpath(1, 2).toString()));
 
             for (var kv : modules.entrySet()) {
                 var moduleName = kv.getKey();
                 if (modulePredicate.test(moduleName)) {
-                    var thisModuleExports = moduleExports.get(moduleName);
+                    var thisModuleExports = exportsByModule.get(moduleName);
                     c.accept(moduleName, kv.getValue(), thisModuleExports);
                 }
             }

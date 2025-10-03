@@ -46,6 +46,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
+
 /**
  * Contextual AI inference service for reranking tasks.
  * This service uses the Contextual AI REST API to perform document reranking.
@@ -97,7 +99,6 @@ public class ContextualAiService extends SenderService implements RerankingInfer
                 serviceSettingsMap,
                 taskSettingsMap,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
             );
 
@@ -117,11 +118,10 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
         if (taskType != TaskType.RERANK) {
-            throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         }
 
         return new ContextualAiRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
@@ -144,7 +144,6 @@ public class ContextualAiService extends SenderService implements RerankingInfer
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -154,15 +153,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            null,
-            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
-            ConfigurationParseContext.PERSISTENT
-        );
+        return createModel(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override

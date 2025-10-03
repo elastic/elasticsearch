@@ -90,4 +90,9 @@ public class KqlTests extends NoneFieldFullTextFunctionTestCase {
         // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
         return newExpression.replaceChildren(expression.children());
     }
+
+    @Override
+    public void testFold() {
+        // kql query cannot be folded.
+    }
 }

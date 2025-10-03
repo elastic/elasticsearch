@@ -6,11 +6,11 @@
 :   (float) Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.
 
 `time_zone`
-:   (keyword) Time zone to use when parsing date values. Defaults to UTC.
+:   (keyword) UTC offset or IANA time zone used to interpret date literals in the query string.
 
 `case_insensitive`
-:   (boolean) If true, the query is case insensitive. Defaults to false.
+:   (boolean) If true, performs case-insensitive matching for keyword fields. Defaults to false.
 
 `default_field`
-:   (keyword) Default field to search when no field is specified in the query.
+:   (keyword) Default field (or field pattern with wildcards) to target when a bare term in the query does not specify a field. Supports wildcards (*).
 

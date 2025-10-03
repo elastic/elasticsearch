@@ -6,5 +6,5 @@
 :   Query string in KQL query string format.
 
 `options`
-:   (Optional) KQL additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+:   (Optional) KQL additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [KQL query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-kql-query) for more information.
 

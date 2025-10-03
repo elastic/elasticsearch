@@ -27,9 +27,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, America/New_York], description='Time zone to use when parsing date values. Defaults to UTC.'}, {name='case_insensitive', values=[true, false], description='If true, the query is case insensitive. Defaults to false.'}, {name='default_field', values=[_all, title], description='Default field to search when no field is specified in the query.'}",
+          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, Europe/Paris, America/New_York], description='UTC offset or IANA time zone used to interpret date literals in the query string.'}, {name='case_insensitive', values=[true, false], description='If true, performs case-insensitive matching for keyword fields. Defaults to false.'}, {name='default_field', values=[*, logs.*, title], description='Default field (or field pattern with wildcards) to target when a bare term in the query does not specify a field. Supports wildcards (*).'}",
           "optional" : true,
-          "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>."
+          "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-kql-query,KQL query>> for more information."
         }
       ],
       "variadic" : false,
@@ -58,9 +58,9 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, America/New_York], description='Time zone to use when parsing date values. Defaults to UTC.'}, {name='case_insensitive', values=[true, false], description='If true, the query is case insensitive. Defaults to false.'}, {name='default_field', values=[_all, title], description='Default field to search when no field is specified in the query.'}",
+          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, Europe/Paris, America/New_York], description='UTC offset or IANA time zone used to interpret date literals in the query string.'}, {name='case_insensitive', values=[true, false], description='If true, performs case-insensitive matching for keyword fields. Defaults to false.'}, {name='default_field', values=[*, logs.*, title], description='Default field (or field pattern with wildcards) to target when a bare term in the query does not specify a field. Supports wildcards (*).'}",
           "optional" : true,
-          "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>."
+          "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-kql-query,KQL query>> for more information."
         }
       ],
       "variadic" : false,
@@ -69,7 +69,7 @@
   ],
   "examples" : [
     "FROM books\n| WHERE KQL(\"author: Faulkner\")",
-    null
+    "FROM employees\n| WHERE KQL(\"mary\", {\"case_insensitive\": true, \"default_field\": \"first_name\", \"boost\": 1.5})"
   ],
   "preview" : false,
   "snapshot_only" : false

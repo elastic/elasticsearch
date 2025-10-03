@@ -67,6 +67,11 @@ public class KqlQuery extends Query {
     }
 
     @Override
+    public boolean scorable() {
+        return true;
+    }
+
+    @Override
     protected String innerToString() {
         return query;
     }

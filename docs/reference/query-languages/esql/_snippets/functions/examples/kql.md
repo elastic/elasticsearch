@@ -16,7 +16,8 @@ FROM books
 | 3293 | Danny Faulkner |
 
 ```esql
-null
+FROM employees
+| WHERE KQL("mary", {"case_insensitive": true, "default_field": "first_name", "boost": 1.5})
 ```
 
 

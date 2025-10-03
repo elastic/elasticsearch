@@ -105,66 +105,6 @@ public final class IndexSortConfig {
         Setting.Property.ServerlessPublic
     );
 
-    private static String validateMissingValue(String missing) {
-        if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
-            throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
-        }
-        return missing;
-    }
-
-    private static SortOrder parseOrderMode(String value) {
-        try {
-            return SortOrder.fromString(value);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Illegal sort order:" + value);
-        }
-    }
-
-    private static MultiValueMode parseMultiValueMode(String value) {
-        MultiValueMode mode = MultiValueMode.fromString(value);
-        if (mode != MultiValueMode.MAX && mode != MultiValueMode.MIN) {
-            throw new IllegalArgumentException(
-                "Illegal index sort mode:[" + mode + "], " + "must be one of [" + MultiValueMode.MAX + ", " + MultiValueMode.MIN + "]"
-            );
-        }
-        return mode;
-    }
-
-    private static void checkSizeMismatch(String firstKey, List<?> first, String secondKey, List<?> second) {
-        if (first.size() != second.size()) {
-            throw new IllegalArgumentException(firstKey + ":" + first + " " + secondKey + ":" + second + ", size mismatch");
-        }
-    }
-
-    private static void validateSortSettings(Settings settings) {
-        if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
-            for (Setting<?> setting : new Setting<?>[] { INDEX_SORT_ORDER_SETTING, INDEX_SORT_MODE_SETTING, INDEX_SORT_MISSING_SETTING }) {
-                if (setting.exists(settings)) {
-                    throw new IllegalArgumentException(
-                        "setting [" + setting.getKey() + "] requires [" + INDEX_SORT_FIELD_SETTING.getKey() + "] to be configured"
-                    );
-                }
-            }
-        }
-
-        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-
-        if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
-            var order = INDEX_SORT_ORDER_SETTING.get(settings);
-            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_ORDER_SETTING.getKey(), order);
-        }
-
-        if (INDEX_SORT_MODE_SETTING.exists(settings)) {
-            var mode = INDEX_SORT_MODE_SETTING.get(settings);
-            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MODE_SETTING.getKey(), mode);
-        }
-
-        if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
-            var missing = INDEX_SORT_MISSING_SETTING.get(settings);
-            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MISSING_SETTING.getKey(), missing);
-        }
-    }
-
     public static class IndexSortConfigDefaults {
         public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
 
@@ -242,6 +182,66 @@ public final class IndexSortConfig {
             return Arrays.stream(getDefaultSortSpecs(settings))
                 .map(sortSpec -> sortSpec.missingValue != null ? sortSpec.missingValue : "_last")
                 .toList();
+        }
+    }
+
+    private static String validateMissingValue(String missing) {
+        if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
+            throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
+        }
+        return missing;
+    }
+
+    private static SortOrder parseOrderMode(String value) {
+        try {
+            return SortOrder.fromString(value);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Illegal sort order:" + value);
+        }
+    }
+
+    private static MultiValueMode parseMultiValueMode(String value) {
+        MultiValueMode mode = MultiValueMode.fromString(value);
+        if (mode != MultiValueMode.MAX && mode != MultiValueMode.MIN) {
+            throw new IllegalArgumentException(
+                "Illegal index sort mode:[" + mode + "], " + "must be one of [" + MultiValueMode.MAX + ", " + MultiValueMode.MIN + "]"
+            );
+        }
+        return mode;
+    }
+
+    private static void checkSizeMismatch(String firstKey, List<?> first, String secondKey, List<?> second) {
+        if (first.size() != second.size()) {
+            throw new IllegalArgumentException(firstKey + ":" + first + " " + secondKey + ":" + second + ", size mismatch");
+        }
+    }
+
+    private static void validateSortSettings(Settings settings) {
+        if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
+            for (Setting<?> setting : new Setting<?>[] { INDEX_SORT_ORDER_SETTING, INDEX_SORT_MODE_SETTING, INDEX_SORT_MISSING_SETTING }) {
+                if (setting.exists(settings)) {
+                    throw new IllegalArgumentException(
+                        "setting [" + setting.getKey() + "] requires [" + INDEX_SORT_FIELD_SETTING.getKey() + "] to be configured"
+                    );
+                }
+            }
+        }
+
+        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+
+        if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
+            var order = INDEX_SORT_ORDER_SETTING.get(settings);
+            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_ORDER_SETTING.getKey(), order);
+        }
+
+        if (INDEX_SORT_MODE_SETTING.exists(settings)) {
+            var mode = INDEX_SORT_MODE_SETTING.get(settings);
+            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MODE_SETTING.getKey(), mode);
+        }
+
+        if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
+            var missing = INDEX_SORT_MISSING_SETTING.get(settings);
+            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MISSING_SETTING.getKey(), missing);
         }
     }
 

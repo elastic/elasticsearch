@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -96,19 +98,48 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testDoesNotResolveMissingIndex() {
+    public void testResolvesExclusionPattern() {
+        assertAcked(client().admin().indices().prepareCreate("index-1"));
+        indexRandom(true, "index-1", 1);
+        assertAcked(client().admin().indices().prepareCreate("index-2"));
+        indexRandom(true, "index-2", 1);
+
+        try (var response = run(syncEsqlQueryRequest().query("FROM index*,-index-2 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1");// excludes concrete index from pattern
+        }
+        try (var response = run(syncEsqlQueryRequest().query("FROM index*,-*2 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1");// excludes pattern from pattern
+        }
         expectThrows(
             VerificationException.class,
-            containsString("Unknown index [no-such-index]"),
-            () -> run(syncEsqlQueryRequest().query("FROM no-such-index"))
+            containsString("Unknown index [index-*,-*]"),
+            () -> run(syncEsqlQueryRequest().query("FROM index-*,-* METADATA _index")) // exclude all resolves to empty
         );
     }
 
     public void testDoesNotResolveEmptyPattern() {
+        assertAcked(client().admin().indices().prepareCreate("data"));
+        indexRandom(true, "data", 1);
+
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [index-*]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-*"))
+            () -> run(syncEsqlQueryRequest().query("FROM index-* METADATA _index"))
+        );
+
+        try (var response = run(syncEsqlQueryRequest().query("FROM data,index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "data");
+        }
+    }
+
+    public void testDoesNotResolveUnknownIndex() {
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-index]"),
+            () -> run(syncEsqlQueryRequest().query("FROM no-such-index"))
         );
     }
 
@@ -209,6 +240,20 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
             () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
         );
+    }
+
+    public void testResolutionWithFilter() {
+        assertAcked(client().admin().indices().prepareCreate("data"));
+        indexRandom(true, "data", 1);
+
+        try (var response = run(syncEsqlQueryRequest().query("FROM data METADATA _index").filter(new MatchAllQueryBuilder()))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "data");
+        }
+        try (var response = run(syncEsqlQueryRequest().query("FROM data METADATA _index").filter(new MatchNoneQueryBuilder()))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
     }
 
     private static void assertOk(EsqlQueryResponse response) {

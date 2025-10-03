@@ -106,7 +106,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidIterator getCentroidIterator(
+    public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
@@ -388,20 +388,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
+    public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    record CentroidOffsetAndLength(long offset, long length) {}
+    public record CentroidOffsetAndLength(long offset, long length) {}
 
-    interface CentroidIterator {
+    public interface CentroidIterator {
         boolean hasNext();
 
         CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
     }
 
-    interface PostingVisitor {
-        // TODO maybe we can not specifically pass the centroid...
-
+    public interface PostingVisitor {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(long offset) throws IOException;
 

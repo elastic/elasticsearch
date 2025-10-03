@@ -408,9 +408,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894
-- class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
-  method: testUniqueDeprecationResponsesMergedTogether
-  issue: https://github.com/elastic/elasticsearch/issues/132895
 - class: org.elasticsearch.search.CCSDuelIT
   method: testTermsAggs
   issue: https://github.com/elastic/elasticsearch/issues/132879
@@ -612,18 +609,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/135787
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSampleWithLowRate
-  issue: https://github.com/elastic/elasticsearch/issues/135808
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSample
-  issue: https://github.com/elastic/elasticsearch/issues/135809
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSampleWithCondition
-  issue: https://github.com/elastic/elasticsearch/issues/135810
-- class: org.elasticsearch.ingest.SamplingServiceTests
-  method: testMaybeSampleMaxSamples
-  issue: https://github.com/elastic/elasticsearch/issues/135811
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
   method: testGroupingAggregate {TestCase=<positive ints>}
   issue: https://github.com/elastic/elasticsearch/issues/135814
@@ -642,6 +627,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkAfterEnrich}
   issue: https://github.com/elastic/elasticsearch/issues/135830
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/124055
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsMappingsMerging
+  issue: https://github.com/elastic/elasticsearch/issues/135884
 
 # Examples:
 #

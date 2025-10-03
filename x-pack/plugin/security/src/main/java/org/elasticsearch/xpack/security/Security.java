@@ -1350,7 +1350,7 @@ public class Security extends Plugin
         SecurityExtension.SecurityComponents extensionComponents
     ) {
         final AuthorizedProjectsResolver customAuthorizedProjectsResolver = findValueFromExtensions(
-            "authorized projects supplier",
+            "authorized projects resolver",
             extension -> extension.getAuthorizedProjectsSupplier(extensionComponents)
         );
         return customAuthorizedProjectsResolver == null ? new AuthorizedProjectsResolver.Default() : customAuthorizedProjectsResolver;

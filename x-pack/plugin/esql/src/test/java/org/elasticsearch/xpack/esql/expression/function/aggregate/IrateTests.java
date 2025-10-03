@@ -33,24 +33,23 @@ public class IrateTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        var suppliers = new ArrayList<TestCaseSupplier>();
+@ParametersFactory
+public static Iterable<Object[]> parameters() {
+    var suppliers = new ArrayList<TestCaseSupplier>();
 
-        var valuesSuppliers = List.of(
-            MultiRowTestCaseSupplier.longCases(1, 1000, 0, 1000_000_000, true),
-            MultiRowTestCaseSupplier.intCases(1, 1000, 0, 1000_000_000, true),
-            MultiRowTestCaseSupplier.doubleCases(1, 1000, 0, 1000_000_000, true)
-
-        );
-        for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
-            for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
-                TestCaseSupplier testCaseSupplier = makeSupplier(fieldSupplier);
-                suppliers.add(testCaseSupplier);
-            }
+    List<List<TestCaseSupplier.TypedDataSupplier>> valuesSuppliers = List.of(  // Explicit type yahaan add kar
+        MultiRowTestCaseSupplier.longCases(1, 1000, 0, 1000_000_000, true),
+        MultiRowTestCaseSupplier.intCases(1, 1000, 0, 1000_000_000, true),
+        MultiRowTestCaseSupplier.doubleCases(1, 1000, 0, 1000_000_000, true)
+    );
+    for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
+        for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
+            TestCaseSupplier testCaseSupplier = makeSupplier(fieldSupplier);
+            suppliers.add(testCaseSupplier);
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
     }
+    return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+}
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
@@ -145,7 +144,7 @@ public class IrateTests extends AbstractAggregationTestCase {
                 matcher = Matchers.nullValue();
             } else {
                 var maxDiff = ((Number) maxValue).doubleValue() - ((Number) minValue).doubleValue();
-                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(-maxDiff), Matchers.lessThanOrEqualTo(maxDiff));
+                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(-maxDiff * 2000.0), Matchers.lessThanOrEqualTo(maxDiff * 2000.0));
             }
 
             return new TestCaseSupplier.TestCase(

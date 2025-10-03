@@ -150,7 +150,7 @@ public interface SecurityExtension {
         return getClass().getName();
     }
 
-    default AuthorizedProjectsResolver getAuthorizedProjectsSupplier(SecurityComponents components) {
+    default AuthorizedProjectsResolver getAuthorizedProjectsResolver(SecurityComponents components) {
         return null;
     }
 }

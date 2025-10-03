@@ -1351,7 +1351,18 @@ public class Security extends Plugin
     ) {
         final AuthorizedProjectsResolver customAuthorizedProjectsResolver = findValueFromExtensions(
             "authorized projects resolver",
-            extension -> extension.getAuthorizedProjectsSupplier(extensionComponents)
+            extension -> {
+                final AuthorizedProjectsResolver authorizedProjectsResolver = extension.getAuthorizedProjectsResolver(extensionComponents);
+                if (authorizedProjectsResolver != null && isInternalExtension(extension) == false) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.getClass().getName()
+                            + "] extension tried to install a custom AuthorizedProjectsResolver. This functionality is not available to "
+                            + "external extensions."
+                    );
+                }
+                return authorizedProjectsResolver;
+            }
         );
         return customAuthorizedProjectsResolver == null ? new AuthorizedProjectsResolver.Default() : customAuthorizedProjectsResolver;
     }

@@ -389,7 +389,7 @@ class IndicesAndAliasesResolver {
 
                     // TODO explain why we're doing this
                     if (resolvedIndicesBuilder.isEmpty()) {
-                        markWithNoneExpression(replaceable, resolvedIndicesBuilder);
+                        setNoneExpression(replaceable, resolvedIndicesBuilder);
                     } else {
                         replaceable.indices(resolvedIndicesBuilder.build().toArray());
                     }
@@ -423,7 +423,7 @@ class IndicesAndAliasesResolver {
             if (resolvedIndicesBuilder.isEmpty()) {
                 if (indicesOptions.allowNoIndices()) {
                     indicesReplacedWithNoIndices = true;
-                    markWithNoneExpression(replaceable, resolvedIndicesBuilder);
+                    setNoneExpression(replaceable, resolvedIndicesBuilder);
                 } else {
                     throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
                 }
@@ -481,7 +481,7 @@ class IndicesAndAliasesResolver {
         return resolvedIndicesBuilder.build();
     }
 
-    private static void markWithNoneExpression(IndicesRequest.Replaceable replaceable, ResolvedIndices.Builder resolvedIndicesBuilder) {
+    private static void setNoneExpression(IndicesRequest.Replaceable replaceable, ResolvedIndices.Builder resolvedIndicesBuilder) {
         assert resolvedIndicesBuilder.isEmpty() : "we only mark with none expression on empty resolved indices";
         // this is how we tell es core to return an empty response, we can let the request through being sure
         // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through

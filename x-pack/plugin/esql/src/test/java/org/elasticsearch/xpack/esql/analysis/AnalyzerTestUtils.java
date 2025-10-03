@@ -194,6 +194,15 @@ public final class AnalyzerTestUtils {
             "languages_idx",
             "mapping-languages.json"
         );
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.REMOTE,
+            MATCH_TYPE,
+            "languages_remote",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
         return enrichResolution;
     }
 

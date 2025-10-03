@@ -55,7 +55,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
-import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -379,16 +379,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(FINAL));
+            assertThat(agg.getMode(), is(SINGLE));
             List<? extends Expression> groupings = agg.groupings();
             NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-            assertEquals("x", grouping.name());
-            assertEquals(DataType.DATETIME, grouping.dataType());
-            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-            agg = as(agg.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(INITIAL));
-            groupings = agg.groupings();
-            grouping = as(groupings.get(0), NamedExpression.class);
             assertEquals("x", grouping.name());
             assertEquals(DataType.DATETIME, grouping.dataType());
             assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));

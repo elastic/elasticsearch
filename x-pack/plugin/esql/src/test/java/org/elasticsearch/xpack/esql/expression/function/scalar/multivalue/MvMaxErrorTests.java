@@ -33,7 +33,12 @@ public class MvMaxErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter, spatial types or dense_vector")
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "any type except counter, spatial types, dense_vector, or aggregate_metric_double"
+            )
         );
     }
 }

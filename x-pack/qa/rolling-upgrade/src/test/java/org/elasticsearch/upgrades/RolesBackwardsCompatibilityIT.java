@@ -66,9 +66,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByCapability(
-                        node -> nodeSupportTransportVersion(node, RoleDescriptor.SECURITY_ROLE_DESCRIPTION)
-                    );
+                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, RoleDescriptor.SECURITY_ROLE_DESCRIPTION));
 
                     // succeed when role description is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
@@ -183,9 +181,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByCapability(
-                        node -> nodeSupportTransportVersion(node, TransportVersions.V_8_16_0)
-                    );
+                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, TransportVersions.V_8_16_0));
                     // succeed when role manage roles is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);

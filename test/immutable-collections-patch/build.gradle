@@ -17,8 +17,8 @@ configurations {
 }
 
 dependencies {
-  implementation 'org.ow2.asm:asm:9.7.1'
-  implementation 'org.ow2.asm:asm-tree:9.7.1'
+  implementation 'org.ow2.asm:asm:9.8'
+  implementation 'org.ow2.asm:asm-tree:9.8'
 }
 
 def outputDir = layout.buildDirectory.dir("jdk-patches")

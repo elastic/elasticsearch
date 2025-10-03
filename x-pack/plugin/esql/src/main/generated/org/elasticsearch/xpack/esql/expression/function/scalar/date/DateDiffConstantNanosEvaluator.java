@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateDiffConstantNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffConstantNanosEvaluator.class);
+
   private final Source source;
 
   private final DateDiff.Part datePartFieldUnit;
@@ -63,6 +66,14 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += startTimestamp.baseRamBytesUsed();
+    baseRamBytesUsed += endTimestamp.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, LongBlock startTimestampBlock,
       LongBlock endTimestampBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
@@ -89,8 +100,10 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
           result.appendNull();
           continue position;
         }
+        long startTimestamp = startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p));
+        long endTimestamp = endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestamp, endTimestamp));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -104,8 +117,10 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
       LongVector endTimestampVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long startTimestamp = startTimestampVector.getLong(p);
+        long endTimestamp = endTimestampVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestamp, endTimestamp));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

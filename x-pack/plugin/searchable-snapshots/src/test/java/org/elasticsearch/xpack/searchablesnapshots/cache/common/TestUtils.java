@@ -269,6 +269,11 @@ public final class TestUtils {
             listener.onFailure(unsupportedException());
         }
 
+        @Override
+        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+            listener.onFailure(unsupportedException());
+        }
+
         private UnsupportedOperationException unsupportedException() {
             assert false : "this operation is not supported and should have not be called";
             return new UnsupportedOperationException("This operation is not supported");

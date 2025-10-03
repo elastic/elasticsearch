@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class LessThanOrEqualIntsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LessThanOrEqualIntsEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
@@ -59,6 +62,14 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lhs.baseRamBytesUsed();
+    baseRamBytesUsed += rhs.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -84,7 +95,9 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(LessThanOrEqual.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+        int lhs = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
+        int rhs = rhsBlock.getInt(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(LessThanOrEqual.processInts(lhs, rhs));
       }
       return result.build();
     }
@@ -93,7 +106,9 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        int lhs = lhsVector.getInt(p);
+        int rhs = rhsVector.getInt(p);
+        result.appendBoolean(p, LessThanOrEqual.processInts(lhs, rhs));
       }
       return result.build();
     }

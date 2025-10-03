@@ -123,6 +123,10 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
         }
 
         valueBuffer.reset();
+        Aggregates aggregates = rawValuesAggregates();
+        valueBuffer.setSum(aggregates.sum());
+        valueBuffer.setMin(aggregates.min());
+        valueBuffer.setMax(aggregates.max());
         int scale = valueBuffer.scale();
 
         // Buckets must be provided with their indices in ascending order.
@@ -161,6 +165,21 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
         valueCount = 0;
     }
 
+    private Aggregates rawValuesAggregates() {
+        if (valueCount == 0) {
+            return new Aggregates(0, Double.NaN, Double.NaN);
+        }
+        double sum = 0;
+        double min = Double.MAX_VALUE;
+        double max = -Double.MAX_VALUE;
+        for (int i = 0; i < valueCount; i++) {
+            sum += rawValueBuffer[i];
+            min = Math.min(min, rawValueBuffer[i]);
+            max = Math.max(max, rawValueBuffer[i]);
+        }
+        return new Aggregates(sum, min, max);
+    }
+
     private static long estimateBaseSize(int numBuckets) {
         return SHALLOW_SIZE + RamEstimationUtil.estimateDoubleArray(numBuckets);
     };
@@ -181,4 +200,6 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
             circuitBreaker.adjustBreaker(-estimateBaseSize(rawValueBuffer.length));
         }
     }
+
+    private record Aggregates(double sum, double min, double max) {}
 }

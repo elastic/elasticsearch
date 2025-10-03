@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -24,8 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP;
-
 /**
  * A repository cleanup request entry. Part of the cluster state.
  */
@@ -34,6 +31,10 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     public static final RepositoryCleanupInProgress EMPTY = new RepositoryCleanupInProgress(List.of());
 
     public static final String TYPE = "repository_cleanup";
+
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
+        "project_id_in_snapshots_deletions_and_repo_cleanup"
+    );
 
     private final List<Entry> entries;
 
@@ -109,13 +110,13 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     public record Entry(ProjectId projectId, String repository, long repositoryStateId) implements Writeable, RepositoryOperation {
 
         public static Entry readFrom(StreamInput in) throws IOException {
-            final ProjectId projectId = in.getTransportVersion().onOrAfter(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
+            final ProjectId projectId = in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
                 ? ProjectId.readFrom(in)
                 : ProjectId.DEFAULT;
             return new Entry(projectId, in.readString(), in.readLong());
@@ -138,7 +139,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)) {
+            if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)) {
                 projectId.writeTo(out);
             } else {
                 if (ProjectId.DEFAULT.equals(projectId) == false) {

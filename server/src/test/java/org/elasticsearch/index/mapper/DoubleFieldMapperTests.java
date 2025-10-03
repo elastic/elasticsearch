@@ -74,6 +74,11 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
     }
 
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
+    }
+
     public void testScriptAndPrecludedParameters() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {

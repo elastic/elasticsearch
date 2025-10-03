@@ -59,14 +59,14 @@ FROM <logs-{now/d}>
 ```
 
 Use comma-separated lists or wildcards to
-[query multiple data streams, indices, or aliases](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md):
+[query multiple data streams, indices, or aliases](/reference/query-languages/esql/esql-multi-index.md):
 
 ```esql
 FROM employees-00001,other-employees-*
 ```
 
 Use the format `<remote_cluster_name>:<target>` to
-[query data streams and indices on remote clusters](docs-content://explore-analyze/query-filter/languages/esql-cross-clusters.md):
+[query data streams and indices on remote clusters](/reference/query-languages/esql/esql-cross-clusters.md):
 
 ```esql
 FROM cluster_one:employees-00001,cluster_two:other-employees-*

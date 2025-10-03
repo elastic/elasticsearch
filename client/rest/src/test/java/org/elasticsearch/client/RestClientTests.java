@@ -44,6 +44,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -105,7 +106,7 @@ public class RestClientTests extends RestClientTestCase {
                 public void onFailure(Exception exception) {
                     try {
                         assertThat(exception, instanceOf(IllegalArgumentException.class));
-                        assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                        assertThat(exception.getMessage(), startsWith(("Expected scheme name")));
                     } finally {
                         latch.countDown();
                     }

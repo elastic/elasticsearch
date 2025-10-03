@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
 // begin generated imports
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
@@ -25,11 +26,13 @@ import java.util.stream.IntStream;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
- * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
+ * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
 abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.ExpressionEvaluator permits
     CoalesceBooleanEvaluator.CoalesceBooleanEagerEvaluator, //
     CoalesceBooleanEvaluator.CoalesceBooleanLazyEvaluator {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceBooleanEvaluator.class);
 
     static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
         List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
@@ -128,6 +131,15 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
     @Override
     public final String toString() {
         return getClass().getSimpleName() + "[values=" + evaluators + ']';
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : evaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
     }
 
     @Override

@@ -44,6 +44,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -82,6 +83,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
+@TestLogging(
+    reason = "testing debug log output to identify race condition",
+    value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
+)
 public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     private static final String REMOTE_CLUSTER = "cluster_a";
@@ -1752,6 +1757,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         SearchListenerPlugin.blockLocalQueryPhase();
+        SearchListenerPlugin.blockRemoteQueryPhase();
 
         TimeValue searchTimeout = new TimeValue(100, TimeUnit.MILLISECONDS);
         // query builder that will sleep for the specified amount of time in the query phase
@@ -1810,6 +1816,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         } finally {
             SearchListenerPlugin.allowLocalQueryPhase();
+            SearchListenerPlugin.allowRemoteQueryPhase();
         }
 
         // query phase has begun, so wait for query failure (due to timeout)

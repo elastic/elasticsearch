@@ -13,13 +13,13 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 ### General settings
 
 * [`index.codec`](./index-modules.md#index-codec)
-* [`index.default_pipeline`](./index-modules.md#index-default-pipeline)  
+* [`index.default_pipeline`](./index-modules.md#index-default-pipeline)
 * [`index.dense_vector.hnsw_filter_heuristic`](./index-modules.md#index-dense-vector-hnsw-filter-heuristic)
-* [`index.final_pipeline`](./index-modules.md#index-final-pipeline)  
+* [`index.final_pipeline`](./index-modules.md#index-final-pipeline)
 * [`index.hidden`](./index-modules.md#index-hidden)
 * [`index.mode`](./index-modules.md#index-mode-setting)
-* [`index.query.default_field`](./index-modules.md#index-query-default-field)  
-* [`index.refresh_interval`](./index-modules.md#index-refresh-interval-setting)  
+* [`index.query.default_field`](./index-modules.md#index-query-default-field)
+* [`index.refresh_interval`](./index-modules.md#index-refresh-interval-setting)
 
 ### Index sorting settings
 
@@ -30,10 +30,10 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 
 ### Index blocks settings
 
-* [`index.blocks.read_only`](./index-block.md#index-blocks-read-only)  
-* [`index.blocks.read`](./index-block.md#index-blocks-read)  
-* [`index.blocks.write`](./index-block.md#index-blocks-write)  
-* [`index.blocks.metadata`](./index-block.md#index-blocks-metadata)  
+* [`index.blocks.read_only`](./index-block.md#index-blocks-read-only)
+* [`index.blocks.read`](./index-block.md#index-blocks-read)
+* [`index.blocks.write`](./index-block.md#index-blocks-write)
+* [`index.blocks.metadata`](./index-block.md#index-blocks-metadata)
 
 ### Field and mapping related settings
 
@@ -56,6 +56,7 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 * [`index.look_ahead_time`](./time-series.md#index-look-ahead-time)
 * [`index.look_back_time`](./time-series.md#index-look-back-time)
 * [`index.routing_path`](./time-series.md#index-routing-path)
+* [`index.dimensions_tsid_strategy_enabled`](./time-series.md#index-dimensions-tsid-strategy-enabled)
 
 ### Similarity and analyzers
 

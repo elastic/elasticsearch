@@ -1,13 +1,15 @@
 {
   "dangling_indices.delete_dangling_index": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html",
-      "description": "Deletes the specified dangling index"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-dangling-indices-delete-dangling-index",
+      "description": "Delete a dangling index"
     },
     "stability": "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
@@ -36,6 +38,7 @@
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for connection to master"
       }
     }

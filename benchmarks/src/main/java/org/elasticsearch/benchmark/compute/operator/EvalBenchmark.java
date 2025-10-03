@@ -144,7 +144,7 @@ public class EvalBenchmark {
     public String operation;
 
     private static Operator operator(String operation) {
-        return new EvalOperator(driverContext.blockFactory(), evaluator(operation));
+        return new EvalOperator(driverContext, evaluator(operation));
     }
 
     private static EvalOperator.ExpressionEvaluator evaluator(String operation) {
@@ -365,7 +365,9 @@ public class EvalBenchmark {
             false,
             Map.of(),
             0,
-            false
+            false,
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 

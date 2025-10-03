@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.expression.predicate.nulls;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
@@ -55,7 +56,8 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
             "unsigned_long",
             "counter_long",
             "counter_integer",
-            "counter_double" },
+            "counter_double",
+            "dense_vector" },
         examples = { @Example(file = "null", tag = "is-not-null") }
     )
     public IsNotNull(
@@ -74,7 +76,8 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
                 "unsigned_long",
                 "counter_long",
                 "counter_integer",
-                "counter_double" }
+                "counter_double",
+                "dense_vector", }
         ) Expression field
     ) {
         super(source, field);
@@ -150,6 +153,8 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     record IsNotNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
         implements
             EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IsNotNullEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             try (Block fieldBlock = field.eval(page)) {
@@ -163,6 +168,11 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
                     return builder.build().asBlock();
                 }
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
         }
 
         @Override

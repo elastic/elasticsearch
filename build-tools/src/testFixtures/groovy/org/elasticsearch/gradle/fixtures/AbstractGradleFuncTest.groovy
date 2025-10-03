@@ -9,25 +9,23 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import spock.lang.Specification
+import spock.lang.TempDir
+
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
-import org.gradle.internal.component.external.model.ComponentVariant
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
+import org.gradle.tooling.BuildException
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
-import spock.lang.Specification
-import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.io.File
-import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
@@ -47,6 +45,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     File buildFile
     File propertiesFile
     File projectDir
+    File versionPropertiesFile
 
     protected boolean configurationCacheCompatible = true
     protected boolean buildApiRestrictionsDisabled = false
@@ -57,6 +56,18 @@ abstract class AbstractGradleFuncTest extends Specification {
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
+        File buildToolsDir = testProjectDir.newFolder("build-tools-internal")
+        versionPropertiesFile = new File(buildToolsDir, 'version.properties')
+        versionPropertiesFile.text = """
+            elasticsearch     = 9.1.0
+            lucene            = 10.2.2
+
+            bundled_jdk_vendor = openjdk
+            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
+            minimumJdkVersion = 21
+            minimumRuntimeJava = 21
+            minimumCompilerJava = 21
+        """
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
 
@@ -162,10 +173,10 @@ abstract class AbstractGradleFuncTest extends Specification {
     File internalBuild(
             List<String> extraPlugins = [],
             String maintenance = "7.16.10",
-            String bugfix2 = "8.1.3",
-            String bugfix = "8.2.1",
-            String staged = "8.3.0",
-            String minor = "8.4.0",
+            String major4 = "8.1.3",
+            String major3 = "8.2.1",
+            String major2 = "8.3.0",
+            String major1 = "8.4.0",
             String current = "9.0.0"
     ) {
         buildFile << """plugins {
@@ -175,38 +186,42 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.Architecture
 
         import org.elasticsearch.gradle.internal.BwcVersions
+        import org.elasticsearch.gradle.internal.info.DevelopmentBranch
         import org.elasticsearch.gradle.Version
 
         Version currentVersion = Version.fromString("${current}")
         def versionList = [
           Version.fromString("$maintenance"),
-          Version.fromString("$bugfix2"),
-          Version.fromString("$bugfix"),
-          Version.fromString("$staged"),
-          Version.fromString("$minor"),
+          Version.fromString("$major4"),
+          Version.fromString("$major3"),
+          Version.fromString("$major2"),
+          Version.fromString("$major1"),
           currentVersion
         ]
 
-        BwcVersions versions = new BwcVersions(currentVersion, versionList, ['main', '8.x', '8.3', '8.2', '8.1', '7.16'])
-        buildParams.setBwcVersions(project.provider { versions} )
+        BwcVersions versions = new BwcVersions(currentVersion, versionList, [
+          new DevelopmentBranch('main', Version.fromString("$current")),
+          new DevelopmentBranch('8.x', Version.fromString("$major1")),
+          new DevelopmentBranch('8.3', Version.fromString("$major2")),
+          new DevelopmentBranch('8.2', Version.fromString("$major3")),
+          new DevelopmentBranch('8.1', Version.fromString("$major4")),
+          new DevelopmentBranch('7.16', Version.fromString("$maintenance")),
+        ])
+        buildParams.setBwcVersions(project.provider { versions } )
         """
     }
 
-    void setupLocalGitRepo() {
-        execute("git init")
-        execute('git config user.email "build-tool@elastic.co"')
-        execute('git config user.name "Build tool"')
-        execute("git add .")
-        execute('git commit -m "Initial"')
-    }
-
-    void execute(String command, File workingDir = testProjectDir.root) {
+    String execute(String command, File workingDir = testProjectDir.root, boolean ignoreFailure = false) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
-        if (proc.exitValue()) {
-            System.err.println("Error running command ${command}:")
-            System.err.println("Syserr: " + proc.errorStream.text)
+        if (proc.exitValue() && ignoreFailure == false) {
+            String msg = """Error running command ${command}:
+                Sysout: ${proc.inputStream.text}
+                Syserr: ${proc.errorStream.text}
+            """
+            throw new RuntimeException(msg)
         }
+        return proc.inputStream.text
     }
 
     File dir(String path) {

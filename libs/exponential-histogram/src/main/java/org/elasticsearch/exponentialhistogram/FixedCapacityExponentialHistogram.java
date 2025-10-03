@@ -31,7 +31,7 @@ import java.util.OptionalLong;
  * Consumers must ensure that if the histogram is mutated, all previously acquired {@link BucketIterator}
  * instances are no longer used.
  */
-final class FixedCapacityExponentialHistogram implements ReleasableExponentialHistogram {
+final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogram implements ReleasableExponentialHistogram {
 
     static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedCapacityExponentialHistogram.class) + ZeroBucket.SHALLOW_SIZE
         + 2 * Buckets.SHALLOW_SIZE;
@@ -52,6 +52,10 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
     private ZeroBucket zeroBucket;
 
     private final Buckets positiveBuckets = new Buckets(true);
+
+    private double sum;
+    private double min;
+    private double max;
 
     private final ExponentialHistogramCircuitBreaker circuitBreaker;
     private boolean closed = false;
@@ -78,6 +82,9 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
      * Resets this histogram to the same state as a newly constructed one with the same capacity.
      */
     void reset() {
+        sum = 0;
+        min = Double.NaN;
+        max = Double.NaN;
         setZeroBucket(ZeroBucket.minimalEmpty());
         resetBuckets(MAX_SCALE);
     }
@@ -108,6 +115,33 @@ final class FixedCapacityExponentialHistogram implements ReleasableExponentialHi
      */
     void setZeroBucket(ZeroBucket zeroBucket) {
         this.zeroBucket = zeroBucket;
+    }
+
+    @Override
+    public double sum() {
+        return sum;
+    }
+
+    void setSum(double sum) {
+        this.sum = sum;
+    }
+
+    @Override
+    public double min() {
+        return min;
+    }
+
+    void setMin(double min) {
+        this.min = min;
+    }
+
+    @Override
+    public double max() {
+        return max;
+    }
+
+    void setMax(double max) {
+        this.max = max;
     }
 
     /**

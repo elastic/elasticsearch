@@ -265,6 +265,34 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
+    /**
+     * Test that an async action step is not executed when ILM is stopped.
+     */
+    public void testNotRunningAsyncActionWhenILMIsStopped() {
+        String policyName = "stopped_policy";
+        Step.StepKey stepKey = new Step.StepKey("phase", "action", "async_action_step");
+
+        MockAsyncActionStep step = new MockAsyncActionStep(stepKey, null);
+
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        ClusterService clusterService = mock(ClusterService.class);
+        newMockTaskQueue(clusterService); // ensure constructor call to createTaskQueue is satisfied
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .build();
+
+        IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPED);
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadata, true)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilm)
+            .build();
+        runner.maybeRunAsyncAction(projectStateFromProject(project), indexMetadata, policyName, stepKey);
+
+        assertThat(step.getExecuteCount(), equalTo(0L));
+    }
+
     public void testRunPolicyErrorStepOnRetryableFailedStep() {
         String policyName = "rollover_policy";
         String phaseName = "hot";
@@ -490,7 +518,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         ClusterServiceUtils.awaitClusterState(
-            logger,
             s -> s.metadata().getProject(state.projectId()).index(indexMetadata.getIndex()).getLifecycleExecutionState().stepInfo() != null,
             clusterService
         );
@@ -587,7 +614,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()))
             .build();
-        logger.info("--> state: {}", state);
         ClusterServiceUtils.setState(clusterService, state);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
 

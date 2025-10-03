@@ -69,7 +69,7 @@ import static java.util.Collections.unmodifiableList;
  * using the client running against the "write" cluster.
  *
  */
-@TimeoutSuite(millis = 15 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(CcsCommonYamlTestSuiteIT.class);
@@ -99,9 +99,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
-        .feature(FeatureFlag.IVF_FORMAT)
-        .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.RERANK_SNIPPETS);
+        .feature(FeatureFlag.SYNTHETIC_VECTORS);
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)

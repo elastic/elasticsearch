@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -21,13 +23,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -62,10 +64,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : emptyList()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
@@ -106,17 +106,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeNamedWriteable(filter);
-            out.writeNamedWriteableCollection(parameters);
-        } else {
-            deprecatedWriteParams(out);
-        }
-    }
-
-    @Deprecated(since = "8.16", forRemoval = true)
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        //
+        out.writeNamedWriteable(filter);
+        out.writeNamedWriteableCollection(parameters);
     }
 
     public Expression field() {
@@ -153,6 +144,17 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
     }
 
+    /**
+     * Returns the set of input attributes required by this aggregate function, excluding those referenced by the filter.
+     */
+    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        if (hasFilter()) {
+            return Expressions.references(CollectionUtils.combine(List.of(field), parameters));
+        } else {
+            return references();
+        }
+    }
+
     @Override
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
@@ -174,9 +176,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            // `dedup` for now is not exposed as a command,
-            // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
-            if ((p instanceof Aggregate) == false && (p instanceof Dedup) == false) {
+            if ((p instanceof Aggregate) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
                     failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));

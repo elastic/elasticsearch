@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -50,6 +54,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         CreateSnapshotStep createSnapshotStep = (CreateSnapshotStep) steps.get(index);
         assertThat(createSnapshotStep.getNextKeyOnIncomplete(), is(expectedSteps.get(index - 1)));
         validateWaitForDataTierStep(phase, steps, index + 1, index + 2);
+        validateForceMergeClone(action.isForceMergeIndex(), steps);
     }
 
     private void validateWaitForDataTierStep(String phase, List<Step> steps, int waitForDataTierStepIndex, int mountStepIndex) {
@@ -60,6 +65,25 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             MountSnapshotStep mountStep = (MountSnapshotStep) steps.get(mountStepIndex);
             assertThat(waitForDataTierStep.tierPreference(), equalTo(mountStep.getStorage().defaultDataTiersPreference()));
         }
+    }
+
+    /**
+     * Validate that the {@link ResizeIndexStep} used to clone the index for force merging configures the target index with 0 replicas.
+     */
+    private void validateForceMergeClone(boolean isForceMergeIndex, List<Step> steps) {
+        if (isForceMergeIndex == false) {
+            return;
+        }
+        ResizeIndexStep cloneStep = (ResizeIndexStep) steps.stream()
+            .filter(step -> step instanceof ResizeIndexStep)
+            .findFirst()
+            .orElseThrow();
+        assertThat(cloneStep.getResizeType(), is(ResizeType.CLONE));
+        var indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 5), randomIntBetween(0, 5)))
+            .build();
+        Settings cloneIndexSettings = cloneStep.getTargetIndexSettingsSupplier().apply(indexMetadata);
+        assertThat(cloneIndexSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, -1), is(0));
     }
 
     public void testPrefixAndStorageTypeDefaults() {
@@ -102,6 +126,12 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, WaitForNoFollowersStep.NAME),
             new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME),
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_GENERATE_AND_CLEAN),
+            forceMergeIndex ? new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_CLONE_STEP) : null,
+            forceMergeIndex ? new StepKey(phase, NAME, ReadOnlyStep.NAME) : null,
+            forceMergeIndex ? new StepKey(phase, NAME, CleanupGeneratedIndexStep.NAME) : null,
+            forceMergeIndex ? new StepKey(phase, NAME, GenerateUniqueIndexNameStep.NAME) : null,
+            forceMergeIndex ? new StepKey(phase, NAME, ResizeIndexStep.CLONE) : null,
+            forceMergeIndex ? new StepKey(phase, NAME, SearchableSnapshotAction.WAIT_FOR_CLONED_INDEX_GREEN) : null,
             forceMergeIndex ? new StepKey(phase, NAME, ForceMergeStep.NAME) : null,
             forceMergeIndex ? new StepKey(phase, NAME, SegmentCountStep.NAME) : null,
             new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME),
@@ -114,6 +144,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, CopySettingsStep.NAME),
             hasReplicateFor ? new StepKey(phase, NAME, WaitUntilReplicateForTimePassesStep.NAME) : null,
             hasReplicateFor ? new StepKey(phase, NAME, UpdateSettingsStep.NAME) : null,
+            forceMergeIndex ? new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DELETE_FORCE_MERGED_INDEX_KEY) : null,
+            forceMergeIndex ? new StepKey(phase, NAME, SearchableSnapshotAction.DELETE_FORCE_MERGED_INDEX_KEY) : null,
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DATASTREAM_CHECK_KEY),
             new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME),
             new StepKey(phase, NAME, DeleteStep.NAME),

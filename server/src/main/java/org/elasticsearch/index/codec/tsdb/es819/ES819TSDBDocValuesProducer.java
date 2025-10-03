@@ -43,8 +43,10 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -302,6 +304,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             doc = target;
             return true;
         }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return maxDoc;
+        }
     }
 
     private abstract static class SparseBinaryDocValues extends BinaryDocValues {
@@ -335,6 +342,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public boolean advanceExact(int target) throws IOException {
             return disi.advanceExact(target);
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return disi.docIDRunEnd();
         }
     }
 
@@ -383,7 +395,20 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
 
             @Override
-            public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+            public int docIDRunEnd() throws IOException {
+                return ords.docIDRunEnd();
+            }
+
+            @Override
+            public BlockLoader.Block tryRead(
+                BlockLoader.BlockFactory factory,
+                BlockLoader.Docs docs,
+                int offset,
+                boolean nullsFiltered,
+                BlockDocValuesReader.ToDouble toDouble,
+                boolean toInt
+            ) throws IOException {
+                assert toDouble == null;
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
                     var block = tryReadAHead(factory, docs, offset);
                     if (block != null) {
@@ -457,7 +482,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+        public BlockLoader.Block tryRead(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
+        ) throws IOException {
             return null;
         }
 
@@ -504,7 +536,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+        public BlockLoader.Block tryRead(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
+        ) throws IOException {
             return null;
         }
 
@@ -515,7 +554,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class BaseSparseNumericValues extends NumericDocValues {
+    abstract static class BaseSparseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
         protected final IndexedDISI disi;
 
         BaseSparseNumericValues(IndexedDISI disi) {
@@ -545,6 +584,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public final long cost() {
             return disi.cost();
+        }
+
+        @Override
+        public BlockLoader.Block tryRead(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
+        ) throws IOException {
+            return null;
         }
     }
 
@@ -890,6 +941,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             public long cost() {
                 return ords.cost();
             }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return ords.docIDRunEnd();
+            }
         };
     }
 
@@ -1196,8 +1252,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.termsIndexAddressesLength = meta.readLong();
     }
 
-    private abstract static class NumericValues {
-        abstract long advance(long index) throws IOException;
+    @FunctionalInterface
+    private interface NumericValues {
+        long advance(long index) throws IOException;
     }
 
     static final class SortedOrdinalReader {
@@ -1261,6 +1318,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
+                    public int docIDRunEnd() {
+                        return maxDoc;
+                    }
+
+                    @Override
                     long lookAheadValueAt(int targetDoc) throws IOException {
                         return 0L;  // Only one ordinal!
                     }
@@ -1279,45 +1341,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     public long longValue() throws IOException {
                         return 0L;  // Only one ordinal!
                     }
+
+                    @Override
+                    public int docIDRunEnd() throws IOException {
+                        return disi.docIDRunEnd();
+                    }
                 };
             }
         } else if (entry.sortedOrdinals != null) {
-            final var ordinalsReader = new SortedOrdinalReader(
-                maxOrd,
-                DirectMonotonicReader.getInstance(
-                    entry.sortedOrdinals,
-                    data.randomAccessSlice(entry.valuesOffset, entry.valuesLength),
-                    true
-                )
-            );
-            if (entry.docsWithFieldOffset == -1) {
-                return new BaseDenseNumericValues(maxDoc) {
-                    @Override
-                    long lookAheadValueAt(int targetDoc) {
-                        return ordinalsReader.lookAheadValue(targetDoc);
-                    }
-
-                    @Override
-                    public long longValue() {
-                        return ordinalsReader.readValueAndAdvance(doc);
-                    }
-                };
-            } else {
-                final var disi = new IndexedDISI(
-                    data,
-                    entry.docsWithFieldOffset,
-                    entry.docsWithFieldLength,
-                    entry.jumpTableEntryCount,
-                    entry.denseRankPower,
-                    entry.numValues
-                );
-                return new BaseSparseNumericValues(disi) {
-                    @Override
-                    public long longValue() {
-                        return ordinalsReader.readValueAndAdvance(disi.docID());
-                    }
-                };
-            }
+            return getRangeEncodedNumericDocValues(entry, maxOrd);
         }
 
         // NOTE: we could make this a bit simpler by reusing #getValues but this
@@ -1338,6 +1370,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
+
+                @Override
+                public int docIDRunEnd() {
+                    return maxDoc;
+                }
 
                 @Override
                 public long longValue() throws IOException {
@@ -1365,9 +1402,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
-                    try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
-                        return tryRead(builder, docs, offset);
+                public BlockLoader.Block tryRead(
+                    BlockLoader.BlockFactory factory,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    boolean nullsFiltered,
+                    BlockDocValuesReader.ToDouble toDouble,
+                    boolean toInt
+                ) throws IOException {
+                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt)) {
+                        return tryRead(singletonLongBuilder, docs, offset);
                     }
                 }
 
@@ -1456,8 +1500,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             );
             return new BaseSparseNumericValues(disi) {
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
+                }
 
                 @Override
                 public long longValue() throws IOException {
@@ -1479,6 +1529,120 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
                     return currentBlock[blockInIndex];
                 }
+
+                @Override
+                public BlockLoader.Block tryRead(
+                    BlockLoader.BlockFactory factory,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    boolean nullsFiltered,
+                    BlockDocValuesReader.ToDouble toDouble,
+                    boolean toInt
+                ) throws IOException {
+                    if (nullsFiltered == false) {
+                        return null;
+                    }
+                    final int firstDoc = docs.get(offset);
+                    if (disi.advanceExact(firstDoc) == false) {
+                        assert false : "nullsFiltered is true, but doc [" + firstDoc + "] has no value";
+                        throw new IllegalStateException("nullsFiltered is true, but doc [" + firstDoc + "] has no value");
+                    }
+                    if (lookAheadDISI == null) {
+                        lookAheadDISI = new IndexedDISI(
+                            data,
+                            entry.docsWithFieldOffset,
+                            entry.docsWithFieldLength,
+                            entry.jumpTableEntryCount,
+                            entry.denseRankPower,
+                            entry.numValues
+                        );
+                    }
+                    final int lastDoc = docs.get(docs.count() - 1);
+                    if (lookAheadDISI.advanceExact(lastDoc) == false) {
+                        assert false : "nullsFiltered is true, but doc [" + lastDoc + "] has no value";
+                        throw new IllegalStateException("nullsFiltered is true, but doc [" + lastDoc + "] has no value");
+                    }
+                    // Assumes docIds are unique - if the number of value indices between the first
+                    // and last doc equals the doc count, all values can be read and converted in bulk
+                    // TODO: Pass docCount attr for enrich and lookup.
+                    final int firstIndex = disi.index();
+                    final int lastIndex = lookAheadDISI.index();
+                    final int valueCount = lastIndex - firstIndex + 1;
+                    if (valueCount != docs.count()) {
+                        return null;
+                    }
+                    if (Assertions.ENABLED) {
+                        for (int i = 0; i < docs.count(); i++) {
+                            final int doc = docs.get(i + offset);
+                            assert disi.advanceExact(doc) : "nullsFiltered is true, but doc [" + doc + "] has no value";
+                            assert disi.index() == firstIndex + i : "unexpected disi index " + (firstIndex + i) + "!=" + disi.index();
+                        }
+                    }
+                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt)) {
+                        for (int i = 0; i < valueCount;) {
+                            final int index = firstIndex + i;
+                            final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                            final int blockStartIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                            if (blockIndex != currentBlockIndex) {
+                                assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
+                                if (currentBlockIndex + 1 != blockIndex) {
+                                    valuesData.seek(indexReader.get(blockIndex));
+                                }
+                                currentBlockIndex = blockIndex;
+                                decoder.decode(valuesData, currentBlock);
+                            }
+                            final int count = Math.min(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockStartIndex, valueCount - i);
+                            singletonLongBuilder.appendLongs(currentBlock, blockStartIndex, count);
+                            i += count;
+                        }
+                        return singletonLongBuilder.build();
+                    }
+                }
+            };
+        }
+    }
+
+    private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {
+        final var ordinalsReader = new SortedOrdinalReader(
+            maxOrd,
+            DirectMonotonicReader.getInstance(entry.sortedOrdinals, data.randomAccessSlice(entry.valuesOffset, entry.valuesLength), true)
+        );
+        if (entry.docsWithFieldOffset == -1) {
+            return new BaseDenseNumericValues(maxDoc) {
+                @Override
+                long lookAheadValueAt(int targetDoc) {
+                    return ordinalsReader.lookAheadValue(targetDoc);
+                }
+
+                @Override
+                public long longValue() {
+                    return ordinalsReader.readValueAndAdvance(doc);
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return maxDoc;
+                }
+            };
+        } else {
+            final var disi = new IndexedDISI(
+                data,
+                entry.docsWithFieldOffset,
+                entry.docsWithFieldLength,
+                entry.jumpTableEntryCount,
+                entry.denseRankPower,
+                entry.numValues
+            );
+            return new BaseSparseNumericValues(disi) {
+                @Override
+                public long longValue() {
+                    return ordinalsReader.readValueAndAdvance(disi.docID());
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
+                }
             };
         }
     }
@@ -1490,30 +1654,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-        return new NumericValues() {
 
-            private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-            private long currentBlockIndex = -1;
-            private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-
-            @Override
-            long advance(long index) throws IOException {
-                final long blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                final int blockInIndex = (int) (index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
-                if (blockIndex != currentBlockIndex) {
-                    // no need to seek if the loading block is the next block
-                    if (currentBlockIndex + 1 != blockIndex) {
-                        valuesData.seek(indexReader.get(blockIndex));
-                    }
-                    currentBlockIndex = blockIndex;
-                    if (bitsPerOrd == -1) {
-                        decoder.decode(valuesData, currentBlock);
-                    } else {
-                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                    }
+        final long[] currentBlockIndex = { -1 };
+        final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+        return index -> {
+            final long blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+            final int blockInIndex = (int) (index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
+            if (blockIndex != currentBlockIndex[0]) {
+                // no need to seek if the loading block is the next block
+                if (currentBlockIndex[0] + 1 != blockIndex) {
+                    valuesData.seek(indexReader.get(blockIndex));
                 }
-                return currentBlock[blockInIndex];
+                currentBlockIndex[0] = blockIndex;
+                if (bitsPerOrd == -1) {
+                    decoder.decode(valuesData, currentBlock);
+                } else {
+                    decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                }
             }
+            return currentBlock[blockInIndex];
         };
     }
 
@@ -1525,6 +1685,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
         final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesInput, merging);
 
+        assert entry.sortedOrdinals == null : "encoded ordinal range supports only one value per document";
+        if (entry.sortedOrdinals != null) {
+            // TODO: determine when this can be removed.
+            // This is for the clusters that ended up using ordinal range encoding for multi-values fields. Only first value can be
+            // returned.
+            NumericDocValues values = getRangeEncodedNumericDocValues(entry, maxOrd);
+            return DocValues.singleton(values);
+        }
         final NumericValues values = getValues(entry, maxOrd);
 
         if (entry.docsWithFieldOffset == -1) {
@@ -1578,6 +1746,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public int docValueCount() {
                     return count;
+                }
+
+                @Override
+                public int docIDRunEnd() {
+                    return maxDoc;
                 }
             };
         } else {
@@ -1634,6 +1807,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public int docValueCount() {
                     set();
                     return count;
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
                 }
 
                 private void set() {
@@ -1719,6 +1897,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
     static final class SingletonLongToSingletonOrdinalDelegate implements BlockLoader.SingletonLongBuilder {
         private final BlockLoader.SingletonOrdinalsBuilder builder;
+        private final int[] buffer = new int[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
         SingletonLongToSingletonOrdinalDelegate(BlockLoader.SingletonOrdinalsBuilder builder) {
             this.builder = builder;
@@ -1731,20 +1910,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+            assert length <= buffer.length;
             // Unfortunately, no array copy here...
             // Since we need to loop here, let's also keep track of min/max.
             int minOrd = Integer.MAX_VALUE;
             int maxOrd = Integer.MIN_VALUE;
             int counter = 0;
-            int[] convertedOrds = new int[length];
             int end = from + length;
             for (int j = from; j < end; j++) {
                 int ord = Math.toIntExact(values[j]);
-                convertedOrds[counter++] = ord;
+                buffer[counter++] = ord;
                 minOrd = Math.min(minOrd, ord);
                 maxOrd = Math.max(maxOrd, ord);
             }
-            builder.appendOrds(convertedOrds, 0, length, minOrd, maxOrd);
+            assert counter == length;
+            builder.appendOrds(buffer, 0, length, minOrd, maxOrd);
             return this;
         }
 
@@ -1770,6 +1950,115 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public void close() {}
+    }
+
+    static BlockLoader.SingletonLongBuilder singletonLongBuilder(
+        BlockLoader.BlockFactory factory,
+        BlockDocValuesReader.ToDouble toDouble,
+        int valueCount,
+        boolean toInt
+    ) {
+        assert (toInt && toDouble != null) == false;
+
+        if (toDouble != null) {
+            return new SingletonLongToDoubleDelegate(factory.singletonDoubles(valueCount), toDouble);
+        } else if (toInt) {
+            return new SingletonLongtoIntDelegate(factory.singletonInts(valueCount));
+        } else {
+            return factory.singletonLongs(valueCount);
+        }
+    }
+
+    // Block builder that consumes long values and converts them to double using the provided converter function.
+    static final class SingletonLongToDoubleDelegate implements BlockLoader.SingletonLongBuilder {
+        private final BlockLoader.SingletonDoubleBuilder doubleBuilder;
+        private final BlockDocValuesReader.ToDouble toDouble;
+
+        // The passed builder is used to store the converted double values and produce the final block containing them.
+        SingletonLongToDoubleDelegate(BlockLoader.SingletonDoubleBuilder doubleBuilder, BlockDocValuesReader.ToDouble toDouble) {
+            this.doubleBuilder = doubleBuilder;
+            this.toDouble = toDouble;
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLong(long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+            doubleBuilder.appendLongs(toDouble, values, from, length);
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            return doubleBuilder.build();
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            doubleBuilder.close();
+        }
+    }
+
+    static final class SingletonLongtoIntDelegate implements BlockLoader.SingletonLongBuilder {
+        private final BlockLoader.SingletonIntBuilder builder;
+
+        SingletonLongtoIntDelegate(BlockLoader.SingletonIntBuilder builder) {
+            this.builder = builder;
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLong(long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+            builder.appendLongs(values, from, length);
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            return builder.build();
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
+        }
     }
 
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -49,18 +50,19 @@ public record DriverProfile(
     DriverSleeps sleeps
 ) implements Writeable, ChunkedToXContentObject {
 
+    private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
+
     public static DriverProfile readFrom(StreamInput in) throws IOException {
         return new DriverProfile(
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+            in.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
             in.readCollectionAsImmutableList(OperatorStatus::readFrom),
             DriverSleeps.read(in)
         );
@@ -68,8 +70,7 @@ public record DriverProfile(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+        if (out.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19)) {
             out.writeString(description);
         }
@@ -77,15 +78,11 @@ public record DriverProfile(
             out.writeString(clusterName);
             out.writeString(nodeName);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVLong(startMillis);
-            out.writeVLong(stopMillis);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeVLong(tookNanos);
-            out.writeVLong(cpuNanos);
-            out.writeVLong(iterations);
-        }
+        out.writeVLong(startMillis);
+        out.writeVLong(stopMillis);
+        out.writeVLong(tookNanos);
+        out.writeVLong(cpuNanos);
+        out.writeVLong(iterations);
         out.writeCollection(operators);
         sleeps.writeTo(out);
     }

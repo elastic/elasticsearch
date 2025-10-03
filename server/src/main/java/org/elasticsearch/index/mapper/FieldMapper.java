@@ -1337,6 +1337,14 @@ public abstract class FieldMapper extends Mapper {
                 .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
         }
 
+        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
+        }
+
         /**
          * Defines a script parameter
          * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
@@ -1650,6 +1658,41 @@ public abstract class FieldMapper extends Mapper {
         protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
             return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
         }
+    }
+
+    /**
+     * Creates mappers for fields that require additional context for supporting synthetic source.
+     */
+    public abstract static class BuilderWithSyntheticSourceContext extends Builder {
+
+        private final IndexVersion indexCreatedVersion;
+        private final boolean isSyntheticSourceEnabled;
+        private final boolean isWithinMultiField;
+
+        protected BuilderWithSyntheticSourceContext(
+            String name,
+            IndexVersion indexCreatedVersion,
+            boolean isSyntheticSourceEnabled,
+            boolean isWithinMultiField
+        ) {
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.isWithinMultiField = isWithinMultiField;
+        }
+
+        public IndexVersion indexCreatedVersion() {
+            return indexCreatedVersion;
+        }
+
+        public boolean isSyntheticSourceEnabled() {
+            return isSyntheticSourceEnabled;
+        }
+
+        public boolean isWithinMultiField() {
+            return isWithinMultiField;
+        }
+
     }
 
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {

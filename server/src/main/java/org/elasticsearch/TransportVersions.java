@@ -141,8 +141,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_0_00);
     // TODO: add to remove_all_applicable_selector.csv
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
-    // TODO: add to retry_ilm_async_action_require_error.csv
-    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     // TODO: add to remove_all_applicable_selector.csv
@@ -150,12 +148,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19 = def(8_841_0_03);
     public static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19 = def(8_841_0_04);
     public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X = def(8_841_0_05);
-    public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19 = def(8_841_0_06);
-    // TODO: add to retry_ilm_async_action_require_error.csv
-    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19 = def(8_841_0_07);
-    public static final TransportVersion INFERENCE_CONTEXT_8_X = def(8_841_0_08);
-    public static final TransportVersion ML_INFERENCE_DEEPSEEK_8_19 = def(8_841_0_09);
-    public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE_8_19 = def(8_841_0_10);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = def(9_006_0_00);
     public static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = def(9_007_00_0);
@@ -167,13 +159,9 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
     public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
     public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
-    public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_020_0_00);
     public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_022_0_00);
     public static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = def(9_024_0_00);
-    public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(9_026_0_00);
     public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
-    public static final TransportVersion INFERENCE_CONTEXT = def(9_028_0_00);
-    public static final TransportVersion ML_INFERENCE_DEEPSEEK = def(9_029_00_0);
     public static final TransportVersion INDEX_RESHARDING_METADATA = def(9_031_0_00);
     public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
     public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);

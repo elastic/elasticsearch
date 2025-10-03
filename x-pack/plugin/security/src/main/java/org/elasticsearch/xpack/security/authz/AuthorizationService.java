@@ -535,29 +535,7 @@ public class AuthorizationService {
                                         authorizedIndicesAndProjects.v2()
                                     )
                                 ),
-                                e -> {
-                                    if (e instanceof InvalidIndexNameException
-                                        || e instanceof InvalidSelectorException
-                                        || e instanceof UnsupportedSelectorException) {
-                                        logger.info(
-                                            () -> Strings.format(
-                                                "failed [%s] action authorization for [%s] due to [%s] exception",
-                                                action,
-                                                authentication,
-                                                e.getClass().getSimpleName()
-                                            ),
-                                            e
-                                        );
-                                        listener.onFailure(e);
-                                        return;
-                                    }
-                                    auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                                    if (e instanceof IndexNotFoundException || e instanceof NoMatchingProjectException) {
-                                        listener.onFailure(e);
-                                    } else {
-                                        listener.onFailure(actionDenied(authentication, authzInfo, action, request, e));
-                                    }
-                                }
+                                e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)
                             )
                         );
 
@@ -597,6 +575,41 @@ public class AuthorizationService {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(actionDenied(authentication, authzInfo, action, request));
+        }
+    }
+
+    private void onAuthorizedResourceLoadFailure(
+        String requestId,
+        RequestInfo requestInfo,
+        AuthorizationInfo authzInfo,
+        AuditTrail auditTrail,
+        ActionListener<Void> listener,
+        Exception ex
+    ) {
+        final String action = requestInfo.getAction();
+        final TransportRequest request = requestInfo.getRequest();
+        final Authentication authentication = requestInfo.getAuthentication();
+
+        if (ex instanceof InvalidIndexNameException
+            || ex instanceof InvalidSelectorException
+            || ex instanceof UnsupportedSelectorException) {
+            logger.info(
+                () -> Strings.format(
+                    "failed [%s] action authorization for [%s] due to [%s] exception",
+                    action,
+                    authentication,
+                    ex.getClass().getSimpleName()
+                ),
+                ex
+            );
+            listener.onFailure(ex);
+            return;
+        }
+        auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+        if (ex instanceof IndexNotFoundException || ex instanceof NoMatchingProjectException) {
+            listener.onFailure(ex);
+        } else {
+            listener.onFailure(actionDenied(authentication, authzInfo, action, request, ex));
         }
     }
 

@@ -58,9 +58,9 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
         PARSER.declareField(
             optionalConstructorArg(),
-            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? new CertificateIdentity(null) : new CertificateIdentity(p.text()),
+            (p) -> new CertificateIdentity(p.text()),
             new ParseField("certificate_identity"),
-            ObjectParser.ValueType.STRING_OR_NULL
+            ObjectParser.ValueType.STRING
         );
     }
 

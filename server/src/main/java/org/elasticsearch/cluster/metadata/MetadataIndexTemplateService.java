@@ -965,6 +965,9 @@ public class MetadataIndexTemplateService {
         // We check whether anything relevant has changed that could affect data stream coverage and return early if not.
         // These checks are based on the implementation of findV2Template and the data stream template check in this method.
         // If we're adding a new template, we do the full check in case this template's priority changes coverage.
+        // Note that this method is also run for component templates, and that component templates can configure the
+        // `index.hidden` setting. In that case, we'd never take this shortcut as we're comparing a composite template
+        // with a composable template (i.e. we don't take component templates into account for the existing template).
         if (existingTemplate != null
             && Objects.equals(existingTemplate.indexPatterns(), newTemplate.indexPatterns())
             && Objects.equals(existingSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), newSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN))

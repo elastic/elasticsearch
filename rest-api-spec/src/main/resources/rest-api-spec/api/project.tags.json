@@ -1,0 +1,21 @@
+{
+  "project.tags": {
+    "documentation": {
+      "url": null,
+      "description": "Return tags defined for the project"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_project/tags",
+          "methods": ["GET"]
+        }
+      ]
+    }
+  }
+}

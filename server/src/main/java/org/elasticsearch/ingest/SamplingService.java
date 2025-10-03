@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +44,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
@@ -60,7 +58,7 @@ public class SamplingService implements ClusterStateListener {
     private final ProjectResolver projectResolver;
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
-    private final Random random;
+
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -78,7 +76,6 @@ public class SamplingService implements ClusterStateListener {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.relativeMillisTimeSupplier = relativeMillisTimeSupplier;
-        random = Randomness.get();
     }
 
     /**
@@ -160,7 +157,7 @@ public class SamplingService implements ClusterStateListener {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
                 return;
             }
-            if (random.nextDouble() >= samplingConfig.rate()) {
+            if (Math.random() >= samplingConfig.rate()) {
                 stats.samplesRejectedForRate.increment();
                 return;
             }
@@ -191,7 +188,7 @@ public class SamplingService implements ClusterStateListener {
                 stats.samplesRejectedForCondition.increment();
                 return;
             }
-            RawDocument sample = getRawDocumentForIndexRequest(projectId, indexName, indexRequest);
+            RawDocument sample = getRawDocumentForIndexRequest(indexName, indexRequest);
             if (sampleInfo.offer(sample)) {
                 stats.samples.increment();
                 logger.trace("Sampling " + indexRequest);
@@ -232,6 +229,9 @@ public class SamplingService implements ClusterStateListener {
      */
     public SampleStats getLocalSampleStats(ProjectId projectId, String index) {
         SoftReference<SampleInfo> sampleInfoReference = samples.get(new ProjectIndex(projectId, index));
+        if (sampleInfoReference == null) {
+            return new SampleStats();
+        }
         SampleInfo sampleInfo = sampleInfoReference.get();
         return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
     }
@@ -284,15 +284,14 @@ public class SamplingService implements ClusterStateListener {
      * This represents a raw document as the user sent it to us in an IndexRequest. It only holds onto the information needed for the
      * sampling API, rather than holding all of the fields a user might send in an IndexRequest.
      */
-    public record RawDocument(ProjectId projectId, String indexName, byte[] source, XContentType contentType) implements Writeable {
+    public record RawDocument(String indexName, byte[] source, XContentType contentType) implements Writeable {
 
         public RawDocument(StreamInput in) throws IOException {
-            this(ProjectId.readFrom(in), in.readString(), in.readByteArray(), in.readEnum(XContentType.class));
+            this(in.readString(), in.readByteArray(), in.readEnum(XContentType.class));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            projectId.writeTo(out);
             out.writeString(indexName);
             out.writeByteArray(source);
             XContentHelper.writeTo(out, contentType);
@@ -303,15 +302,14 @@ public class SamplingService implements ClusterStateListener {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             RawDocument rawDocument = (RawDocument) o;
-            return Objects.equals(projectId, rawDocument.projectId)
-                && Objects.equals(indexName, rawDocument.indexName)
+            return Objects.equals(indexName, rawDocument.indexName)
                 && Arrays.equals(source, rawDocument.source)
                 && contentType == rawDocument.contentType;
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(projectId, indexName, contentType);
+            int result = Objects.hash(indexName, contentType);
             result = 31 * result + Arrays.hashCode(source);
             return result;
         }
@@ -322,13 +320,13 @@ public class SamplingService implements ClusterStateListener {
      * RawDocument might be a relatively expensive object memory-wise. Since the bytes are copied, subsequent changes to the indexRequest
      * are not reflected in the RawDocument
      */
-    private RawDocument getRawDocumentForIndexRequest(ProjectId projectId, String indexName, IndexRequest indexRequest) {
+    private RawDocument getRawDocumentForIndexRequest(String indexName, IndexRequest indexRequest) {
         BytesReference sourceReference = indexRequest.source();
         assert sourceReference != null : "Cannot sample an IndexRequest with no source";
         byte[] source = sourceReference.array();
         final byte[] sourceCopy = new byte[sourceReference.length()];
         System.arraycopy(source, sourceReference.arrayOffset(), sourceCopy, 0, sourceReference.length());
-        return new RawDocument(projectId, indexName, sourceCopy, indexRequest.getContentType());
+        return new RawDocument(indexName, sourceCopy, indexRequest.getContentType());
     }
 
     public static final class SampleStats implements Writeable, ToXContent {

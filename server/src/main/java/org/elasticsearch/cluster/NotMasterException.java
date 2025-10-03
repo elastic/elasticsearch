@@ -34,6 +34,10 @@ public class NotMasterException extends ElasticsearchException {
         super(in);
     }
 
+    public NotMasterException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
+    }
+
     @Override
     public Throwable fillInStackTrace() {
         return this;

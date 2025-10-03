@@ -1161,7 +1161,7 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            getCustomAuthorizedProjectsSupplierOrDefault(extensionComponents)
+            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1346,7 +1346,7 @@ public class Security extends Plugin
         }
     }
 
-    private AuthorizedProjectsResolver getCustomAuthorizedProjectsSupplierOrDefault(
+    private AuthorizedProjectsResolver getCustomAuthorizedProjectsResolverOrDefault(
         SecurityExtension.SecurityComponents extensionComponents
     ) {
         final AuthorizedProjectsResolver customAuthorizedProjectsResolver = findValueFromExtensions(

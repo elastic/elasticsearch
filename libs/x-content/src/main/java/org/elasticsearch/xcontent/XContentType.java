@@ -292,6 +292,9 @@ public enum XContentType implements MediaType {
     /**
      * Indicates if the {@link XContentType} (from the {@code Content-Type} header of a REST request) is compatible with delimited bulk
      * content. A bulk request contains multiple objects each terminated with {@link XContent#bulkSeparator()}.
+     * <p>
+     * In practice, this returns {@code true} if the argument has canonical type {@link XContentType#JSON} or {@link XContentType#SMILE}
+     * and {@link false} if the argument is {@code null} or has canonical type {@link XContentType#CBOR} or {@link XContentType#YAML}.
      */
     public static boolean supportsDelimitedBulkRequests(@Nullable XContentType xContentType) {
         return xContentType != null && xContentType.xContent.hasBulkSeparator();

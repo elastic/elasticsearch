@@ -29,6 +29,9 @@ public interface XContent {
      * @return {@code true} if this {@link XContent} can be sent in bulk, delimited by the byte returned by {@link #bulkSeparator()}, or
      * {@code false} if this {@link XContent} does not support a delimited bulk format (in which case {@link #bulkSeparator()} throws an
      * exception.
+     * <p>
+     * In practice, this is {@code true} for content with canonical type {@link XContentType#JSON} or {@link XContentType#SMILE} and
+     * {@link false} for content with canonical type {@link XContentType#CBOR} or {@link XContentType#YAML}.
      */
     boolean hasBulkSeparator();
 

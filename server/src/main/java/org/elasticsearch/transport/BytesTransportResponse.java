@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A specialized, bytes only response, that can potentially be optimized on the network layer.
@@ -26,14 +27,14 @@ public class BytesTransportResponse extends TransportResponse implements BytesTr
 
     public BytesTransportResponse(ReleasableBytesReference bytes, TransportVersion version) {
         this.bytes = bytes;
-        this.version = version;
+        this.version = Objects.requireNonNull(version);
     }
 
     /**
      * Does the binary response need conversion before being sent to the provided target version?
      */
     public boolean mustConvertResponseForVersion(TransportVersion targetVersion) {
-        return version != null && version.equals(targetVersion) == false;
+        return version.equals(targetVersion) == false;
     }
 
     /**

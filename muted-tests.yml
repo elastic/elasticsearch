@@ -705,6 +705,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSearchTimeSeriesMode {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135963
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettings
+  issue: https://github.com/elastic/elasticsearch/issues/135972
 
 # Examples:
 #

@@ -131,7 +131,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             valuesList.forEach(values -> {
                 float[] left = readVector((List<Float>) values.get(0));
                 Double similarity = (Double) values.get(1);
-                if (left == null) {
+                if (left == null || randomVector == null) {
                     assertNull(similarity);
                 } else {
                     assertNotNull(similarity);
@@ -192,8 +192,6 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Dense vector type is disabled", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-
         createIndexWithDenseVector("test");
 
         numDims = randomIntBetween(32, 64) * 2; // min 64, even number

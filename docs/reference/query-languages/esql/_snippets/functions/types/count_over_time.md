@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | long |
 | boolean | long |
 | cartesian_point | long |
 | cartesian_shape | long |
@@ -12,6 +13,9 @@
 | double | long |
 | geo_point | long |
 | geo_shape | long |
+| geohash | long |
+| geohex | long |
+| geotile | long |
 | integer | long |
 | ip | long |
 | keyword | long |

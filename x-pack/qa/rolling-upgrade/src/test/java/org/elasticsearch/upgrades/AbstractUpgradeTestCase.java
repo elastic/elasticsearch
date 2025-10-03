@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -17,14 +18,21 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
@@ -40,6 +48,9 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     protected static boolean isOriginalCluster(String clusterVersion) {
         return UPGRADE_FROM_VERSION.equals(clusterVersion);
     }
+
+    protected RestClient oldVersionClient = null;
+    protected RestClient newVersionClient = null;
 
     /**
      * Upgrade tests by design are also executed with the same version. We might want to skip some checks if that's the case, see
@@ -170,4 +181,57 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             assertTrue(Integer.parseInt(responseVersion) >= version);
         });
     }
+
+    protected void closeClientsByVersion() throws IOException {
+        if (oldVersionClient != null) {
+            oldVersionClient.close();
+            oldVersionClient = null;
+        }
+        if (newVersionClient != null) {
+            newVersionClient.close();
+            newVersionClient = null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<Boolean, RestClient> getRestClientByCapability(Function<Map<String, Object>, Boolean> capabilityChecker)
+        throws IOException {
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        assertOK(response);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
+            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
+            var capabilitySupported = capabilityChecker.apply(nodeDetails);
+            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
+            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
+                .add(HttpHost.create((String) httpInfo.get("publish_address")));
+        }
+
+        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
+        for (var entry : hostsByCapability.entrySet()) {
+            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
+        }
+        return clientsByCapability;
+    }
+
+    protected void createClientsByCapability(Function<Map<String, Object>, Boolean> capabilityChecker) throws IOException {
+        var clientsByCapability = getRestClientByCapability(capabilityChecker);
+        if (clientsByCapability.size() == 2) {
+            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
+                if (client.getKey() == false) {
+                    oldVersionClient = client.getValue();
+                } else {
+                    newVersionClient = client.getValue();
+                }
+            }
+            assertThat(oldVersionClient, notNullValue());
+            assertThat(newVersionClient, notNullValue());
+        } else {
+            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
+        }
+    }
+
 }

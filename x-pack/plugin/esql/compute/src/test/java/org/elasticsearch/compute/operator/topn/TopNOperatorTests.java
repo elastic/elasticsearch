@@ -1489,7 +1489,9 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            assertThat(breaker.getMemoryRequestCount(), is(94L));
+            // 105 are from the objects
+            // 1 is for the min-heap itself
+            assertThat(breaker.getMemoryRequestCount(), is(106L));
         }
     }
 

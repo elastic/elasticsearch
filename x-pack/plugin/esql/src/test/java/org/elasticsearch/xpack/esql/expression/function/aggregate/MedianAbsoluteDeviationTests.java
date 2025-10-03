@@ -60,7 +60,7 @@ public class MedianAbsoluteDeviationTests extends AbstractAggregationTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData),
-                    "MedianAbsoluteDeviation[number=Attribute[channel=0]]",
+                    standardAggregatorName("MedianAbsoluteDeviation", fieldSupplier.type()),
                     DataType.DOUBLE,
                     equalTo(expected)
                 );

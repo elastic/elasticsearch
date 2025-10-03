@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.exponentialhistogram;
 
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -30,6 +31,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.Set;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
@@ -129,8 +131,16 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 Map.of("indices", negativeIndices, "counts", negativeCounts)
             )
         );
-        if (randomBoolean() && (positiveIndices.isEmpty() == false || negativeIndices.isEmpty() == false)) {
-            result.put("sum", randomDoubleBetween(-1000, 1000, true));
+        if ((positiveIndices.isEmpty() == false || negativeIndices.isEmpty() == false)) {
+            if (randomBoolean()) {
+                result.put("sum", randomDoubleBetween(-1000, 1000, true));
+            }
+            if (randomBoolean()) {
+                result.put("min", randomDoubleBetween(-1000, 1000, true));
+            }
+            if (randomBoolean()) {
+                result.put("max", randomDoubleBetween(-1000, 1000, true));
+            }
         }
         return result;
     }
@@ -394,6 +404,16 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             // Non-Zero sum for empty histogram
             exampleMalformedValue(b -> b.startObject().field("scale", 0).field("sum", 42.0).endObject()).errorMatches(
                 "sum field must be zero if the histogram is empty, but got 42.0"
+            ),
+
+            // Min provided for empty histogram
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("min", 42.0).endObject()).errorMatches(
+                "min field must be null if the histogram is empty, but got 42.0"
+            ),
+
+            // Max provided for empty histogram
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("max", 42.0).endObject()).errorMatches(
+                "max field must be null if the histogram is empty, but got 42.0"
             )
         );
     }
@@ -442,20 +462,50 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 List<IndexWithCount> positive = parseBuckets(Types.forciblyCast(histogram.get("positive")));
                 List<IndexWithCount> negative = parseBuckets(Types.forciblyCast(histogram.get("negative")));
 
+                Map<String, Object> zeroBucket = convertZeroBucketToCanonicalForm(Types.forciblyCast(histogram.get("zero")));
+
                 Object sum = histogram.get("sum");
                 if (sum == null) {
                     sum = ExponentialHistogramUtils.estimateSum(
-                        IndexWithCount.asBucketIterator(scale, negative),
-                        IndexWithCount.asBucketIterator(scale, positive)
+                        IndexWithCount.asBuckets(scale, negative).iterator(),
+                        IndexWithCount.asBuckets(scale, positive).iterator()
                     );
                 }
                 result.put("sum", sum);
 
-                Map<String, Object> zeroBucket = convertZeroBucketToCanonicalForm(Types.forciblyCast(histogram.get("zero")));
+                Object min = histogram.get("min");
+                if (min == null) {
+                    OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
+                        mapToZeroBucket(zeroBucket),
+                        IndexWithCount.asBuckets(scale, negative),
+                        IndexWithCount.asBuckets(scale, positive)
+                    );
+                    if (estimatedMin.isPresent()) {
+                        min = estimatedMin.getAsDouble();
+                    }
+                }
+                if (min != null) {
+                    result.put("min", min);
+                }
+
+                Object max = histogram.get("max");
+                if (max == null) {
+                    OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
+                        mapToZeroBucket(zeroBucket),
+                        IndexWithCount.asBuckets(scale, negative),
+                        IndexWithCount.asBuckets(scale, positive)
+                    );
+                    if (estimatedMax.isPresent()) {
+                        max = estimatedMax.getAsDouble();
+                    }
+                }
+                if (max != null) {
+                    result.put("max", max);
+                }
+
                 if (zeroBucket != null) {
                     result.put("zero", zeroBucket);
                 }
-
                 if (positive.isEmpty() == false) {
                     result.put("positive", writeBucketsInCanonicalForm(positive));
                 }
@@ -464,6 +514,23 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 }
 
                 return result;
+            }
+
+            private ZeroBucket mapToZeroBucket(Map<String, Object> zeroBucket) {
+                if (zeroBucket == null) {
+                    return ZeroBucket.minimalEmpty();
+                }
+                Number threshold = Types.forciblyCast(zeroBucket.get("threshold"));
+                Number count = Types.forciblyCast(zeroBucket.get("count"));
+                if (threshold != null && count != null) {
+                    return ZeroBucket.create(threshold.doubleValue(), count.longValue());
+                } else if (threshold != null) {
+                    return ZeroBucket.create(threshold.doubleValue(), 0);
+                } else if (count != null) {
+                    return ZeroBucket.minimalWithCount(count.longValue());
+                } else {
+                    return ZeroBucket.minimalEmpty();
+                }
             }
 
             private List<IndexWithCount> parseBuckets(Map<String, Object> buckets) {

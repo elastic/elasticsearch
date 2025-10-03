@@ -42,7 +42,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
         var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext(
             "dense_vector_field",
-            0.6f,
+            0.3f,
             3,
             queryVectorData,
             fieldMapper,
@@ -54,8 +54,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
             generateSearchHit(2, 1.8f, 2, new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
             generateSearchHit(3, 1.6f, 3, new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
             generateSearchHit(4, 1.0f, 4, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-            generateSearchHit(5, 0.9f, 5, new float[] { 0.1f, 0.9f, 0.5f, 0.8f }),
-            generateSearchHit(6, 0.5f, 6, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
+            generateSearchHit(5, 0.8f, 5, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+            generateSearchHit(6, 0.8f, 6, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
 
         TotalHits totalHits = new TotalHits(6L, TotalHits.Relation.EQUAL_TO);
         SearchHits searchHits = new SearchHits(hits, totalHits, 2.0f);
@@ -66,7 +66,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         assertEquals(3, diversifiedHits.getHits().length);
         assertEquals(1, diversifiedHits.getHits()[0].docId());
-        assertEquals(4, diversifiedHits.getHits()[1].docId());
+        assertEquals(6, diversifiedHits.getHits()[1].docId());
         assertEquals(3, diversifiedHits.getHits()[2].docId());
     }
 

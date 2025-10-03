@@ -10,7 +10,6 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.Explanation;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.vectors.VectorData;
@@ -26,20 +25,14 @@ public abstract class ResultDiversification {
 
     public abstract SearchHits diversify(SearchHits hits, ResultDiversificationContext diversificationContext) throws IOException;
 
-    public abstract Explanation explain(
-        int topLevelDocId,
-        ResultDiversificationContext diversificationContext,
-        Explanation sourceExplanation
-    ) throws IOException;
-
     protected Map<Integer, VectorData> getFieldVectorsForHits(
-        SearchHit[] hits,
+        SearchHit[] searchHits,
         ResultDiversificationContext context,
         Map<Integer, Integer> docIdIndexMapping
     ) {
         Map<Integer, VectorData> fieldVectors = new HashMap<>();
-        for (int i = 0; i < hits.length; i++) {
-            SearchHit hit = hits[i];
+        for (int i = 0; i < searchHits.length; i++) {
+            SearchHit hit = searchHits[i];
             int docId = hit.docId();
             docIdIndexMapping.put(docId, i);
             Object collapseValue = hit.field(context.getField()).getValue();

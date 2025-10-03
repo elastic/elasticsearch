@@ -52,7 +52,7 @@ subqueryInFromWithWhereInSubquery
 required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data 
+FROM employees, (FROM sample_data metadata _index
                                 | WHERE client_ip == "172.21.3.15" ) 
            metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
@@ -64,17 +64,17 @@ _index:keyword | emp_no:integer | languages:integer | client_ip:ip
 employees      | 10091          | 3                 | null
 employees      | 10092          | 1                 | null
 employees      | 10093          | 3                 | null
-null           | null           | null              | 172.21.3.15
-null           | null           | null              | 172.21.3.15
-null           | null           | null              | 172.21.3.15
-null           | null           | null              | 172.21.3.15
+sample_data    | null           | null              | 172.21.3.15
+sample_data    | null           | null              | 172.21.3.15
+sample_data    | null           | null              | 172.21.3.15
+sample_data    | null           | null              | 172.21.3.15
 ;
 
 subqueryInFromWithStatsInSubquery
 required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data 
+FROM employees, (FROM sample_data  metadata _index
                                 | STATS cnt = count(*) by client_ip ) 
            metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
@@ -140,9 +140,9 @@ required_capability: fork_v9
 required_capability: subquery_in_from_command
 
 FROM sample_data, sample_data_str,
-           (FROM sample_data_ts_nanos
+           (FROM sample_data_ts_nanos  metadata _index
             | WHERE client_ip == "172.21.3.15") ,
-           (FROM sample_data_ts_long
+           (FROM sample_data_ts_long  metadata _index
             | EVAL @timestamp = @timestamp::date_nanos
             | WHERE client_ip == "172.21.0.5")
             metadata _index
@@ -152,23 +152,23 @@ FROM sample_data, sample_data_str,
 ;
 
 cnt:long | _index:keyword  | client_ip:ip
-1        | sample_data     | 172.21.0.5
-1        | sample_data     | 172.21.2.113
-1        | sample_data     | 172.21.2.162
-4        | sample_data     | 172.21.3.15
-1        | sample_data_str | 172.21.0.5
-1        | sample_data_str | 172.21.2.113
-1        | sample_data_str | 172.21.2.162
-4        | sample_data_str | 172.21.3.15
-1        | null            | 172.21.0.5
-4        | null            | 172.21.3.15
+1        | sample_data          | 172.21.0.5
+1        | sample_data          | 172.21.2.113
+1        | sample_data          | 172.21.2.162
+4        | sample_data          | 172.21.3.15
+1        | sample_data_str      | 172.21.0.5
+1        | sample_data_str      | 172.21.2.113
+1        | sample_data_str      | 172.21.2.162
+4        | sample_data_str      | 172.21.3.15
+1        | sample_data_ts_long  | 172.21.0.5
+4        | sample_data_ts_nanos | 172.21.3.15
 ;
 
 subqueryInFromWithLookupJoinInSubquery
 required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data 
+FROM employees, (FROM sample_data  metadata _index
                                 | EVAL client_ip = client_ip::keyword
                                 | LOOKUP JOIN clientips_lookup ON client_ip ) 
            metadata _index
@@ -181,20 +181,20 @@ _index:keyword | emp_no:integer | languages:integer | client_ip:keyword | env:ke
 employees      | 10091          | 3                 | null              | null
 employees      | 10092          | 1                 | null              | null
 employees      | 10093          | 3                 | null              | null
-null           | null           | null              | 172.21.0.5        | Development
-null           | null           | null              | 172.21.2.113      | QA
-null           | null           | null              | 172.21.2.162      | QA
-null           | null           | null              | 172.21.3.15       | Production
-null           | null           | null              | 172.21.3.15       | Production
-null           | null           | null              | 172.21.3.15       | Production
-null           | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.0.5        | Development
+sample_data    | null           | null              | 172.21.2.113      | QA
+sample_data    | null           | null              | 172.21.2.162      | QA
+sample_data    | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.3.15       | Production
 ;
 
 subqueryInFromWithLookupJoinInMainQuery
 required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data
+FROM employees, (FROM sample_data  metadata _index
                                 | EVAL client_ip = client_ip::keyword )
            metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
@@ -207,13 +207,13 @@ _index:keyword | emp_no:integer | languages:integer | client_ip:keyword | env:ke
 employees      | 10091          | 3                 | null              | null
 employees      | 10092          | 1                 | null              | null
 employees      | 10093          | 3                 | null              | null
-null           | null           | null              | 172.21.0.5        | Development
-null           | null           | null              | 172.21.2.113      | QA
-null           | null           | null              | 172.21.2.162      | QA
-null           | null           | null              | 172.21.3.15       | Production
-null           | null           | null              | 172.21.3.15       | Production
-null           | null           | null              | 172.21.3.15       | Production
-null           | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.0.5        | Development
+sample_data    | null           | null              | 172.21.2.113      | QA
+sample_data    | null           | null              | 172.21.2.162      | QA
+sample_data    | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.3.15       | Production
+sample_data    | null           | null              | 172.21.3.15       | Production
 ;
 
 subqueryInFromWithEnrichInSubquery

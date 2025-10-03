@@ -36,13 +36,13 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
-public class BulkWithPrefixLengthRestIT extends HttpSmokeTestCase {
+public class BulkLengthPrefixedRestIT extends HttpSmokeTestCase {
 
     private final RequestOptions options;
     private final XContentLengthPrefixedStreamingType xContentLengthPrefixedStreamingType;
     private final XContentType xContentType;
 
-    public BulkWithPrefixLengthRestIT() {
+    public BulkLengthPrefixedRestIT() {
         xContentLengthPrefixedStreamingType = randomFrom(XContentLengthPrefixedStreamingType.values());
         xContentType = xContentLengthPrefixedStreamingType.xContentType();
         options = RequestOptions.DEFAULT.toBuilder()

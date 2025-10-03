@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The content type of {@link XContent}.
+ * The streaming format using length prefixed format for bulk requests.
  */
 public enum XContentLengthPrefixedStreamingType implements MediaType {
     /**

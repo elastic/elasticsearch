@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.List;
 
-public class BulkRequestParserPrefixLengthTests extends BulkRequestParserTestCase {
+public class BulkRequestParserLengthPrefixedTests extends BulkRequestParserTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
@@ -35,7 +35,7 @@ public class BulkRequestParserPrefixLengthTests extends BulkRequestParserTestCas
 
     private final XContentType contentType;
 
-    public BulkRequestParserPrefixLengthTests(XContentType contentType) {
+    public BulkRequestParserLengthPrefixedTests(XContentType contentType) {
         this.contentType = contentType;
     }
 

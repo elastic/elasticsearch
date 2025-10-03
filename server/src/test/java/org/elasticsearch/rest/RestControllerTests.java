@@ -40,7 +40,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -642,7 +641,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public boolean mediaTypesValid(RestRequest request) {
-                return RestHandler.super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -681,7 +680,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public boolean mediaTypesValid(RestRequest request) {
-                return RestHandler.super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -706,7 +705,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public boolean mediaTypesValid(RestRequest request) {
-                return RestHandler.super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -732,7 +731,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public boolean mediaTypesValid(RestRequest request) {
-                return RestHandler.super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());
@@ -757,7 +756,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public boolean mediaTypesValid(RestRequest request) {
-                return RestHandler.super.mediaTypesValid(request) && RestBulkAction.hasValidMediaTypeForBulkRequest(request);
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());

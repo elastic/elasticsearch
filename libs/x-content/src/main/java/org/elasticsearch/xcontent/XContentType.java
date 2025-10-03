@@ -9,6 +9,7 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
@@ -286,5 +287,13 @@ public enum XContentType implements MediaType {
 
     public static XContentType ofOrdinal(int ordinal) {
         return values[ordinal];
+    }
+
+    /**
+     * Indicates if the {@link XContentType} (from the {@code Content-Type} header of a REST request) is compatible with delimited bulk
+     * content. A bulk request contains multiple objects each terminated with {@link XContent#bulkSeparator()}.
+     */
+    public static boolean supportsDelimitedBulkRequests(@Nullable XContentType xContentType) {
+        return xContentType != null && xContentType.xContent.hasBulkSeparator();
     }
 }

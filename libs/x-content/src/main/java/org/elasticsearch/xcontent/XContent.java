@@ -25,6 +25,17 @@ public interface XContent {
      */
     XContentType type();
 
+    /**
+     * @return {@code true} if this {@link XContent} can be sent in bulk, delimited by the byte returned by {@link #bulkSeparator()}, or
+     * {@code false} if this {@link XContent} does not support a delimited bulk format (in which case {@link #bulkSeparator()} throws an
+     * exception.
+     */
+    boolean hasBulkSeparator();
+
+    /**
+     * @return a {@link byte} that separates items in a bulk request that uses this {@link XContent}.
+     * @throws RuntimeException if this {@link XContent} does not support a delimited bulk format. See {@link #hasBulkSeparator()}.
+     */
     byte bulkSeparator();
 
     @Deprecated

@@ -16,7 +16,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -55,7 +54,11 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
                 .withPath(route.getPath())
                 .withHeaders(Map.of("Content-Type", List.of(xContentType.mediaType())))
                 .build();
-            assertEquals(xContentType.toString(), RestBulkAction.hasValidMediaTypeForBulkRequest(request), action.mediaTypesValid(request));
+            assertEquals(
+                xContentType.toString(),
+                XContentType.supportsDelimitedBulkRequests(request.getXContentType()),
+                action.mediaTypesValid(request)
+            );
         }
     }
 

@@ -73,6 +73,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            return false;
+        }
+
+        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }

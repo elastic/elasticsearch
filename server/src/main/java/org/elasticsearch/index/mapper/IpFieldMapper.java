@@ -276,7 +276,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed || hasDocValues();
+            return isIndexed || hasDocValues() || indexType == IndexType.POINTS_METADATA;
         }
 
         @Override

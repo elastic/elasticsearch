@@ -235,8 +235,6 @@ public class EvaluatorImplementer {
                 if (processFunction.builderArg == null) {
                     if (vectorize) {
                         builtPattern = "result.$L(p, " + pattern + ")";
-                    } else if (processOutputsMultivalued) {
-                        builtPattern = "result.beginPositionEntry().$L(" + pattern + ").endPositionEntry()";
                     } else {
                         builtPattern = "result.$L(" + pattern + ")";
                     }

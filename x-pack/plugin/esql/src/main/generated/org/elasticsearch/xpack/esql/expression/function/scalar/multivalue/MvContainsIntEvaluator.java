@@ -62,7 +62,7 @@ public final class MvContainsIntEvaluator implements EvalOperator.ExpressionEval
   public BooleanBlock eval(int positionCount, IntBlock field1Block, IntBlock field2Block) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.beginPositionEntry().appendBoolean(MvContains.process(p, field1Block, field2Block)).endPositionEntry();
+        result.appendBoolean(MvContains.process(p, field1Block, field2Block));
       }
       return result.build();
     }

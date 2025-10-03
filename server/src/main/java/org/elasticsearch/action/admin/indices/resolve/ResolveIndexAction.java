@@ -73,8 +73,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
-import static org.elasticsearch.search.crossproject.ResponseValidator.lenientIndicesOptions;
-import static org.elasticsearch.search.crossproject.ResponseValidator.shouldResolveCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectIndicesRequestHelper.crossProjectFanoutIndicesOptions;
+import static org.elasticsearch.search.crossproject.CrossProjectIndicesRequestHelper.shouldResolveCrossProject;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -598,7 +598,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
             final boolean resolveCrossProject = shouldResolveCrossProject(request);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-                resolveCrossProject ? lenientIndicesOptions(originalIndicesOptions) : originalIndicesOptions,
+                resolveCrossProject ? crossProjectFanoutIndicesOptions(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()
             );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);

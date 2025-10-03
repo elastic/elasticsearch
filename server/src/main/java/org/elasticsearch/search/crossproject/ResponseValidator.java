@@ -13,11 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
@@ -170,20 +168,6 @@ public class ResponseValidator {
     private static ElasticsearchSecurityException securityException(String originalExpression) {
         // TODO plug in proper recorded authorization exceptions instead, once available
         return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]");
-    }
-
-    // TODO probably does not belong here
-    public static boolean shouldResolveCrossProject(IndicesRequest.Replaceable request) {
-        // TODO this needs to be based on the IndicesOptions flag instead, once available
-        final boolean indicesOptionsResolveCrossProject = Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
-        return request.allowsCrossProject() && indicesOptionsResolveCrossProject;
-    }
-
-    public static IndicesOptions lenientIndicesOptions(IndicesOptions indicesOptions) {
-        return IndicesOptions.builder(indicesOptions)
-            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
-            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
-            .build();
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(

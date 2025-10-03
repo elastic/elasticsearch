@@ -16,7 +16,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -49,8 +48,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectIndicesRequestHelper;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
-import org.elasticsearch.search.crossproject.ResponseValidator;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -514,8 +513,7 @@ public class AuthorizationService {
                     final var authorizedIndicesListener = new SubscribableListener<AuthorizationEngine.AuthorizedIndices>();
                     authorizedIndicesListener.<Tuple<AuthorizationEngine.AuthorizedIndices, TargetProjects>>andThen(
                         (l, authorizedIndices) -> {
-                            if (request instanceof IndicesRequest.Replaceable replaceable
-                                && ResponseValidator.shouldResolveCrossProject(replaceable)) {
+                            if (CrossProjectIndicesRequestHelper.shouldResolveTransportRequestCrossProject(request)) {
                                 authorizedProjectsResolver.resolveAuthorizedProjects(
                                     l.map(targetProjects -> new Tuple<>(authorizedIndices, targetProjects))
                                 );

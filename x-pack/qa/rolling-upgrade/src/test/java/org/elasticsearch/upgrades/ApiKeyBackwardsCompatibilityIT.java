@@ -464,8 +464,8 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private boolean nodeSupportsCertificateIdentity(Map<String, Object> nodeDetails) {
         String nodeVersionString = (String) nodeDetails.get("version");
         Version nodeVersion = Version.fromString(nodeVersionString);
-        // Certificate identity was introduced in 9.2.0
-        return nodeVersion.onOrAfter(Version.V_9_2_0);
+        // Certificate identity was introduced in 9.3.0
+        return nodeVersion.onOrAfter(Version.V_9_3_0);
     }
 
     @SuppressWarnings("unchecked")

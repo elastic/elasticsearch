@@ -11,23 +11,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.crossproject.TargetProjects;
 
 /**
- * A supplier of authorized projects for the current user. This includes the origin project and all linked projects the user has access to.
+ * A resolver of authorized projects for the current user. This includes the origin project and all linked projects the user has access to.
  * If we are not in a cross-project search context, the supplier returns {@link TargetProjects#NOT_CROSS_PROJECT}.
  */
-public interface AuthorizedProjectsSupplier {
-    void getAuthorizedProjects(ActionListener<TargetProjects> listener);
+public interface AuthorizedProjectsResolver {
+    void resolveAuthorizedProjects(ActionListener<TargetProjects> listener);
 
-    boolean recordResolvedIndexExpressions();
-
-    class Default implements AuthorizedProjectsSupplier {
+    class Default implements AuthorizedProjectsResolver {
         @Override
-        public void getAuthorizedProjects(ActionListener<TargetProjects> listener) {
+        public void resolveAuthorizedProjects(ActionListener<TargetProjects> listener) {
             listener.onResponse(TargetProjects.NOT_CROSS_PROJECT);
-        }
-
-        @Override
-        public boolean recordResolvedIndexExpressions() {
-            return false;
         }
     }
 }

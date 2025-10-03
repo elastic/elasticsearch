@@ -97,7 +97,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
         private ResolvedIndexExpressions resolvedIndexExpressions = null;
-        private boolean includeResolvedExpressions = false;
 
         public Request(String[] names) {
             this.names = names;
@@ -116,20 +115,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        public Request(
-            String[] names,
-            IndicesOptions indicesOptions,
-            @Nullable EnumSet<IndexMode> indexModes,
-            boolean includeResolvedExpressions
-        ) {
-            this.names = names;
-            this.indicesOptions = indicesOptions;
-            if (indexModes != null) {
-                this.indexModes = indexModes;
-            }
-            this.includeResolvedExpressions = includeResolvedExpressions;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -144,11 +129,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             } else {
                 this.indexModes = EnumSet.noneOf(IndexMode.class);
             }
-            if (in.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
-                this.includeResolvedExpressions = in.readBoolean();
-            } else {
-                this.includeResolvedExpressions = false;
-            }
         }
 
         @Override
@@ -158,9 +138,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             indicesOptions.writeIndicesOptions(out);
             if (out.getTransportVersion().supports(RESOLVE_INDEX_MODE_FILTER)) {
                 out.writeEnumSet(indexModes);
-            }
-            if (out.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
-                out.writeBoolean(includeResolvedExpressions);
             }
         }
 
@@ -672,13 +649,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
-                    Request remoteRequest = new Request(
-                        originalIndices.indices(),
-                        originalIndices.indicesOptions(),
-                        EnumSet.noneOf(IndexMode.class),
-                        // if the original request is being handled cross-project, we need the remote to return resolved expressions
-                        resolveCrossProject
-                    );
+                    Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
@@ -697,9 +668,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         return;
                     }
                 }
-                listener.onResponse(
-                    new Response(indices, aliases, dataStreams, request.includeResolvedExpressions ? localResolvedIndexExpressions : null)
-                );
+                listener.onResponse(new Response(indices, aliases, dataStreams, localResolvedIndexExpressions));
             }
         }
 
@@ -708,7 +677,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final ResolvedIndexExpressions resolvedIndexExpressions = e.getValue().getResolvedIndexExpressions();
                 assert resolvedIndexExpressions != null
                     : "remote response from cluster [" + e.getKey() + "] is missing resolved index expressions";
-                return resolvedIndexExpressions == null ? new ResolvedIndexExpressions(List.of()) : resolvedIndexExpressions;
+                return resolvedIndexExpressions;
             }));
         }
 

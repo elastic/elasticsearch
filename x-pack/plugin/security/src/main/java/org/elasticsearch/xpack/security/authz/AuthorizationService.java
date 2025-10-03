@@ -74,7 +74,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsSupplier;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -153,7 +153,7 @@ public class AuthorizationService {
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
-    private final AuthorizedProjectsSupplier authorizedProjectsSupplier;
+    private final AuthorizedProjectsResolver authorizedProjectsResolver;
 
     public AuthorizationService(
         Settings settings,
@@ -173,7 +173,7 @@ public class AuthorizationService {
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
-        AuthorizedProjectsSupplier authorizedProjectsSupplier
+        AuthorizedProjectsResolver authorizedProjectsResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -182,7 +182,7 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            authorizedProjectsSupplier.recordResolvedIndexExpressions()
+            settings.getAsBoolean("serverless.cross_project.enabled", false)
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -204,7 +204,7 @@ public class AuthorizationService {
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
-        this.authorizedProjectsSupplier = authorizedProjectsSupplier;
+        this.authorizedProjectsResolver = authorizedProjectsResolver;
     }
 
     public void checkPrivileges(
@@ -516,7 +516,7 @@ public class AuthorizationService {
                         (l, authorizedIndices) -> {
                             if (request instanceof IndicesRequest.Replaceable replaceable
                                 && ResponseValidator.shouldResolveCrossProject(replaceable)) {
-                                authorizedProjectsSupplier.getAuthorizedProjects(
+                                authorizedProjectsResolver.resolveAuthorizedProjects(
                                     l.map(targetProjects -> new Tuple<>(authorizedIndices, targetProjects))
                                 );
                             } else {

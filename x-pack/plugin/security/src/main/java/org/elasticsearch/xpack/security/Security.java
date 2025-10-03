@@ -210,7 +210,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsSupplier;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1346,14 +1346,14 @@ public class Security extends Plugin
         }
     }
 
-    private AuthorizedProjectsSupplier getCustomAuthorizedProjectsSupplierOrDefault(
+    private AuthorizedProjectsResolver getCustomAuthorizedProjectsSupplierOrDefault(
         SecurityExtension.SecurityComponents extensionComponents
     ) {
-        final AuthorizedProjectsSupplier customAuthorizedProjectsSupplier = findValueFromExtensions(
+        final AuthorizedProjectsResolver customAuthorizedProjectsResolver = findValueFromExtensions(
             "authorized projects supplier",
             extension -> extension.getAuthorizedProjectsSupplier(extensionComponents)
         );
-        return customAuthorizedProjectsSupplier == null ? new AuthorizedProjectsSupplier.Default() : customAuthorizedProjectsSupplier;
+        return customAuthorizedProjectsResolver == null ? new AuthorizedProjectsResolver.Default() : customAuthorizedProjectsResolver;
     }
 
     private ServiceAccountService createServiceAccountService(

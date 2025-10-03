@@ -13,6 +13,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+
 import java.util.List;
 
 public class TestDefaultInferenceServiceExtension implements InferenceServiceExtension {
@@ -41,11 +42,7 @@ public class TestDefaultInferenceServiceExtension implements InferenceServiceExt
         @Override
         public List<InferenceService.DefaultConfigId> defaultConfigIds() {
             return List.of(
-                new InferenceService.DefaultConfigId(
-                    DEFAULT_EIS_ELSER_INFERENCE_ID,
-                    MinimalServiceSettings.sparseEmbedding(name()),
-                    this
-                ),
+                new InferenceService.DefaultConfigId(DEFAULT_EIS_ELSER_INFERENCE_ID, MinimalServiceSettings.sparseEmbedding(name()), this),
                 new InferenceService.DefaultConfigId(
                     DEFAULT_FALLBACK_ELSER_INFERENCE_ID,
                     MinimalServiceSettings.sparseEmbedding(name()),

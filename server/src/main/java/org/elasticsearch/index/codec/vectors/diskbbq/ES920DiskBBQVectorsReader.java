@@ -43,7 +43,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         super(state, rawVectorsReader);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
+    public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
+        throws IOException {
         return new CentroidIterator() {
             CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
                 ? centroidIterator.nextPostingListOffsetAndLength()
@@ -80,7 +81,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    CentroidIterator getCentroidIterator(
+    public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
@@ -348,7 +349,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs) throws IOException {
+    public PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs)
+        throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         final int maxPostingListSize = indexInput.readVInt();
         return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, maxPostingListSize, acceptDocs);

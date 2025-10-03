@@ -57,8 +57,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     @After
-    @Override
-    protected void closeClientsByVersion() throws IOException {
+    protected void cleanUpClients() throws IOException {
         for (RestClient client : twoClients) {
             client.close();
         }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -34,7 +35,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.child() instanceof Limit childLimit) {
-            return limit.combine(childLimit, ctx.foldCtx());
+            return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof InferencePlan<?>) {
                 // Push the limit under unary
@@ -77,6 +78,18 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             return duplicateLimitAsFirstGrandchild(limit, false);
         }
         return limit;
+    }
+
+    private static Limit combineLimits(Limit upper, Limit lower, FoldContext ctx) {
+        // Keep the smallest limit
+        var thisLimitValue = (int) upper.limit().fold(ctx);
+        var otherLimitValue = (int) lower.limit().fold(ctx);
+        // We want to preserve the duplicated() value of the smaller limit.
+        if (otherLimitValue <= thisLimitValue) {
+            return lower.withLocal(upper.local() || lower.local());
+        } else {
+            return new Limit(upper.source(), upper.limit(), lower.child(), upper.duplicated(), upper.local() || lower.local());
+        }
     }
 
     /**

@@ -38,13 +38,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     underlying aggregate.
  * </p>
  */
-public class InlineStats extends UnaryPlan
-    implements
-        NamedWriteable,
-        SurrogateLogicalPlan,
-        TelemetryAware,
-        CardinalityPreserving,
-        SortAgnostic {
+public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",

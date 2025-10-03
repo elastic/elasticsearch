@@ -91,8 +91,8 @@ public class Mapper {
             }
             // in case of a fragment, push to it any current streaming operator
             if (unary instanceof PipelineBreaker == false
-                || (unary instanceof Limit limit && limit.isLocal())
-                || (unary instanceof TopN topN && topN.isLocal())) {
+                || (unary instanceof Limit limit && limit.local())
+                || (unary instanceof TopN topN && topN.local())) {
                 return new FragmentExec(unary);
             }
         }

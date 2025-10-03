@@ -41,7 +41,7 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan child = instance.child();
         List<Order> order = instance.order();
         Expression limit = instance.limit();
-        boolean local = instance.isLocal();
+        boolean local = instance.local();
         switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> order = randomValueOtherThan(order, TopNSerializationTests::randomOrders);
@@ -59,8 +59,8 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
     @Override
     protected TopN copyInstance(TopN instance, TransportVersion version) throws IOException {
         // TopN#local is ALWAYS false after serialization.
-        TopN deserializedCopy = super.copyInstance(instance.withLocal(false), version);
-        return deserializedCopy.withLocal(instance.isLocal());
+        TopN deserializedCopy = super.copyInstance(instance, version);
+        return deserializedCopy.withLocal(instance.local());
     }
 
 }

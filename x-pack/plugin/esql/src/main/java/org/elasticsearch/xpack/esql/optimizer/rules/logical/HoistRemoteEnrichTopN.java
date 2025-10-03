@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -29,20 +28,18 @@ import java.util.List;
  * This is the same idea as {@link HoistRemoteEnrichLimit} but for TopN instead of Limit.
  * This must happen after {@link ReplaceLimitAndSortAsTopN}.
  */
-public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOptimizerRule<Enrich, LogicalOptimizerContext>
-    implements
-        OptimizerRules.CoordinatorOnly {
+public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<Enrich> implements OptimizerRules.CoordinatorOnly {
     public HoistRemoteEnrichTopN() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override
-    protected LogicalPlan rule(Enrich en, LogicalOptimizerContext ctx) {
+    protected LogicalPlan rule(Enrich en) {
         if (en.mode() == Enrich.Mode.REMOTE) {
             LogicalPlan plan = en.child();
             // This loop only takes care of one TopN, repeated application will stack them in correct order.
             while (true) {
-                if (plan instanceof TopN top && top.isLocal() == false) {
+                if (plan instanceof TopN top && top.local() == false) {
                     // Create a fake OrderBy and "push" Enrich through it to generate aliases
                     Enrich topWithEnrich = (Enrich) en.replaceChild(new OrderBy(top.source(), en.child(), top.order()));
                     LogicalPlan pushPlan = PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(topWithEnrich);

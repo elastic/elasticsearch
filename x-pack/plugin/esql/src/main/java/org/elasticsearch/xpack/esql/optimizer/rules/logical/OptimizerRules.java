@@ -110,7 +110,8 @@ public final class OptimizerRules {
         protected abstract LogicalPlan rule(SubPlan plan, P context);
     }
 
-    public interface CoordinatorOnly {
-        // This rule should only be applied on the coordinator plan, not for local plan
-    }
+    /**
+     * Marker interface: This rule should only be applied on the coordinator plan, not for a local plan.
+     */
+    public interface CoordinatorOnly {}
 }

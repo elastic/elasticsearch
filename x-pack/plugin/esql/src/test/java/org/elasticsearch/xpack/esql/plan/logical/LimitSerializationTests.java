@@ -28,7 +28,7 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         Expression limit = instance.limit();
         LogicalPlan child = instance.child();
         boolean duplicated = instance.duplicated();
-        boolean local = instance.isLocal();
+        boolean local = instance.local();
         switch (randomIntBetween(0, 3)) {
             case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
@@ -49,7 +49,7 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         // Limit#duplicated() is ALWAYS false when being serialized and we assert that in Limit#writeTo().
         // The same applies to Limit#local.
         // So, we need to manually simulate this situation.
-        Limit deserializedCopy = super.copyInstance(instance.withDuplicated(false).withLocal(false), version);
-        return deserializedCopy.withDuplicated(instance.duplicated()).withLocal(instance.isLocal());
+        Limit deserializedCopy = super.copyInstance(instance, version);
+        return deserializedCopy.withDuplicated(instance.duplicated()).withLocal(instance.local());
     }
 }

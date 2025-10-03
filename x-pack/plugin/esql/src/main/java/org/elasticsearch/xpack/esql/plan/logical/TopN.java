@@ -81,7 +81,7 @@ public class TopN extends UnaryPlan implements PipelineBreaker {
         return new TopN(source(), child(), order, limit, local);
     }
 
-    public boolean isLocal() {
+    public boolean local() {
         return local;
     }
 

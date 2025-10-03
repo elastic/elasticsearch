@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -91,18 +90,6 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         return new Limit(source(), limit, newChild, duplicated, local);
     }
 
-    public Limit combine(Limit other, FoldContext ctx) {
-        // Keep the smallest limit
-        var thisLimitValue = (int) limit.fold(ctx);
-        var otherLimitValue = (int) other.limit.fold(ctx);
-        // We want to preserve the duplicated() value of the smaller limit.
-        if (otherLimitValue <= thisLimitValue) {
-            return other.withLocal(local || other.local);
-        } else {
-            return new Limit(source(), limit, other.child(), duplicated, local || other.local);
-        }
-    }
-
     public Expression limit() {
         return limit;
     }
@@ -115,7 +102,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         return duplicated;
     }
 
-    public boolean isLocal() {
+    public boolean local() {
         return local;
     }
 
@@ -157,6 +144,6 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     @Override
     public ExecuteLocation executesOn() {
         // Global limit always needs to be on the coordinator
-        return isLocal() ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
+        return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
     }
 }

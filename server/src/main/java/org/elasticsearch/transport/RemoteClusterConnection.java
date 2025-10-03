@@ -52,6 +52,7 @@ public final class RemoteClusterConnection implements Closeable {
     private final ThreadPool threadPool;
     private volatile boolean skipUnavailable;
     private final TimeValue initialConnectionTimeout;
+    private final boolean hasCredentials;
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -60,18 +61,22 @@ public final class RemoteClusterConnection implements Closeable {
      * @param credentialsManager object to lookup remote cluster credentials by cluster alias. If a cluster is protected by a credential,
      *                           i.e. it has a credential configured via secure setting.
      *                           This means the remote cluster uses the advances RCS model (as opposed to the basic model).
+     * @param hasCredentials True if the {@code credentialsManager} has credentials for the linked project alias, false otherwise.
+     * @param transportProfile The name of the transport profile to use when connecting to the linked project.
      */
     RemoteClusterConnection(
         LinkedProjectConfig config,
         TransportService transportService,
-        RemoteClusterCredentialsManager credentialsManager
+        RemoteClusterCredentialsManager credentialsManager,
+        boolean hasCredentials,
+        String transportProfile
     ) {
+        assert hasCredentials == false || credentialsManager.hasCredentials(config.linkedProjectAlias())
+            : "expected the RemoteClusterCredentialsManager to have credentials for linked project alias: " + config.linkedProjectAlias();
         this.transportService = transportService;
         this.clusterAlias = config.linkedProjectAlias();
-        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
-            config,
-            credentialsManager.hasCredentials(clusterAlias)
-        );
+        this.hasCredentials = hasCredentials;
+        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(config, transportProfile);
         this.remoteConnectionManager = new RemoteConnectionManager(
             clusterAlias,
             credentialsManager,
@@ -217,7 +222,7 @@ public final class RemoteClusterConnection implements Closeable {
             connectionStrategy.getModeInfo(),
             initialConnectionTimeout,
             skipUnavailable,
-            REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())
+            hasCredentials
         );
     }
 

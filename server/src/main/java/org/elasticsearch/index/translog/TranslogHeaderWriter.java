@@ -66,6 +66,8 @@ public final class TranslogHeaderWriter {
 
         BytesReference source = index.source();
         int sourceLength = source == null ? 0 : source.length();
+        // We write this so that we have a fully serialized header ready to append the source to. This allows us to fully calculate the
+        // checksum
         buffer.writeVInt(sourceLength);
 
         int variableLengthSize = (int) (buffer.position() - variableLengthStart);

@@ -295,26 +295,26 @@ public class Methods {
      * Returns the name of the method used to get {@code valueType} instances
      * from vectors or blocks.
      */
-    public static String getMethod(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
+    public static String getMethod(TypeName t) {
+        if (t.equals(TypeName.BOOLEAN) || t.equals(BOOLEAN_BLOCK) || t.equals(BOOLEAN_VECTOR)) {
             return "getBoolean";
         }
-        if (elementType.equals(Types.BYTES_REF)) {
+        if (t.equals(Types.BYTES_REF) || t.equals(BYTES_REF_BLOCK) || t.equals(Types.BYTES_REF_VECTOR)) {
             return "getBytesRef";
         }
-        if (elementType.equals(TypeName.INT)) {
+        if (t.equals(TypeName.INT) || t.equals(INT_BLOCK) || t.equals(INT_VECTOR)) {
             return "getInt";
         }
-        if (elementType.equals(TypeName.LONG)) {
+        if (t.equals(TypeName.LONG) || t.equals(LONG_BLOCK) || t.equals(LONG_VECTOR)) {
             return "getLong";
         }
-        if (elementType.equals(TypeName.DOUBLE)) {
+        if (t.equals(TypeName.DOUBLE) || t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR)) {
             return "getDouble";
         }
-        if (elementType.equals(TypeName.FLOAT)) {
+        if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER)) {
             return "getFloat";
         }
-        throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
+        throw new IllegalArgumentException("unknown get method for [" + t + "]");
     }
 
     /**

@@ -33,6 +33,7 @@ import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
@@ -51,6 +52,7 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
+    private final boolean canProcessOrdinals;
 
     public EvaluatorImplementer(
         Elements elements,
@@ -67,6 +69,10 @@ public class EvaluatorImplementer {
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
         this.processOutputsMultivalued = this.processFunction.hasBlockType && (this.processFunction.builderArg != null);
+        this.canProcessOrdinals = processOutputsMultivalued == false
+            && warnExceptions.isEmpty()
+            && this.processFunction.args.stream().allMatch(Argument::canProcessOrdinals)
+            && this.processFunction.args.stream().filter(a -> BYTES_REF_BLOCK.equals(a.dataType(true))).count() == 1;
     }
 
     public JavaFile sourceFile() {
@@ -96,6 +102,9 @@ public class EvaluatorImplementer {
 
         builder.addMethod(ctor());
         builder.addMethod(eval());
+        if (canProcessOrdinals) {
+            builder.addMethod(evalOrdinals());
+        }
         builder.addMethod(processFunction.baseRamBytesUsed());
 
         if (processOutputsMultivalued) {
@@ -141,22 +150,35 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval").addAnnotation(Override.class);
         builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page");
         processFunction.args.stream().forEach(a -> a.evalToBlock(builder));
-        String invokeBlockEval = invokeRealEval(true);
+        if (canProcessOrdinals) {
+            processFunction.args.stream().forEach(a -> {
+                String blockName = a.paramName(true);
+                String ordinalName = a.ordinalParamName();
+                if (ordinalName != null && ordinalName.equals(blockName) == false) {
+                    builder.addStatement("var $L = $L.asOrdinals()", ordinalName, blockName);
+                    builder.beginControlFlow("if ($L != null)", ordinalName);
+                    builder.addStatement(invokeRealEval(true, true));
+                    builder.endControlFlow();
+                }
+            });
+        }
+        String invokeBlockEval = invokeRealEval(true, false);
         if (processOutputsMultivalued) {
             builder.addStatement(invokeBlockEval);
         } else {
             processFunction.args.stream().forEach(a -> a.resolveVectors(builder, invokeBlockEval));
-            builder.addStatement(invokeRealEval(false));
+            builder.addStatement(invokeRealEval(false, false));
         }
         processFunction.args.stream().forEach(a -> a.closeEvalToBlock(builder));
         return builder.build();
     }
 
-    private String invokeRealEval(boolean blockStyle) {
-        StringBuilder builder = new StringBuilder("return eval(page.getPositionCount()");
+    private String invokeRealEval(boolean blockStyle, boolean ordinals) {
+        String method = ordinals ? "evalOrdinals" : "eval";
+        StringBuilder builder = new StringBuilder("return " + method + "(page.getPositionCount()");
 
         String params = processFunction.args.stream()
-            .map(a -> a.paramName(blockStyle))
+            .map(a -> ordinals ? a.ordinalParamName() : a.paramName(blockStyle))
             .filter(a -> a != null)
             .collect(Collectors.joining(", "));
         if (params.length() > 0) {
@@ -252,6 +274,84 @@ public class EvaluatorImplementer {
                     builder.endControlFlow();
                 }
             }
+            builder.endControlFlow();
+            builder.addStatement("return result.build()");
+        }
+        builder.endControlFlow();
+
+        return builder.build();
+    }
+
+    private MethodSpec evalOrdinals() {
+        ClassName resultDataType = processFunction.resultDataType(true);
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("evalOrdinals");
+        builder.addModifiers(Modifier.PUBLIC).returns(resultDataType);
+        builder.addParameter(TypeName.INT, "positionCount");
+        processFunction.args.stream().forEach(a -> {
+            String ordinalName = a.ordinalParamName();
+            if (ordinalName != null && ordinalName.equals(a.paramName(true)) == false) {
+                builder.addParameter(Types.ORDINALS_BYTES_REF_BLOCK, a.paramName(true));
+            } else if (a.paramName(true) != null) {
+                builder.addParameter(a.dataType(true), a.paramName(true));
+            }
+        });
+        TypeName builderType = builderType(resultDataType);
+        builder.beginControlFlow(
+            "try($T result = driverContext.blockFactory().$L(positionCount))",
+            builderType,
+            buildFromFactory(builderType)
+        );
+        {
+            StringBuilder invokeEval = new StringBuilder("eval(ordinalPositions.getPositionCount()");
+            processFunction.args.forEach(a -> {
+                String blockName = a.paramName(true);
+                if (blockName != null) {
+                    String ordinalName = a.ordinalParamName();
+                    if (ordinalName != null) {
+                        if (ordinalName.equals(blockName) == false) {
+                            String vectorName = a.paramName(false);
+                            builder.addStatement("var $L = $L.getDictionaryVector()", vectorName, blockName);
+                            builder.addStatement("var ordinalPositions = $L.getOrdinalsBlock()", blockName);
+                            invokeEval.append(", ").append(vectorName);
+                        } else {
+                            invokeEval.append(", ").append(blockName);
+                        }
+                    }
+                }
+            });
+            invokeEval.append(")");
+            builder.beginControlFlow("try(var dictResult = $L)", invokeEval.toString());
+            String extra = "";
+            if (resultDataType.equals(BYTES_REF_BLOCK)) {
+                builder.addStatement("var scratch = new $T()", Types.BYTES_REF);
+                extra = ", scratch";
+            }
+            builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+            {
+                {
+                    builder.beginControlFlow("if (ordinalPositions.isNull(p))");
+                    builder.addStatement("result.appendNull()");
+                    builder.addStatement("continue");
+                    builder.endControlFlow();
+                }
+                var append = processFunction.appendMethod();
+                String get = Methods.getMethod(resultDataType);
+                builder.addStatement("var firstValueIndex = ordinalPositions.getFirstValueIndex(p)");
+                builder.addStatement("var valueCount = ordinalPositions.getValueCount(p)");
+                builder.beginControlFlow("if (valueCount == 1)");
+                builder.addStatement("result.$L(dictResult.$L(ordinalPositions.getInt(firstValueIndex)$L))", append, get, extra);
+                builder.nextControlFlow("else");
+                {
+                    builder.addStatement("int lastValueIndex = firstValueIndex + valueCount");
+                    builder.addStatement("result.beginPositionEntry()");
+                    builder.beginControlFlow("for (int v = firstValueIndex; v < lastValueIndex; v++)");
+                    builder.addStatement("result.$L(dictResult.$L(ordinalPositions.getInt(v)$L))", append, get, extra);
+                    builder.endControlFlow();
+                    builder.addStatement("result.endPositionEntry()");
+                }
+                builder.endControlFlow();
+            }
+            builder.endControlFlow();
             builder.endControlFlow();
             builder.addStatement("return result.build()");
         }

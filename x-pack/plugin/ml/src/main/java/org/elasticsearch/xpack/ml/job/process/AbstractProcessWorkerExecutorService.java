@@ -125,11 +125,12 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                     running.set(false);
                 }
             }
-
-            notifyQueueRunnables();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            // If we're throwing an exception, shutdown() may not have been called, so call it here
+            shutdown();
+            notifyQueueRunnables();
             Runnable onComplete = onCompletion.get();
             if (onComplete != null) {
                 onComplete.run();
@@ -155,20 +156,22 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                 format("[%s] notifying [%d] queued requests that have not been processed before shutdown", processName, queue.size())
             );
 
-            List<Runnable> notExecuted = new ArrayList<>();
+            List<T> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
 
-            String msg = "unable to process as " + processName + " worker service has shutdown";
-            Exception ex = error.get();
-            for (Runnable runnable : notExecuted) {
-                if (runnable instanceof AbstractRunnable ar) {
-                    if (ex != null) {
-                        ar.onFailure(ex);
-                    } else {
-                        ar.onRejection(new EsRejectedExecutionException(msg, true));
-                    }
-                }
+            for (T runnable : notExecuted) {
+                notifyIfAbstractRunnable(runnable, error.get(), "unable to process as " + processName + " worker service has shutdown");
             }
         }
     }
+
+    protected static void notifyAbstractRunnable(Exception ex, String msg, AbstractRunnable ar) {
+        if (ex != null) {
+            ar.onFailure(ex);
+        } else {
+            ar.onRejection(new EsRejectedExecutionException(msg, true));
+        }
+    }
+
+    protected abstract void notifyIfAbstractRunnable(T runnable, Exception ex, String msg);
 }

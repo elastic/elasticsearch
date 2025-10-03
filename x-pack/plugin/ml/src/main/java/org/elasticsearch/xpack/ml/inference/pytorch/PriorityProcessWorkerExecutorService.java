@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch;
 
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
@@ -35,7 +36,7 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
      * A Runnable sorted first by RequestPriority then a tie breaker which in
      * most cases will be the insertion order
      */
-    public record OrderedRunnable(RequestPriority priority, long tieBreaker, Runnable runnable)
+    protected record OrderedRunnable(RequestPriority priority, long tieBreaker, AbstractRunnable runnable)
         implements
             Comparable<OrderedRunnable>,
             Runnable {
@@ -53,7 +54,7 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
         public void run() {
             runnable.run();
         }
-    };
+    }
 
     private final int queueCapacity;
 
@@ -93,7 +94,7 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
         }
 
         // PriorityBlockingQueue::offer always returns true
-        queue.offer(new OrderedRunnable(priority, tieBreaker, contextHolder.preserveContext(command)));
+        queue.offer(new OrderedRunnable(priority, tieBreaker, (AbstractRunnable) contextHolder.preserveContext(command)));
         if (isShutdown()) {
             // the worker shutdown during this function
             notifyQueueRunnables();
@@ -103,5 +104,11 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
     @Override
     public synchronized void execute(Runnable command) {
         throw new UnsupportedOperationException("use executeWithPriority");
+    }
+
+    @Override
+    protected void notifyIfAbstractRunnable(OrderedRunnable orderedRunnable, Exception ex, String msg) {
+        // The runnable contained within OrderedRunnable is always an AbstractRunnable, so no need to check the type
+        notifyAbstractRunnable(ex, msg, orderedRunnable.runnable());
     }
 }

@@ -662,7 +662,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 if (resolveCrossProject) {
                     // we still need to call response validation for local results, since qualified expressions like `_origin:index` or
                     // `<alias-pattern-matching-origin-only>:index` get deferred validation, also
-                    final Exception ex = CrossProjectIndexResolutionValidator.validate(originalIndicesOptions, localResolvedIndexExpressions, Map.of());
+                    final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                        originalIndicesOptions,
+                        localResolvedIndexExpressions,
+                        Map.of()
+                    );
                     if (ex != null) {
                         listener.onFailure(ex);
                         return;

@@ -88,11 +88,8 @@ public class IndexAbstractionResolver {
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
         boolean wildcardSeen = false;
         for (String originalIndexExpression : indices) {
-            final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
-                originalIndexExpression,
-                originProjectAlias,
-                linkedProjectAliases
-            );
+            final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
+                .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases);
 
             final String localIndexExpression = indexRewriteResult.localExpression();
             if (localIndexExpression == null) {

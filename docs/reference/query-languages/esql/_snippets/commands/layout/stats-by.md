@@ -104,17 +104,17 @@ optional as well:
 :::{include} ../examples/stats.csv-spec/aggFilteringNoGroup.md
 :::
 
+It’s also possible to group by multiple values:
+
+:::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
+:::
+
 $$$esql-stats-mv-group$$$
-#### Multivalued
+#### Multivalued inputs
 
 If the grouping key is multivalued then the input row is in all groups:
 
 :::{include} ../examples/stats.csv-spec/mv-group.md
-:::
-
-It’s also possible to group by multiple values:
-
-:::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
 :::
 
 If all the grouping keys are multivalued then the input row is in all groups:
@@ -134,6 +134,11 @@ key. If you want to send the group key to the function then `MV_EXPAND` first:
 :::{include} ../examples/stats.csv-spec/mv-group-values-expand.md
 :::
 
+Refer to [elasticsearch/issues/134792](https://github.com/elastic/elasticsearch/issues/134792#issuecomment-3361168090)
+for an even more in depth explanation.
+
+#### Multivalue functions
+
 Both the aggregating functions and the grouping expressions accept other
 functions. This is useful for using `STATS` on multivalue columns.
 For example, to calculate the average salary change, you can use `MV_AVG` to
@@ -148,10 +153,6 @@ letter of their last name:
 
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md
 :::
-
-Note: This can get confusing if you do something like `| STATS a + SUM(a) BY a`
-      if `a` is multivalued. If you do that and are having trouble see
-      [github](https://github.com/elastic/elasticsearch/issues/134792#issuecomment-3361168090).
 
 #### Naming
 

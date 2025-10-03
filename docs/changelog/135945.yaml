@@ -1,0 +1,5 @@
+pr: 135945
+summary: OOB fix in reranker constructing object parsing
+area: Relevance
+type: bug
+issues: []

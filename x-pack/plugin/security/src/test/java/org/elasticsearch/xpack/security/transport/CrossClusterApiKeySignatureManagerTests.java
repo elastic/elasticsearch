@@ -198,7 +198,12 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         var signature = signer.sign("test");
         assertThat(signature.certificates(), arrayWithSize(1));
         var exception = assertThrows(GeneralSecurityException.class, () -> verifier.verify(signature, "test"));
-        assertThat(exception.getMessage(), containsString("unable to find valid certification path to requested target"));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                inFipsJvm() ? "Unable to construct a valid chain" : "unable to find valid certification path to requested target"
+            )
+        );
     }
 
     private void addStorePathToBuilder(String storeName, String password, String passwordFips, Settings.Builder builder) {

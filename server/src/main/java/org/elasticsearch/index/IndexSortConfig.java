@@ -174,7 +174,7 @@ public final class IndexSortConfig {
         }
 
         public static List<String> getDefaultSortFields(Settings settings) {
-            return Arrays.stream(IndexSortConfigDefaults.getDefaultSortSpecs(settings)).map(sortSpec -> sortSpec.field).toList();
+            return Arrays.stream(getDefaultSortSpecs(settings)).map(sortSpec -> sortSpec.field).toList();
         }
 
         public static List<String> getDefaultSortOrder(Settings settings) {

@@ -154,19 +154,38 @@ public final class IndexSortConfig {
             return new FieldSortSpec[0];
         }
 
+        public static FieldSortSpec[] getSortSpecs(Settings settings) {
+            if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
+                return IndexSortConfigDefaults.getDefaultSortSpecs(settings);
+            }
+
+            List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+            FieldSortSpec[] sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
+
+            // Need to populate `order` because the default value of `mode` depends on it
+            if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
+                List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
+                for (int i = 0; i < sortSpecs.length; i++) {
+                    sortSpecs[i].order = orders.get(i);
+                }
+            }
+
+            return sortSpecs;
+        }
+
         public static List<String> getDefaultSortFields(Settings settings) {
-            return Arrays.stream(getDefaultSortSpecs(settings)).map(sortSpec -> sortSpec.field).toList();
+            return Arrays.stream(IndexSortConfigDefaults.getDefaultSortSpecs(settings)).map(sortSpec -> sortSpec.field).toList();
         }
 
         public static List<String> getDefaultSortOrder(Settings settings) {
-            return Arrays.stream(getDefaultSortSpecs(settings))
+            return Arrays.stream(getSortSpecs(settings))
                 .map(sortSpec -> sortSpec.order != null ? sortSpec.order : SortOrder.ASC)
                 .map(Enum::toString)
                 .toList();
         }
 
         public static List<String> getDefaultSortMode(Settings settings) {
-            return Arrays.stream(getDefaultSortSpecs(settings)).map(sortSpec -> {
+            return Arrays.stream(getSortSpecs(settings)).map(sortSpec -> {
                 if (sortSpec.mode != null) {
                     return sortSpec.mode;
                 } else if (sortSpec.order == SortOrder.DESC) {
@@ -179,7 +198,7 @@ public final class IndexSortConfig {
 
         public static List<String> getDefaultSortMissing(Settings settings) {
             // _last is the default per IndexFieldData.XFieldComparatorSource.Nested#sortMissingLast
-            return Arrays.stream(getDefaultSortSpecs(settings))
+            return Arrays.stream(getSortSpecs(settings))
                 .map(sortSpec -> sortSpec.missingValue != null ? sortSpec.missingValue : "_last")
                 .toList();
         }
@@ -229,20 +248,14 @@ public final class IndexSortConfig {
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
 
-        if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
-            var order = INDEX_SORT_ORDER_SETTING.get(settings);
-            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_ORDER_SETTING.getKey(), order);
-        }
+        var order = INDEX_SORT_ORDER_SETTING.get(settings);
+        checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_ORDER_SETTING.getKey(), order);
 
-        if (INDEX_SORT_MODE_SETTING.exists(settings)) {
-            var mode = INDEX_SORT_MODE_SETTING.get(settings);
-            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MODE_SETTING.getKey(), mode);
-        }
+        var mode = INDEX_SORT_MODE_SETTING.get(settings);
+        checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MODE_SETTING.getKey(), mode);
 
-        if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
-            var missing = INDEX_SORT_MISSING_SETTING.get(settings);
-            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MISSING_SETTING.getKey(), missing);
-        }
+        var missing = INDEX_SORT_MISSING_SETTING.get(settings);
+        checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MISSING_SETTING.getKey(), missing);
     }
 
     // visible for tests
@@ -260,39 +273,21 @@ public final class IndexSortConfig {
         validateSortSettings(settings);
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-        boolean applyDefaults = INDEX_SORT_FIELD_SETTING.exists(settings) == false;
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
 
-        if (INDEX_SORT_ORDER_SETTING.exists(settings) || applyDefaults) {
-            List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
-            if (orders.size() != sortSpecs.length) {
-                throw new IllegalArgumentException("index.sort.field:" + fields + " index.sort.order:" + orders + ", size mismatch");
-            }
-            for (int i = 0; i < sortSpecs.length; i++) {
-                sortSpecs[i].order = orders.get(i);
-            }
+        List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
+        for (int i = 0; i < sortSpecs.length; i++) {
+            sortSpecs[i].order = orders.get(i);
         }
 
-        if (INDEX_SORT_MODE_SETTING.exists(settings) || applyDefaults) {
-            List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
-            if (modes.size() != sortSpecs.length) {
-                throw new IllegalArgumentException("index.sort.field:" + fields + " index.sort.mode:" + modes + ", size mismatch");
-            }
-            for (int i = 0; i < sortSpecs.length; i++) {
-                sortSpecs[i].mode = modes.get(i);
-            }
+        List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
+        for (int i = 0; i < sortSpecs.length; i++) {
+            sortSpecs[i].mode = modes.get(i);
         }
 
-        if (INDEX_SORT_MISSING_SETTING.exists(settings) || applyDefaults) {
-            List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
-            if (missingValues.size() != sortSpecs.length) {
-                throw new IllegalArgumentException(
-                    "index.sort.field:" + fields + " index.sort.missing:" + missingValues + ", size mismatch"
-                );
-            }
-            for (int i = 0; i < sortSpecs.length; i++) {
-                sortSpecs[i].missingValue = missingValues.get(i);
-            }
+        List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
+        for (int i = 0; i < sortSpecs.length; i++) {
+            sortSpecs[i].missingValue = missingValues.get(i);
         }
     }
 

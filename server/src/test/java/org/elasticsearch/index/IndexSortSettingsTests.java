@@ -94,8 +94,8 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
         assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
         assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
-        assertNull(config.sortSpecs[0].mode);
-        assertNull(config.sortSpecs[1].mode);
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
     }
 
     public void testInvalidIndexSort() {
@@ -280,8 +280,8 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
         assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
         assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
-        assertNull(config.sortSpecs[0].mode);
-        assertNull(config.sortSpecs[1].mode);
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
     }
 
     public void testLogsdbInvalidIndexSortOrder() {

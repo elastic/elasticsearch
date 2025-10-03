@@ -258,8 +258,8 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
                   "index": {
                     "routing_path": [ "hostname" ],
                     "mode": "time_series",
-                    "sort.field": [],
-                    "sort.order": []
+                    "sort.field": ["_tsid", "@timestamp"],
+                    "sort.order": ["asc", "desc"]
                   }
                 },
                 "mappings": {

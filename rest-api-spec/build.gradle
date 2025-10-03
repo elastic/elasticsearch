@@ -98,6 +98,9 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("update/100_synthetic_source/stored text", "synthetic recovery source means _recovery_source field will not be present")
   task.skipTest("logsdb/10_settings/start time not allowed in logs mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("logsdb/10_settings/end time not allowed in logs mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  task.skipTest("logsdb/10_settings/override sort mode settings", "we changed the error message")
+  task.skipTest("logsdb/10_settings/override sort missing settings", "we changed the error message")
+  task.skipTest("logsdb/10_settings/override sort order settings", "we changed the error message")
   task.skipTest("tsdb/10_settings/set start_time and end_time without timeseries mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("tsdb/10_settings/set start_time, end_time and routing_path via put settings api without time_series mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   // Expected deprecation warning to compat yaml tests:

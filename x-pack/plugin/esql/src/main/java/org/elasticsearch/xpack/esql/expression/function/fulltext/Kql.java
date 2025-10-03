@@ -107,15 +107,14 @@ public class Kql extends FullTextFunction implements OptionalArgument {
                     name = "default_field",
                     type = "keyword",
                     valueHint = {"*", "logs.*", "title"},
-                    description = "Default field (or field pattern with wildcards) to target when a bare term in the query does not specify a field. Supports wildcards (*)."
+                    description = "Default field to search if no field is provided in the query string. Supports wildcards (*)."
                 ),
                 @MapParam.MapParamEntry(
                     name = "boost",
                     type = "float",
                     valueHint = { "2.5" },
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
-                )
-            },
+                )},
             optional = true
         ) Expression options
     ) {

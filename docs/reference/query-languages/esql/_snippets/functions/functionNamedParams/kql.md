@@ -12,5 +12,5 @@
 :   (boolean) If true, performs case-insensitive matching for keyword fields. Defaults to false.
 
 `default_field`
-:   (keyword) Default field (or field pattern with wildcards) to target when a bare term in the query does not specify a field. Supports wildcards (*).
+:   (keyword) Default field to search if no field is provided in the query string. Supports wildcards (*).
 

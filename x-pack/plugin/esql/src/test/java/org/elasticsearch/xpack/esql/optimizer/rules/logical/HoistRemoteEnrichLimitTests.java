@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
+import java.util.Locale;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,7 +142,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
     // These cases do not get hoisting, and it's ok
     public void testLimitWithinOtherEnrich() {
         String enrichPolicy = randomFrom("languages_idx", "_any:languages_idx", "_coordinator:languages_coordinator");
-        var plan = plan(String.format("""
+        var plan = plan(String.format(Locale.ROOT, """
             from test
             | EVAL id = emp_no
             | LIMIT 10

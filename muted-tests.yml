@@ -639,6 +639,15 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testNewReplicasTimeSeriesMode {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135907
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135908
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testResize {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135909
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSystemIndexMetadataIsUpgraded {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135923
 
 # Examples:
 #

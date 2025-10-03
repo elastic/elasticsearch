@@ -4307,6 +4307,46 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
         options = fuse.options();
         assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | EVAL a.b = my_group
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE GROUP BY a.b KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("a.b"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | EVAL ??p = my_group
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE GROUP BY ??p KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
+            """, new QueryParams(List.of(paramAsConstant("p", "a.b"))));
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("a.b"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
     }
 
     public void testInvalidFuse() {

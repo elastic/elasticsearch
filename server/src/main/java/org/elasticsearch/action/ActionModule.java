@@ -129,6 +129,9 @@ import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAct
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
+import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -427,6 +430,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.ingest.SamplingService.RANDOM_SAMPLING_FEATURE_FLAG;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
@@ -815,6 +819,10 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
+        if (RANDOM_SAMPLING_FEATURE_FLAG) {
+            actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
+        }
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -1042,6 +1050,10 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
+
+        if (RANDOM_SAMPLING_FEATURE_FLAG) {
+            registerHandler.accept(new RestGetSampleAction());
+        }
     }
 
     @Override

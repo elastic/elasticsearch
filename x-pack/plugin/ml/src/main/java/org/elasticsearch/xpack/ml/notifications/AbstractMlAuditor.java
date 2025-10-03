@@ -57,8 +57,11 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
         });
     }
 
-    private void setResetMode(boolean value) {
+    public void setResetMode(boolean value) {
         isResetMode = value;
+        if (value) {
+            reset();
+        }
     }
 
     @Override

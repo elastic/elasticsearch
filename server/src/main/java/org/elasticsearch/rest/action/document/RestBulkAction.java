@@ -36,6 +36,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -313,6 +314,11 @@ public class RestBulkAction extends BaseRestHandler {
         return super.mediaTypesValid(request) && hasValidMediaTypeForBulkRequest(request);
     }
 
+    /**
+     * Indicates if the request has a {@code Content-Type} compatible with bulk content. A bulk request contains multiple objects
+     * each terminated with {@link XContent#bulkSeparator()}. If a handler returns true this will affect the types of content that can be
+     * sent to this endpoint.
+     */
     public static boolean hasValidMediaTypeForBulkRequest(RestRequest request) {
         final var xContentType = request.getXContentType();
         return xContentType != null && (xContentType.canonical() == XContentType.JSON || xContentType.canonical() == XContentType.SMILE);

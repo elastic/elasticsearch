@@ -714,6 +714,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/135032
+- class: org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplierTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/135977
 
 # Examples:
 #

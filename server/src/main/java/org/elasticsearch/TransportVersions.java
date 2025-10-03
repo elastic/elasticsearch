@@ -171,12 +171,6 @@ public class TransportVersions {
     public static final TransportVersion PINNED_RETRIEVER_8_19 = def(8_841_0_23);
     public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19 = def(8_841_0_24);
     public static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19 = def(8_841_0_25);
-    public static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19 = def(8_841_0_26);
-    public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19 = def(8_841_0_27);
-    public static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19 = def(8_841_0_28);
-    public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING_8_19 = def(8_841_0_29);
-    // TODO: add to esql_driver_task_description.csv
-    public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_8_19 = def(8_841_0_30);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = def(9_006_0_00);
     public static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = def(9_007_00_0);
@@ -204,7 +198,6 @@ public class TransportVersions {
     public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
     public static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = def(9_037_0_00);
     public static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES = def(9_038_00_0);
-    public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = def(9_039_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOT = def(9_040_0_00);
     public static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = def(9_041_0_00);
     public static final TransportVersion BATCHED_QUERY_PHASE_VERSION = def(9_043_0_00);
@@ -214,7 +207,6 @@ public class TransportVersions {
     public static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = def(9_047_0_00);
     public static final TransportVersion REPO_ANALYSIS_COPY_BLOB = def(9_048_0_00);
     public static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = def(9_049_0_00);
-    public static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = def(9_050_0_00);
     public static final TransportVersion DEAD_ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
     public static final TransportVersion DEAD_BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
     public static final TransportVersion DEAD_SEARCH_INCREMENTAL_TOP_DOCS_NULL = def(9_054_0_00);
@@ -230,9 +222,7 @@ public class TransportVersions {
     public static final TransportVersion PINNED_RETRIEVER = def(9_068_0_00);
     public static final TransportVersion ML_INFERENCE_SAGEMAKER = def(9_069_0_00);
     public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_070_0_00);
-    public static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION = def(9_071_0_00);
     public static final TransportVersion FILE_SETTINGS_HEALTH_INFO = def(9_072_0_00);
-    public static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT = def(9_074_0_00);
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = def(9_075_0_00);
     public static final TransportVersion ESQL_TIME_SERIES_SOURCE_STATUS = def(9_076_0_00);
     public static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = def(9_079_0_00);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -143,6 +144,10 @@ public class ExplainDataStreamLifecycleAction {
      */
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField INDICES_FIELD = new ParseField("indices");
+        private static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION = TransportVersion.fromName(
+            "" + "introduce_failures_default_retention"
+        );
+
         private final List<ExplainIndexDataStreamLifecycle> indices;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
@@ -166,8 +171,7 @@ public class ExplainDataStreamLifecycleAction {
         public Response(StreamInput in) throws IOException {
             this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+            if (in.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
                 var defaultRetention = in.readOptionalTimeValue();
                 var maxRetention = in.readOptionalTimeValue();
                 var defaultFailuresRetention = in.readOptionalTimeValue();
@@ -209,8 +213,7 @@ public class ExplainDataStreamLifecycleAction {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failureGlobalRetention == null ? null : failureGlobalRetention.defaultRetention());

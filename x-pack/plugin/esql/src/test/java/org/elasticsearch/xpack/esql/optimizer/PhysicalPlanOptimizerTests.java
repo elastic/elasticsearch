@@ -7017,11 +7017,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var enrich = as(fragment.fragment(), Enrich.class);
+            var enrichLimit = as(fragment.fragment(), Limit.class);
+            assertThat(Foldables.limitValue(enrichLimit.limit(), enrichLimit.sourceText()), equalTo(10));
+            var enrich = as(enrichLimit.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
             var partialLimit = as(evalFragment.child(), Limit.class);
+            assertThat(Foldables.limitValue(partialLimit.limit(), partialLimit.sourceText()), equalTo(10));
+            assertTrue(partialLimit.local());
             as(partialLimit.child(), EsRelation.class);
         }
     }
@@ -7075,11 +7079,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var finalLimit = as(plan, LimitExec.class);
         var exchange = as(finalLimit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
-        var enrich = as(fragment.fragment(), Enrich.class);
+        var enrichLimit = as(fragment.fragment(), Limit.class);
+        assertThat(Foldables.limitValue(enrichLimit.limit(), enrichLimit.sourceText()), equalTo(10));
+        var enrich = as(enrichLimit.child(), Enrich.class);
         assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
         assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
         var evalFragment = as(enrich.child(), Eval.class);
         var partialLimit = as(evalFragment.child(), Limit.class);
+        assertThat(Foldables.limitValue(enrichLimit.limit(), enrichLimit.sourceText()), equalTo(10));
+        assertTrue(partialLimit.local());
         as(partialLimit.child(), EsRelation.class);
     }
 

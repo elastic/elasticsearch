@@ -126,13 +126,7 @@ public class Mapper {
         }
 
         if (unary instanceof Limit limit) {
-            // Avoid extra limit for remote Enrich, since it has already been applied before Enrich if it's duplicate.
-            // TODO: can we do this in the optimizer instead?
-            if (limit.duplicated() && limit.child() instanceof Enrich) {
-                mappedChild = addExchangeForFragment(limit.child(), mappedChild);
-            } else {
-                mappedChild = addExchangeForFragment(limit, mappedChild);
-            }
+            mappedChild = addExchangeForFragment(limit, mappedChild);
             return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
         }
 

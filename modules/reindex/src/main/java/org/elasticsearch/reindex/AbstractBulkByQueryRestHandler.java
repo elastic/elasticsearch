@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -52,7 +53,14 @@ public abstract class AbstractBulkByQueryRestHandler<
         SearchRequest searchRequest = internal.getSearchRequest();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, clusterSupportsFeature, size -> failOnSizeSpecified());
+            RestSearchAction.parseSearchRequest(
+                searchRequest,
+                restRequest,
+                parser,
+                clusterSupportsFeature,
+                size -> failOnSizeSpecified(),
+                Optional.empty()
+            );
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));

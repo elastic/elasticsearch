@@ -243,16 +243,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {
-        Version version;
-        TransportVersion transportVersion;
-        if (randomBoolean()) {
-            version = Version.V_7_0_0;
-            transportVersion = TransportVersions.V_7_0_0;
-        } else {
-            version = Version.V_7_1_0;
-            transportVersion = TransportVersions.V_7_1_0;
-        }
-        return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
+        return addAnotherDataNodeWithVersion(clusterService, Version.V_7_1_0, TransportVersions.V_7_1_0);
     }
 
     private static DiscoveryNode addAnotherPre8500DataNode(ClusterService clusterService) {

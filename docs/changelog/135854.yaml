@@ -1,0 +1,5 @@
+pr: 135854
+summary: "Logstashbridge: map ES logging to log4j backend"
+area: Ingest
+type: enhancement
+issues: []

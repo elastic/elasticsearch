@@ -1,0 +1,5 @@
+pr: 134604
+summary: Adds certificate identity field to cross-cluster API keys
+area: Security
+type: enhancement
+issues: []

@@ -12,6 +12,7 @@ package org.elasticsearch.rest;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.bulk.XContentLengthPrefixedStreamingType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -92,6 +93,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
+    private final SetOnce<XContentLengthPrefixedStreamingType> xContentLengthPrefixedStreamingType = new SetOnce<>();
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
@@ -136,7 +138,14 @@ public class RestRequest implements ToXContent.Params, Traceable {
         try {
             this.parsedContentType = parseHeaderWithMediaType(httpRequest.getHeaders(), "Content-Type");
             if (parsedContentType != null) {
-                this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
+                this.xContentLengthPrefixedStreamingType.set(
+                    XContentLengthPrefixedStreamingType.fromMediaType(parsedContentType.mediaTypeWithoutParameters())
+                );
+                if (this.xContentLengthPrefixedStreamingType.get() == null) {
+                    this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
+                } else {
+                    this.xContentType.set(xContentLengthPrefixedStreamingType.get().xContentType());
+                }
             }
         } catch (IllegalArgumentException e) {
             throw new MediaTypeHeaderException(e, "Content-Type");
@@ -332,9 +341,13 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public void ensureContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
-        } else if (xContentType.get() == null) {
+        } else if (xContentType.get() == null && hasLengthPrefixedStreamingContent() == false) {
             throwValidationException("unknown content type");
         }
+    }
+
+    public boolean hasLengthPrefixedStreamingContent() {
+        return xContentLengthPrefixedStreamingType.get() != null;
     }
 
     /**

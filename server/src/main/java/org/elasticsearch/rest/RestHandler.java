@@ -117,7 +117,7 @@ public interface RestHandler {
     }
 
     default boolean mediaTypesValid(RestRequest request) {
-        return request.getXContentType() != null;
+        return request.hasLengthPrefixedStreamingContent() == false && request.getXContentType() != null;
     }
 
     default String getName() {

@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.XContentLengthPrefixedStreamingType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -38,13 +39,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class BulkWithPrefixLengthRestIT extends HttpSmokeTestCase {
 
     private final RequestOptions options;
+    private final XContentLengthPrefixedStreamingType xContentLengthPrefixedStreamingType;
     private final XContentType xContentType;
 
     public BulkWithPrefixLengthRestIT() {
-        xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        xContentLengthPrefixedStreamingType = randomFrom(XContentLengthPrefixedStreamingType.values());
+        xContentType = xContentLengthPrefixedStreamingType.xContentType();
         options = RequestOptions.DEFAULT.toBuilder()
-            .addHeader("X-Bulk-Format", "prefix-length")
-            .addHeader("Content-Type", randomFrom(xContentType.headerValues()).v1())
+            .addHeader("Content-Type", randomFrom(xContentLengthPrefixedStreamingType.headerValues()).v1())
             .build();
     }
 

@@ -708,6 +708,12 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettings
   issue: https://github.com/elastic/elasticsearch/issues/135972
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=indices.get_sample/10_basic/Test get sample for index with no sample config}
+  issue: https://github.com/elastic/elasticsearch/issues/135975
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryInlineStats
+  issue: https://github.com/elastic/elasticsearch/issues/135032
 
 # Examples:
 #

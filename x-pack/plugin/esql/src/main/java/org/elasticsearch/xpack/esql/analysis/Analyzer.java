@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
@@ -129,7 +130,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -472,7 +472,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // prepare the block for the supplier
                 blocks[i++] = column.values();
             }
-            LocalSupplier supplier = LocalSupplier.of(blocks);
+            LocalSupplier supplier = LocalSupplier.of(blocks.length > 0 ? new Page(blocks) : new Page(0));
             return new LocalRelation(source, attributes, supplier);
         }
     }
@@ -759,9 +759,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (leftIsFromRight && rightIsFromLeft) {
                     return comp.swapLeftAndRight(); // Swapped orientation
                 }
-
-                // Invalid orientation (e.g., both from left or both from right)
-                throw new IllegalArgumentException(
+                return new UnresolvedAttribute(
+                    condition.source(),
+                    "unsupported",
                     "Join condition must be between one attribute on the left side and "
                         + "one attribute on the right side of the join, but found: "
                         + condition.sourceText()
@@ -776,23 +776,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             JoinType type = config.type();
 
             // rewrite the join into an equi-join between the field with the same name between left and right
-            if (type instanceof UsingJoinType using) {
-                List<Attribute> cols = using.columns();
+            if (type == JoinTypes.LEFT) {
                 // the lookup cannot be resolved, bail out
-                if (Expressions.anyMatch(cols, c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                if (Expressions.anyMatch(
+                    join.references().stream().toList(),
+                    c -> c instanceof UnresolvedAttribute ua && ua.customMessage()
+                )) {
                     return join;
-                }
-
-                JoinType coreJoin = using.coreJoin();
-                // verify the join type
-                if (coreJoin != JoinTypes.LEFT) {
-                    String name = cols.get(0).name();
-                    UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
-                        join.source(),
-                        name,
-                        "Only LEFT join is supported with USING"
-                    );
-                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
                 }
                 List<Attribute> leftKeys = new ArrayList<>();
                 List<Attribute> rightKeys = new ArrayList<>();
@@ -812,27 +802,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             leftKeys.add(leftAttribute);
                             rightKeys.add(rightAttribute);
                         } else {
-                            throw new IllegalArgumentException("Unsupported join filter expression: " + expression);
+                            UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
+                                expression.source(),
+                                "unsupported",
+                                "Unsupported join filter expression:" + expression.sourceText()
+                            );
+                            return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
+
                         }
                     }
                 } else {
                     // resolve the using columns against the left and the right side then assemble the new join config
-                    leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
-                    rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                    leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
+                    rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
                 }
 
-                config = new JoinConfig(coreJoin, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
+                config = new JoinConfig(type, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
                 return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
-            } else if (type != JoinTypes.LEFT) {
+            } else {
                 // everything else is unsupported for now
-                // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
-                // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
-
-            return join;
         }
 
         private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {

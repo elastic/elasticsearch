@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.SamplingService.RawDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -26,28 +25,21 @@ public class SamplingServiceRawDocumentTests extends AbstractWireSerializingTest
 
     @Override
     protected RawDocument createTestInstance() {
-        return new RawDocument(
-            randomProjectIdOrDefault(),
-            randomIdentifier(),
-            randomByteArrayOfLength(randomIntBetween(10, 1000)),
-            randomFrom(XContentType.values())
-        );
+        return new RawDocument(randomIdentifier(), randomByteArrayOfLength(randomIntBetween(10, 1000)), randomFrom(XContentType.values()));
     }
 
     @Override
     protected RawDocument mutateInstance(RawDocument instance) throws IOException {
-        ProjectId projectId = instance.projectId();
         String indexName = instance.indexName();
         byte[] source = instance.source();
         XContentType xContentType = instance.contentType();
 
-        switch (between(0, 3)) {
-            case 0 -> projectId = randomValueOtherThan(projectId, ESTestCase::randomProjectIdOrDefault);
-            case 1 -> indexName = randomValueOtherThan(indexName, ESTestCase::randomIdentifier);
-            case 2 -> source = randomByteArrayOfLength(randomIntBetween(100, 1000));
-            case 3 -> xContentType = randomValueOtherThan(xContentType, () -> randomFrom(XContentType.values()));
+        switch (between(0, 2)) {
+            case 0 -> indexName = randomValueOtherThan(indexName, ESTestCase::randomIdentifier);
+            case 1 -> source = randomByteArrayOfLength(randomIntBetween(100, 1000));
+            case 2 -> xContentType = randomValueOtherThan(xContentType, () -> randomFrom(XContentType.values()));
             default -> throw new IllegalArgumentException("Should never get here");
         }
-        return new RawDocument(projectId, indexName, source, xContentType);
+        return new RawDocument(indexName, source, xContentType);
     }
 }

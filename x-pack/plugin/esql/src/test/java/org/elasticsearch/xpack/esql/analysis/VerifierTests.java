@@ -2689,6 +2689,16 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNoDimensionsInAggsOnlyInByClause() {
+        assertThat(
+            error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
+            equalTo(
+                "1:23: cannot aggregate dimension field [host] in a time-series aggregation. "
+                    + "If you want to aggregate a dimension field, use the FROM command instead of the TS command."
+            )
+        );
+    }
+
     public void testSortInTimeSeries() {
         assertThat(
             error("TS test | SORT host | STATS avg(last_over_time(network.connections))", tsdb),

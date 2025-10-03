@@ -119,6 +119,21 @@ public class TimeSeriesAggregate extends Aggregate {
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
+        // We forbid aggregating 'dimension' fields - these are only allowed inside grouping functions
+        aggregates().forEach(agg -> agg.forEachDown(e -> {
+            if (e instanceof FieldAttribute fieldAttr && fieldAttr.isDimension()) {
+                failures.add(
+                    fail(
+                        fieldAttr,
+                        "cannot aggregate dimension field [{}] in a time-series aggregation. "
+                            + "If you want to aggregate a dimension field, use the FROM "
+                            + "command instead of the TS command.",
+                        fieldAttr.sourceText()
+                    )
+                );
+            }
+        }));
+        // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
         groupings().forEach(g -> g.forEachDown(e -> {
             if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
                 failures.add(

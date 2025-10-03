@@ -426,6 +426,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public static boolean shouldExcludeInferenceFieldsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
         var explicit = shouldExcludeInferenceFieldsFromSourceExplicit(fetchSourceContext);
+        var filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
+        if (filter != null) {
+            if (filter.isPathFiltered(InferenceMetadataFieldsMapper.NAME, true)) {
+                return true;
+            } else if (filter.isExplicitlyIncluded(InferenceMetadataFieldsMapper.NAME)) {
+                return false;
+            }
+        }
         return explicit != null ? explicit : INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
     }
 

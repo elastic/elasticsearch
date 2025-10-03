@@ -1226,6 +1226,7 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+        CLAMP_FUNCTIONS,
 
         /**
          * Extra field types in the k8s.csv dataset

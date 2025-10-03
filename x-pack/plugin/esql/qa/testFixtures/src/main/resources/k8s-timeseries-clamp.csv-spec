@@ -1,5 +1,6 @@
 clamp_of_double_no_grouping
 required_capability: ts_command_v0
+required_capability: clamp_functions
 // tag::clamp-min[]
 TS k8s
 | STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
@@ -24,6 +25,7 @@ full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_
 
 clamp_of_double_no_grouping
 required_capability: ts_command_v0
+required_capability: clamp_functions
 // tag::clamp-max[]
 TS k8s
 | STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
@@ -48,6 +50,7 @@ full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_
 
 clamp_of_long
 required_capability: ts_command_v0
+required_capability: clamp_functions
 // tag::clamp[]
 TS k8s 
 | STATS bytes_in = sum(network.bytes_in),
@@ -70,9 +73,5 @@ bytes_in:long | clamped_network_bytes_in:long | time_bucket:datetime
 1353          | 401                           | 2024-05-10T00:07:00.000Z
 3188          | 1295                          | 2024-05-10T00:08:00.000Z
 3850          | 1468                          | 2024-05-10T00:09:00.000Z
-
-
-
-
 
 ;

@@ -203,6 +203,54 @@ GET my-index/_search
 }
 ```
 
+## Example query on a `semantic_text` field
+
+You can also run a `sparse_vector` query directly on a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field. In this case Elasticsearch automatically uses the inference endpoint configured in the field mapping to expand the query into sparse tokens.
+
+First, create an index with a `semantic_text` field:
+
+```console
+PUT /my-semantic-sparse-index
+{
+  "mappings": {
+    "properties": {
+      "title": { "type": "text" },
+      "content_semantic": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elasticsearch"
+      }
+    }
+  }
+}
+```
+
+Index some example documents:
+
+```console
+POST /my-semantic-sparse-index/_bulk
+{ "index": { "_index": "my-semantic-sparse-index", "_id": "1" } }
+{ "title": "Best surfing spots", "content_semantic": "Hawaii has world-class surfing with warm water and consistent swells." }
+{ "index": { "_index": "my-semantic-sparse-index", "_id": "2" } }
+{ "title": "City breaks", "content_semantic": "Paris offers museums, cafés, and beautiful architecture." }
+{ "index": { "_index": "my-semantic-sparse-index", "_id": "3" } }
+{ "title": "Learning to surf", "content_semantic": "Beginners often start on longboards at gentle beach breaks." }
+```
+
+Then query with `sparse_vector` against the `semantic_text` field:
+
+```console
+GET my-semantic-sparse-index/_search
+{
+  "size": 3,
+  "query": {
+    "sparse_vector": {
+      "field": "content_semantic",
+      "query": "best places to surf as a beginner" 
+    }
+  }
+}
+```
+
 
 ## Example ELSER query with pruning configuration and rescore [sparse-vector-query-with-pruning-config-and-rescore-example]
 

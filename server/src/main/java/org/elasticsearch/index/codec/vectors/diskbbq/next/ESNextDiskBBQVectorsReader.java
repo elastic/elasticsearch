@@ -418,7 +418,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ((NextFieldEntry) entry).quantEncoding();
-        int unused = indexInput.readVInt();
         return new MemorySegmentPostingsVisitor(target, quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
     }
 
@@ -487,7 +486,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 quantEncoding.queryBits(),
                 quantEncoding.bits(),
                 fieldInfo.getVectorDimension(),
-                quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())
+                (int) quantizedVectorByteSize
             );
         }
 

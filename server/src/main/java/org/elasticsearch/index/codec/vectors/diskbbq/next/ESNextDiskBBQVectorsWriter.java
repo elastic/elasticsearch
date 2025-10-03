@@ -22,7 +22,6 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
@@ -38,6 +37,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -113,8 +113,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 }
             }
         }
-        // write the max posting list size
-        postingsOutput.writeVInt(maxPostingListSize);
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
@@ -268,12 +266,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
+                quantEncoding,
                 fieldInfo.getVectorDimension()
             );
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-            // write the max posting list size
-            postingsOutput.writeVInt(maxPostingListSize);
             // write the posting lists
             final int[] docIds = new int[maxPostingListSize];
             final int[] docDeltas = new int[maxPostingListSize];
@@ -311,7 +308,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     // for vector i we write `bulk` size docs or the remaining docs
                     idsWriter.writeDocIds(
                         d -> docDeltas[d + i],
-                        Math.min(ES91OSQVectorsScorer.BULK_SIZE, size - i),
+                        Math.min(ESNextOSQVectorsScorer.BULK_SIZE, size - i),
                         encoding,
                         postingsOutput
                     );
@@ -675,9 +672,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             this.vectorValues = vectorValues;
             this.encoding = encoding;
             this.quantizer = quantizer;
-            this.quantizedVector = new byte[BQVectorUtils.discretize(dimension, 64) / 8];
+            this.quantizedVector = new byte[encoding.getDocPackedLength(dimension)];
             this.floatVectorScratch = new float[dimension];
-            this.quantizedVectorScratch = new int[dimension];
+            this.quantizedVectorScratch = new int[encoding.discretizedDimensions(dimension)];
             this.corrections = null;
         }
 
@@ -727,9 +724,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private IntToBooleanFunction isOverspill = null;
         private IntToIntFunction ordTransformer = null;
 
-        OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, int dimension) {
+        OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, ESNextDiskBBQVectorsFormat.QuantEncoding encoding, int dimension) {
             this.quantizedVectorsInput = quantizedVectorsInput;
-            this.binaryScratch = new byte[BQVectorUtils.discretize(dimension, 64) / 8];
+            this.binaryScratch = new byte[encoding.getDocPackedLength(dimension)];
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
         }
 

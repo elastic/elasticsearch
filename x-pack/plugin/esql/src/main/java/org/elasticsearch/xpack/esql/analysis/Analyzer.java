@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -90,8 +93,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -125,7 +130,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -468,7 +472,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // prepare the block for the supplier
                 blocks[i++] = column.values();
             }
-            LocalSupplier supplier = LocalSupplier.of(blocks);
+            LocalSupplier supplier = LocalSupplier.of(blocks.length > 0 ? new Page(blocks) : new Page(0));
             return new LocalRelation(source, attributes, supplier);
         }
     }
@@ -718,44 +722,109 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
+        private List<Expression> resolveJoinFiltersAndSwapIfNeeded(
+            List<Expression> filters,
+            AttributeSet leftOutput,
+            AttributeSet rightOutput
+        ) {
+            if (filters.isEmpty()) {
+                return emptyList();
+            }
+            List<Attribute> childrenOutput = new ArrayList<>(leftOutput);
+            childrenOutput.addAll(rightOutput);
+
+            List<Expression> resolvedFilters = new ArrayList<>(filters.size());
+            for (Expression filter : filters) {
+                Expression filterResolved = filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                resolvedFilters.add(resolveAndOrientJoinCondition(filterResolved, leftOutput, rightOutput));
+            }
+            return resolvedFilters;
+        }
+
+        private Expression resolveAndOrientJoinCondition(Expression condition, AttributeSet leftOutput, AttributeSet rightOutput) {
+            if (condition instanceof EsqlBinaryComparison comp
+                && comp.left() instanceof Attribute leftAttr
+                && comp.right() instanceof Attribute rightAttr) {
+
+                boolean leftIsFromLeft = leftOutput.contains(leftAttr);
+                boolean rightIsFromRight = rightOutput.contains(rightAttr);
+
+                if (leftIsFromLeft && rightIsFromRight) {
+                    return comp; // Correct orientation
+                }
+
+                boolean leftIsFromRight = rightOutput.contains(leftAttr);
+                boolean rightIsFromLeft = leftOutput.contains(rightAttr);
+
+                if (leftIsFromRight && rightIsFromLeft) {
+                    return comp.swapLeftAndRight(); // Swapped orientation
+                }
+                return new UnresolvedAttribute(
+                    condition.source(),
+                    "unsupported",
+                    "Join condition must be between one attribute on the left side and "
+                        + "one attribute on the right side of the join, but found: "
+                        + condition.sourceText()
+                );
+            }
+            return condition; // Not a binary comparison between two attributes, no change needed.
+        }
+
         private Join resolveLookupJoin(LookupJoin join) {
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
+
             // rewrite the join into an equi-join between the field with the same name between left and right
-            if (type instanceof UsingJoinType using) {
-                List<Attribute> cols = using.columns();
+            if (type == JoinTypes.LEFT) {
                 // the lookup cannot be resolved, bail out
-                if (Expressions.anyMatch(cols, c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                if (Expressions.anyMatch(
+                    join.references().stream().toList(),
+                    c -> c instanceof UnresolvedAttribute ua && ua.customMessage()
+                )) {
                     return join;
                 }
-
-                JoinType coreJoin = using.coreJoin();
-                // verify the join type
-                if (coreJoin != JoinTypes.LEFT) {
-                    String name = cols.get(0).name();
-                    UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
-                        join.source(),
-                        name,
-                        "Only LEFT join is supported with USING"
+                List<Attribute> leftKeys = new ArrayList<>();
+                List<Attribute> rightKeys = new ArrayList<>();
+                List<Expression> resolvedFilters = new ArrayList<>();
+                if (join.config().joinOnConditions() != null) {
+                    resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
+                        Predicates.splitAnd(join.config().joinOnConditions()),
+                        join.left().outputSet(),
+                        join.right().outputSet()
                     );
-                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
-                }
-                // resolve the using columns against the left and the right side then assemble the new join config
-                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
-                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                    // build leftKeys and rightKeys using the correct side of the resolvedFilters.
+                    // resolveJoinFiltersAndSwapIfNeeded already put the left and right on the correct side
+                    for (Expression expression : resolvedFilters) {
+                        if (expression instanceof EsqlBinaryComparison binaryComparison
+                            && binaryComparison.left() instanceof Attribute leftAttribute
+                            && binaryComparison.right() instanceof Attribute rightAttribute) {
+                            leftKeys.add(leftAttribute);
+                            rightKeys.add(rightAttribute);
+                        } else {
+                            UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
+                                expression.source(),
+                                "unsupported",
+                                "Unsupported join filter expression:" + expression.sourceText()
+                            );
+                            return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
 
-                config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
-                join = new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
-            } else if (type != JoinTypes.LEFT) {
+                        }
+                    }
+                } else {
+                    // resolve the using columns against the left and the right side then assemble the new join config
+                    leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
+                    rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
+                }
+
+                config = new JoinConfig(type, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
+                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
+            } else {
                 // everything else is unsupported for now
-                // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
-                // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
-                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
-            return join;
         }
 
         private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
@@ -950,17 +1019,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 discriminator = maybeResolveAttribute((UnresolvedAttribute) discriminator, childrenOutput);
             }
 
-            List<NamedExpression> groupings = fuse.groupings()
+            List<NamedExpression> keys = fuse.keys()
                 .stream()
                 .map(attr -> attr instanceof UnresolvedAttribute ? maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput) : attr)
                 .toList();
 
-            // some attributes were unresolved - we return Fuse here so that the Verifier can raise an error message
-            if (score instanceof UnresolvedAttribute || discriminator instanceof UnresolvedAttribute) {
-                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
+            // some attributes were unresolved or the wrong type
+            // we return Fuse here so that the Verifier can raise an error message
+            if (score instanceof UnresolvedAttribute
+                || (score.resolved() && score.dataType() != DOUBLE)
+                || discriminator instanceof UnresolvedAttribute
+                || (discriminator.resolved() && DataType.isString(discriminator.dataType()) == false)
+                || keys.stream().allMatch(attr -> attr.resolved() && DataType.isString(attr.dataType())) == false) {
+                return new Fuse(fuse.source(), fuse.child(), score, discriminator, keys, fuse.fuseType(), fuse.options());
             }
 
-            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.options());
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.fuseType(), fuse.options());
 
             // create aggregations
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
@@ -972,10 +1046,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.name().equals(score.name())) {
                     continue;
                 }
-                aggregates.add(new Alias(source, attr.name(), new Values(source, attr, aggFilter)));
+                var valuesAgg = new Values(source, attr, aggFilter);
+                // Use VALUES only on supported fields.
+                // FuseScoreEval will check that the input contains only columns with supported data types
+                // and will fail with an appropriate error message if it doesn't.
+                if (valuesAgg.resolved()) {
+                    aggregates.add(new Alias(source, attr.name(), valuesAgg));
+                }
             }
 
-            return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(groupings), aggregates), childrenOutput);
+            return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -1338,7 +1418,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
+            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
+                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
         }
 
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
@@ -1366,6 +1447,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return plan;
+        }
+
+        private InferenceFunction<?> resolveInferenceFunction(InferenceFunction<?> inferenceFunction, AnalyzerContext context) {
+            if (inferenceFunction.inferenceId().resolved()
+                && inferenceFunction.inferenceId().foldable()
+                && DataType.isString(inferenceFunction.inferenceId().dataType())) {
+
+                String inferenceId = BytesRefs.toString(inferenceFunction.inferenceId().fold(FoldContext.small()));
+                ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+
+                if (resolvedInference == null) {
+                    String error = context.inferenceResolution().getError(inferenceId);
+                    return inferenceFunction.withInferenceResolutionError(inferenceId, error);
+                }
+
+                if (resolvedInference.taskType() != inferenceFunction.taskType()) {
+                    String error = "cannot use inference endpoint ["
+                        + inferenceId
+                        + "] with task type ["
+                        + resolvedInference.taskType()
+                        + "] within a "
+                        + context.functionRegistry().snapshotRegistry().functionName(inferenceFunction.getClass())
+                        + " function. Only inference endpoints with the task type ["
+                        + inferenceFunction.taskType()
+                        + "] are supported.";
+                    return inferenceFunction.withInferenceResolutionError(inferenceId, error);
+                }
+            }
+
+            return inferenceFunction;
         }
     }
 
@@ -1418,7 +1529,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             b.set(LIMIT.ordinal());
         }
 
-        // count only the Aggregate (STATS command) that is "standalone" not also the one that is part of an INLINESTATS command
+        // count only the Aggregate (STATS command) that is "standalone" not also the one that is part of an INLINE STATS command
         if (plan instanceof Aggregate) {
             b.set(STATS.ordinal());
         } else {

@@ -253,7 +253,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
             IndexVersion.current(),
-            randomFrom(Mapper.SourceKeepMode.values())
+            randomFrom(Mapper.SourceKeepMode.values()),
+            false
         ).normalizer("lowercase").build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
@@ -297,7 +298,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    public void test_ignore_above_index_level_setting() {
+    public void testIgnoreAboveIndexLevelSetting() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -329,7 +330,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_given() {
+    public void testIgnoreAboveIsSetReturnsTrueWhenIgnoreAboveIsGiven() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -361,7 +362,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_not_given() {
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsNotGiven() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -392,7 +393,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default() {
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefault() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -424,7 +425,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_when_ignore_above_is_given_but_its_the_same_as_default_for_logsdb_indices() {
+    public void testIgnoreAboveIsSetReturnsFalseWhenIgnoreAboveIsGivenButItsTheSameAsDefaultForLogsdbIndices() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -456,7 +457,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_given_as_logsdb_default_but_index_mod_is_not_logsdb() {
+    public void testIgnoreAboveIsSetReturnsTrueWhenIgnoreAboveIsGivenAsLogsdbDefaultButIndexModIsNotLogsdb() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -488,7 +489,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_true_when_ignore_above_is_configured_at_index_level() {
+    public void testIgnoreAboveIsSetReturnsTrueWhenIgnoreAboveIsConfiguredAtIndexLevel() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -520,7 +521,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(123, fieldType.ignoreAbove().get());
     }
 
-    public void test_ignore_above_isSet_returns_false_for_non_primary_constructor() {
+    public void testIgnoreAboveIsSetReturnsFalseForNonPrimaryConstructor() {
         // given
         KeywordFieldType fieldType1 = new KeywordFieldType("field");
         KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class));

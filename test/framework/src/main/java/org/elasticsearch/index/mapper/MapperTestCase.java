@@ -169,7 +169,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try {
                 ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test"));
             } catch (Exception e) {
-                fail("Unexpected exception when fetching field data from aggregatable field type");
+                fail("Unexpected exception when fetching field data from aggregatable field type: " + e.getMessage());
             }
         } else {
             expectThrows(IllegalArgumentException.class, () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test")));

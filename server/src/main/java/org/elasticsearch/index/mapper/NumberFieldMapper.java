@@ -454,7 +454,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     HalfFloatDocValuesField::new,
-                    ft.indexType() == IndexType.POINTS
+                    IndexType.hasPoints(ft.indexType)
                 );
             }
 
@@ -808,7 +808,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     DoubleDocValuesField::new,
-                    ft.indexType() == IndexType.POINTS
+                    IndexType.hasPoints(ft.indexType)
                 );
             }
 
@@ -942,7 +942,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ByteDocValuesField::new,
-                    ft.indexType() == IndexType.POINTS
+                    IndexType.hasPoints(ft.indexType)
                 );
             }
 
@@ -1070,7 +1070,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ShortDocValuesField::new,
-                    ft.indexType() == IndexType.POINTS
+                    IndexType.hasPoints(ft.indexType)
                 );
             }
 
@@ -1272,7 +1272,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     IntegerDocValuesField::new,
-                    ft.indexType() == IndexType.POINTS
+                    IndexType.hasPoints(ft.indexType)
                 );
             }
 
@@ -1434,7 +1434,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     LongDocValuesField::new,
-                    ft.indexType() == IndexType.POINTS
+                    IndexType.hasPoints(ft.indexType)
                 );
             }
 

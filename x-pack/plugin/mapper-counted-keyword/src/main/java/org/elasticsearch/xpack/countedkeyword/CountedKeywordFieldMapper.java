@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -118,6 +119,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         ) {
             super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
             this.countFieldType = countFieldType;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return IndexType.hasTerms(indexType);
         }
 
         @Override

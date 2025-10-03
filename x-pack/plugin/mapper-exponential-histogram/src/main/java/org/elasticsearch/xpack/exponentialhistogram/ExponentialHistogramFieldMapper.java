@@ -242,6 +242,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            return false;
+        }
+
+        @Override
         public boolean isAggregatable() {
             return false;
         }

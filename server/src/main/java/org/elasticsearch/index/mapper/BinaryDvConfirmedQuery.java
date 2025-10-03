@@ -7,7 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
@@ -221,7 +220,7 @@ public abstract class BinaryDvConfirmedQuery extends Query {
         }
     }
 
-    private static class SingleValueBinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedAutomatonQuery{
+    private static class SingleValueBinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedAutomatonQuery {
         private SingleValueBinaryDvConfirmedAutomatonQuery(Query approximation, String field, String matchPattern, Automaton automaton) {
             super(approximation, field, matchPattern, automaton);
         }
@@ -299,7 +298,7 @@ public abstract class BinaryDvConfirmedQuery extends Query {
         }
     }
 
-    static class SingleValueBinaryDvConfirmedTermsQuery extends BinaryDvConfirmedTermsQuery  {
+    static class SingleValueBinaryDvConfirmedTermsQuery extends BinaryDvConfirmedTermsQuery {
         SingleValueBinaryDvConfirmedTermsQuery(Query approximation, String field, BytesRef[] terms) {
             super(approximation, field, terms);
         }

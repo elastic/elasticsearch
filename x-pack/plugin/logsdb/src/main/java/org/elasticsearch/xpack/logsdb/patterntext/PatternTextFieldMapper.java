@@ -347,16 +347,13 @@ public class PatternTextFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
-            new SingletonBinaryDocValuesSyntheticFieldLoaderLayer(
-                fieldType().name(),
-                leafReader -> {
-                    try {
-                        return PatternTextCompositeValues.from(leafReader, fieldType());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+            new SingletonBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), leafReader -> {
+                try {
+                    return PatternTextCompositeValues.from(leafReader, fieldType());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
-            )
+            })
         );
     }
 

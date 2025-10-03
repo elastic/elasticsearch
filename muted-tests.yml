@@ -657,6 +657,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testPeerRecoveryRetentionLeases {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135929
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testPersianAnalyzerBWC {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135930
 
 # Examples:
 #

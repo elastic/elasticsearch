@@ -34,6 +34,7 @@ import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.DFS_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -92,6 +93,8 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
+        final List<Measurement> dfsMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(DFS_SEARCH_PHASE_METRIC);
+        assertEquals(num_primaries, dfsMeasurements.size());
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, queryMeasurements.size());
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
@@ -106,6 +109,8 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                 .setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
+        final List<Measurement> dfsMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(DFS_SEARCH_PHASE_METRIC);
+        assertEquals(0, dfsMeasurements.size()); // DFS phase not done for index with single shard
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
@@ -279,12 +284,13 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     private static void assertTimeRangeAttributes(List<Measurement> measurements, String target, boolean isSystem) {
         for (Measurement measurement : measurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(5, attributes.size());
+            assertEquals(6, attributes.size());
             assertEquals(target, attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(true, attributes.get("range_timestamp"));
             assertEquals(isSystem, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
         }
     }
 

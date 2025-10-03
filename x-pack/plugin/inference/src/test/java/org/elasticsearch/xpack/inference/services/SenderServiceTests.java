@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -23,7 +24,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -43,6 +43,8 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,7 +67,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     public void testStart_InitializesTheSender() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -75,7 +77,7 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
 
             listener.actionGet(TIMEOUT);
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
             verify(factory, times(1)).createSender();
         }
 
@@ -85,7 +87,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     public void testStart_CallingStartTwiceKeepsSameSenderReference() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -95,11 +97,12 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
 
-            service.start(mock(Model.class), listener);
-            listener.actionGet(TIMEOUT);
+            PlainActionFuture<Boolean> listener2 = new PlainActionFuture<>();
+            service.start(mock(Model.class), listener2);
+            listener2.actionGet(TIMEOUT);
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(2)).start();
+            verify(sender, times(2)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -108,7 +111,8 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     public void test_nullTimeoutUsesClusterSetting() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
+
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -147,7 +151,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     public void test_providedTimeoutPropagateProperly() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -185,6 +189,17 @@ public class SenderServiceTests extends ESTestCase {
         }
     }
 
+    public static Sender createMockSender() {
+        var sender = mock(Sender.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Void> listener = invocationOnMock.getArgument(0);
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(sender).startAsynchronously(any());
+
+        return sender;
+    }
+
     private static class TestSenderService extends SenderService {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
             super(factory, serviceComponents, clusterService);
@@ -215,7 +230,7 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         protected void doChunkedInfer(
             Model model,
-            EmbeddingsInput inputs,
+            List<ChunkInferenceInput> inputs,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
@@ -67,6 +69,17 @@ public class DirectIOIT extends ESIntegTestCase {
         };
     }
 
+    private final String type;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.<Object[]>of(new Object[] { "bbq_disk" });
+    }
+
+    public DirectIOIT(String type) {
+        this.type = type;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(InternalSettingsPlugin.class);
@@ -74,7 +87,6 @@ public class DirectIOIT extends ESIntegTestCase {
 
     private String indexVectors(boolean directIO) {
         String indexName = "test-vectors-" + directIO;
-        String type = randomFrom("bbq_disk");
         assertAcked(
             prepareCreate(indexName).setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
                 .setMapping(Strings.format("""

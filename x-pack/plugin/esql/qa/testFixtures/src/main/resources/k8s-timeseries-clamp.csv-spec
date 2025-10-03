@@ -1,16 +1,43 @@
 clamp_of_double_no_grouping
 required_capability: ts_command_v0
-
+// tag::clamp-min[]
 TS k8s
 | STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
+// end::clamp-min[]
 | SORT full_clamped_cost DESC, time_bucket DESC | LIMIT 10;
 
+// tag::clamp-min-result[]
 full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_bucket:datetime
 18.0                     | 9.0                 | 94.875                  | 2024-05-10T00:09:00.000Z
 15.25                    | 8.0                 | 84.125                  | 2024-05-10T00:08:00.000Z
 15.0                     | 8.0                 | 83.5                    | 2024-05-10T00:15:00.000Z
 13.75                    | 7.0                 | 71.625                  | 2024-05-10T00:22:00.000Z
 13.125                   | 7.5                 | 90.5                    | 2024-05-10T00:18:00.000Z
+// end::clamp-min-result[]
+13.0                     | 6.5                 | 75.625                  | 2024-05-10T00:17:00.000Z
+12.0                     | 5.875               | 70.0                    | 2024-05-10T00:20:00.000Z
+12.0                     | 6.125               | 70.0                    | 2024-05-10T00:14:00.000Z
+12.0                     | 6.0                 | 61.25                   | 2024-05-10T00:13:00.000Z
+12.0                     | 6.0                 | 60.0                    | 2024-05-10T00:02:00.000Z
+
+;
+
+clamp_of_double_no_grouping
+required_capability: ts_command_v0
+// tag::clamp-max[]
+TS k8s
+| STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
+// end::clamp-max[]
+| SORT full_clamped_cost DESC, time_bucket DESC | LIMIT 10;
+
+// tag::clamp-max-result[]
+full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_bucket:datetime
+18.0                     | 9.0                 | 94.875                  | 2024-05-10T00:09:00.000Z
+15.25                    | 8.0                 | 84.125                  | 2024-05-10T00:08:00.000Z
+15.0                     | 8.0                 | 83.5                    | 2024-05-10T00:15:00.000Z
+13.75                    | 7.0                 | 71.625                  | 2024-05-10T00:22:00.000Z
+13.125                   | 7.5                 | 90.5                    | 2024-05-10T00:18:00.000Z
+// end::clamp-max-result[]
 13.0                     | 6.5                 | 75.625                  | 2024-05-10T00:17:00.000Z
 12.0                     | 5.875               | 70.0                    | 2024-05-10T00:20:00.000Z
 12.0                     | 6.125               | 70.0                    | 2024-05-10T00:14:00.000Z

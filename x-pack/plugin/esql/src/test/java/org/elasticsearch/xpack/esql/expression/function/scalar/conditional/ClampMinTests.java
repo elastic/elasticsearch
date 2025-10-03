@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.hamcrest.Matchers;
 
@@ -26,9 +25,13 @@ import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ClampTests extends AbstractScalarFunctionTestCase {
-    public ClampTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class ClampMinTests extends AbstractScalarFunctionTestCase {
+    public ClampMinTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    static String clampFnName() {
+        return "ClampMin";
     }
 
     @ParametersFactory
@@ -40,16 +43,14 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
             }
             suppliers.add(
                 new TestCaseSupplier(
-                    "(a, b, c)",
-                    List.of(stringType, stringType, stringType),
+                    "(a, b)",
+                    List.of(stringType, stringType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(new BytesRef("a"), stringType, "a"),
-                            new TestCaseSupplier.TypedData(new BytesRef("b"), stringType, "b"),
-                            new TestCaseSupplier.TypedData(new BytesRef("b"), stringType, "c")
+                            new TestCaseSupplier.TypedData(new BytesRef("b"), stringType, "b")
                         ),
-                        "ClampMaxBytesRefEvaluator[field=ClampMinBytesRefEvaluator[field=Attribute[channel=0], "
-                            + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
+                        "ClampMinBytesRefEvaluator[field=Attribute[channel=0], " + "min=Attribute[channel=1]]",
                         stringType,
                         Matchers.allOf(
                             Matchers.notNullValue(),
@@ -82,18 +83,16 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
             }
             suppliers.add(
                 new TestCaseSupplier(
-                    "(a, b, c)",
-                    List.of(numericType, numericType, numericType),
+                    "(a, b)",
+                    List.of(numericType, numericType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(numericType, 1)), numericType, "a"),
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(numericType, 2)), numericType, "b"),
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(numericType, 3)), numericType, "c")
+                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(numericType, 2)), numericType, "b")
                         ),
                         String.format(
                             Locale.ROOT,
-                            "ClampMax%sEvaluator[field=ClampMin%sEvaluator[field=Attribute[channel=0], min=Attribute[channel=1]], "
-                                + "max=Attribute[channel=2]]",
+                            "ClampMin%sEvaluator[field=Attribute[channel=0], min=Attribute[channel=1]]",
                             numericType == DataType.UNSIGNED_LONG ? "Long" : capitalize.apply(numericType.esType()),
                             numericType == DataType.UNSIGNED_LONG ? "Long" : capitalize.apply(numericType.esType())
                         ),
@@ -110,16 +109,14 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
         // boolean type
         suppliers.add(
             new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.BOOLEAN, DataType.BOOLEAN, DataType.BOOLEAN),
+                "(a, b)",
+                List.of(DataType.BOOLEAN, DataType.BOOLEAN),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "a"),
-                        new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "b"),
-                        new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "c")
+                        new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "b")
                     ),
-                    "ClampMaxBooleanEvaluator[field=ClampMinBooleanEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
+                    "ClampMinBooleanEvaluator[field=Attribute[channel=0], min=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     Matchers.allOf(
                         Matchers.notNullValue(),
@@ -131,16 +128,14 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.VERSION, DataType.VERSION, DataType.VERSION),
+                "(a, b)",
+                List.of(DataType.VERSION, DataType.VERSION),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(new BytesRef("1"), DataType.VERSION, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("2"), DataType.VERSION, "b"),
-                        new TestCaseSupplier.TypedData(new BytesRef("3"), DataType.VERSION, "c")
+                        new TestCaseSupplier.TypedData(new BytesRef("2"), DataType.VERSION, "b")
                     ),
-                    "ClampMaxBytesRefEvaluator[field=ClampMinBytesRefEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
+                    "ClampMinBytesRefEvaluator[field=Attribute[channel=0], min=Attribute[channel=1]]",
                     DataType.VERSION,
                     Matchers.allOf(
                         Matchers.notNullValue(),
@@ -152,16 +147,14 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.IP, DataType.IP, DataType.IP),
+                "(a, b)",
+                List.of(DataType.IP, DataType.IP),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(new BytesRef("127.0.0.1"), DataType.IP, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.2"), DataType.IP, "b"),
-                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.3"), DataType.IP, "c")
+                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.3"), DataType.IP, "b")
                     ),
-                    "ClampMaxBytesRefEvaluator[field=ClampMinBytesRefEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
+                    "ClampMinBytesRefEvaluator[field=Attribute[channel=0], min=Attribute[channel=1]]",
                     DataType.IP,
                     Matchers.allOf(
                         Matchers.notNullValue(),
@@ -173,16 +166,14 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.DATETIME, DataType.DATETIME, DataType.DATETIME),
+                "(a, b)",
+                List.of(DataType.DATETIME, DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(1727877348000L, DataType.DATETIME, "a"),
-                        new TestCaseSupplier.TypedData(1727790948000L, DataType.DATETIME, "b"),
-                        new TestCaseSupplier.TypedData(1727963748000L, DataType.DATETIME, "c")
+                        new TestCaseSupplier.TypedData(1727790948000L, DataType.DATETIME, "b")
                     ),
-                    "ClampMaxLongEvaluator[field=ClampMinLongEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
+                    "ClampMinLongEvaluator[field=Attribute[channel=0], min=Attribute[channel=1]]",
                     DataType.DATETIME,
                     Matchers.allOf(
                         Matchers.notNullValue(),
@@ -192,7 +183,6 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
-        // TODO make sure that we handle nulls properly
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -201,6 +191,6 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected EsqlScalarFunction build(Source source, List<Expression> args) {
-        return new Clamp(source, args.get(0), args.get(1), args.get(2));
+        return new ClampMin(source, args.get(0), args.get(1));
     }
 }

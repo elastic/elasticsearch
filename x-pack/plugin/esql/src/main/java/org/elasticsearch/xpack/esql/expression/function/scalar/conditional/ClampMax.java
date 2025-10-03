@@ -41,20 +41,20 @@ public class ClampMax extends EsqlScalarFunction {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
         description = "Returns clamps the values of all input samples clamped to have an upper limit of max.",
-        examples = @Example(file = "math", tag = "ClampMax")
+        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max")
     )
     public ClampMax(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
             description = "field to clamp."
         ) Expression field,
         @Param(
             name = "max",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
             description = "The max value to clamp data into."
         ) Expression max
     ) {

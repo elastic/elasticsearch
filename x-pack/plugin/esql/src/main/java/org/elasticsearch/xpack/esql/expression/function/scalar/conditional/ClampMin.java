@@ -41,20 +41,20 @@ public class ClampMin extends EsqlScalarFunction {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
         description = "Returns clamps the values of all input samples clamped to have a lower limit of min.",
-        examples = @Example(file = "math", tag = "Clampmin")
+        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-min")
     )
     public ClampMin(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
             description = "field to clamp."
         ) Expression field,
         @Param(
             name = "min",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
             description = "The min value to clamp data into."
         ) Expression min
     ) {

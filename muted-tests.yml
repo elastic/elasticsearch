@@ -504,9 +504,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/134853
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryInlinestats
-  issue: https://github.com/elastic/elasticsearch/issues/134854
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865
@@ -522,9 +519,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.CountDistinctWithConditions}
   issue: https://github.com/elastic/elasticsearch/issues/134993
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/135032
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBeforeStatsWithWhere}
   issue: https://github.com/elastic/elasticsearch/issues/135041

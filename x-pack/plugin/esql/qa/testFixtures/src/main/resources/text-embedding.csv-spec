@@ -1,6 +1,6 @@
 text_embedding using a row source operator
 required_capability: text_embedding_function
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 
 // tag::embedding-eval[]
 ROW input="Who is Victor Hugo?"
@@ -15,7 +15,7 @@ Who is Victor Hugo? | [56.0, 50.0, 48.0]
 
 text_embedding using a row source operator with query build using CONCAT
 required_capability: text_embedding_function
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = TEXT_EMBEDDING(CONCAT("Who is ", "Victor Hugo?"), "test_dense_inference")
@@ -28,7 +28,7 @@ Who is Victor Hugo? | [56.0, 50.0, 48.0]
 
 text_embedding with knn on semantic_text_dense_field
 required_capability: text_embedding_function
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: knn_function_v5
 required_capability: semantic_text_field_caps
 
@@ -49,7 +49,7 @@ all we have to decide is what to do with the time that is given to us | [45.0, 5
 
 text_embedding with knn (inline) on semantic_text_dense_field
 required_capability: text_embedding_function
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
 required_capability: knn_function_v5
 required_capability: semantic_text_field_caps
 

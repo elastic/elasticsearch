@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.search.crossproject;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +17,7 @@ import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Map;
 import java.util.Set;
@@ -79,6 +79,13 @@ public class ResponseValidator {
             return null;
         }
 
+        logger.debug(
+            "Checking index existence for [{}] and [{}] with indices options [{}]",
+            localResolvedExpressions,
+            remoteResolvedExpressions,
+            indicesOptions
+        );
+
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
             String originalExpression = localResolvedIndices.original();
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
@@ -90,37 +97,41 @@ public class ResponseValidator {
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
-                if (remoteExpressions.isEmpty()) {
-                    // qualified local expression
-                    ElasticsearchException e = handleResolutionFailure(result, originalExpression);
-                    if (e == null) {
-                        if (localExpressions.expressions().isEmpty()) {
-                            return new IndexNotFoundException(originalExpression);
-                        }
-                    } else {
-                        return e;
-                    }
-                } else {
-                    // qualified linked project expression
-                    for (String remoteExpression : remoteExpressions) {
-                        String[] splitResource = splitQualifiedResource(remoteExpression);
-                        ElasticsearchException exception = checkSingleRemoteExpression(
-                            remoteResolvedExpressions,
-                            splitResource[0], // projectAlias
-                            splitResource[1], // resource
-                            remoteExpression
-                        );
-                        if (exception != null) {
-                            return exception;
-                        }
+                ElasticsearchException e = checkResolutionFailure(
+                    localExpressions.expressions(),
+                    result,
+                    originalExpression,
+                    indicesOptions
+                );
+                if (e != null) {
+                    return e;
+                }
+                // qualified linked project expression
+                for (String remoteExpression : remoteExpressions) {
+                    String[] splitResource = splitQualifiedResource(remoteExpression);
+                    ElasticsearchException exception = checkSingleRemoteExpression(
+                        remoteResolvedExpressions,
+                        splitResource[0], // projectAlias
+                        splitResource[1], // resource
+                        remoteExpression,
+                        indicesOptions
+                    );
+                    if (exception != null) {
+                        return exception;
                     }
                 }
             } else {
-                if (result == SUCCESS && false == localExpressions.expressions().isEmpty()) {
-                    // flat expression matching locally
+                ElasticsearchException localException = checkResolutionFailure(
+                    localExpressions.expressions(),
+                    result,
+                    originalExpression,
+                    indicesOptions
+                );
+                if (localException == null) {
+                    // found locally, continue to next expression
                     continue;
                 }
-                boolean isUnAuthorized = result == CONCRETE_RESOURCE_UNAUTHORIZED;
+                boolean isUnauthorized = localException instanceof ElasticsearchSecurityException;
                 boolean foundFlat = false;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
@@ -129,22 +140,23 @@ public class ResponseValidator {
                         remoteResolvedExpressions,
                         splitResource[0], // projectAlias
                         splitResource[1], // resource
-                        remoteExpression
+                        remoteExpression,
+                        indicesOptions
                     );
                     if (exception == null) {
                         // found flat expression somewhere
                         foundFlat = true;
                         break;
                     }
-                    if (false == isUnAuthorized && exception instanceof ElasticsearchSecurityException) {
-                        isUnAuthorized = true;
+                    if (false == isUnauthorized && exception instanceof ElasticsearchSecurityException) {
+                        isUnauthorized = true;
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
-                if (isUnAuthorized) {
-                    return new ElasticsearchSecurityException("authorization errors while resolving [" + originalExpression + "]");
+                if (isUnauthorized) {
+                    return securityException(originalExpression);
                 }
                 return new IndexNotFoundException(originalExpression);
             }
@@ -153,30 +165,33 @@ public class ResponseValidator {
         return null;
     }
 
+    private static ElasticsearchSecurityException securityException(String originalExpression) {
+        // TODO plug in proper recorded authorization exceptions instead, once available
+        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]");
+    }
+
     private static ElasticsearchException checkSingleRemoteExpression(
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         String projectAlias,
         String resource,
-        String remoteExpression
+        String remoteExpression,
+        IndicesOptions indicesOptions
     ) {
-        // Get resolution results from the linked project
         ResolvedIndexExpressions resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
         assert resolvedExpressionsInProject != null : "We should always have resolved expressions from linked project";
 
-        // Find the matching expression in the linked project
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
+            assert false : "Expected to find matching expression [" + resource + "] in project [" + projectAlias + "]";
             return new IndexNotFoundException(remoteExpression);
         }
 
-        // Check resolution result
-        if (matchingExpression.localIndexResolutionResult() == SUCCESS) {
-            // Successfully found if there are concrete expressions
-            return matchingExpression.expressions().isEmpty() ? new IndexNotFoundException(remoteExpression) : null;
-        }
-
-        // Handle authorization and visibility failures
-        return handleResolutionFailure(matchingExpression.localIndexResolutionResult(), remoteExpression);
+        return checkResolutionFailure(
+            matchingExpression.expressions(),
+            matchingExpression.localIndexResolutionResult(),
+            remoteExpression,
+            indicesOptions
+        );
     }
 
     private static String[] splitQualifiedResource(String resource) {
@@ -190,6 +205,7 @@ public class ResponseValidator {
         return splitResource;
     }
 
+    // TODO optimize with a precomputed Map<String, ResolvedIndexExpression.LocalExpressions> instead
     private static ResolvedIndexExpression.LocalExpressions findMatchingExpression(
         ResolvedIndexExpressions projectExpressions,
         String resource
@@ -202,16 +218,27 @@ public class ResponseValidator {
             .orElse(null);
     }
 
-    private static ElasticsearchException handleResolutionFailure(
+    private static ElasticsearchException checkResolutionFailure(
+        Set<String> localExpressions,
         ResolvedIndexExpression.LocalIndexResolutionResult result,
-        String expression
+        String expression,
+        IndicesOptions indicesOptions
     ) {
-        if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
-            return new IndexNotFoundException(expression);
-        } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
-            return new ElasticsearchSecurityException("authorization errors while resolving [" + expression + "]", RestStatus.FORBIDDEN);
-        } else {
-            return null;
+        assert false == (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable())
+            : "Should not be checking index existence in lenient mode";
+
+        if (indicesOptions.ignoreUnavailable() == false) {
+            if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
+                return new IndexNotFoundException(expression);
+            } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                return securityException(expression);
+            }
         }
+
+        if (indicesOptions.allowNoIndices() == false && result == SUCCESS && localExpressions.isEmpty()) {
+            return new IndexNotFoundException(expression);
+        }
+
+        return null;
     }
 }

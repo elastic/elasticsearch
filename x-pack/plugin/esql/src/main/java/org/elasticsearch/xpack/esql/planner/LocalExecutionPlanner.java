@@ -56,6 +56,7 @@ import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -443,6 +444,13 @@ public class LocalExecutionPlanner {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
         PhysicalOperation source = plan(child, context);
+        if (Assertions.ENABLED) {
+            List<Attribute> inputAttributes = exchangeSink.child().output();
+            for (Attribute attr : inputAttributes) {
+                assert source.layout.get(attr.id()) != null
+                    : "input attribute [" + attr + "] does not exist in the source layout [" + source.layout + "]";
+            }
+        }
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }
 

@@ -225,13 +225,11 @@ public class EvaluatorImplementer {
                 pattern.append("$T.$N(");
                 args.add(declarationType);
                 args.add(processFunction.function.getSimpleName());
-                pattern.append(
-                    processFunction.args.stream().map(argument -> {
-                        var invocation = new StringBuilder();
-                        argument.buildInvocation(invocation, args, blockStyle);
-                        return invocation.toString();
-                    }).collect(Collectors.joining(", "))
-                );
+                pattern.append(processFunction.args.stream().map(argument -> {
+                    var invocation = new StringBuilder();
+                    argument.buildInvocation(invocation, args, blockStyle);
+                    return invocation.toString();
+                }).collect(Collectors.joining(", ")));
                 pattern.append(")");
                 String builtPattern;
                 if (processFunction.builderArg == null) {

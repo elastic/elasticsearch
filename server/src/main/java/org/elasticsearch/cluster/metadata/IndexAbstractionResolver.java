@@ -20,7 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
-import org.elasticsearch.search.crossproject.IndexExpressionsRewriter;
+import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.util.HashSet;
@@ -88,7 +88,7 @@ public class IndexAbstractionResolver {
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
         boolean wildcardSeen = false;
         for (String originalIndexExpression : indices) {
-            final IndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = IndexExpressionsRewriter.rewriteIndexExpression(
+            final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                 originalIndexExpression,
                 originProjectAlias,
                 linkedProjectAliases

@@ -46,7 +46,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.crossproject.ResponseValidator;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -625,7 +625,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 );
                                 return;
                             }
-                            final Exception ex = ResponseValidator.validate(
+                            final Exception ex = CrossProjectIndexResolutionValidator.validate(
                                 originalIndicesOptions,
                                 localResolvedIndexExpressions,
                                 getResolvedExpressionsByRemote(remoteResponses)
@@ -662,7 +662,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 if (resolveCrossProject) {
                     // we still need to call response validation for local results, since qualified expressions like `_origin:index` or
                     // `<alias-pattern-matching-origin-only>:index` get deferred validation, also
-                    final Exception ex = ResponseValidator.validate(originalIndicesOptions, localResolvedIndexExpressions, Map.of());
+                    final Exception ex = CrossProjectIndexResolutionValidator.validate(originalIndicesOptions, localResolvedIndexExpressions, Map.of());
                     if (ex != null) {
                         listener.onFailure(ex);
                         return;

@@ -45,8 +45,8 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
  * error response, returning {@link IndexNotFoundException} for missing indices or
  * {@link ElasticsearchSecurityException} for authorization failures.
  */
-public class ResponseValidator {
-    private static final Logger logger = LogManager.getLogger(ResponseValidator.class);
+public class CrossProjectIndexResolutionValidator {
+    private static final Logger logger = LogManager.getLogger(CrossProjectIndexResolutionValidator.class);
 
     /**
      * Validates the results of cross-project index resolution and returns appropriate exceptions based on the provided

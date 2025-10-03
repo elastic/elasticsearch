@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextParams;
@@ -87,9 +88,8 @@ public class PatternTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends BuilderWithSyntheticSourceContext {
 
-        private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
@@ -97,12 +97,23 @@ public class PatternTextFieldMapper extends FieldMapper {
         private final Parameter<Boolean> disableTemplating;
 
         public Builder(String name, MappingParserContext context) {
-            this(name, context.indexVersionCreated(), context.getIndexSettings());
+            this(
+                name,
+                context.indexVersionCreated(),
+                context.getIndexSettings(),
+                SourceFieldMapper.isSynthetic(context.getIndexSettings()),
+                context.isWithinMultiField()
+            );
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings) {
-            super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            IndexSettings indexSettings,
+            boolean isSyntheticSourceEnabled,
+            boolean isWithinMultiField
+        ) {
+            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
             this.indexSettings = indexSettings;
             this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
@@ -120,9 +131,10 @@ public class PatternTextFieldMapper extends FieldMapper {
                 context.buildFullName(leafName()),
                 tsi,
                 analyzer,
-                context.isSourceSynthetic(),
                 disableTemplating.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                context.isSourceSynthetic(),
+                isWithinMultiField()
             );
         }
 
@@ -194,8 +206,9 @@ public class PatternTextFieldMapper extends FieldMapper {
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternTextFieldType.templateIdFieldName(leafName()),
                 indexSettings.getMode(),
-                indexCreatedVersion,
-                true
+                indexCreatedVersion(),
+                true,
+                isWithinMultiField()
             ).indexed(false).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
         }
@@ -222,7 +235,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.analyzer = builder.analyzer.get();
         this.indexSettings = builder.indexSettings;
         this.indexOptions = builder.indexOptions.getValue();
@@ -236,7 +249,13 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings).init(this);
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            indexSettings,
+            fieldType().isSyntheticSourceEnabled(),
+            fieldType().isWithinMultiField()
+        ).init(this);
     }
 
     @Override

@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
  * Utility class for rewriting cross-project index expressions.
  * Provides methods that can rewrite qualified and unqualified index expressions to canonical CCS.
  */
-public class IndexExpressionsRewriter {
+public class CrossProjectIndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
 
-    private static final Logger logger = LogManager.getLogger(IndexExpressionsRewriter.class);
+    private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";

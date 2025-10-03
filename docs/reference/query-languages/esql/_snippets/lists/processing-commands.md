@@ -6,6 +6,7 @@
 * [`EVAL`](/reference/query-languages/esql/commands/eval.md)
 * [`GROK`](/reference/query-languages/esql/commands/grok.md)
 * {applies_to}`stack: preview` {applies_to}`serverless: preview` [`FORK`](/reference/query-languages/esql/commands/fork.md)
+* {applies_to}`stack: preview` {applies_to}`serverless: preview` [`FUSE`](/reference/query-languages/esql/commands/fuse.md)
 * [`KEEP`](/reference/query-languages/esql/commands/keep.md)
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md)

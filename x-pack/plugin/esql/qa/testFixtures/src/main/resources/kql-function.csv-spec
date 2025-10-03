@@ -369,7 +369,7 @@ required_capability: kql_function
 required_capability: kql_function_options
 // tag::kql-with-options[]
 FROM employees
-| WHERE KQL("mary", {"case_insensitive": false, "default_field": "first_name", "boost": 1.5})
+| WHERE KQL("mary", {"case_insensitive": true, "default_field": "first_name", "boost": 1.5})
 // end::kql-with-options[]
 | KEEP emp_no, first_name, last_name
 ;
@@ -382,7 +382,6 @@ kqlWithWildcardDefaultField
 required_capability: kql_function
 required_capability: kql_function_options
 
-x
 FROM employees
 | WHERE KQL("Mary", {"default_field": "*_name"})
 | KEEP emp_no, first_name, last_name

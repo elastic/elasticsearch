@@ -388,7 +388,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
             final MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
             assertSemanticTextField(mapperService, fieldName, false, null, null);
-            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, searchInferenceId);
+            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, searchInferenceId);
             assertSerialization.accept(expectedMapping, mapperService);
         }
         {

@@ -137,14 +137,14 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
                 in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING) ? in.readVLong() : 0,
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(INTRODUCE_FAILURES_LIFECYCLE)
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                     ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
                     : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
-                in.getTransportVersion().onOrAfter(INTRODUCE_FAILURES_LIFECYCLE)
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                     ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
                     : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
-                in.getTransportVersion().onOrAfter(INTRODUCE_FAILURES_LIFECYCLE)
+                in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                     ? in.readMap(DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats::new)
                     : Map.of()
             );

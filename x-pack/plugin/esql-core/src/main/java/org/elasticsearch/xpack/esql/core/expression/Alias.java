@@ -160,7 +160,7 @@ public final class Alias extends NamedExpression {
     }
 
     /**
-     * Compared to e.g. {@link UnresolvedAttribute}, the id is part of equality for Alias because the {@link ReferenceAttribute} created
+     * The id is part of equality for Alias because the {@link ReferenceAttribute} created
      * by {@link #toAttribute()} uses it.
      */
     @Override

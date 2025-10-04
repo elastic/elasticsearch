@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
@@ -519,7 +520,10 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         if (q == null || q instanceof MatchAllQueryBuilder || q instanceof MatchNoneQueryBuilder) {
             return 0;
         }
-        if (q instanceof WildcardQueryBuilder || q instanceof RegexpQueryBuilder || q instanceof PrefixQueryBuilder) {
+        if (q instanceof WildcardQueryBuilder
+            || q instanceof RegexpQueryBuilder
+            || q instanceof PrefixQueryBuilder
+            || q instanceof FuzzyQueryBuilder) {
             return 5;
         }
         if (q instanceof MultiTermQueryBuilder) {

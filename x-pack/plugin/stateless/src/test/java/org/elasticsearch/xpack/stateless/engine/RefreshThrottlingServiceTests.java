@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -74,7 +75,9 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
         );
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), masterNode.getName())
-            .put("node.roles", nodeActions.get(0).search() ? SEARCH_ROLE.roleName() : INDEX_ROLE.roleName());
+            .put("node.roles", nodeActions.get(0).search() ? SEARCH_ROLE.roleName() : INDEX_ROLE.roleName())
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO);
         final Settings settings = settingsBuilder.build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();

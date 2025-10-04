@@ -106,13 +106,15 @@ public class RestTestBasePlugin implements Plugin<Project> {
         ElasticsearchDistribution defaultDistro = createDistribution(
             project,
             DEFAULT_REST_INTEG_TEST_DISTRO,
-            VersionProperties.getElasticsearch()
+            VersionProperties.getElasticsearch(),
+            false
         );
         ElasticsearchDistribution integTestDistro = createDistribution(
             project,
             INTEG_TEST_REST_INTEG_TEST_DISTRO,
             VersionProperties.getElasticsearch(),
-            ElasticsearchDistributionTypes.INTEG_TEST_ZIP
+            ElasticsearchDistributionTypes.INTEG_TEST_ZIP,
+            false
         );
 
         // Create configures for module and plugin dependencies
@@ -238,21 +240,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null && version.toString().equals("0.0.0") == false;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null;
                     String versionString = version.toString();
-                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
+                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString, false);
 
-                    if (jdkIsIncompatibleWithOS(Version.fromString(versionString))) {
-                        var toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
-                        var fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
-                            spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
-                            spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
-                        });
-                        task.environment(
-                            "ES_FALLBACK_JAVA_HOME",
-                            fallbackJdk17Launcher.get().getMetadata().getInstallationPath().getAsFile().getPath()
-                        );
-                    }
+                    handleJdkIncompatibleWithOS(version, project, task);
                     task.dependsOn(bwcDistro);
                     registerDistributionInputs(task, bwcDistro);
 
@@ -261,14 +253,61 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
+                    if (version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
                         this.call(bwcVersions.getMinimumWireCompatibleVersion());
                     }
                     return null;
                 }
             });
+
+            task.getExtensions().getExtraProperties().set("usesBwcDistributionFromRef", new Closure<Void>(task) {
+                @Override
+                public Void call(Object... args) {
+                    if (args.length != 2 || args[0] instanceof String == false || args[1] instanceof Version == false) {
+                        throw new IllegalArgumentException("Expected arguments (String refSpec, org.elasticsearch.gradle.Version version)");
+                    }
+
+                    String refSpec = (String) args[0];
+                    Version version = (Version) args[1];
+                    boolean isDetachedVersion = true;
+                    String versionString = version.toString();
+
+                    ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + refSpec, versionString, isDetachedVersion);
+                    handleJdkIncompatibleWithOS(version, project, task);
+
+                    task.dependsOn(bwcDistro);
+                    registerDistributionInputs(task, bwcDistro);
+
+                    nonInputSystemProperties.systemProperty(
+                        BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX + versionString,
+                        providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
+                    );
+                    return null;
+                }
+            });
         });
+    }
+
+    /**
+     * Older distributions ship with openjdk versions that are not compatible with newer kernels of ubuntu 24.04 and later
+     * Therefore we pass explicitly the runtime java to use the adoptium jdk that is maintained longer and compatible
+     * with newer kernels.
+     * 8.10.4 is the last version shipped with jdk < 21. We configure these cluster to run with jdk 17 adoptium as 17 was
+     * the last LTS release before 21
+     */
+    private static void handleJdkIncompatibleWithOS(Version version, Project project, StandaloneRestIntegTestTask task) {
+        if (jdkIsIncompatibleWithOS(version)) {
+            var toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
+            var fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
+                spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
+            });
+            task.environment(
+                "ES_FALLBACK_JAVA_HOME",
+                fallbackJdk17Launcher.get().getMetadata().getInstallationPath().getAsFile().getPath()
+            );
+        }
     }
 
     private void copyDependencies(Project project, DependencySet dependencies, Configuration configuration) {
@@ -279,16 +318,23 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .forEach(dependencies::add);
     }
 
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version) {
-        return createDistribution(project, name, version, null);
+    private ElasticsearchDistribution createDistribution(Project project, String name, String version, boolean detachedVersion) {
+        return createDistribution(project, name, version, null, detachedVersion);
     }
 
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version, ElasticsearchDistributionType type) {
+    private ElasticsearchDistribution createDistribution(
+        Project project,
+        String name,
+        String version,
+        ElasticsearchDistributionType type,
+        boolean detachedVersion
+    ) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         ElasticsearchDistribution maybeDistro = distributions.findByName(name);
         if (maybeDistro == null) {
             return distributions.create(name, distro -> {
                 distro.setVersion(version);
+                distro.setDetachedVersion(detachedVersion);
                 distro.setArchitecture(Architecture.current());
                 if (type != null) {
                     distro.setType(type);

@@ -723,6 +723,9 @@ tests:
 - class: org.elasticsearch.compute.data.BasicPageTests
   method: testEqualityAndHashCode
   issue: https://github.com/elastic/elasticsearch/issues/135990
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=indices.get_sample/10_basic/Test get sample for index with no sample config}
+  issue: https://github.com/elastic/elasticsearch/issues/135993
 
 # Examples:
 #

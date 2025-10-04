@@ -71,7 +71,7 @@ $if(BytesRef)$
             if (ref.length == 0) {
                 continue;
             }
-            if value.equals(ref)) {
+            if (value.equals(ref)) {
                 return true;
             }
 $else$

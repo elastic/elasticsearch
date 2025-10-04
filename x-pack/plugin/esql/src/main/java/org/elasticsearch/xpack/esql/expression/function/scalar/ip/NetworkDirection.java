@@ -50,7 +50,7 @@ public class NetworkDirection extends EsqlScalarFunction {
     private final Expression internalNetworks;
 
     @FunctionInfo(
-        returnType = "boolean",
+        returnType = "keyword",
         description = "Returns true if the direction of the source-to-destination-IPs is determined to be inbound, provided a list of internal networks.",
         examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs") // TODO make an example
     )
@@ -126,7 +126,7 @@ public class NetworkDirection extends EsqlScalarFunction {
     }
 
     @Evaluator
-    static boolean process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock internalNetworks) {
+    static BytesRef process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock internalNetworks) {
         // Pulling the bytes out directly using InetAddress.getByAddress() requires error handling TODO
         InetAddress sourceIpAddress = InetAddresses.forString(sourceIp.utf8ToString());
         InetAddress destinationIpAddress = InetAddresses.forString(destinationIp.utf8ToString());
@@ -149,14 +149,11 @@ public class NetworkDirection extends EsqlScalarFunction {
             }
         }
 
-        if (sourceInternal == false) {
-            return destinationInternal;
-        }
-        return false;
+        return new BytesRef(NetworkDirectionUtils.getDirection(sourceInternal, destinationInternal));
     }
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataType.KEYWORD;
     }
 }

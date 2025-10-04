@@ -29,11 +29,6 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
 
     public static final String TYPE = "network_direction";
 
-    public static final String DIRECTION_INTERNAL = "internal";
-    public static final String DIRECTION_EXTERNAL = "external";
-    public static final String DIRECTION_INBOUND = "inbound";
-    public static final String DIRECTION_OUTBOUND = "outbound";
-
     private final String sourceIpField;
     private final String destinationIpField;
     private final String targetField;
@@ -126,16 +121,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         boolean sourceInternal = NetworkDirectionUtils.isInternal(networks, sourceIpAddrString);
         boolean destinationInternal = NetworkDirectionUtils.isInternal(networks, destIpAddrString);
 
-        if (sourceInternal && destinationInternal) {
-            return DIRECTION_INTERNAL;
-        }
-        if (sourceInternal) {
-            return DIRECTION_OUTBOUND;
-        }
-        if (destinationInternal) {
-            return DIRECTION_INBOUND;
-        }
-        return DIRECTION_EXTERNAL;
+        return NetworkDirectionUtils.getDirection(sourceInternal, destinationInternal);
     }
 
     @Override

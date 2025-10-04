@@ -30,6 +30,11 @@ public class NetworkDirectionUtils {
     private static final String PRIVATE_NAMED_NETWORK = "private";
     private static final String PUBLIC_NAMED_NETWORK = "public";
 
+    public static final String DIRECTION_INTERNAL = "internal";
+    public static final String DIRECTION_EXTERNAL = "external";
+    public static final String DIRECTION_INBOUND = "inbound";
+    public static final String DIRECTION_OUTBOUND = "outbound";
+
     public static boolean isInternal(List<String> networks, String ip) {
         for (String network : networks) {
             if (inNetwork(InetAddresses.forString(ip), network)) {
@@ -52,6 +57,19 @@ public class NetworkDirectionUtils {
             case PUBLIC_NAMED_NETWORK -> isPublic(address.getHostAddress());
             default -> CIDRUtils.isInRange(address.getHostAddress(), network);
         };
+    }
+
+    public static String getDirection(boolean sourceInternal, boolean destinationInternal) {
+        if (sourceInternal && destinationInternal) {
+            return DIRECTION_INTERNAL;
+        }
+        if (sourceInternal) {
+            return DIRECTION_OUTBOUND;
+        }
+        if (destinationInternal) {
+            return DIRECTION_INBOUND;
+        }
+        return DIRECTION_EXTERNAL;
     }
 
     private static boolean isLoopback(InetAddress ip) {

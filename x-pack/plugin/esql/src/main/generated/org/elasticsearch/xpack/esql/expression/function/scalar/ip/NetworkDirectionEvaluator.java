@@ -11,8 +11,6 @@ import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
@@ -82,9 +80,9 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock sourceIpBlock,
+  public BytesRefBlock eval(int positionCount, BytesRefBlock sourceIpBlock,
       BytesRefBlock destinationIpBlock, BytesRefBlock internalNetworksBlock) {
-    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef sourceIpScratch = new BytesRef();
       BytesRef destinationIpScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -123,21 +121,21 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
         }
         BytesRef sourceIp = sourceIpBlock.getBytesRef(sourceIpBlock.getFirstValueIndex(p), sourceIpScratch);
         BytesRef destinationIp = destinationIpBlock.getBytesRef(destinationIpBlock.getFirstValueIndex(p), destinationIpScratch);
-        result.appendBoolean(NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, internalNetworksBlock));
+        result.appendBytesRef(NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, internalNetworksBlock));
       }
       return result.build();
     }
   }
 
-  public BooleanVector eval(int positionCount, BytesRefVector sourceIpVector,
+  public BytesRefVector eval(int positionCount, BytesRefVector sourceIpVector,
       BytesRefVector destinationIpVector, BytesRefBlock internalNetworksBlock) {
-    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef sourceIpScratch = new BytesRef();
       BytesRef destinationIpScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef sourceIp = sourceIpVector.getBytesRef(p, sourceIpScratch);
         BytesRef destinationIp = destinationIpVector.getBytesRef(p, destinationIpScratch);
-        result.appendBoolean(p, NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, internalNetworksBlock));
+        result.appendBytesRef(NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, internalNetworksBlock));
       }
       return result.build();
     }

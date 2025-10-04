@@ -34,6 +34,24 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
      */
     boolean getBoolean(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at valueIndex. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param valueIndex the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int valueIndex, boolean value) {
+        final var count = getValueCount(valueIndex);
+        final var startIndex = getFirstValueIndex(valueIndex);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if(value == getBoolean(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     BooleanVector asVector();
 

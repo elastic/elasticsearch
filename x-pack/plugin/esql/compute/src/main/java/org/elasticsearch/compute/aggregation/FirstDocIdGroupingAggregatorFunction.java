@@ -232,7 +232,6 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
                 } catch (Exception e) {
                     throw e;
                 }
-                contextRefs.clear();
             } finally {
                 if (blocks[offset] == null) {
                     Releasables.closeExpectNoException(shardVector, segmentVector, docVector);

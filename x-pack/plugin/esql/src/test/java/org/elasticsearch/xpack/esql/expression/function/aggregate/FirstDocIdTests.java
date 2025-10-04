@@ -55,26 +55,28 @@ public class FirstDocIdTests extends ComputeTestCase {
                 var docs = blockFactory().newIntVectorFixedBuilder(positions);
                 var groups = blockFactory().newIntVectorFixedBuilder(positions)
             ) {
-                Doc doc = new Doc(between(0, 2), between(0, 5), randomNonNegativeInt());
-                shardRefs.putIfAbsent(doc.shard, AbstractRefCounted.of(() -> {}));
-                shards.appendInt(doc.shard);
-                segments.appendInt(doc.segment);
-                docs.appendInt(doc.docId);
-                int group = between(0, 1000);
-                groups.appendInt(group);
-                expectedFirstDocs.putIfAbsent(group, doc);
+                for (int p = 0; p < positions; p++) {
+                    Doc doc = new Doc(between(0, 2), between(0, 5), randomNonNegativeInt());
+                    shardRefs.putIfAbsent(doc.shard, AbstractRefCounted.of(() -> {}));
+                    shards.appendInt(doc.shard);
+                    segments.appendInt(doc.segment);
+                    docs.appendInt(doc.docId);
+                    int group = between(0, 1000);
+                    groups.appendInt(group);
+                    expectedFirstDocs.putIfAbsent(group, doc);
+                }
                 DocVector docVector = new DocVector(shardRefs::get, shards.build(), segments.build(), docs.build(), null);
                 pages.add(new Page(docVector.asBlock(), groups.build().asBlock()));
             }
         }
         var aggregatorFactory = new FirstDocIdGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
             AggregatorMode.INITIAL,
-            List.of(1)
+            List.of(0)
         );
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
             List.of(aggregatorFactory),
             () -> BlockHash.build(
-                List.of(new BlockHash.GroupSpec(0, ElementType.INT)),
+                List.of(new BlockHash.GroupSpec(1, ElementType.INT)),
                 driverContext.blockFactory(),
                 randomIntBetween(1, 1024),
                 randomBoolean()

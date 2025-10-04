@@ -48,7 +48,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.search.crossproject.CrossProjectIndicesRequestHelper;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -181,7 +181,7 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            settings.getAsBoolean("serverless.cross_project.enabled", false)
+            CrossProjectModeDecider.isCrossProject(settings)
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -513,7 +513,7 @@ public class AuthorizationService {
                     final var authorizedIndicesListener = new SubscribableListener<AuthorizationEngine.AuthorizedIndices>();
                     authorizedIndicesListener.<Tuple<AuthorizationEngine.AuthorizedIndices, TargetProjects>>andThen(
                         (l, authorizedIndices) -> {
-                            if (CrossProjectIndicesRequestHelper.shouldResolveTransportRequestCrossProject(request)) {
+                            if (CrossProjectModeDecider.transportRequestResolvesCrossProject(request)) {
                                 authorizedProjectsResolver.resolveAuthorizedProjects(
                                     l.map(targetProjects -> new Tuple<>(authorizedIndices, targetProjects))
                                 );

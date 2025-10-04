@@ -11,23 +11,29 @@ package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.transport.TransportRequest;
 
-public final class CrossProjectIndicesRequestHelper {
-    private CrossProjectIndicesRequestHelper() {}
+public final class CrossProjectModeDecider {
+    private CrossProjectModeDecider() {}
 
-    public static boolean shouldResolveCrossProject(IndicesRequest.Replaceable request) {
+    public static boolean isCrossProject(Settings settings) {
+        return settings.getAsBoolean("serverless.cross_project.enabled", false);
+    }
+
+    public static boolean resolvesCrossProject(IndicesRequest.Replaceable request) {
         // TODO this needs to be based on the IndicesOptions flag instead, once available
         final boolean indicesOptionsResolveCrossProject = Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
         return request.allowsCrossProject() && indicesOptionsResolveCrossProject;
     }
 
-    public static boolean shouldResolveTransportRequestCrossProject(TransportRequest request) {
-        return request instanceof IndicesRequest.Replaceable replaceable && shouldResolveCrossProject(replaceable);
+    public static boolean transportRequestResolvesCrossProject(TransportRequest request) {
+        return request instanceof IndicesRequest.Replaceable replaceable && resolvesCrossProject(replaceable);
     }
 
-    public static IndicesOptions crossProjectFanoutIndicesOptions(IndicesOptions indicesOptions) {
+    // TODO doesn't belong here
+    public static IndicesOptions fanoutRequestIndicesOptions(IndicesOptions indicesOptions) {
         // TODO set resolveCrossProject=false here once we have an IndicesOptions flag for that
         return IndicesOptions.builder(indicesOptions)
             .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))

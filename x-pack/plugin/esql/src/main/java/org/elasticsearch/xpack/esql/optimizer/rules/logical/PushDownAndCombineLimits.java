@@ -82,13 +82,13 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
     private static Limit combineLimits(Limit upper, Limit lower, FoldContext ctx) {
         // Keep the smallest limit
-        var thisLimitValue = (int) upper.limit().fold(ctx);
-        var otherLimitValue = (int) lower.limit().fold(ctx);
+        var upperLimitValue = (int) upper.limit().fold(ctx);
+        var lowerLimitValue = (int) lower.limit().fold(ctx);
         // We want to preserve the duplicated() value of the smaller limit.
-        if (otherLimitValue <= thisLimitValue) {
-            return lower.withLocal(upper.local() || lower.local());
+        if (lowerLimitValue <= upperLimitValue) {
+            return lower.withLocal(lower.local());
         } else {
-            return new Limit(upper.source(), upper.limit(), lower.child(), upper.duplicated(), upper.local() || lower.local());
+            return new Limit(upper.source(), upper.limit(), lower.child(), upper.duplicated(), upper.local());
         }
     }
 

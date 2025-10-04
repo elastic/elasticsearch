@@ -62,6 +62,57 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
 
     /**
      * <pre>
+     * Limit[10[INTEGER],true,false]
+     * \_Enrich[REMOTE,languages_remote[KEYWORD],id{r}#4,{"match":{"indices":[],"match_field":"id","enrich_fields":["language_cod
+     * e","language_name"]}},{=languages_idx},[language_code{r}#20, language_name{r}#21]]
+     *   \_Eval[[emp_no{f}#6 AS id#4]]
+     *     \_Limit[10[INTEGER],false,true]
+     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * </pre>
+     */
+    public void testLimitWithinRemoteEnrichAndAfter() {
+        var plan = plan("""
+            from test
+            | LIMIT 20
+            | EVAL id = emp_no
+            | ENRICH _remote:languages_remote
+            | LIMIT 10
+            """); // it should be the same in any order
+
+        var limit = as(plan, Limit.class);
+        assertTrue(limit.duplicated());
+        assertFalse(limit.local());
+        var enrich = as(limit.child(), Enrich.class);
+        assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
+        var eval = as(enrich.child(), Eval.class);
+        var innerLimit = as(eval.child(), Limit.class);
+        assertFalse(innerLimit.duplicated());
+        assertTrue(innerLimit.local());
+    }
+
+    // Same as above but limits are reversed
+    public void testLimitWithinRemoteEnrichAndAfterHigher() {
+        var plan = plan("""
+            from test
+            | LIMIT 10
+            | EVAL id = emp_no
+            | ENRICH _remote:languages_remote
+            | LIMIT 20
+            """); // it should be the same in any order
+
+        var limit = as(plan, Limit.class);
+        assertTrue(limit.duplicated());
+        assertFalse(limit.local());
+        var enrich = as(limit.child(), Enrich.class);
+        assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
+        var eval = as(enrich.child(), Eval.class);
+        var innerLimit = as(eval.child(), Limit.class);
+        assertFalse(innerLimit.duplicated());
+        assertTrue(innerLimit.local());
+    }
+
+    /**
+     * <pre>
      * Project[[salary{f}#19 AS wage#10, emp_no{f}#14 AS id#4, first_name{r}#11, language_code{r}#28, language_name{r}#29]]
      * \_Limit[5[INTEGER],true,false]
      *   \_Enrich[REMOTE,languages_remote[KEYWORD],emp_no{f}#14,{"match":{"indices":[],"match_field":"id","enrich_fields":["languag

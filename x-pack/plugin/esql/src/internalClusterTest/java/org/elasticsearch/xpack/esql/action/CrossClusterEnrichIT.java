@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCase {
 
     @Override

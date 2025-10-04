@@ -92,6 +92,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     private static Batch<LogicalPlan> localCleanup() {
         var cleanup = cleanup();
         return cleanup.with(
+            // Remove CoordinatorOnly rules
             Arrays.stream(cleanup.rules()).filter(r -> r instanceof OptimizerRules.CoordinatorOnly == false).toArray(Rule[]::new)
         );
     }

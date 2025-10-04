@@ -15,9 +15,10 @@ import org.elasticsearch.xpack.esql.common.Failures;
  */
 public interface PostOptimizationVerificationAware {
 
-    interface CoordinatorOnly extends PostOptimizationVerificationAware {
-        // Marker interface for verifiers that should only be run on Coordinator
-    }
+    /**
+     * Marker interface for verifiers that should only be run on Coordinator
+     */
+    interface CoordinatorOnly extends PostOptimizationVerificationAware {}
 
     /**
      * Validates the implementing expression - discovered failures are reported to the given

@@ -242,7 +242,7 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
             int precedingLimitValue = randomIntBetween(1, 10_000);
             Limit precedingLimit = new Limit(EMPTY, new Literal(EMPTY, precedingLimitValue, INTEGER), relation);
             LogicalPlan duplicatingLimitTestPlan = duplicatingTestCase.buildPlan(precedingLimit, a);
-            int upperLimitValue = randomIntBetween(1, 10_000);
+            int upperLimitValue = randomIntBetween(1, precedingLimitValue);
             Limit upperLimit = new Limit(EMPTY, new Literal(EMPTY, upperLimitValue, INTEGER), duplicatingLimitTestPlan);
             Limit optimizedPlan = as(optimizePlan(upperLimit), Limit.class);
             duplicatingTestCase.checkOptimizedPlan(duplicatingLimitTestPlan, optimizedPlan.child());

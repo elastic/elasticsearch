@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -29,13 +29,13 @@ public class LocalCheckpointTracker {
      * A collection of bit sets representing processed sequence numbers. Each sequence number is mapped to a bit set by dividing by the
      * bit set size.
      */
-    final Map<Long, CountedBitSet> processedSeqNo = new ConcurrentHashMap<>();
+    final Map<Long, CountedBitSet> processedSeqNo = new HashMap<>();
 
     /**
      * A collection of bit sets representing durably persisted sequence numbers. Each sequence number is mapped to a bit set by dividing by
      * the bit set size.
      */
-    final Map<Long, CountedBitSet> persistedSeqNo = new ConcurrentHashMap<>();
+    final Map<Long, CountedBitSet> persistedSeqNo = new HashMap<>();
 
     /**
      * The current local checkpoint, i.e., all sequence numbers no more than this number have been processed.
@@ -113,16 +113,18 @@ public class LocalCheckpointTracker {
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final Map<Long, CountedBitSet> bitSetMap) {
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);
-        if (seqNo <= checkPoint.get()) {
-            // this is possible during recovery where we might replay an operation that was also replicated
-            return;
-        }
+
         final long bitSetKey = getBitSetKey(seqNo);
-        final CountedBitSet bitSet = bitSetMap.computeIfAbsent(bitSetKey, k -> new CountedBitSet(BIT_SET_SIZE));
         final int offset = seqNoToBitSetOffset(seqNo);
+
         // We are synchronizing on either the processedCheckpoint or persistedCheckpoint checkpoint field. This works with how this method
         // called with references those fields only.
         synchronized (checkPoint) {
+            if (seqNo <= checkPoint.get()) {
+                // this is possible during recovery where we might replay an operation that was also replicated
+                return;
+            }
+            final CountedBitSet bitSet = bitSetMap.computeIfAbsent(bitSetKey, k -> new CountedBitSet(BIT_SET_SIZE));
             bitSet.set(offset);
             if (seqNo == checkPoint.get() + 1) {
                 updateCheckpoint(checkPoint, bitSetMap, offset != 0 ? bitSetKey : bitSetKey - 1, offset != 0 ? bitSet : null);
@@ -199,7 +201,6 @@ public class LocalCheckpointTracker {
             : "updateCheckpoint is called but the bit following the checkpoint is not set";
 
         if (current == null) {
-            assert checkPoint.get() % BIT_SET_SIZE == BIT_SET_SIZE - 1;
             current = bitSetMap.get(++bitSetKey);
         }
 

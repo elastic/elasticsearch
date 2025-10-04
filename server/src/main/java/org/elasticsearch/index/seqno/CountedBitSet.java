@@ -67,8 +67,9 @@ public final class CountedBitSet {
 
         // Get remaining bits in first word
         long word = bits[wordIndex] >>> bitOffset;
+        long mask = -1L >>> bitOffset;
 
-        if (word != -1L) {
+        if (word != mask) {
             // unset bit in this word
             return Long.numberOfTrailingZeros(~word);
         }

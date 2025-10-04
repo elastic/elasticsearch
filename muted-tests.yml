@@ -717,6 +717,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplierTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/135977
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.get_sample/10_basic/Test get sample for index with no sample config}
+  issue: https://github.com/elastic/elasticsearch/issues/135989
+- class: org.elasticsearch.compute.data.BasicPageTests
+  method: testEqualityAndHashCode
+  issue: https://github.com/elastic/elasticsearch/issues/135990
 
 # Examples:
 #

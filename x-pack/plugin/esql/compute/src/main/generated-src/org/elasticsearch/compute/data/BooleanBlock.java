@@ -45,7 +45,7 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         final var count = getValueCount(valueIndex);
         final var startIndex = getFirstValueIndex(valueIndex);
         for (int index = startIndex; index < startIndex + count; index++) {
-            if(value == getBoolean(index)) {
+            if (value == getBoolean(index)) {
                 return true;
             }
         }

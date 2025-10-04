@@ -25,6 +25,7 @@ import java.io.IOException;
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
     OrdinalBytesRefBlock {
     BytesRef NULL_VALUE = new BytesRef();
+
     /**
      * Retrieves the BytesRef value stored at the given value index.
      *
@@ -36,6 +37,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
      * @return the data value (as a BytesRef)
      */
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
+
     /**
      * Checks if this block has the given value at valueIndex. If at this index we have a
      * multivalue, then it returns true if any values match.
@@ -52,7 +54,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
             if (ref.length == 0) {
                 continue;
             }
-            if(value.equals(ref)) {
+            if (value.equals(ref)) {
                 return true;
             }
         }

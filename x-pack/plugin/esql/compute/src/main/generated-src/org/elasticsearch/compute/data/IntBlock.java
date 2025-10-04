@@ -45,7 +45,7 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         final var count = getValueCount(valueIndex);
         final var startIndex = getFirstValueIndex(valueIndex);
         for (int index = startIndex; index < startIndex + count; index++) {
-            if(value == getInt(index)) {
+            if (value == getInt(index)) {
                 return true;
             }
         }

@@ -45,7 +45,7 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
         final var count = getValueCount(valueIndex);
         final var startIndex = getFirstValueIndex(valueIndex);
         for (int index = startIndex; index < startIndex + count; index++) {
-            if(value == getFloat(index)) {
+            if (value == getFloat(index)) {
                 return true;
             }
         }

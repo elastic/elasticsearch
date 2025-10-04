@@ -45,7 +45,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         final var count = getValueCount(valueIndex);
         final var startIndex = getFirstValueIndex(valueIndex);
         for (int index = startIndex; index < startIndex + count; index++) {
-            if(value == getLong(index)) {
+            if (value == getLong(index)) {
                 return true;
             }
         }

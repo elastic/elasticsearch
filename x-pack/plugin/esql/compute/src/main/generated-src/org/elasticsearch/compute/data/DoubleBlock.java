@@ -45,7 +45,7 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         final var count = getValueCount(valueIndex);
         final var startIndex = getFirstValueIndex(valueIndex);
         for (int index = startIndex; index < startIndex + count; index++) {
-            if(value == getDouble(index)) {
+            if (value == getDouble(index)) {
                 return true;
             }
         }

@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -292,7 +291,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             var value = new BytesRef();
             // we pass in a reference, but sometimes we only get a return value, see ConstantBytesRefVector.getBytesRef
             value = subset.getBytesRef(valueIndex, value);
-            if(value.length == 0) {
+            if (value.length == 0) {
                 continue;
             }
             if (superset.hasValue(position, value) == false) {

@@ -633,6 +633,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/135820
+- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
+  method: testRollupIndex {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135906
 
 # Examples:
 #

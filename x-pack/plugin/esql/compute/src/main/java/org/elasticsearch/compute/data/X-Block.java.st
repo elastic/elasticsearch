@@ -71,11 +71,11 @@ $if(BytesRef)$
             if (ref.length == 0) {
                 continue;
             }
-            if(value.equals(ref)) {
+            if value.equals(ref)) {
                 return true;
             }
 $else$
-            if(value == get$Type$(index)) {
+            if (value == get$Type$(index)) {
                 return true;
             }
 $endif$

@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
@@ -40,6 +41,8 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -286,6 +289,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 RoundTo roundTo = roundTos.get(0);
                 int count = roundTo.points().size();
                 int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
+                    ctx.searchStats(),
                     roundingPointsThreshold(ctx),
                     queryExec.query(),
                     queryExec.indexMode()
@@ -507,8 +511,8 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      * that the total number of clauses does not exceed the limit by too much. Some expensive queries count as more than one clause;
      * for example, a wildcard query counts as 5 clauses, and a terms query counts as the number of terms.
      */
-    static int adjustedRoundingPointsThreshold(int threshold, QueryBuilder query, IndexMode indexMode) {
-        int clauses = estimateQueryClauses(query) + 1;
+    static int adjustedRoundingPointsThreshold(SearchStats stats, int threshold, QueryBuilder query, IndexMode indexMode) {
+        int clauses = estimateQueryClauses(stats, query) + 1;
         if (indexMode == IndexMode.TIME_SERIES) {
             // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
             threshold *= 2;
@@ -516,7 +520,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return Math.ceilDiv(threshold, clauses);
     }
 
-    static int estimateQueryClauses(QueryBuilder q) {
+    static int estimateQueryClauses(SearchStats stats, QueryBuilder q) {
         if (q == null || q instanceof MatchAllQueryBuilder || q instanceof MatchNoneQueryBuilder) {
             return 0;
         }
@@ -526,25 +530,33 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             || q instanceof FuzzyQueryBuilder) {
             return 5;
         }
+        if (q instanceof RangeQueryBuilder r) {
+            // with points count 1, without count 3
+            return stats.min(new FieldAttribute.FieldName(r.fieldName())) != null ? 1 : 3;
+        }
         if (q instanceof MultiTermQueryBuilder) {
             return 3;
         }
         if (q instanceof TermsQueryBuilder terms && terms.values() != null) {
             return terms.values().size();
         }
+        if (q instanceof SingleValueQuery.Builder b) {
+            // ignore the single_value clause
+            return Math.max(1, estimateQueryClauses(stats, b.next()));
+        }
         if (q instanceof BoolQueryBuilder bq) {
             int total = 0;
             for (var c : bq.filter()) {
-                total += estimateQueryClauses(c);
+                total += estimateQueryClauses(stats, c);
             }
             for (var c : bq.must()) {
-                total += estimateQueryClauses(c);
+                total += estimateQueryClauses(stats, c);
             }
             for (var c : bq.should()) {
-                total += estimateQueryClauses(c);
+                total += estimateQueryClauses(stats, c);
             }
             for (var c : bq.mustNot()) {
-                total += Math.max(2, estimateQueryClauses(c));
+                total += Math.max(2, estimateQueryClauses(stats, c));
             }
             return total;
         }

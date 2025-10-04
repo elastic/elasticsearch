@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.seqno;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -29,13 +29,13 @@ public class LocalCheckpointTracker {
      * A collection of bit sets representing processed sequence numbers. Each sequence number is mapped to a bit set by dividing by the
      * bit set size.
      */
-    final Map<Long, CountedBitSet> processedSeqNo = new HashMap<>();
+    final Map<Long, CountedBitSet> processedSeqNo = new ConcurrentHashMap<>();
 
     /**
      * A collection of bit sets representing durably persisted sequence numbers. Each sequence number is mapped to a bit set by dividing by
      * the bit set size.
      */
-    final Map<Long, CountedBitSet> persistedSeqNo = new HashMap<>();
+    final Map<Long, CountedBitSet> persistedSeqNo = new ConcurrentHashMap<>();
 
     /**
      * The current local checkpoint, i.e., all sequence numbers no more than this number have been processed.
@@ -97,7 +97,7 @@ public class LocalCheckpointTracker {
      *
      * @param seqNo the sequence number to mark as processed
      */
-    public synchronized void markSeqNoAsProcessed(final long seqNo) {
+    public void markSeqNoAsProcessed(final long seqNo) {
         markSeqNo(seqNo, processedCheckpoint, processedSeqNo);
     }
 
@@ -106,23 +106,27 @@ public class LocalCheckpointTracker {
      *
      * @param seqNo the sequence number to mark as persisted
      */
-    public synchronized void markSeqNoAsPersisted(final long seqNo) {
+    public void markSeqNoAsPersisted(final long seqNo) {
         markSeqNo(seqNo, persistedCheckpoint, persistedSeqNo);
     }
 
     private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final Map<Long, CountedBitSet> bitSetMap) {
-        assert Thread.holdsLock(this);
         // make sure we track highest seen sequence number
         advanceMaxSeqNo(seqNo);
         if (seqNo <= checkPoint.get()) {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
-        final CountedBitSet bitSet = getBitSetForSeqNo(bitSetMap, seqNo);
+        final long bitSetKey = getBitSetKey(seqNo);
+        final CountedBitSet bitSet = bitSetMap.computeIfAbsent(bitSetKey, k -> new CountedBitSet(BIT_SET_SIZE));
         final int offset = seqNoToBitSetOffset(seqNo);
-        bitSet.set(offset);
-        if (seqNo == checkPoint.get() + 1) {
-            updateCheckpoint(checkPoint, bitSetMap);
+        // We are synchronizing on either the processedCheckpoint or persistedCheckpoint checkpoint field. This works with how this method
+        // called with references those fields only.
+        synchronized (checkPoint) {
+            bitSet.set(offset);
+            if (seqNo == checkPoint.get() + 1) {
+                updateCheckpoint(checkPoint, bitSetMap, offset != 0 ? bitSetKey : bitSetKey - 1, offset != 0 ? bitSet : null);
+            }
         }
     }
 
@@ -158,7 +162,8 @@ public class LocalCheckpointTracker {
      *
      * This is needed to make sure the persisted local checkpoint and max seq no are consistent
      */
-    public synchronized SeqNoStats getStats(final long globalCheckpoint) {
+    public SeqNoStats getStats(final long globalCheckpoint) {
+        // TODO: Subtly this changed how maxSeqNo and persisted checkpoint are not incremented under lock
         return new SeqNoStats(getMaxSeqNo(), getPersistedCheckpoint(), globalCheckpoint);
     }
 
@@ -175,7 +180,7 @@ public class LocalCheckpointTracker {
         }
         final long bitSetKey = getBitSetKey(seqNo);
         final int bitSetOffset = seqNoToBitSetOffset(seqNo);
-        synchronized (this) {
+        synchronized (processedCheckpoint) {
             // check again under lock
             if (seqNo <= processedCheckpoint.get()) {
                 return true;
@@ -189,13 +194,9 @@ public class LocalCheckpointTracker {
      * Moves the checkpoint to the last consecutively processed sequence number. This method assumes that the sequence number
      * following the current checkpoint is processed.
      */
-    private void updateCheckpoint(AtomicLong checkPoint, Map<Long, CountedBitSet> bitSetMap) {
-        assert Thread.holdsLock(this);
+    private static void updateCheckpoint(AtomicLong checkPoint, Map<Long, CountedBitSet> bitSetMap, long bitSetKey, CountedBitSet current) {
         assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1))
             : "updateCheckpoint is called but the bit following the checkpoint is not set";
-        // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
-        long bitSetKey = getBitSetKey(checkPoint.get());
-        CountedBitSet current = bitSetMap.get(bitSetKey);
         if (current == null) {
             // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
             assert checkPoint.get() % BIT_SET_SIZE == BIT_SET_SIZE - 1;
@@ -230,8 +231,7 @@ public class LocalCheckpointTracker {
         return seqNo / BIT_SET_SIZE;
     }
 
-    private CountedBitSet getBitSetForSeqNo(final Map<Long, CountedBitSet> bitSetMap, final long seqNo) {
-        assert Thread.holdsLock(this);
+    private static CountedBitSet getBitSetForSeqNo(final Map<Long, CountedBitSet> bitSetMap, final long seqNo) {
         final long bitSetKey = getBitSetKey(seqNo);
         return bitSetMap.computeIfAbsent(bitSetKey, k -> new CountedBitSet(BIT_SET_SIZE));
     }

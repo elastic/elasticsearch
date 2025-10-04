@@ -1019,7 +1019,8 @@ public class Security extends Plugin
             clusterService,
             cacheInvalidatorRegistry,
             threadPool,
-            telemetryProvider.getMeterRegistry()
+            telemetryProvider.getMeterRegistry(),
+            featureService
         );
         components.add(apiKeyService);
 

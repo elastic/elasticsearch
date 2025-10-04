@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
@@ -67,6 +68,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -534,6 +537,64 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     assertNull(esQueryExec.query());
                 }
             }
+        }
+    }
+
+    static String points(int numPoints) {
+        return IntStream.range(0, numPoints).mapToObj(Integer::toString).collect(Collectors.joining(","));
+    }
+
+    public void testAdjustThresholdForQueries() {
+        {
+            String q = String.format(Locale.ROOT, """
+                from test
+                | stats count(*) by x = round_to(integer, %s)
+                """, points(between(1, 128)));
+            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
+            assertThat(esQuery.queryBuilderAndTags().size(), greaterThan(1));
+        }
+        {
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | stats count(*) by x = round_to(integer, %s)
+                """, points(between(1, 63)));
+            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
+            assertThat(esQuery.queryBuilderAndTags().size(), greaterThan(1));
+        }
+        {
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | stats count(*) by x = round_to(integer, %s)
+                """, points(between(65, 128)));
+            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
+            assertThat(esQuery.queryBuilderAndTags().size(), equalTo(1));
+        }
+        {
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | where keyword LIKE "w*"
+                | stats count(*) by x = round_to(integer, %s)
+                """, points(between(1, 19)));
+            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
+            assertThat(esQuery.queryBuilderAndTags().size(), greaterThan(1));
+        }
+        {
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | where keyword LIKE "*w*"
+                | stats count(*) by x = round_to(integer, %s)
+                """, points(between(20, 128)));
+            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
+            assertThat(esQuery.queryBuilderAndTags().size(), equalTo(1));
         }
     }
 

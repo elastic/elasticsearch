@@ -7,7 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MultiTermQueryBuilder;
+import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -275,7 +284,11 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
                 int count = roundTo.points().size();
-                int roundingPointsUpperLimit = roundingPointsThreshold(ctx);
+                int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
+                    roundingPointsThreshold(ctx),
+                    queryExec.query(),
+                    queryExec.indexMode()
+                );
                 if (count > roundingPointsUpperLimit) {
                     logger.debug(
                         "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
@@ -484,5 +497,53 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             roundingPointsThreshold = queryLevelRoundingPointsThreshold;
         }
         return roundingPointsThreshold;
+    }
+
+    /**
+     * If the main query is expensive (such as including wildcard queries), executing more queries with tags is slower and more costly
+     * than executing fewer queries without tags and then reading points and rounding. The rounding points threshold is treated as the
+     * maximum number of clauses allowed to execute. We estimate the number of clauses in the main query and adjust the threshold so
+     * that the total number of clauses does not exceed the limit by too much. Some expensive queries count as more than one clause;
+     * for example, a wildcard query counts as 5 clauses, and a terms query counts as the number of terms.
+     */
+    static int adjustedRoundingPointsThreshold(int threshold, QueryBuilder query, IndexMode indexMode) {
+        int clauses = estimateQueryClauses(query) + 1;
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
+            threshold *= 2;
+        }
+        return Math.ceilDiv(threshold, clauses);
+    }
+
+    static int estimateQueryClauses(QueryBuilder q) {
+        if (q == null || q instanceof MatchAllQueryBuilder || q instanceof MatchNoneQueryBuilder) {
+            return 0;
+        }
+        if (q instanceof WildcardQueryBuilder || q instanceof RegexpQueryBuilder || q instanceof PrefixQueryBuilder) {
+            return 5;
+        }
+        if (q instanceof MultiTermQueryBuilder) {
+            return 3;
+        }
+        if (q instanceof TermsQueryBuilder terms && terms.values() != null) {
+            return terms.values().size();
+        }
+        if (q instanceof BoolQueryBuilder bq) {
+            int total = 0;
+            for (var c : bq.filter()) {
+                total += estimateQueryClauses(c);
+            }
+            for (var c : bq.must()) {
+                total += estimateQueryClauses(c);
+            }
+            for (var c : bq.should()) {
+                total += estimateQueryClauses(c);
+            }
+            for (var c : bq.mustNot()) {
+                total += Math.max(2, estimateQueryClauses(c));
+            }
+            return total;
+        }
+        return 1;
     }
 }

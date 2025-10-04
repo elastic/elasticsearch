@@ -52,6 +52,41 @@ public final class CountedBitSet {
         }
     }
 
+    public int consecutiveSetBits(int startIndex) {
+        int length = length();
+        if (bitset == null) {
+            return length - startIndex;
+        }
+        if (startIndex >= length || bitset.get(startIndex) == false) {
+            return 0;
+        }
+
+        long[] bits = bitset.getBits();
+        int wordIndex = startIndex >> 6;
+        int bitOffset = startIndex & 0x3f;
+
+        // Get remaining bits in first word
+        long word = bits[wordIndex] >>> bitOffset;
+
+        if (word != -1L) {
+            // unset bit in this word
+            return Long.numberOfTrailingZeros(~word);
+        }
+
+        int count = 64 - bitOffset;
+
+        while (++wordIndex < bits.length && bits[wordIndex] == -1L) {
+            count += 64;
+        }
+
+        if (wordIndex < bits.length) {
+            // final partial word
+            count += Long.numberOfTrailingZeros(~bits[wordIndex]);
+        }
+
+        return Math.min(count, length - startIndex);
+    }
+
     // Below methods are pkg-private for testing
 
     int cardinality() {

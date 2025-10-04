@@ -197,24 +197,30 @@ public class LocalCheckpointTracker {
     private static void updateCheckpoint(AtomicLong checkPoint, Map<Long, CountedBitSet> bitSetMap, long bitSetKey, CountedBitSet current) {
         assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1))
             : "updateCheckpoint is called but the bit following the checkpoint is not set";
+
         if (current == null) {
-            // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
             assert checkPoint.get() % BIT_SET_SIZE == BIT_SET_SIZE - 1;
             current = bitSetMap.get(++bitSetKey);
         }
-        do {
-            checkPoint.incrementAndGet();
-            /*
-             * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
-             * current bit set, we can clean it.
-             */
-            if (checkPoint.get() == lastSeqNoInBitSet(bitSetKey)) {
-                assert current != null;
+
+        while (current != null) {
+            int offset = seqNoToBitSetOffset(checkPoint.get() + 1);
+            int consecutiveBits = current.consecutiveSetBits(offset);
+
+            if (consecutiveBits == 0) {
+                break; // Next bit is not set, stop here
+            }
+
+            long updatedCheckpoint = checkPoint.addAndGet(consecutiveBits);
+
+            if (updatedCheckpoint == lastSeqNoInBitSet(bitSetKey)) {
                 final CountedBitSet removed = bitSetMap.remove(bitSetKey);
                 assert removed == current;
                 current = bitSetMap.get(++bitSetKey);
+            } else {
+                break;
             }
-        } while (current != null && current.get(seqNoToBitSetOffset(checkPoint.get() + 1)));
+        }
     }
 
     private static long lastSeqNoInBitSet(final long bitSetKey) {

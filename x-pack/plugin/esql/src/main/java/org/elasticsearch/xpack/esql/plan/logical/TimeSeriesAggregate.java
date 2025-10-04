@@ -119,20 +119,6 @@ public class TimeSeriesAggregate extends Aggregate {
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        // We forbid aggregating 'dimension' fields - these are only allowed inside grouping functions
-        aggregates().forEach(agg -> agg.forEachDown(e -> {
-            if (e instanceof FieldAttribute fieldAttr && fieldAttr.isDimension()) {
-                failures.add(
-                    fail(
-                        fieldAttr,
-                        "cannot aggregate dimension field [{}] in a time-series aggregation. "
-                            + "If you want to aggregate a dimension field, use the FROM "
-                            + "command instead of the TS command.",
-                        fieldAttr.sourceText()
-                    )
-                );
-            }
-        }));
         // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
         groupings().forEach(g -> g.forEachDown(e -> {
             if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
@@ -215,6 +201,18 @@ public class TimeSeriesAggregate extends Aggregate {
                     // reject `TS metrics | STATS COUNT(*)`
                     failures.add(
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
+                    );
+                }
+                if (outer.field() instanceof FieldAttribute fa && fa.isDimension()) {
+                    failures.add(
+                        fail(
+                            this,
+                            "cannot use dimension field [{}] in a time-series aggregation function [{}]. "
+                                + "Dimension fields can only be used for grouping in a BY clause. To aggregate "
+                                + "dimension fields, use the FROM command instead of the TS command.",
+                            fa.sourceText(),
+                            outer.sourceText()
+                        )
                     );
                 }
                 if (outer instanceof TimeSeriesAggregateFunction ts) {

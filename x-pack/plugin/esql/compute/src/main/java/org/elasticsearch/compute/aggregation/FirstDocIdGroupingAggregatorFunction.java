@@ -22,6 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -169,11 +170,11 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         segments.set(groupId, docVector.segments().getInt(valuePosition));
         docIds = bigArrays.grow(docIds, groupId + 1);
         docIds.set(groupId, docVector.docs().getInt(valuePosition));
-        contextRefs.computeIfAbsent(shard, s -> {
+        if (contextRefs.containsKey(shard) == false) {
             RefCounted refCounted = docVector.shardRefCounted().get(shard);
             refCounted.incRef();
-            return refCounted;
-        });
+            contextRefs.put(shard, refCounted);
+        }
     }
 
     @Override
@@ -226,12 +227,8 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
             try {
                 segmentVector = segmentBuilder.build();
                 docVector = docBuilder.build();
-                var shardRefs = new HashMap<>(contextRefs);
-                try {
-                    blocks[offset] = new DocVector(shardRefs::get, shardVector, segmentVector, docVector, null).asBlock();
-                } catch (Exception e) {
-                    throw e;
-                }
+                var unmodifiedContextRefs = Collections.unmodifiableMap(contextRefs);
+                blocks[offset] = new DocVector(unmodifiedContextRefs::get, shardVector, segmentVector, docVector, null).asBlock();
             } finally {
                 if (blocks[offset] == null) {
                     Releasables.closeExpectNoException(shardVector, segmentVector, docVector);
@@ -246,7 +243,6 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
             for (RefCounted ref : contextRefs.values()) {
                 ref.decRef();
             }
-            contextRefs.clear();
         });
     }
 

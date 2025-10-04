@@ -8948,31 +8948,36 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "'Year:'yyyy'-Month:'MM"
         );
 
+        var queries = List.of("""
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date)
+            """, """
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date_nanos)
+            """);
+
         for (var format : formats) {
-            var query = """
-                FROM test
-                | STATS avg = AVG(salary) BY date = DATE_FORMAT("%s", hire_date)
-                """;
-            String format1 = String.format(Locale.ROOT, query, format);
-            var optimized = optimizedPlan(format1);
+            for (var query : queries) {
+                String format1 = String.format(Locale.ROOT, query, format);
+                var optimized = planTypes(format1);
 
-            var project = as(optimized, Project.class);
-            var eval = as(project.child(), Eval.class);
-            assertThat(eval.fields(), hasSize(2));
-            var dateformat = as(eval.fields().get(1).child(), DateFormat.class);
+                var project = as(optimized, Project.class);
+                var eval = as(project.child(), Eval.class);
+                assertThat(eval.fields(), hasSize(2));
+                var dateformat = as(eval.fields().get(1).child(), DateFormat.class);
 
-            var limit = as(eval.child(), Limit.class);
-            var agg = as(limit.child(), Aggregate.class);
-            var ref = as(agg.groupings().getFirst(), ReferenceAttribute.class);
+                var limit = as(eval.child(), Limit.class);
+                var agg = as(limit.child(), Aggregate.class);
+                var ref = as(agg.groupings().getFirst(), ReferenceAttribute.class);
 
-            var eval2 = as(agg.child(), Eval.class);
-            assertThat(eval2.fields(), hasSize(1));
-            var dateTrunc = as(eval2.fields().getFirst().child(), DateTrunc.class);
-            assertThat(eval2.fields().getFirst().toAttribute(), is(ref));
+                var eval2 = as(agg.child(), Eval.class);
+                assertThat(eval2.fields(), hasSize(1));
+                var dateTrunc = as(eval2.fields().getFirst().child(), DateTrunc.class);
+                assertThat(eval2.fields().getFirst().toAttribute(), is(ref));
 
-            var source = as(eval2.child(), EsRelation.class);
+                var source = as(eval2.child(), EsRelation.class);
+            }
         }
-
     }
 
     /**
@@ -9096,25 +9101,141 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "yyyy mm", // year + minute (skips month, day, hour)
             "DD" // day of year only (missing year context)
         );
+
+        var queries = List.of("""
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date)
+            """, """
+            FROM test
+            | STATS avg = AVG(integer) BY date = DATE_FORMAT("%s", date_nanos)
+            """);
+
         for (var format : unsupportedFormats) {
-            var query = """
-                FROM test
-                | STATS avg = AVG(salary) BY date = DATE_FORMAT("%s", hire_date)
-                """;
-            String formatQuery = String.format(Locale.ROOT, query, format);
-            var optimized = optimizedPlan(formatQuery);
+            for (var query : queries) {
+                String formatQuery = String.format(Locale.ROOT, queries.get(1), format);
+                var optimized = planTypes(formatQuery);
 
-            var project = as(optimized, Project.class);
-            var eval = as(project.child(), Eval.class);
-            assertThat(eval.fields(), hasSize(1));
+                var project = as(optimized, Project.class);
+                var eval = as(project.child(), Eval.class);
+                assertThat(eval.fields(), hasSize(1));
 
-            var limit = as(eval.child(), Limit.class);
-            var agg = as(limit.child(), Aggregate.class);
-            var eval2 = as(agg.child(), Eval.class);
+                var limit = as(eval.child(), Limit.class);
+                var agg = as(limit.child(), Aggregate.class);
+                var eval2 = as(agg.child(), Eval.class);
 
-            var source = as(eval2.child(), EsRelation.class);
-            assertThat(source, instanceOf(EsRelation.class));
+                var source = as(eval2.child(), EsRelation.class);
+                assertThat(source, instanceOf(EsRelation.class));
+            }
         }
+    }
+
+    /**
+     * Project[[avg{r}#10, date{r}#7]]
+     * \_Eval[[$$SUM$avg$0{r$}#24 / $$COUNT$avg$1{r$}#25 AS avg#10, DATEFORMAT(yyyy-MM[KEYWORD],date{r$}#23) AS date#7]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[date{r$}#23],[SUM(salary{f}#17,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#24, COUNT(salary{f}#17,true[
+     * BOOLEAN]) AS $$COUNT$avg$1#25, date{r$}#23]]
+     *       \_Eval[[DATETRUNC(P1M[DATE_PERIOD],hire_date{f}#19) AS date#23]]
+     *         \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     */
+    public void testStatsDateFormatOptimizationWithConcat() {
+        var query = """
+            FROM test
+            | EVAL format = concat("yyyy", "-MM")
+            | STATS avg = AVG(salary) BY date = DATE_FORMAT(format, hire_date)
+            """;
+        var optimized = optimizedPlan(query);
+
+        var project = as(optimized, Project.class);
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        // Verify avg calculation
+        var avgAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(avgAlias.name(), equalTo("avg"));
+        var avgDiv = as(avgAlias.child(), Div.class);
+
+        // Verify date formatting - should be optimized to use literal "yyyy-MM"
+        var dateAlias = as(eval.fields().get(1), Alias.class);
+        assertThat(dateAlias.name(), equalTo("date"));
+        var dateFormat = as(dateAlias.child(), DateFormat.class);
+        var formatArg = dateFormat.arguments().getFirst();
+        assertThat(formatArg, instanceOf(Literal.class));
+        var formatLiteral = as(formatArg, Literal.class);
+        assertThat(formatLiteral.value(), equalTo(new BytesRef("yyyy-MM")));
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+
+        // Verify that the aggregation uses DATE_TRUNC optimization
+        var eval2 = as(agg.child(), Eval.class);
+        assertThat(eval2.fields(), hasSize(1));
+        var dateTruncAlias = as(eval2.fields().getFirst(), Alias.class);
+        assertThat(dateTruncAlias.name(), equalTo("date"));
+        var dateTrunc = as(dateTruncAlias.child(), DateTrunc.class);
+
+        var source = as(eval2.child(), EsRelation.class);
+        assertThat(source, instanceOf(EsRelation.class));
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[date{r}#10],[date{r}#10]]
+     *   |_Eval[[yyyy-MM[KEYWORD] AS format#3, DATEFORMAT(yyyy-MM[KEYWORD],hire_date{f}#18) AS date#10]]
+     *   | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_Project[[avg{r}#6, date{r}#10]]
+     *     \_Eval[[$$SUM$avg$0{r$}#22 / $$COUNT$avg$1{r$}#23 AS avg#6]]
+     *       \_Aggregate[[date{r}#10],[SUM(salary{f}#16,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#22, COUNT(salary{f}#16,true[B
+     * OOLEAN]) AS $$COUNT$avg$1#23, date{r}#10]]
+     *         \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
+     * anguages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16, format{r}#3, date{r}#10]]
+     */
+    public void testInlineStatsDateFormatOptimizationWithConcat() {
+        var query = """
+            FROM test
+            | EVAL format = concat("yyyy", "-MM")
+            | INLINE STATS avg = AVG(salary) BY date = DATE_FORMAT(format, hire_date)
+            """;
+        var optimized = optimizedPlan(query);
+
+        var limit = as(optimized, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Check left side of the join (original data with eval)
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(2));
+
+        // Verify that the format field is optimized to literal "yyyy-MM"
+        var formatAlias = as(leftEval.fields().getFirst(), Alias.class);
+        assertThat(formatAlias.name(), equalTo("format"));
+        var formatLiteral = as(formatAlias.child(), Literal.class);
+        assertThat(formatLiteral.value(), equalTo(new BytesRef("yyyy-MM")));
+
+        // Verify that DATE_FORMAT uses the optimized literal directly
+        var dateAlias = as(leftEval.fields().get(1), Alias.class);
+        assertThat(dateAlias.name(), equalTo("date"));
+        var dateFormat = as(dateAlias.child(), DateFormat.class);
+        var dateFormatArg = dateFormat.arguments().getFirst();
+        assertThat(dateFormatArg, instanceOf(Literal.class));
+        var dateFormatLiteral = as(dateFormatArg, Literal.class);
+        assertThat(dateFormatLiteral.value(), equalTo(new BytesRef("yyyy-MM")));
+
+        var leftSource = as(leftEval.child(), EsRelation.class);
+        assertThat(leftSource, instanceOf(EsRelation.class));
+
+        // Check right side of the join (aggregated stats)
+        var rightProject = as(inlineJoin.right(), Project.class);
+
+        var rightEval = as(rightProject.child(), Eval.class);
+        assertThat(rightEval.fields(), hasSize(1));
+        var avgAlias = as(rightEval.fields().getFirst(), Alias.class);
+        assertThat(avgAlias.name(), equalTo("avg"));
+
+        var agg = as(rightEval.child(), Aggregate.class);
+
+        var stubRelation = as(agg.child(), StubRelation.class);
+        assertThat(stubRelation, instanceOf(StubRelation.class));
     }
 
     public void testPushDownConjunctionsToKnnPrefilter() {

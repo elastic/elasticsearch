@@ -559,6 +559,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case INTEGER, COUNTER_INTEGER -> "Int";
             case IP -> "Ip";
             case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
+            case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
             case NULL -> "Null";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };

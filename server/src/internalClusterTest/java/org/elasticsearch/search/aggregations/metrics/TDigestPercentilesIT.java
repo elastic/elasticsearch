@@ -15,7 +15,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -180,7 +179,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                 Percentiles percentiles = global.getAggregations().get("percentiles");
                 assertThat(percentiles, notNullValue());
                 assertThat(percentiles.getName(), equalTo("percentiles"));
-                assertThat(((InternalAggregation) global).getProperty("percentiles"), sameInstance(percentiles));
+                assertThat(global.getProperty("percentiles"), sameInstance(percentiles));
             }
         );
     }

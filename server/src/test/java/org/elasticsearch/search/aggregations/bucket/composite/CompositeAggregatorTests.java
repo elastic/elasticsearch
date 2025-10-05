@@ -68,7 +68,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -810,7 +810,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
-        }, (InternalSingleBucketAggregation parent) -> {
+        }, (SingleBucketAggregation parent) -> {
             assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
             assertEquals(3, result.getBuckets().size());
@@ -869,7 +869,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
-        }, (InternalSingleBucketAggregation parent) -> {
+        }, (SingleBucketAggregation parent) -> {
             assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
             assertEquals(1, result.getBuckets().size());

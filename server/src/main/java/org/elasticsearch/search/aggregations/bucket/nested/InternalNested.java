@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 import java.io.IOException;
@@ -19,7 +18,7 @@ import java.util.Map;
 /**
  * Result of the {@link NestedAggregator}.
  */
-public class InternalNested extends InternalSingleBucketAggregation implements SingleBucketAggregation {
+public class InternalNested extends SingleBucketAggregation {
     InternalNested(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, docCount, aggregations, metadata);
     }
@@ -37,7 +36,7 @@ public class InternalNested extends InternalSingleBucketAggregation implements S
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+    protected SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalNested(name, docCount, subAggregations, getMetadata());
     }
 }

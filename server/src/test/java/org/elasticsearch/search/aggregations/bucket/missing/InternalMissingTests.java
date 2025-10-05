@@ -10,12 +10,12 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.SingleBucketAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalMissingTests extends InternalSingleBucketAggregationTestCase<InternalMissing> {
+public class InternalMissingTests extends SingleBucketAggregationTestCase<InternalMissing> {
     @Override
     protected InternalMissing createTestInstance(
         String name,

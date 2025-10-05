@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
@@ -56,14 +55,9 @@ public class ReservedComposableIndexTemplateAction
     public static final String COMPOSABLE_PREFIX = "composable_index_template:";
 
     private final MetadataIndexTemplateService indexTemplateService;
-    private final IndexScopedSettings indexScopedSettings;
 
-    public ReservedComposableIndexTemplateAction(
-        MetadataIndexTemplateService indexTemplateService,
-        IndexScopedSettings indexScopedSettings
-    ) {
+    public ReservedComposableIndexTemplateAction(MetadataIndexTemplateService indexTemplateService) {
         this.indexTemplateService = indexTemplateService;
-        this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
@@ -154,11 +148,7 @@ public class ReservedComposableIndexTemplateAction
 
         // 1. create or update component templates (composable templates depend on them)
         for (var request : components) {
-            ComponentTemplate template = TransportPutComponentTemplateAction.normalizeComponentTemplate(
-                request.componentTemplate(),
-                indexScopedSettings
-            );
-
+            ComponentTemplate template = indexTemplateService.normalizeComponentTemplate(request.componentTemplate());
             project = indexTemplateService.addComponentTemplate(project, false, request.name(), template);
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -466,6 +465,7 @@ public class EsqlFunctionRegistry {
                 def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
                 def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
+                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
                 def(ToGeohash.class, ToGeohash::new, "to_geohash"),
                 def(ToGeotile.class, ToGeotile::new, "to_geotile"),
@@ -505,6 +505,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
                 def(Kql.class, uni(Kql::new), "kql"),
+                def(Knn.class, tri(Knn::new), "knn"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr"),
@@ -539,8 +540,6 @@ public class EsqlFunctionRegistry {
                 def(Last.class, bi(Last::new), "last"),
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
-                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
-                def(Knn.class, tri(Knn::new), "knn"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
@@ -795,9 +794,9 @@ public class EsqlFunctionRegistry {
      * Remove types that are being actively built.
      */
     private static String[] removeUnderConstruction(String[] types) {
-        for (Map.Entry<DataType, FeatureFlag> underConstruction : DataType.UNDER_CONSTRUCTION.entrySet()) {
-            if (underConstruction.getValue().isEnabled() == false) {
-                types = Arrays.stream(types).filter(t -> underConstruction.getKey().typeName().equals(t) == false).toArray(String[]::new);
+        for (DataType underConstruction : DataType.UNDER_CONSTRUCTION) {
+            if (underConstruction.supportedVersion().supportedLocally() == false) {
+                types = Arrays.stream(types).filter(t -> underConstruction.typeName().equals(t) == false).toArray(String[]::new);
             }
         }
         return types;

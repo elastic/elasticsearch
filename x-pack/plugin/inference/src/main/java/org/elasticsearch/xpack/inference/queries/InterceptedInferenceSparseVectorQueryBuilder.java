@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
@@ -40,6 +40,8 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
 
     @SuppressWarnings("deprecation")
     private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new LegacySemanticSparseVectorQueryRewriteInterceptor();
+
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
 
     public InterceptedInferenceSparseVectorQueryBuilder(SparseVectorQueryBuilder originalQuery) {
         super(originalQuery);
@@ -104,7 +106,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     @Override
     protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
         QueryBuilder rewritten = this;
-        if (queryRewriteContext.getMinTransportVersion().before(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+        if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
         }
 

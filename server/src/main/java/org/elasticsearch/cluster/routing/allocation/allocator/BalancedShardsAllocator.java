@@ -903,7 +903,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *
          * @param index The index that the shard being considered belongs to
          * @param shardRouting The shard routing being considered for movement
-         * @param nonPreferredPredicate A predicate applied to every assignment for which
+         * @param nonPreferredPredicate A predicate applied to assignments for which
          *                              {@link AllocationDeciders#canRemain(ShardRouting, RoutingNode, RoutingAllocation)} returns
          *                              {@link Type#NOT_PREFERRED}. If the predicate returns true, a search for relocation targets will be
          *                              performed, if it returns false no search will be performed and {@link MoveDecision#NOT_TAKEN} will

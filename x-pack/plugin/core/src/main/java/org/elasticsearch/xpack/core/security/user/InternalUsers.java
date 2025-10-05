@@ -197,6 +197,27 @@ public class InternalUsers {
                         )
                     )
                     .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        // System data stream for Kibana reporting (see KibanaPlugin#KIBANA_REPORTING_DS_DESCRIPTOR)
+                        ".kibana-reporting"
+                    )
+                    .privileges(
+                        filterNonNull(
+                            // needed to rollover failure store
+                            "manage_failure_store",
+                            "delete_index",
+                            RolloverAction.NAME,
+                            ForceMergeAction.NAME + "*",
+                            // indices stats is used by rollover, so we need to grant it here
+                            IndicesStatsAction.NAME + "*",
+                            TransportUpdateSettingsAction.TYPE.name(),
+                            DownsampleAction.NAME,
+                            TransportAddIndexBlockAction.TYPE.name()
+                        )
+                    )
+                    .allowRestrictedIndices(true)
                     .build() },
             null,
             null,

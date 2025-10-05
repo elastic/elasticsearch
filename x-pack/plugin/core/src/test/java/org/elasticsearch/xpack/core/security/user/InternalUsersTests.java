@@ -72,6 +72,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.S
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.core.security.user.UsernamesField.CROSS_PROJECT_SEARCH_USER_NAME;
 import static org.elasticsearch.xpack.core.security.user.UsernamesField.REINDEX_DATA_STREAM_NAME;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -253,10 +254,17 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
-        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*");
+        final List<String> allowedFleetSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*");
+        final List<String> allowedKibanaSystemDataStreams = List.of(".kibana-reporting");
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
-                assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));
+                assertThat(
+                    group.indices(),
+                    anyOf(
+                        arrayContaining(allowedFleetSystemDataStreams.toArray(new String[0])),
+                        arrayContaining(allowedKibanaSystemDataStreams.toArray(new String[0]))
+                    )
+                );
             }
         }
 
@@ -299,7 +307,25 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
-        allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
+        allowedFleetSystemDataStreams.forEach(allowedSystemDataStream -> {
+            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true);
+            checkIndexAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+                true
+            );
+
+            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream + "::failures", true);
+            checkIndexAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                DataStream.FAILURE_STORE_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+                true
+            );
+        });
+
+        allowedKibanaSystemDataStreams.forEach(allowedSystemDataStream -> {
             checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true);
             checkIndexAccess(
                 role,

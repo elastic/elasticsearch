@@ -330,6 +330,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 false,
                 null,
                 null,
+                null,
                 false
             )
         );
@@ -349,6 +350,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null,
                 null,
                 false

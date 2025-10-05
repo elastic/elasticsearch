@@ -837,6 +837,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 (String) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC),
                 defaultMetric
             );
+        } else {
+            defaultMetric = Objects.requireNonNullElse(
+                (String) fieldProperties.get(TimeSeriesParams.TIME_SERIES_DEFAULT_METRIC_PARAM),
+                defaultMetric
+            );
         }
 
         return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);

@@ -21,6 +21,7 @@ import java.util.Random;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.regex.Regex.simpleMatch;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.hamcrest.Matchers.containsString;
@@ -71,19 +72,19 @@ public class RegexTests extends ESTestCase {
     }
 
     public void testDoubleWildcardMatch() {
-        assertTrue(Regex.simpleMatch("ddd", "ddd"));
-        assertTrue(Regex.simpleMatch("ddd", "Ddd", true));
-        assertFalse(Regex.simpleMatch("ddd", "Ddd"));
-        assertTrue(Regex.simpleMatch("d*d*d", "dadd"));
-        assertTrue(Regex.simpleMatch("**ddd", "dddd"));
-        assertTrue(Regex.simpleMatch("**ddD", "dddd", true));
-        assertFalse(Regex.simpleMatch("**ddd", "fff"));
-        assertTrue(Regex.simpleMatch("fff*ddd", "fffabcddd"));
-        assertTrue(Regex.simpleMatch("fff**ddd", "fffabcddd"));
-        assertFalse(Regex.simpleMatch("fff**ddd", "fffabcdd"));
-        assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
-        assertTrue(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", true));
-        assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
+        assertTrue(simpleMatch("ddd", "ddd"));
+        assertTrue(simpleMatch("ddd", "Ddd", true));
+        assertFalse(simpleMatch("ddd", "Ddd"));
+        assertTrue(simpleMatch("d*d*d", "dadd"));
+        assertTrue(simpleMatch("**ddd", "dddd"));
+        assertTrue(simpleMatch("**ddD", "dddd", true));
+        assertFalse(simpleMatch("**ddd", "fff"));
+        assertTrue(simpleMatch("fff*ddd", "fffabcddd"));
+        assertTrue(simpleMatch("fff**ddd", "fffabcddd"));
+        assertFalse(simpleMatch("fff**ddd", "fffabcdd"));
+        assertTrue(simpleMatch("fff*******ddd", "fffabcddd"));
+        assertTrue(simpleMatch("fff*******ddd", "FffAbcdDd", true));
+        assertFalse(simpleMatch("fff******ddd", "fffabcdd"));
     }
 
     public void testArbitraryWildcardMatch() {
@@ -93,14 +94,14 @@ public class RegexTests extends ESTestCase {
         // dd***
         assertTrue(Regex.simpleMatch(prefix + pattern1, prefix + randomAlphaOfLengthBetween(10, 20), randomBoolean()));
         // ***dd
-        assertTrue(Regex.simpleMatch(pattern1 + suffix, randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        assertTrue(simpleMatch(pattern1 + suffix, randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
         // dd***dd
-        assertTrue(Regex.simpleMatch(prefix + pattern1 + suffix, prefix + randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
+        assertTrue(simpleMatch(prefix + pattern1 + suffix, prefix + randomAlphaOfLengthBetween(10, 20) + suffix, randomBoolean()));
         // dd***dd***dd
         final String middle = randomAlphaOfLengthBetween(1, 20);
         final String pattern2 = "*".repeat(randomIntBetween(1, 1000));
         assertTrue(
-            Regex.simpleMatch(
+            simpleMatch(
                 prefix + pattern1 + middle + pattern2 + suffix,
                 prefix + randomAlphaOfLengthBetween(10, 20) + middle + randomAlphaOfLengthBetween(10, 20) + suffix,
                 randomBoolean()
@@ -119,17 +120,47 @@ public class RegexTests extends ESTestCase {
                 final int shrinkEnd = between(shrinkStart, pattern.length());
                 pattern = pattern.substring(0, shrinkStart) + "*" + pattern.substring(shrinkEnd);
             }
-            assertTrue("[" + pattern + "] should match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
+            assertTrue("[" + pattern + "] should match [" + matchingString + "]", simpleMatch(pattern, matchingString));
             assertTrue(
                 "[" + pattern + "] should match [" + matchingString.toUpperCase(Locale.ROOT) + "]",
-                Regex.simpleMatch(pattern, matchingString.toUpperCase(Locale.ROOT), true)
+                simpleMatch(pattern, matchingString.toUpperCase(Locale.ROOT), true)
             );
 
             // construct a pattern that does not match this string by inserting a non-matching character (a digit)
             final int insertPos = between(0, pattern.length());
             pattern = pattern.substring(0, insertPos) + between(0, 9) + pattern.substring(insertPos);
-            assertFalse("[" + pattern + "] should not match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
+            assertFalse("[" + pattern + "] should not match [" + matchingString + "]", simpleMatch(pattern, matchingString));
         }
+    }
+
+    public void testCaseInsensitiveSimpleMatch() {
+        // FIXME: add in additional tests similar to what's happened in the Lucene PR: https://github.com/apache/lucene/pull/14192
+
+        assertTrue(simpleMatch("Á", "Á", true));
+        assertTrue(simpleMatch("Á", "á", true));
+        assertTrue(simpleMatch("á", "Á", true));
+
+        assertTrue(simpleMatch("A", "A", true));
+        assertTrue(simpleMatch("A", "a", true));
+        assertTrue(simpleMatch("a", "A", true));
+
+        assertFalse(simpleMatch("a", "⽶", true));
+
+        assertTrue(simpleMatch("Σ", "Σ", true));
+        assertTrue(simpleMatch("ς", "ς", true));
+        assertTrue(simpleMatch("Σ", "ς", true));
+        assertTrue(simpleMatch("ς", "Σ", true));
+
+        assertTrue(simpleMatch("Σ", "Σ", true));
+        assertTrue(simpleMatch("σ", "σ", true));
+        assertTrue(simpleMatch("Σ", "σ", true));
+        assertTrue(simpleMatch("σ", "Σ", true));
+        assertTrue(simpleMatch("σ", "Σ", true));
+
+        assertTrue(simpleMatch("ς", "σ", true));
+
+        assertTrue(simpleMatch("Å", "Å", true));
+        assertFalse(simpleMatch("ﬗ", "մխ", true));
     }
 
     public void testSimpleMatchToAutomaton() {

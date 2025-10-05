@@ -113,6 +113,28 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         assertEquals(2, client().prepareGet("test", "3").get().getVersion());
         assertEquals(2, client().prepareGet("test", "4").get().getVersion());
     }
+    public void testUpdateByQueryWithDocField() throws Exception {
+    String index = "test-doc-update";
+    createIndex(index);
+
+    // Index a sample document
+    client().prepareIndex(index).setId("1").setSource("counter", 1, "tag", "python").get();
+    refresh(index);
+
+    // Run update_by_query with doc field (instead of script)
+    UpdateByQueryRequestBuilder updateRequest = new UpdateByQueryRequestBuilder(client())
+        .source(index)
+        .setDoc(Map.of("counter", 2))  // <- using doc instead of script
+        .filter(QueryBuilders.termQuery("tag", "python"));
+
+    BulkByScrollResponse response = updateRequest.get();
+    assertEquals(1L, response.getUpdated()); // One document should be updated
+
+    // Fetch and verify
+    GetResponse updatedDoc = client().prepareGet(index, "1").get();
+    assertEquals(2, updatedDoc.getSource().get("counter"));
+    }
+
 
     public void testMultipleSources() throws Exception {
         int sourceIndices = between(2, 5);

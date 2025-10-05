@@ -75,8 +75,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     ) throws IOException {
         super(name, context, parent, metadata);
         assert valuesSourceConfig.hasValues();
-        if (valuesSourceConfig.fieldContext().fieldType() instanceof DenseVectorFieldMapper.DenseVectorFieldType
-            || valuesSourceConfig.fieldContext().fieldType() instanceof SparseVectorFieldMapper.SparseVectorFieldType) {
+        if (valuesSourceConfig.fieldContext() != null
+            && (valuesSourceConfig.fieldContext().fieldType() instanceof DenseVectorFieldMapper.DenseVectorFieldType
+                || valuesSourceConfig.fieldContext().fieldType() instanceof SparseVectorFieldMapper.SparseVectorFieldType)) {
             throw new IllegalArgumentException("Cardinality aggregation [" + name + "] does not support vector fields");
         }
         this.valuesSource = valuesSourceConfig.getValuesSource();

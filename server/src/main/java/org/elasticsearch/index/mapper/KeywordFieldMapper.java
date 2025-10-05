@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
@@ -1256,11 +1257,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (hasDocValues) {
-            SingletonBinaryDocValuesField dvField = (SingletonBinaryDocValuesField) context.doc().getByKey(fieldType().name());
+            BinaryDocValuesField dvField = (BinaryDocValuesField) context.doc().getByKey(fieldType().name());
             if (dvField != null) {
                 throw new IllegalArgumentException("field [" + fieldType().name() + "] already has a value for this document.");
             }
-            dvField = new SingletonBinaryDocValuesField(fieldType().name(), binaryValue);
+            dvField = new BinaryDocValuesField(fieldType().name(), binaryValue);
             context.doc().addWithKey(fieldType().name(), dvField);
         }
 

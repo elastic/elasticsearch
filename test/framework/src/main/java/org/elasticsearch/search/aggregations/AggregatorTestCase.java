@@ -1324,7 +1324,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 doc.add(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes));
                 json = "{ \"" + fieldName + "\" : \"a\" }";
             } else {
-                doc.add(new SortedSetDocValuesField(fieldName, new BytesRef("a")));
+                doc.add(new BinaryDocValuesField(fieldName, new BytesRef("a")));
                 json = "{ \"" + fieldName + "\" : \"a\" }";
             }
         } else if (vst.equals(CoreValuesSourceType.DATE)) {

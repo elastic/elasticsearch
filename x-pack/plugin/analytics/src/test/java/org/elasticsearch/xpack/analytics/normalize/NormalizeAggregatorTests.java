@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.normalize;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -148,7 +149,7 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
                         .toEpochMilli();
                     document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
                     document.add(new NumericDocValuesField(VALUE_FIELD, datasetValues.get(i)));
-                    document.add(new SortedSetDocValuesField(TERM_FIELD, new BytesRef(datasetTerms.get(i))));
+                    document.add(new BinaryDocValuesField(TERM_FIELD, new BytesRef(datasetTerms.get(i))));
                     indexWriter.addDocument(document);
                     document.clear();
                 }

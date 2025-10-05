@@ -166,6 +166,14 @@ public class CrossProjectIndexResolutionValidator {
         return null;
     }
 
+    public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
+        // TODO set resolveCrossProject=false here once we have an IndicesOptions flag for that
+        return IndicesOptions.builder(indicesOptions)
+            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
+            .build();
+    }
+
     private static ElasticsearchSecurityException securityException(String originalExpression) {
         // TODO plug in proper recorded authorization exceptions instead, once available
         return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]", RestStatus.FORBIDDEN);

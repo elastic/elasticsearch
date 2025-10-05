@@ -32,6 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.LinkedProjectConfig;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -55,8 +56,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
-import static org.elasticsearch.search.crossproject.CrossProjectModeDecider.fanoutRequestIndicesOptions;
-import static org.elasticsearch.search.crossproject.CrossProjectModeDecider.resolvesCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
@@ -67,17 +67,19 @@ class IndicesAndAliasesResolver {
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
     private final boolean recordResolvedIndexExpressions;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     IndicesAndAliasesResolver(
         Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
         IndexNameExpressionResolver resolver,
-        boolean recordResolvedIndexExpressions
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
-        this.recordResolvedIndexExpressions = recordResolvedIndexExpressions;
+        this.crossProjectModeDecider = crossProjectModeDecider;
+        this.recordResolvedIndexExpressions = crossProjectModeDecider.crossProjectEnabled();
     }
 
     /**
@@ -158,6 +160,10 @@ class IndicesAndAliasesResolver {
         }
         // It's safe to cast IndicesRequest since the above test guarantees it
         return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
+    }
+
+    boolean resolvesCrossProject(TransportRequest request) {
+        return request instanceof IndicesRequest.Replaceable replaceable && crossProjectModeDecider.resolvesCrossProject(replaceable);
     }
 
     private static boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
@@ -366,7 +372,7 @@ class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 assert indicesRequest.indices() != null : "indices() cannot be null when resolving non-all-index expressions";
-                if (resolvesCrossProject(replaceable)
+                if (crossProjectModeDecider.resolvesCrossProject(replaceable)
                     // a none expression should not go through cross-project resolution -- fall back to local resolution logic
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
@@ -374,7 +380,7 @@ class IndicesAndAliasesResolver {
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
-                        fanoutRequestIndicesOptions(indicesOptions),
+                        indicesOptionsForCrossProjectFanout(indicesOptions),
                         projectMetadata,
                         authorizedIndices::all,
                         authorizedIndices::check,

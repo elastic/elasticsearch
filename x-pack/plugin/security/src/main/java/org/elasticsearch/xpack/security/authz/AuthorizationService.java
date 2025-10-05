@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -181,7 +182,7 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            CrossProjectModeDecider.isCrossProject(settings)
+            new CrossProjectModeDecider(settings)
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -513,7 +514,7 @@ public class AuthorizationService {
                     final var authorizedIndicesListener = new SubscribableListener<AuthorizationEngine.AuthorizedIndices>();
                     authorizedIndicesListener.<Tuple<AuthorizationEngine.AuthorizedIndices, TargetProjects>>andThen(
                         (l, authorizedIndices) -> {
-                            if (CrossProjectModeDecider.transportRequestResolvesCrossProject(request)) {
+                            if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
                                 authorizedProjectsResolver.resolveAuthorizedProjects(
                                     l.map(targetProjects -> new Tuple<>(authorizedIndices, targetProjects))
                                 );

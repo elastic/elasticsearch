@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -73,8 +75,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
-import static org.elasticsearch.search.crossproject.CrossProjectModeDecider.fanoutRequestIndicesOptions;
-import static org.elasticsearch.search.crossproject.CrossProjectModeDecider.resolvesCrossProject;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -572,6 +573,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ProjectResolver projectResolver;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final boolean ccsCheckCompatibility;
+        private final CrossProjectModeDecider crossProjectModeDecider;
 
         @Inject
         public TransportAction(
@@ -579,6 +581,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ClusterService clusterService,
             ActionFilters actionFilters,
             ProjectResolver projectResolver,
+            Settings settings,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -586,6 +589,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.projectResolver = projectResolver;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
+            this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
@@ -596,9 +600,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
-            final boolean resolveCrossProject = resolvesCrossProject(request);
+            final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
-                resolveCrossProject ? fanoutRequestIndicesOptions(originalIndicesOptions) : originalIndicesOptions,
+                resolveCrossProject ? indicesOptionsForCrossProjectFanout(originalIndicesOptions) : originalIndicesOptions,
                 request.indices()
             );
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);

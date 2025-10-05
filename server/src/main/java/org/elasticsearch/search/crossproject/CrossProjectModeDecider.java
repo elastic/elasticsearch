@@ -10,10 +10,8 @@
 package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.transport.TransportRequest;
 
 /**
  * Utility class to determine whether Cross-Project Search (CPS) applies to an inbound request.
@@ -35,29 +33,24 @@ import org.elasticsearch.transport.TransportRequest;
  *       processing.</li>
  * </ul>
  */
-public final class CrossProjectModeDecider {
-    private CrossProjectModeDecider() {}
+public class CrossProjectModeDecider {
+    private static final String CROSS_PROJECT_ENABLED_SETTING_KEY = "serverless.cross_project.enabled";
+    private final boolean crossProjectEnabled;
 
-    public static boolean isCrossProject(Settings settings) {
-        return settings.getAsBoolean("serverless.cross_project.enabled", false);
+    public CrossProjectModeDecider(Settings settings) {
+        this.crossProjectEnabled = settings.getAsBoolean(CROSS_PROJECT_ENABLED_SETTING_KEY, false);
     }
 
-    public static boolean resolvesCrossProject(IndicesRequest.Replaceable request) {
+    public boolean crossProjectEnabled() {
+        return crossProjectEnabled;
+    }
+
+    public boolean resolvesCrossProject(IndicesRequest.Replaceable request) {
+        if (crossProjectEnabled == false) {
+            return false;
+        }
         // TODO this needs to be based on the IndicesOptions flag instead, once available
         final boolean indicesOptionsResolveCrossProject = Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
         return request.allowsCrossProject() && indicesOptionsResolveCrossProject;
-    }
-
-    public static boolean transportRequestResolvesCrossProject(TransportRequest request) {
-        return request instanceof IndicesRequest.Replaceable replaceable && resolvesCrossProject(replaceable);
-    }
-
-    // TODO doesn't belong here
-    public static IndicesOptions fanoutRequestIndicesOptions(IndicesOptions indicesOptions) {
-        // TODO set resolveCrossProject=false here once we have an IndicesOptions flag for that
-        return IndicesOptions.builder(indicesOptions)
-            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
-            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
-            .build();
     }
 }

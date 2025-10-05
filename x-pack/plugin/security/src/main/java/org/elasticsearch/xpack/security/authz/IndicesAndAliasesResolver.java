@@ -381,19 +381,16 @@ class IndicesAndAliasesResolver {
                         authorizedProjects,
                         indicesRequest.includeDataStreams()
                     );
-
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
-
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
-
-                    // TODO explain why we're doing this
+                    // we need an early return here, instead of relying on the outer none expression logic since the outer handling will
+                    // prematurely throw an IndexNotFound exception if the resolved indices are empty and allow_no_indices is false.
                     if (resolvedIndicesBuilder.isEmpty()) {
                         setNoneExpression(replaceable, resolvedIndicesBuilder);
                     } else {
                         replaceable.indices(resolvedIndicesBuilder.build().toArray());
                     }
-
                     return resolvedIndicesBuilder.build();
                 } else {
                     final ResolvedIndices split;

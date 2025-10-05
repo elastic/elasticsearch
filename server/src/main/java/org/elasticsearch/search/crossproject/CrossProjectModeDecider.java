@@ -15,6 +15,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.transport.TransportRequest;
 
+/**
+ * Utility class to determine whether Cross-Project Search (CPS) applies to an inbound request.
+ * <p>
+ * CPS applicability is controlled at three levels:
+ * <ul>
+ *   <li><b>Cluster level:</b> The {@code serverless.cross_project.enabled} setting determines
+ *       whether CPS processing is available at all. In the future, all Serverless projects
+ *       will support CPS, so this distinction will depend on whether the cluster is a
+ *       Serverless cluster or not.</li>
+ *   <li><b>API level:</b> The {@link org.elasticsearch.action.IndicesRequest.Replaceable#allowsCrossProject()}
+ *       method determines whether a particular request type supports CPS processing.</li>
+ *   <li><b>Request level:</b> An {@link org.elasticsearch.action.support.IndicesOptions} flag
+ *       determines whether CPS should apply to the current
+ *       request being processed. This fine-grained control is required because APIs that
+ *       support CPS may also be used in contexts where CPS should not apply—for example,
+ *       internal searches against the security system index to retrieve user roles, or CPS
+ *       actions that execute in a flow where a parent action has already performed CPS
+ *       processing.</li>
+ * </ul>
+ */
 public final class CrossProjectModeDecider {
     private CrossProjectModeDecider() {}
 

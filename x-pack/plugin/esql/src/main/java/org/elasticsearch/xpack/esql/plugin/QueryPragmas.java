@@ -72,8 +72,6 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
-    public static final Setting<Boolean> REDUCTION_LATE_MATERIALIZATION = Setting.boolSetting("reduction_late_materialization", false);
-
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -190,14 +188,6 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean nodeLevelReduction() {
         return NODE_LEVEL_REDUCTION.get(settings);
-    }
-
-    /**
-     * Returns true if each data node should perform a local reduction for sort, limit, topN, stats or false if the coordinator node
-     * will perform the reduction.
-     */
-    public boolean reductionLateMaterialization() {
-        return REDUCTION_LATE_MATERIALIZATION.get(settings);
     }
 
     /**

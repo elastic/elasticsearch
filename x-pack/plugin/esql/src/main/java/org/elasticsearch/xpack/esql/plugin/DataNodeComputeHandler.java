@@ -27,7 +27,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -193,7 +192,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 originalIndices.indices(),
                                 originalIndices.indicesOptions(),
                                 queryPragmas.nodeLevelReduction() && sameNode == false,
-                                queryPragmas.reductionLateMaterialization()
+                                computeService.plannerSettings().reductionLateMaterialization()
                             );
                             transportService.sendChildRequest(
                                 connection,
@@ -290,7 +289,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
-                    LOGGER.error(Strings.format("Error running batch numbers %d-%d", startBatchIndex, endBatchIndex), e);
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);
@@ -521,7 +519,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             reductionListener.onResponse(resp);
                         }));
                     }, e -> {
-                        LOGGER.fatal("Error in node-level reduction", e);
+                        LOGGER.debug("Error in node-level reduction", e);
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);
                     })

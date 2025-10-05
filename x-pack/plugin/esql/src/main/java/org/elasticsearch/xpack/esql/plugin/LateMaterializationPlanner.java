@@ -97,7 +97,7 @@ class LateMaterializationPlanner {
 
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
         List<Attribute> expectedDataOutput = toPhysical(topN, context).output();
-        Attribute doc = expectedDataOutput.stream().filter(EsQueryExec::isSourceAttribute).findFirst().orElse(null);
+        Attribute doc = expectedDataOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (doc == null) {
             return Optional.empty();
         }
@@ -106,7 +106,7 @@ class LateMaterializationPlanner {
             List<Attribute> attributes = CollectionUtils.prependToCopy(doc, r.output());
             return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), attributes);
         });
-        if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isSourceAttribute)) {
+        if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isDocAttribute)) {
             // Defensive check: if any intermediate projects (or possibly another operator) removed the doc field, just abort this
             // optimization altogether!
             return Optional.empty();
@@ -144,6 +144,8 @@ class LateMaterializationPlanner {
     private LateMaterializationPlanner() { /* static class */ }
 
     // A hack to avoid the ReplaceFieldWithConstantOrNull optimization, since we don't have search stats during the reduce planning phase.
+    // This sidesteps the issue by just assuming all fields exist and have no other meaningful stats. The local data optimizer will use the
+    // real statistics.
     private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {

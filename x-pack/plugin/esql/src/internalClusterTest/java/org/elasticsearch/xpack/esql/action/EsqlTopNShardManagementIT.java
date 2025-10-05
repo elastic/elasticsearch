@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -96,6 +97,14 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
             )
             .execute()
             .actionGet(1, TimeUnit.MINUTES);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(PlannerSettings.REDUCTION_LATE_MATERIALIZATION.getKey(), randomBoolean())
+            .build();
     }
 
     public static class TopNPausableFieldPlugin extends AbstractPauseFieldPlugin {

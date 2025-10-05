@@ -39,14 +39,17 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -248,6 +251,15 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         }
     }
 
+    @After
+    public void clearTransientSettings() throws Exception {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setTransientSettings(Settings.builder().putNull(PlannerSettings.REDUCTION_LATE_MATERIALIZATION.getKey()))
+            .get();
+    }
+
     private ActionFuture<EsqlQueryResponse> startEsql() {
         return startEsql("from test | stats sum(pause_me)");
     }
@@ -278,12 +290,17 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             settingsBuilder.put("node_level_reduction", false);
         }
 
+        var pragmas = new QueryPragmas(settingsBuilder.build());
+
         if (reductionLateMaterialization == null) {
             reductionLateMaterialization = randomBoolean();
         }
-        settingsBuilder.put(QueryPragmas.REDUCTION_LATE_MATERIALIZATION.getKey(), reductionLateMaterialization);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setTransientSettings(Map.of(PlannerSettings.REDUCTION_LATE_MATERIALIZATION.getKey(), reductionLateMaterialization))
+            .get();
 
-        var pragmas = new QueryPragmas(settingsBuilder.build());
         return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client()).query(query).pragmas(pragmas).execute();
     }
 

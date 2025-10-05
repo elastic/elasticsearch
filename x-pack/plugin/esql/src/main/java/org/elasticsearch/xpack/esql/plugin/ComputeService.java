@@ -666,7 +666,7 @@ public class ComputeService {
             );
         } catch (Exception e) {
             Releasables.close(context.searchContexts().collection());
-            LOGGER.fatal("Error in ComputeService.runCompute for : " + context.description());
+            LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
     }
@@ -729,10 +729,11 @@ public class ComputeService {
             return new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         }
 
-        Function<PhysicalPlan, ReductionPlan> pipelineBreakerReduction = p -> new ReductionPlan(
+        Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
             originalPlan
         );
+        // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         return switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when splitTopN ->
@@ -744,9 +745,9 @@ public class ComputeService {
                     originalPlan
                 )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> runNodeLevelReduction ? pipelineBreakerReduction.apply(topN.plan()) : defaultResult);
-            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> pipelineBreakerReduction.apply(topN.plan());
-            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> pipelineBreakerReduction.apply(rp.plan());
+                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : defaultResult);
+            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> defaultResult;
         };
     }

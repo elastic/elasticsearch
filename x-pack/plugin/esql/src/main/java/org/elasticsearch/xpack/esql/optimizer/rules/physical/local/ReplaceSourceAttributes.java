@@ -62,7 +62,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
     private static Attribute getDocAttribute(EsSourceExec plan) {
         // The source (or doc) field is sometimes added to the relation output as a hack to enable late materialization in the reduce
         // driver. In that case, we should take it instead of replacing it with a new one to ensure the same attribute is used throughout.
-        var sourceAttributes = plan.output().stream().filter(EsQueryExec::isSourceAttribute).toList();
+        var sourceAttributes = plan.output().stream().filter(EsQueryExec::isDocAttribute).toList();
         if (sourceAttributes.size() > 1) {
             throw new IllegalStateException("Expected at most one source attribute, found: " + sourceAttributes);
         }

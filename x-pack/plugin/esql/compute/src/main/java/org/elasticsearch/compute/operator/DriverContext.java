@@ -61,7 +61,7 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
-    private final @Nullable String description;
+    private final @Nullable String driverDescription;
 
     private Runnable earlyTerminationChecker = () -> {};
 
@@ -78,7 +78,7 @@ public class DriverContext {
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
-        this.description = description;
+        this.driverDescription = description;
         this.warningsMode = warningsMode;
     }
 
@@ -97,9 +97,10 @@ public class DriverContext {
         return blockFactory;
     }
 
+    /** See {@link Driver#shortDescription}. */
     @Nullable
-    public String description() {
-        return description;
+    public String driverDescription() {
+        return driverDescription;
     }
 
     /** A snapshot of the driver context. */

@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
@@ -34,12 +35,12 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /** Verifies that the value source reader operator is optimized into the reduce driver instead of the data driver. */
-public abstract class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
+public abstract class EsqlReductionLateMaterializationIT extends AbstractEsqlIntegTestCase {
     private final int shardCount;
     private final int maxConcurrentNodes;
     private final int taskConcurrency;
 
-    EsqlTopNFetchPhaseOptimizationIT(@Name("TestCase") TestCase testCase) {
+    EsqlReductionLateMaterializationIT(@Name("TestCase") TestCase testCase) {
         this.shardCount = testCase.shardCount;
         this.maxConcurrentNodes = testCase.maxConcurrentNodes;
         this.taskConcurrency = testCase.taskConcurrency;
@@ -86,11 +87,11 @@ public abstract class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlInteg
     }
 
     @Override
-    protected QueryPragmas getPragmas() {
-        Settings.Builder settings = Settings.builder();
-        settings.put(super.getPragmas().getSettings());
-        settings.put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true);
-        return new QueryPragmas(settings.build());
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(PlannerSettings.REDUCTION_LATE_MATERIALIZATION.getKey(), true)
+            .build();
     }
 
     public void testNoPushdowns() throws Exception {
@@ -150,7 +151,6 @@ public abstract class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlInteg
                         .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), maxConcurrentNodes)
                         .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), shardCount)
                         .put(QueryPragmas.TASK_CONCURRENCY.getKey(), taskConcurrency)
-                        .put(QueryPragmas.REDUCTION_LATE_MATERIALIZATION.getKey(), true)
                         .build()
                 )
             )

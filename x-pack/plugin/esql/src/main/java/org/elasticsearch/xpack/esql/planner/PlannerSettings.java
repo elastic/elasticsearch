@@ -52,10 +52,18 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> REDUCTION_LATE_MATERIALIZATION = Setting.boolSetting(
+        "esql.reduction_late_materialization",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
     private volatile int luceneTopNLimit;
     private volatile ByteSizeValue intermediateLocalRelationMaxSize;
+    private volatile boolean reductionLateMaterialization;
 
     /**
      * Ctor for prod that listens for updates from the {@link ClusterService}.
@@ -66,6 +74,7 @@ public class PlannerSettings {
         clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
         clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
         clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
+        clusterSettings.initializeAndWatch(REDUCTION_LATE_MATERIALIZATION, v -> this.reductionLateMaterialization = v);
     }
 
     /**
@@ -75,12 +84,14 @@ public class PlannerSettings {
         DataPartitioning defaultDataPartitioning,
         ByteSizeValue valuesLoadingJumboSize,
         int luceneTopNLimit,
-        ByteSizeValue intermediateLocalRelationMaxSize
+        ByteSizeValue intermediateLocalRelationMaxSize,
+        boolean reductionLateMaterialization
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
         this.luceneTopNLimit = luceneTopNLimit;
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
+        this.reductionLateMaterialization = reductionLateMaterialization;
     }
 
     public DataPartitioning defaultDataPartitioning() {
@@ -111,5 +122,13 @@ public class PlannerSettings {
 
     public ByteSizeValue intermediateLocalRelationMaxSize() {
         return intermediateLocalRelationMaxSize;
+    }
+
+    /**
+     * Returns true if each data node should perform a local reduction for sort, limit, topN, stats or false if the coordinator node
+     * will perform the reduction.
+     */
+    public boolean reductionLateMaterialization() {
+        return reductionLateMaterialization;
     }
 }

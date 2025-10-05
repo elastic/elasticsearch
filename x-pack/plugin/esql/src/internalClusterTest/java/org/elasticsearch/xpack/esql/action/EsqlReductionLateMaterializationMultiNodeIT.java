@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.test.ESIntegTestCase;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 1)
-public class EsqlTopNFetchPhaseOptimizationSingleNodeIT extends EsqlTopNFetchPhaseOptimizationIT {
-    public EsqlTopNFetchPhaseOptimizationSingleNodeIT(TestCase testCase) {
+@ESIntegTestCase.ClusterScope(numDataNodes = 3)
+public class EsqlReductionLateMaterializationMultiNodeIT extends EsqlReductionLateMaterializationIT {
+    public EsqlReductionLateMaterializationMultiNodeIT(TestCase testCase) {
         super(testCase);
     }
 }

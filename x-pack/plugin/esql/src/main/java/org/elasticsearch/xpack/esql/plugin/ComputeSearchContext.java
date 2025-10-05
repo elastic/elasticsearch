@@ -17,6 +17,10 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
+/**
+ * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
+ * and node-reduce drivers, although they may be released once they are no longer needed by either driver.
+ */
 class ComputeSearchContext implements Releasable {
     private final int index;
     private final SearchContext searchContext;

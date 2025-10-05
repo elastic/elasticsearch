@@ -58,7 +58,7 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
                 boolean found = false;
                 for (PhysicalPlan child : p.children()) {
                     if (found == false) {
-                        if (child.outputSet().stream().anyMatch(EsQueryExec::isSourceAttribute)) {
+                        if (child.outputSet().stream().anyMatch(EsQueryExec::isDocAttribute)) {
                             found = true;
                             // collect source attributes and add the extractor
                             child = new FieldExtractExec(p.source(), child, List.copyOf(missing), fieldExtractPreference);

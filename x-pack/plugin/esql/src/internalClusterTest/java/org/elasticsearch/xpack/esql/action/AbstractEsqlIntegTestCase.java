@@ -169,6 +169,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return run(syncEsqlQueryRequest().query(esqlCommands).pragmas(getPragmas()));
     }
 
+    /** A hook for overriding. */
     protected QueryPragmas getPragmas() {
         return randomPragmas();
     }

@@ -876,7 +876,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /**
          * Makes a decision on whether to move a started shard to another node.
          * <p>
-         * This overload will always assess move options for non-preferred allocations.
+         * This overload will always search for relocation targets for {@link Decision#NOT_PREFERRED}
+         * allocations.
          *
          * @see #decideMove(ProjectIndex, ShardRouting, Predicate)
          * @param index The index that the shard being considered belongs to
@@ -902,7 +903,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *
          * @param index The index that the shard being considered belongs to
          * @param shardRouting The shard routing being considered for movement
-         * @param nonPreferredPredicate A predicate used to determine whether to assess move options for shards in non-preferred allocations
+         * @param nonPreferredPredicate A predicate applied to every assignment for which
+         *                              {@link AllocationDeciders#canRemain(ShardRouting, RoutingNode, RoutingAllocation)} returns
+         *                              {@link Type#NOT_PREFERRED}. If the predicate returns true, a search for relocation targets will be
+         *                              performed, if it returns false no search will be performed and {@link MoveDecision#NOT_TAKEN} will
+         *                              be returned.
          * @return The {@link MoveDecision} for the shard
          */
         private MoveDecision decideMove(ProjectIndex index, ShardRouting shardRouting, Predicate<ShardRouting> nonPreferredPredicate) {

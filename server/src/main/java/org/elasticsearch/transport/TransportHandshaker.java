@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -176,7 +175,7 @@ final class TransportHandshaker {
     );
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
-    static final TransportVersion V8_19_FIRST_VERSION = TransportVersions.INITIAL_ELASTICSEARCH_8_19;
+    static final TransportVersion V8_19_FIRST_VERSION = TransportVersion.fromName("initial_elasticsearch_8_19_0");
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
 
@@ -276,7 +275,7 @@ final class TransportHandshaker {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
             // Prevent log message headers from being added to the handshake response.
             try (var ignored = threadContext.stashContext()) {
-                if (remoteTransportVersion.before(V8_19_FIRST_VERSION)) {
+                if (remoteTransportVersion.supports(V8_19_FIRST_VERSION) == false) {
                     deprecationLogger.warn(
                         DeprecationCategory.OTHER,
                         "handshake_version",

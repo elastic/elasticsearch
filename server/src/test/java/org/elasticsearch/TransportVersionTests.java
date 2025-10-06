@@ -41,7 +41,7 @@ public class TransportVersionTests extends ESTestCase {
      * If the test fails, there is something wrong with your backport PR.
      */
     public void testMaximumAllowedTransportVersion() {
-        assertThat(TransportVersion.current().isPatchFrom(TransportVersions.INITIAL_ELASTICSEARCH_8_19), is(true));
+        assertThat(TransportVersion.current().isPatchFrom(TransportVersion.fromName("initial_elasticsearch_8_19_0")), is(true));
     }
 
     public void testVersionComparison() {
@@ -467,7 +467,7 @@ public class TransportVersionTests extends ESTestCase {
             "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
                 + "and generateTransportVersion gradle task",
             versions.get(versions.size() - 1).id(),
-            equalTo(8_841_0_30)
+            equalTo(8_840_0_00)
         );
     }
 }

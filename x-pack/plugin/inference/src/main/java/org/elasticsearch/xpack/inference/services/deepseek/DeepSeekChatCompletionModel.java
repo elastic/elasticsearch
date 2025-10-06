@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.deepseek;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -160,6 +159,7 @@ public class DeepSeekChatCompletionModel extends Model {
 
     private record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
         private static final String NAME = "deep_seek_service_settings";
+        private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
 
         DeepSeekServiceSettings {
             Objects.requireNonNull(modelId);
@@ -176,7 +176,7 @@ public class DeepSeekChatCompletionModel extends Model {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ML_INFERENCE_DEEPSEEK_8_19;
+            return ML_INFERENCE_DEEPSEEK;
         }
 
         @Override

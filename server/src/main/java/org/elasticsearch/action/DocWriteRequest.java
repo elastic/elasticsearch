@@ -176,6 +176,8 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
      */
     int route(IndexRouting indexRouting);
 
+    int rerouteAtSourceDuringResharding(IndexRouting indexRouting);
+
     /**
      * Resolves the write index that should receive this request
      * based on the provided index abstraction.

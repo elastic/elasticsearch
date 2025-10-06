@@ -928,6 +928,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return indexRouting.indexShard(this);
     }
 
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteIndexingRequestIfResharding(this);
+    }
+
     public IndexRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;

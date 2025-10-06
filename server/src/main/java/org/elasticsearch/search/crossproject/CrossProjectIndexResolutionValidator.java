@@ -17,6 +17,7 @@ import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Map;
@@ -45,8 +46,8 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
  * error response, returning {@link IndexNotFoundException} for missing indices or
  * {@link ElasticsearchSecurityException} for authorization failures.
  */
-public class ResponseValidator {
-    private static final Logger logger = LogManager.getLogger(ResponseValidator.class);
+public class CrossProjectIndexResolutionValidator {
+    private static final Logger logger = LogManager.getLogger(CrossProjectIndexResolutionValidator.class);
 
     /**
      * Validates the results of cross-project index resolution and returns appropriate exceptions based on the provided
@@ -165,9 +166,17 @@ public class ResponseValidator {
         return null;
     }
 
+    public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
+        // TODO set resolveCrossProject=false here once we have an IndicesOptions flag for that
+        return IndicesOptions.builder(indicesOptions)
+            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
+            .build();
+    }
+
     private static ElasticsearchSecurityException securityException(String originalExpression) {
         // TODO plug in proper recorded authorization exceptions instead, once available
-        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]");
+        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]", RestStatus.FORBIDDEN);
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(

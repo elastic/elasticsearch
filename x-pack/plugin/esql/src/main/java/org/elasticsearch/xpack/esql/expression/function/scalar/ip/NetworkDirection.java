@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -120,14 +119,22 @@ public class NetworkDirection extends EsqlScalarFunction {
         return new NetworkDirectionEvaluator.Factory(
             source(),
             context -> new BytesRef(16),
+            context -> new BytesRef(),
             sourceIpEvaluatorSupplier,
             destinationIpEvaluatorSupplier,
             internalNetworksEvaluatorSupplier
         );
     }
 
-    @Evaluator
-    static BytesRef process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock networks) {
+    @Evaluator(warnExceptions = IllegalArgumentException.class)
+    static BytesRef process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, @Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef netScratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock networks) {
+        int valueCount = networks.getValueCount(position);
+        if (valueCount == 0) {
+            throw new IllegalArgumentException("List of internal networks must not be empty");
+        }
+        int first = networks.getFirstValueIndex(position);
+
+
         System.arraycopy(sourceIp.bytes, sourceIp.offset, scratch.bytes, 0, sourceIp.length);
         InetAddress sourceIpAddress = InetAddressPoint.decode(scratch.bytes);
         System.arraycopy(destinationIp.bytes, destinationIp.offset, scratch.bytes, 0, destinationIp.length);
@@ -136,17 +143,16 @@ public class NetworkDirection extends EsqlScalarFunction {
         boolean sourceInternal = false;
         boolean destinationInternal = false;
 
-        int valueCount = networks.getValueCount(position);
-        int first = networks.getFirstValueIndex(position);
 
+        // TODO: address scratch re-use due to .length issues above when sharing buffer
         for (int i = first; i < first + valueCount; i++) {
-            if (NetworkDirectionUtils.inNetwork(sourceIpAddress, networks.getBytesRef(i, scratch).utf8ToString())) {
+            if (NetworkDirectionUtils.inNetwork(sourceIpAddress, networks.getBytesRef(i, netScratch).utf8ToString())) {
                 sourceInternal = true;
                 break;
             }
         }
         for (int i = first; i < first + valueCount; i++) {
-            if (NetworkDirectionUtils.inNetwork(destinationIpAddress, networks.getBytesRef(i, scratch).utf8ToString())) {
+            if (NetworkDirectionUtils.inNetwork(destinationIpAddress, networks.getBytesRef(i, netScratch).utf8ToString())) {
                 destinationInternal = true;
                 break;
             }
@@ -170,5 +176,10 @@ public class NetworkDirection extends EsqlScalarFunction {
 
     public Expression internalNetworks() {
         return internalNetworks;
+    }
+
+    @Override
+    public boolean foldable() {
+        return sourceIpField.foldable() && destinationIpField.foldable() && internalNetworks.foldable();
     }
 }

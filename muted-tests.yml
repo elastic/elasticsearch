@@ -651,6 +651,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testResize {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135909
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSearchTimeSeriesMode {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135963
 
 # Examples:
 #

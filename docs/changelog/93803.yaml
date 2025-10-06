@@ -1,0 +1,6 @@
+pr: 93803
+summary: Date Rounding Field Alias Bug
+area: Aggregations
+type: bug
+issues:
+ - 93797

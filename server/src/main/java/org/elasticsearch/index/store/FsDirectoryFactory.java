@@ -82,8 +82,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         // creates 256 * 8k buffers, which is 2MB
         256,
         Property.IndexScope,
-        Property.NodeScope,
-        Property.ProjectScope
+        Property.NodeScope
     );
 
     @Override

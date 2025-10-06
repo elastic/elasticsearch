@@ -41,7 +41,7 @@ public class TransportVersionTests extends ESTestCase {
      * If the test fails, there is something wrong with your backport PR.
      */
     public void testMaximumAllowedTransportVersion() {
-        assertThat(TransportVersion.current().isPatchFrom(TransportVersion.fromName("initial_elasticsearch_8_19_0")), is(true));
+        assertThat(TransportVersion.current().isPatchFrom(TransportVersion.fromId(8841000)), is(true));
     }
 
     public void testVersionComparison() {

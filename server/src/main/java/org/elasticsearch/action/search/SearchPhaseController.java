@@ -527,15 +527,15 @@ public final class SearchPhaseController {
                 sortValueFormats = result.sortValueFormats();
             }
 
-            if (timeRangeFilterFromMillis == null) {
-                // we simply take the first one: we should get the same value from all shards anyway
-                timeRangeFilterFromMillis = result.getTimeRangeFilterFromMillis();
+            if (result.getTimeRangeFilterFromMillis() != null) {
+                if (timeRangeFilterFromMillis == null) {
+                    timeRangeFilterFromMillis = result.getTimeRangeFilterFromMillis();
+                } else {
+                    //all shards should hold the same value, besides edge cases like different mappings
+                    // for event.ingested and @timestamp across indices being searched
+                    timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
+                }
             }
-
-            assert timeRangeFilterFromMillis == null
-                || result.getTimeRangeFilterFromMillis() == null
-                || timeRangeFilterFromMillis.equals(result.getTimeRangeFilterFromMillis())
-                : timeRangeFilterFromMillis + " != " + result.getTimeRangeFilterFromMillis();
 
             if (hasSuggest) {
                 assert result.suggest() != null;

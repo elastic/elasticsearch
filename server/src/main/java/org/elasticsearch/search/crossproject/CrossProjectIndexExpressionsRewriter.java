@@ -19,9 +19,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
  * Utility class for rewriting cross-project index expressions.
  * Provides methods that can rewrite qualified and unqualified index expressions to canonical CCS.
  */
-public class IndexExpressionsRewriter {
+public class CrossProjectIndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
 
-    private static final Logger logger = LogManager.getLogger(IndexExpressionsRewriter.class);
+    private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
@@ -51,6 +51,7 @@ public class IndexExpressionsRewriter {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
+    // TODO remove me: only used in tests
     public static Map<String, IndexRewriteResult> rewriteIndexExpressions(
         ProjectRoutingInfo originProject,
         List<ProjectRoutingInfo> linkedProjects,
@@ -127,7 +128,7 @@ public class IndexExpressionsRewriter {
         Set<String> allProjectAliases
     ) {
         String localExpression = null;
-        final List<String> rewrittenExpressions = new ArrayList<>();
+        final Set<String> rewrittenExpressions = new LinkedHashSet<>();
         if (originAlias != null) {
             localExpression = indexExpression; // adding the original indexExpression for the _origin cluster.
         }
@@ -177,7 +178,7 @@ public class IndexExpressionsRewriter {
             }
 
             String localExpression = null;
-            final List<String> resourcesMatchingLinkedProjectAliases = new ArrayList<>();
+            final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
             for (String project : allProjectsMatchingAlias) {
                 if (project.equals(originProjectAlias)) {
                     localExpression = indexExpression;
@@ -209,9 +210,9 @@ public class IndexExpressionsRewriter {
     /**
      * A container for a local expression and a list of remote expressions.
      */
-    public record IndexRewriteResult(@Nullable String localExpression, List<String> remoteExpressions) {
+    public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
         public IndexRewriteResult(String localExpression) {
-            this(localExpression, List.of());
+            this(localExpression, Set.of());
         }
     }
 }

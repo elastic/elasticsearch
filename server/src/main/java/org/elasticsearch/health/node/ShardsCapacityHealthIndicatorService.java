@@ -27,6 +27,7 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -126,7 +127,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
     private HealthIndicatorResult mergeIndicators(boolean verbose, List<StatusResult> statusResults) {
         var finalStatus = HealthStatus.merge(statusResults.stream().map(StatusResult::status));
-        var diagnoses = new ArrayList<Diagnosis>();
+        var diagnoses = new LinkedHashSet<Diagnosis>();
         var symptomBuilder = new StringBuilder();
 
         if (finalStatus == HealthStatus.GREEN) {
@@ -167,7 +168,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             symptomBuilder.toString(),
             verbose ? buildDetails(statusResults.stream().map(StatusResult::result).toList()) : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
-            verbose ? diagnoses : List.of()
+            verbose ? List.copyOf(diagnoses) : List.of()
         );
     }
 

@@ -141,6 +141,7 @@ public class ShardLimitValidator {
         final var resultGroups = applicableResultGroups(isStateless);
         final Map<ResultGroup, Integer> shardsToCreatePerGroup = new HashMap<>();
 
+        // TODO: we can short circuit when indindicesToOpenices is empty
         for (Index index : indicesToOpen) {
             IndexMetadata imd = metadata.indexMetadata(index);
             if (imd.getState().equals(IndexMetadata.State.CLOSE)) {
@@ -162,6 +163,7 @@ public class ShardLimitValidator {
         final var resultGroups = applicableResultGroups(isStateless);
         final Map<ResultGroup, Integer> shardsToCreatePerGroup = new HashMap<>();
 
+        // TODO: we can short circuit when indices is empty
         for (Index index : indices) {
             IndexMetadata imd = metadata.indexMetadata(index);
             resultGroups.forEach(
@@ -203,8 +205,8 @@ public class ShardLimitValidator {
         DiscoveryNodes discoveryNodes,
         Metadata metadata
     ) {
-        assert shardsToCreatePerGroup.size() == resultGroups.size()
-            : "inconsistent result groups " + resultGroups + " and groups for shards to create " + shardsToCreatePerGroup.keySet();
+        assert resultGroups.containsAll(shardsToCreatePerGroup.keySet())
+            : "result groups " + resultGroups + " do not contain groups for shards creation " + shardsToCreatePerGroup.keySet();
         // we verify the two limits independently. This also means that if they have mixed frozen and other data-roles nodes, such a mixed
         // node can have both 1000 normal and 3000 frozen shards. This is the trade-off to keep the simplicity of the counts. We advocate
         // against such mixed nodes for production use anyway.
@@ -212,7 +214,7 @@ public class ShardLimitValidator {
         for (var resultGroup : resultGroups) {
             result = resultGroup.checkShardLimit(
                 getShardLimitPerNode(resultGroup),
-                shardsToCreatePerGroup.get(resultGroup),
+                shardsToCreatePerGroup.getOrDefault(resultGroup, 0),
                 discoveryNodes,
                 metadata
             );

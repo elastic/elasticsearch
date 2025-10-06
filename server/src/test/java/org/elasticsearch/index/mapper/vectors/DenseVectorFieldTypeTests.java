@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
@@ -64,10 +63,36 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         return new DenseVectorFieldMapper.RescoreVector(randomBoolean() ? 0 : randomFloatBetween(1.0F, 10.0F, false));
     }
 
-    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.FlatIndexOptions()
+        );
+    }
+
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomFlatIndexOptions() {
+        return randomFrom(
+            new DenseVectorFieldMapper.FlatIndexOptions(),
+            new DenseVectorFieldMapper.Int8FlatIndexOptions(
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            ),
+            new DenseVectorFieldMapper.Int4FlatIndexOptions(
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            )
+        );
+    }
+
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomGpuSupportedIndexOptions() {
+        return randomFrom(
+            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 3199)),
+            new DenseVectorFieldMapper.Int8HnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 3199),
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            )
         );
     }
 
@@ -265,9 +290,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
                 assertTrue(
-                    query instanceof DiversifyingChildrenFloatKnnVectorQuery
-                        || query instanceof PatienceKnnVectorQuery
-                        || query instanceof DiversifyingChildrenIVFKnnFloatVectorQuery
+                    query instanceof DiversifyingChildrenFloatKnnVectorQuery || query instanceof DiversifyingChildrenIVFKnnFloatVectorQuery
                 );
             }
         }
@@ -305,7 +328,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery || query instanceof PatienceKnnVectorQuery);
+                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery);
             }
 
             vectorData = new VectorData(floatQueryVector, null);
@@ -324,7 +347,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (field.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
-                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery || query instanceof PatienceKnnVectorQuery);
+                assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery);
             }
         }
     }
@@ -499,11 +522,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
             } else {
-                assertTrue(
-                    query instanceof KnnFloatVectorQuery
-                        || query instanceof PatienceKnnVectorQuery
-                        || query instanceof IVFKnnFloatVectorQuery
-                );
+                assertTrue(query instanceof KnnFloatVectorQuery || query instanceof IVFKnnFloatVectorQuery);
             }
         }
 
@@ -539,7 +558,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (fieldWith4096dims.getIndexOptions().isFlat()) {
                 assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
             } else {
-                assertTrue(query instanceof ESKnnByteVectorQuery || query instanceof PatienceKnnVectorQuery);
+                assertTrue(query instanceof ESKnnByteVectorQuery);
             }
         }
     }
@@ -650,25 +669,17 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (nonQuantizedField.getIndexOptions().isFlat()) {
                 assertThat(knnQuery, instanceOf(DenseVectorQuery.Bytes.class));
             } else {
-                if (knnQuery instanceof PatienceKnnVectorQuery patienceKnnVectorQuery) {
-                    assertThat(patienceKnnVectorQuery.getK(), is(100));
-                } else {
-                    ESKnnByteVectorQuery knnByteVectorQuery = (ESKnnByteVectorQuery) knnQuery;
-                    assertThat(knnByteVectorQuery.getK(), is(100));
-                    assertThat(knnByteVectorQuery.kParam(), is(10));
-                }
+                ESKnnByteVectorQuery knnByteVectorQuery = (ESKnnByteVectorQuery) knnQuery;
+                assertThat(knnByteVectorQuery.getK(), is(100));
+                assertThat(knnByteVectorQuery.kParam(), is(10));
             }
         } else {
             if (nonQuantizedField.getIndexOptions().isFlat()) {
                 assertThat(knnQuery, instanceOf(DenseVectorQuery.Floats.class));
             } else {
-                if (knnQuery instanceof PatienceKnnVectorQuery patienceKnnVectorQuery) {
-                    assertThat(patienceKnnVectorQuery.getK(), is(100));
-                } else {
-                    ESKnnFloatVectorQuery knnFloatVectorQuery = (ESKnnFloatVectorQuery) knnQuery;
-                    assertThat(knnFloatVectorQuery.getK(), is(100));
-                    assertThat(knnFloatVectorQuery.kParam(), is(10));
-                }
+                ESKnnFloatVectorQuery knnFloatVectorQuery = (ESKnnFloatVectorQuery) knnQuery;
+                assertThat(knnFloatVectorQuery.getK(), is(100));
+                assertThat(knnFloatVectorQuery.kParam(), is(10));
             }
         }
     }
@@ -722,7 +733,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         if (fieldType.getIndexOptions().isFlat()) {
             assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         } else {
-            assertTrue(query instanceof ESKnnFloatVectorQuery || query instanceof PatienceKnnVectorQuery);
+            assertTrue(query instanceof ESKnnFloatVectorQuery);
         }
 
         // verify we can override a `0` to a positive number
@@ -760,9 +771,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFilterSearchThreshold() {
         List<Tuple<DenseVectorFieldMapper.ElementType, Function<Query, KnnSearchStrategy>>> cases = List.of(
-            Tuple.tuple(FLOAT, q -> q instanceof PatienceKnnVectorQuery ? null : ((ESKnnFloatVectorQuery) q).getStrategy()),
-            Tuple.tuple(BYTE, q -> q instanceof PatienceKnnVectorQuery ? null : ((ESKnnByteVectorQuery) q).getStrategy()),
-            Tuple.tuple(BIT, q -> q instanceof PatienceKnnVectorQuery ? null : ((ESKnnByteVectorQuery) q).getStrategy())
+            Tuple.tuple(FLOAT, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
+            Tuple.tuple(BYTE, q -> ((ESKnnByteVectorQuery) q).getStrategy()),
+            Tuple.tuple(BIT, q -> ((ESKnnByteVectorQuery) q).getStrategy())
         );
         for (var tuple : cases) {
             DenseVectorFieldType fieldType = new DenseVectorFieldType(
@@ -840,13 +851,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
         Query innerQuery = rescoreQuery.innerQuery();
-        if (innerQuery instanceof PatienceKnnVectorQuery patienceKnnVectorQuery) {
-            assertThat("Unexpected candidates", patienceKnnVectorQuery.getK(), equalTo(expectedCandidates));
-        } else {
-            ESKnnFloatVectorQuery knnQuery = (ESKnnFloatVectorQuery) innerQuery;
-            assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
-            assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
-            assertThat("Unexpected k parameter", knnQuery.kParam(), equalTo(expectedK));
-        }
+        ESKnnFloatVectorQuery knnQuery = (ESKnnFloatVectorQuery) innerQuery;
+        assertThat("Unexpected total results", rescoreQuery.k(), equalTo(expectedResults));
+        assertThat("Unexpected candidates", knnQuery.getK(), equalTo(expectedCandidates));
+        assertThat("Unexpected k parameter", knnQuery.kParam(), equalTo(expectedK));
     }
 }

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
@@ -51,9 +53,12 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
+
+    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
@@ -364,7 +369,7 @@ class IndicesAndAliasesResolver {
                 // once we've migrated from `indices()` to using resolved expressions holistically,
                 // we will always store them
                 if (recordResolvedIndexExpressions) {
-                    replaceable.setResolvedIndexExpressions(resolved);
+                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                 }
                 resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                 resolvedIndicesBuilder.addRemote(split.getRemote());
@@ -433,6 +438,24 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    private static void setResolvedIndexExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
+        if (replaceable.getResolvedIndexExpressions() == null) {
+            replaceable.setResolvedIndexExpressions(resolved);
+        } else {
+            // see https://github.com/elastic/elasticsearch/issues/135799
+            String message = "resolved index expressions are already set to ["
+                + replaceable.getResolvedIndexExpressions()
+                + "] and should not be set again. Attempted to set to new expressions ["
+                + resolved
+                + "] for ["
+                + replaceable.getClass().getName()
+                + "]";
+            logger.debug(message);
+            // we are excepting `*,-*` below since we've observed this already -- keeping this assertion catch other cases
+            assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
+        }
     }
 
     /**

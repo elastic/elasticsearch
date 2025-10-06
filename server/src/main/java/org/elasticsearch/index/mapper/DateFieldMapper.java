@@ -25,6 +25,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -550,7 +551,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, isIndexed, isStored, hasDocValues, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
@@ -664,6 +665,11 @@ public final class DateFieldMapper extends FieldMapper {
             return hasDocValuesSkipper;
         }
 
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
+        }
+
         /**
          * Format to use to resolve {@link Number}s from the source. Its valid
          * to send the numbers with up to six digits after the decimal place
@@ -747,33 +753,34 @@ public final class DateFieldMapper extends FieldMapper {
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
-            DateMathParser parser;
-            if (forcedDateParser == null) {
-                if (lowerTerm instanceof Number || upperTerm instanceof Number) {
-                    // force epoch_millis
-                    parser = EPOCH_MILLIS_PARSER;
-                } else {
-                    parser = dateMathParser;
-                }
-            } else {
-                parser = forcedDateParser;
-            }
-            return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query;
-                if (isIndexed()) {
-                    query = LongPoint.newRangeQuery(name(), l, u);
-                    if (hasDocValues()) {
-                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                        query = new IndexOrDocValuesQuery(query, dvQuery);
+            DateMathParser parser = resolveDateMathParser(forcedDateParser, lowerTerm, upperTerm);
+            return dateRangeQuery(
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                timeZone,
+                parser,
+                context,
+                resolution,
+                name(),
+                (l, u) -> {
+                    Query query;
+                    if (isIndexed()) {
+                        query = LongPoint.newRangeQuery(name(), l, u);
+                        if (hasDocValues()) {
+                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                            query = new IndexOrDocValuesQuery(query, dvQuery);
+                        }
+                    } else {
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     }
-                } else {
-                    query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    if (hasDocValues() && context.indexSortedOnField(name())) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    }
+                    return query;
                 }
-                if (hasDocValues() && context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
-                }
-                return query;
-            });
+            );
         }
 
         public static Query dateRangeQuery(
@@ -785,6 +792,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser parser,
             SearchExecutionContext context,
             Resolution resolution,
+            String fieldName,
             BiFunction<Long, Long, Query> builder
         ) {
             return handleNow(context, nowSupplier -> {
@@ -795,6 +803,9 @@ public final class DateFieldMapper extends FieldMapper {
                     l = parseToLong(lowerTerm, includeLower == false, timeZone, parser, nowSupplier, resolution);
                     if (includeLower == false) {
                         ++l;
+                    }
+                    if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+                        context.setRangeTimestampFrom(l);
                     }
                 }
                 if (upperTerm == null) {
@@ -951,6 +962,17 @@ public final class DateFieldMapper extends FieldMapper {
             return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
         }
 
+        public DateMathParser resolveDateMathParser(DateMathParser dateParser, Object from, Object to) {
+            if (dateParser == null) {
+                if (from instanceof Number || to instanceof Number) {
+                    // force epoch_millis
+                    return EPOCH_MILLIS_PARSER;
+                }
+                return this.dateMathParser;
+            }
+            return dateParser;
+        }
+
         public Relation isFieldWithinQuery(
             long minValue,
             long maxValue,
@@ -962,14 +984,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) {
-            if (dateParser == null) {
-                if (from instanceof Number || to instanceof Number) {
-                    // force epoch_millis
-                    dateParser = EPOCH_MILLIS_PARSER;
-                } else {
-                    dateParser = this.dateMathParser;
-                }
-            }
+            dateParser = resolveDateMathParser(dateParser, from, to);
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {

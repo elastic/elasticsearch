@@ -459,7 +459,9 @@ public abstract class TransportReplicationAction<
             try {
                 final ClusterState clusterState = clusterService.state();
                 final Index index = primaryShardReference.routingEntry().index();
-                final ProjectId projectId = clusterState.metadata().projectFor(index).id();
+                final ProjectMetadata project = clusterState.metadata().projectFor(index);
+                final ProjectId projectId = project.id();
+                final IndexMetadata indexMetadata = project.index(index);
 
                 final ClusterBlockException blockException = blockExceptions(clusterState, projectId, index.getName());
                 if (blockException != null) {
@@ -467,6 +469,11 @@ public abstract class TransportReplicationAction<
                     throw blockException;
                 }
 
+                int reshardSplitShardCountSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
+                assert (reshardSplitShardCountSummary == 0
+                    || reshardSplitShardCountSummary == indexMetadata.getReshardSplitShardCountSummaryForIndexing(
+                        primaryRequest.getRequest().shardId().getId()
+                    ));
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     setPhase(replicationTask, "primary_delegation");

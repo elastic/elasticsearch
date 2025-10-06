@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -141,7 +140,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
+            super(name, false, false, true, meta);
         }
 
         @Override

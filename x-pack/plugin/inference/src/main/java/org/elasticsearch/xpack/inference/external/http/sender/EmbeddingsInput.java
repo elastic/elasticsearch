@@ -8,63 +8,47 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ChunkInferenceInput;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class EmbeddingsInput extends InferenceInputs {
-
-    public static EmbeddingsInput of(InferenceInputs inferenceInputs) {
-        if (inferenceInputs instanceof EmbeddingsInput == false) {
-            throw createUnsupportedTypeException(inferenceInputs, EmbeddingsInput.class);
-        }
-
-        return (EmbeddingsInput) inferenceInputs;
-    }
-
-    private final Supplier<List<ChunkInferenceInput>> listSupplier;
+    private final Supplier<List<String>> inputListSupplier;
     private final InputType inputType;
+    private final AtomicBoolean supplierInvoked = new AtomicBoolean();
 
-    public EmbeddingsInput(Supplier<List<ChunkInferenceInput>> inputSupplier, @Nullable InputType inputType) {
-        super(false);
-        this.listSupplier = Objects.requireNonNull(inputSupplier);
-        this.inputType = inputType;
+    public EmbeddingsInput(List<String> input, @Nullable InputType inputType) {
+        this(() -> input, inputType, false);
     }
 
-    public EmbeddingsInput(List<String> input, @Nullable ChunkingSettings chunkingSettings, @Nullable InputType inputType) {
-        this(input, chunkingSettings, inputType, false);
+    public EmbeddingsInput(List<String> input, @Nullable InputType inputType, boolean stream) {
+        this(() -> input, inputType, stream);
     }
 
-    public EmbeddingsInput(List<String> input, @Nullable ChunkingSettings chunkingSettings, @Nullable InputType inputType, boolean stream) {
-        this(input.stream().map(i -> new ChunkInferenceInput(i, chunkingSettings)).toList(), inputType, stream);
+    public EmbeddingsInput(Supplier<List<String>> inputSupplier, @Nullable InputType inputType) {
+        this(inputSupplier, inputType, false);
     }
 
-    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType) {
-        this(input, inputType, false);
-    }
-
-    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType, boolean stream) {
+    private EmbeddingsInput(Supplier<List<String>> inputSupplier, @Nullable InputType inputType, boolean stream) {
         super(stream);
-        Objects.requireNonNull(input);
-        this.listSupplier = () -> input;
+        this.inputListSupplier = Objects.requireNonNull(inputSupplier);
         this.inputType = inputType;
     }
 
-    public List<ChunkInferenceInput> getInputs() {
-        return this.listSupplier.get();
-    }
-
-    public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType) {
-        return new EmbeddingsInput(input, null, inputType);
-    }
-
-    public List<String> getStringInputs() {
-        return getInputs().stream().map(ChunkInferenceInput::input).collect(Collectors.toList());
+    /**
+     * Calling this method twice will result in the {@link #inputListSupplier} being invoked twice. In the case where the supplier simply
+     * returns the list passed into the constructor, this is not a problem, but in the case where a supplier that will chunk the input
+     * Strings when invoked is passed into the constructor, this will result in multiple copies of the input Strings being created. Calling
+     * this method twice in a non-production environment will cause an {@link AssertionError} to be thrown.
+     *
+     * @return a list of String embedding inputs
+     */
+    public List<String> getInputs() {
+        assert supplierInvoked.compareAndSet(false, true) : "EmbeddingsInput supplier invoked twice";
+        return inputListSupplier.get();
     }
 
     public InputType getInputType() {

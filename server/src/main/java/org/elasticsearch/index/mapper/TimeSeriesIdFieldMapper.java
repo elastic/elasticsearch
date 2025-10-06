@@ -94,7 +94,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, false, true, Collections.emptyMap());
         }
 
         @Override
@@ -132,6 +132,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + NAME + "] is not searchable");
+        }
+
+        @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return TimeSeriesIdFieldMapper.encodeTsid(binaryValue);
         }
 
         @Override

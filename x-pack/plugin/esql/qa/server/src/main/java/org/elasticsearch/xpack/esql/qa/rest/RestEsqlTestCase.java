@@ -11,7 +11,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -1240,7 +1239,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      * </p>
      */
     public void testInlineStatsNow() throws IOException {
-        assumeTrue("INLINE STATS only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("INLINE STATS only available on snapshots", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(

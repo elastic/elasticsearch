@@ -289,7 +289,7 @@ public class ShardLimitValidator {
                     ? indexMetadata.getTotalNumberOfShards()
                     : 0;
                 case INDEX -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() : 0;
-                case SEARCH -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfReplicas() : 0;
+                case SEARCH -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() * indexMetadata.getNumberOfReplicas() : 0;
             };
         }
 
@@ -380,7 +380,6 @@ public class ShardLimitValidator {
                     .stream()
                     .flatMap(projectMetadata -> projectMetadata.indices().values().stream())
                     .mapToInt(this::countShards)
-                    .filter(value -> value > 0)
                     .sum();
 
                 if ((currentFilteredShards + newShards) > maxShardsInCluster) {

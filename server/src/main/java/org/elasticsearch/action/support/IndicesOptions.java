@@ -416,6 +416,11 @@ public record IndicesOptions(
         }
     }
 
+    /**
+     * The resolution mode options are internal-only options that apply on all indices that have been selected by the other Options. These
+     * options may contextually change over the lifetime of the request.
+     * @param crossProject determines that the index expression must be resolved for cross-project requests, defaults to false.
+     */
     public record ResolutionModeOptions(boolean crossProject) implements ToXContentFragment, Writeable {
 
         public static final ResolutionModeOptions DEFAULT = new ResolutionModeOptions(false);

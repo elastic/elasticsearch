@@ -312,7 +312,8 @@ public class TokenService {
      *                              <ul>
      *                                <li> Hashed before stored </li>
      *                                <li> Stored in a specific security tokens index </li>
-     *                                <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs</li>
+     *                                <li> Prepended with a version ID and encoded with
+     *                                     Base64 before returned to the caller of the APIs</li>
      *                              </ul>
      * @param tokenVersion          The version of the nodes with which these tokens will be compatible.
      * @param authentication        The authentication object representing the user for which the tokens are created

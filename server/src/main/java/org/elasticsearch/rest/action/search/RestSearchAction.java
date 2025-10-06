@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -68,6 +69,7 @@ public class RestSearchAction extends BaseRestHandler {
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final Settings settings;
+    private final boolean inCpsContext;
 
     public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
         this(searchUsageHolder, clusterSupportsFeature, null);
@@ -77,6 +79,7 @@ public class RestSearchAction extends BaseRestHandler {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
         this.settings = settings;
+        this.inCpsContext = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     @Override
@@ -109,7 +112,7 @@ public class RestSearchAction extends BaseRestHandler {
         // this might be set by old clients
         request.param("min_compatible_shard_node");
 
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        if (inCpsContext) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
@@ -128,7 +131,16 @@ public class RestSearchAction extends BaseRestHandler {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder)
+            parser -> parseSearchRequest(
+                searchRequest,
+                request,
+                parser,
+                clusterSupportsFeature,
+                setSize,
+                searchUsageHolder,
+                // This endpoint is CPS-enabled so propagate the right value.
+                Optional.of(inCpsContext)
+            )
         );
 
         return channel -> {
@@ -146,15 +158,23 @@ public class RestSearchAction extends BaseRestHandler {
      *        parameter
      * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
+     * @param inCpsContext specifies if we're in CPS context.
+     *                     <br>
+     *                     true - the endpoint that's invoking this method is CPS-enabled and in a CPS/Serverless context.
+     *                     <br>
+     *                     false - the endpoint that's invoking this method is CPS-enabled but not in a CPS/Serverless context.
+     *                     <br>
+     *                     Optional.empty - the endpoint is not CPS-enabled irrespective of the environment.
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
         RestRequest request,
         XContentParser requestContentParser,
         Predicate<NodeFeature> clusterSupportsFeature,
-        IntConsumer setSize
+        IntConsumer setSize,
+        Optional<Boolean> inCpsContext
     ) throws IOException {
-        parseSearchRequest(searchRequest, request, requestContentParser, clusterSupportsFeature, setSize, null);
+        parseSearchRequest(searchRequest, request, requestContentParser, clusterSupportsFeature, setSize, null, inCpsContext);
     }
 
     /**
@@ -167,6 +187,13 @@ public class RestSearchAction extends BaseRestHandler {
      * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      * @param searchUsageHolder the holder of search usage stats
+     * @param inCpsContext specifies if we're in CPS context.
+     *                     <br>
+     *                     true - the endpoint that's invoking this method is CPS-enabled and in a CPS/Serverless context.
+     *                     <br>
+     *                     false - the endpoint that's invoking this method is CPS-enabled but not in a CPS/Serverless context.
+     *                     <br>
+     *                     Optional.empty - the endpoint is not CPS-enabled irrespective of the environment.
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
@@ -174,7 +201,8 @@ public class RestSearchAction extends BaseRestHandler {
         @Nullable XContentParser requestContentParser,
         Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize,
-        @Nullable SearchUsageHolder searchUsageHolder
+        @Nullable SearchUsageHolder searchUsageHolder,
+        Optional<Boolean> inCpsContext
     ) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
@@ -229,9 +257,17 @@ public class RestSearchAction extends BaseRestHandler {
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request);
         } else {
-            searchRequest.setCcsMinimizeRoundtrips(
-                request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
-            );
+            if (inCpsContext.orElse(false)) {
+                // We're in CPS environment. MRT should not be settable by the user.
+                if (request.hasParam("ccs_minimize_roundtrips")) {
+                    throw new IllegalArgumentException("Setting ccs_minimize_roundtrips is not supported in cross-project search context");
+                }
+            } else {
+                // Either we're in non-CPS environment or the endpoint isn't CPS enabled, so parse what's in the request.
+                searchRequest.setCcsMinimizeRoundtrips(
+                    request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
+                );
+            }
         }
         if (request.paramAsBoolean("force_synthetic_source", false)) {
             searchRequest.setForceSyntheticSource(true);

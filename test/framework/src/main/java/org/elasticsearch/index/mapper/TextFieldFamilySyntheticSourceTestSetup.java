@@ -81,7 +81,11 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             // Block loader will not use keyword multi-field if it has ignore_above configured.
             // And in this case it will use values from source.
             boolean loadingFromSource = ignoreAbove != null;
-            MapperTestCase.SyntheticSourceExample delegate = keywordMultiFieldSyntheticSourceSupport.example(maxValues, loadingFromSource);
+            MapperTestCase.SyntheticSourceExample delegate = keywordMultiFieldSyntheticSourceSupport.example(
+                maxValues,
+                loadingFromSource,
+                true
+            );
 
             return new MapperTestCase.SyntheticSourceExample(delegate.inputValue(), delegate.expectedForSyntheticSource(), b -> {
                 b.field("type", fieldType);

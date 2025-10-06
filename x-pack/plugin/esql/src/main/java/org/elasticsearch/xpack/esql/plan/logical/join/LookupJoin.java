@@ -18,11 +18,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
@@ -40,7 +38,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         boolean isRemote,
         @Nullable Expression joinOnConditions
     ) {
-        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), isRemote, joinOnConditions);
+        this(source, left, right, LEFT, joinFields, joinFields, isRemote, joinOnConditions);
     }
 
     public LookupJoin(

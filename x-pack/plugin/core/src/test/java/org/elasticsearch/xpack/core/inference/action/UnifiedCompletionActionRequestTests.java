@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
 
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
+
     public void testValidation_ReturnsException_When_UnifiedCompletionRequestMessage_Is_Null() {
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
@@ -107,7 +109,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstanceForVersion(UnifiedCompletionAction.Request instance, TransportVersion version) {
-        if (version.before(TransportVersions.INFERENCE_CONTEXT)) {
+        if (version.supports(INFERENCE_CONTEXT) == false) {
             return new UnifiedCompletionAction.Request(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,8 +24,9 @@ import java.util.Objects;
  */
 public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
-    private boolean hasBeenRerouted;
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
+    private boolean hasBeenRerouted;
     private final InferenceContext context;
 
     public BaseInferenceActionRequest(InferenceContext context) {
@@ -42,8 +44,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
             this.hasBeenRerouted = true;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             this.context = new InferenceContext(in);
         } else {
             this.context = InferenceContext.EMPTY_INSTANCE;
@@ -75,8 +76,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
             out.writeBoolean(hasBeenRerouted);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             context.writeTo(out);
         }
     }

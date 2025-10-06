@@ -92,7 +92,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                     {

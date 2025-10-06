@@ -307,7 +307,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         }
 
         public AggregateMetricDoubleFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, true, false, true, meta);
             this.metricType = metricType;
         }
 
@@ -330,6 +330,11 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -27,14 +26,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteClusterSecurityBWCRestIT {
 
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     static {
 
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
-            .version(OLD_CLUSTER_VERSION)
+            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .distribution(DistributionType.DEFAULT)
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")

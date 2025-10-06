@@ -34,18 +34,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.SamplingService.RANDOM_SAMPLING_FEATURE_FLAG;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assume.assumeTrue;
 
 public class SamplingServiceTests extends ESTestCase {
 
     private static final String TEST_CONDITIONAL_SCRIPT = "ctx?.foo == 'bar'";
 
     public void testMaybeSample() {
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
         SamplingService samplingService = getTestSamplingService();
 
         // First, test with a project that has no sampling config:
@@ -101,6 +104,7 @@ public class SamplingServiceTests extends ESTestCase {
     }
 
     public void testMaybeSampleWithCondition() {
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
         SamplingService samplingService = getTestSamplingService();
         String indexName = randomIdentifier();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT)
@@ -147,6 +151,7 @@ public class SamplingServiceTests extends ESTestCase {
     }
 
     public void testMaybeSampleWithLowRate() {
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
         SamplingService samplingService = getTestSamplingService();
         String indexName = randomIdentifier();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT)
@@ -185,6 +190,7 @@ public class SamplingServiceTests extends ESTestCase {
     }
 
     public void testMaybeSampleMaxSamples() {
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
         SamplingService samplingService = getTestSamplingService();
         String indexName = randomIdentifier();
         int maxSamples = randomIntBetween(1, 1000);

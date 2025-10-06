@@ -9,15 +9,10 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
 
 /**
  * The SplitShardCountSummary has been added to accommodate in-place index resharding.
@@ -57,38 +52,11 @@ import java.io.IOException;
  * will be treated as a Summary mismatch on the source shard node.
  */
 
-public class SplitShardCountSummary implements Writeable {
-    // superseded
-    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SUMMARY = TransportVersion.fromName("index_reshard_shardcount_summary");
-    // bumped to use VInt instead of Int
-    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SMALL = TransportVersion.fromName("index_reshard_shardcount_small");
-
-    public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
-
+public abstract class SplitShardCountSummary implements Writeable {
     /**
-     * Given {@code IndexMetadata} and a {@code shardId}, this method returns the "effective" shard count
-     * as seen by this IndexMetadata, for indexing operations.
-     *
-     * See {@code getReshardSplitShardCountSummary} for more details.
-     * @param indexMetadata IndexMetadata of the shard for which we want to calculate the effective shard count
-     * @param shardId       Input shardId for which we want to calculate the effective shard count
+     * This value indicates that the shard count summary has not been provided.
      */
-    public static SplitShardCountSummary forIndexing(IndexMetadata indexMetadata, int shardId) {
-        return getReshardSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
-    }
-
-    /**
-     * This method is used in the context of the resharding feature.
-     * Given a {@code shardId}, this method returns the "effective" shard count
-     * as seen by this IndexMetadata, for search operations.
-     *
-     * See {@code getReshardSplitShardCount} for more details.
-     * @param indexMetadata IndexMetadata of the shard for which we want to calculate the effective shard count
-     * @param shardId  Input shardId for which we want to calculate the effective shard count
-     */
-    public static SplitShardCountSummary forSearch(IndexMetadata indexMetadata, int shardId) {
-        return getReshardSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
-    }
+    protected static final int UNSET_VALUE = 0;
 
     /**
      * This method is used in the context of the resharding feature.
@@ -104,14 +72,12 @@ public class SplitShardCountSummary implements Writeable {
      * undergoing a resharding operation. This method is used to populate a field in the shard level requests sent to
      * source and target shards, as a proxy for the cluster state version. The same calculation is then done at the source shard
      * to verify if the coordinator and source node's view of the resharding state have a mismatch.
-     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCountSummary}
-     * for a detailed description of how this value is used.
      *
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      * @param minShardState Minimum target shard state required for the target to be considered ready
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
-    private static SplitShardCountSummary getReshardSplitShardCountSummary(
+    protected static int getReshardSplitShardCountSummary(
         IndexMetadata indexMetadata,
         int shardId,
         IndexReshardingState.Split.TargetShardState minShardState
@@ -134,40 +100,21 @@ public class SplitShardCountSummary implements Writeable {
                 }
             }
         }
-        return new SplitShardCountSummary(shardCount);
+        return shardCount;
     }
 
-    private final int shardCountSummary;
-
-    public SplitShardCountSummary(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-            this.shardCountSummary = in.readVInt();
-        } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
-            this.shardCountSummary = in.readInt();
-        } else {
-            this.shardCountSummary = UNSET.shardCountSummary;
-        }
-    }
+    protected final int shardCountSummary;
 
     /**
      * Returns whether this shard count summary is carrying an actual value or is UNSET
      */
     public boolean isUnset() {
-        return this.shardCountSummary == UNSET.shardCountSummary;
+        return this.shardCountSummary == UNSET_VALUE;
     }
 
     // visible for testing
     SplitShardCountSummary(int shardCountSummary) {
         this.shardCountSummary = shardCountSummary;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-            out.writeVInt(shardCountSummary);
-        } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
-            out.writeInt(shardCountSummary);
-        }
     }
 
     @Override

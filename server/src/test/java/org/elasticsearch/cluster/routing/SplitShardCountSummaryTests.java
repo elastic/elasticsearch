@@ -38,11 +38,12 @@ public class SplitShardCountSummaryTests extends ESTestCase {
 
         assertNull(reshardingMetadata);
 
-        final var preSplitSummary = new SplitShardCountSummary(numSourceShards);
+        final var preSplitIndexSummary = new IndexSplitShardCountSummary(numSourceShards);
+        final var preSplitSearchSummary = new SearchSplitShardCountSummary(numSourceShards);
         // When there is no resharding going on, the ReshardSplitShardCount is same as number of shards in the index
         for (int i = 0; i < numSourceShards; i++) {
-            assertThat(SplitShardCountSummary.forIndexing(indexMetadata, i), equalTo(preSplitSummary));
-            assertThat(SplitShardCountSummary.forSearch(indexMetadata, i), equalTo(preSplitSummary));
+            assertThat(IndexSplitShardCountSummary.fromMetadata(indexMetadata, i), equalTo(preSplitIndexSummary));
+            assertThat(SearchSplitShardCountSummary.fromMetadata(indexMetadata, i), equalTo(preSplitSearchSummary));
         }
 
         // Now reshard-split from 2 shards to 4 shards
@@ -58,14 +59,15 @@ public class SplitShardCountSummaryTests extends ESTestCase {
         assertEquals(numSourceShards, reshardingMetadata.shardCountBefore());
         assertEquals(numSourceShards * multiple, reshardingMetadata.shardCountAfter());
         final int numShardsAfterReshard = reshardingMetadata.shardCountAfter();
-        final var postSplitSummary = new SplitShardCountSummary(numShardsAfterReshard);
+        final var postSplitIndexSummary = new IndexSplitShardCountSummary(numShardsAfterReshard);
+        final var postSplitSearchSummary = new SearchSplitShardCountSummary(numShardsAfterReshard);
 
         // All target shards in CLONE state
         for (int i = 0; i < numSourceShards; i++) {
             assertTrue(reshardingMetadata.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.CLONE));
 
-            assertThat(SplitShardCountSummary.forIndexing(indexMetadataAfterReshard, i), equalTo(preSplitSummary));
-            assertThat(SplitShardCountSummary.forSearch(indexMetadataAfterReshard, i), equalTo(preSplitSummary));
+            assertThat(IndexSplitShardCountSummary.fromMetadata(indexMetadataAfterReshard, i), equalTo(preSplitIndexSummary));
+            assertThat(SearchSplitShardCountSummary.fromMetadata(indexMetadataAfterReshard, i), equalTo(preSplitSearchSummary));
         }
 
         var indexReshardingMetadataHandoff = reshardingMetadata;
@@ -85,8 +87,8 @@ public class SplitShardCountSummaryTests extends ESTestCase {
                 indexReshardingMetadataHandoff.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.HANDOFF)
             );
 
-            assertThat(SplitShardCountSummary.forIndexing(indexMetadataHandoff, i), equalTo(postSplitSummary));
-            assertThat(SplitShardCountSummary.forSearch(indexMetadataHandoff, i), equalTo(preSplitSummary));
+            assertThat(IndexSplitShardCountSummary.fromMetadata(indexMetadataHandoff, i), equalTo(postSplitIndexSummary));
+            assertThat(SearchSplitShardCountSummary.fromMetadata(indexMetadataHandoff, i), equalTo(preSplitSearchSummary));
         }
 
         var indexReshardingMetadataSplit = indexReshardingMetadataHandoff;
@@ -104,8 +106,8 @@ public class SplitShardCountSummaryTests extends ESTestCase {
                 indexReshardingMetadataSplit.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.SPLIT)
             );
 
-            assertThat(SplitShardCountSummary.forIndexing(indexMetadataSplit, i), equalTo(postSplitSummary));
-            assertThat(SplitShardCountSummary.forSearch(indexMetadataSplit, i), equalTo(postSplitSummary));
+            assertThat(IndexSplitShardCountSummary.fromMetadata(indexMetadataSplit, i), equalTo(postSplitIndexSummary));
+            assertThat(SearchSplitShardCountSummary.fromMetadata(indexMetadataSplit, i), equalTo(postSplitSearchSummary));
         }
     }
 }

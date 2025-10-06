@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexSplitShardCountSummary;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -470,10 +470,10 @@ public abstract class TransportReplicationAction<
                     throw blockException;
                 }
 
-                SplitShardCountSummary reshardSplitShardCountSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
+                IndexSplitShardCountSummary reshardSplitShardCountSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
                 assert reshardSplitShardCountSummary.isUnset()
                     || reshardSplitShardCountSummary.equals(
-                        SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.getRequest().shardId().getId())
+                        IndexSplitShardCountSummary.fromMetadata(indexMetadata, primaryRequest.getRequest().shardId().getId())
                     );
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible

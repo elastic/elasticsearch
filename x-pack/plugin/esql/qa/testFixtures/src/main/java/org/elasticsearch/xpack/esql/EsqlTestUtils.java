@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
+import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.hamcrest.core.IsEqual;
 import org.junit.Assert;
 
@@ -1019,7 +1020,11 @@ public final class EsqlTestUtils {
     }
 
     public static void assertEqualsIgnoringIds(Object expected, Object actual) {
-        assertThat(actual, equalToIgnoringIds(expected));
+        assertEqualsIgnoringIds("", expected, actual);
+    }
+
+    public static void assertEqualsIgnoringIds(String reason, Object expected, Object actual) {
+        assertThat(reason, actual, equalToIgnoringIds(expected));
     }
 
     /**
@@ -1028,6 +1033,16 @@ public final class EsqlTestUtils {
      */
     public static <T> org.hamcrest.Matcher<T> equalToIgnoringIds(T operand) {
         return new IsEqualIgnoringIds<T>(operand);
+    }
+
+    @SafeVarargs
+    public static <T> org.hamcrest.Matcher<java.lang.Iterable<? extends T>> containsIgnoringIds(T... items) {
+        List<Matcher<? super T>> matchers = new ArrayList<>();
+        for (T item : items) {
+            matchers.add(equalToIgnoringIds(item));
+        }
+
+        return new IsIterableContainingInOrder<>(matchers);
     }
 
     @SafeVarargs
@@ -1052,7 +1067,7 @@ public final class EsqlTestUtils {
         }
     }
 
-    private static Object ignoreIds(Object node) {
+    public static Object ignoreIds(Object node) {
         return switch (node) {
             case Expression expression -> ignoreIdsInExpression(expression);
             case LogicalPlan plan -> ignoreIdsInLogicalPlan(plan);

@@ -44,6 +44,9 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
+
+    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
+
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -572,7 +575,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     private static boolean versionSupportsBatchedExecution(TransportVersion transportVersion) {
-        return transportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
-            || transportVersion.isPatchFrom(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X);
+        return transportVersion.supports(BATCHED_QUERY_PHASE_VERSION);
     }
 }

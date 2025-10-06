@@ -1270,8 +1270,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     /**
-     * Returns {@link Decision#NOT_PREFERRED} for any shard with 'not-preferred' in the index
-     * name, until it's moved to another node.
+     * Returns {@link Decision#NOT_PREFERRED} from {@link #canRemain(IndexMetadata, ShardRouting, RoutingNode, RoutingAllocation)} for
+     * any shard with 'not-preferred' in the index name. Once the shard has been moved to a different node, {@link Decision#YES} is
+     * returned.
      */
     private static class MoveNotPreferredOnceDecider extends AllocationDecider {
 

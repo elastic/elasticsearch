@@ -531,7 +531,7 @@ public final class SearchPhaseController {
                 if (timeRangeFilterFromMillis == null) {
                     timeRangeFilterFromMillis = result.getTimeRangeFilterFromMillis();
                 } else {
-                    //all shards should hold the same value, besides edge cases like different mappings
+                    // all shards should hold the same value, besides edge cases like different mappings
                     // for event.ingested and @timestamp across indices being searched
                     timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
                 }

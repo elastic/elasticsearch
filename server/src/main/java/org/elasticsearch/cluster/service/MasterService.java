@@ -1003,7 +1003,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void onPublishFailure(Exception e) {
-            assert e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException;
+            assert e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException : e;
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 var taskFailure = failure;

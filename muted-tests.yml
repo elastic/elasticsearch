@@ -660,6 +660,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testForbidDisableSoftDeletesOnRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135937
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testRomanianAnalyzerBWC {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135948
 
 # Examples:
 #

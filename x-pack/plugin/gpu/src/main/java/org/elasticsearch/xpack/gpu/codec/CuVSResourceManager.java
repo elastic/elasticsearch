@@ -130,6 +130,7 @@ public interface CuVSResourceManager {
         @Override
         public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType) throws InterruptedException {
             try {
+                var started = System.nanoTime();
                 lock.lock();
 
                 boolean allConditionsMet = false;
@@ -181,6 +182,8 @@ public interface CuVSResourceManager {
                         enoughResourcesCondition.await();
                     }
                 }
+                var elapsed = started - System.nanoTime();
+                logger.debug("Resource acquired in [{}ms]", elapsed / 1e-6);
                 res.locked = true;
                 return res;
             } finally {

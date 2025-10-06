@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -65,11 +65,13 @@ public class InlineJoin extends Join {
     public static LogicalPlan inlineData(InlineJoin target, LocalRelation data) {
         if (target.config().leftFields().isEmpty()) {
             List<Attribute> schema = data.output();
-            Block[] blocks = data.supplier().get();
+            Page page = data.supplier().get();
             List<Alias> aliases = new ArrayList<>(schema.size());
             for (int i = 0; i < schema.size(); i++) {
                 Attribute attr = schema.get(i);
-                aliases.add(new Alias(attr.source(), attr.name(), Literal.of(attr, BlockUtils.toJavaObject(blocks[i], 0)), attr.id()));
+                aliases.add(
+                    new Alias(attr.source(), attr.name(), Literal.of(attr, BlockUtils.toJavaObject(page.getBlock(i), 0)), attr.id())
+                );
             }
             return new Eval(target.source(), target.left(), aliases);
         } else {

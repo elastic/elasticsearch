@@ -37,6 +37,13 @@ Permissions granted to the `Everyone Except External Users` group were previousl
 ## 9.1.0 [connectors-9.1.0-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
+## 9.0.8 [connectors-9.0.8-release-notes]
+
+### Features and enhancements [connectors-9.0.8-features-enhancements]
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
 ## 9.0.7 [connectors-9.0.7-release-notes]
 
 ### Features and enhancements [connectors-9.0.7-features-enhancements]

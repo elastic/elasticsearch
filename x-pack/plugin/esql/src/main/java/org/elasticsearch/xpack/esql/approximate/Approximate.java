@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -83,14 +82,12 @@ import java.util.stream.Collectors;
  * A query is currently suitable for approximation if:
  * <ul>
  *   <li> it contains exactly one {@code STATS} command
- *   <li> the other commands are from the supported set
- *        ({@link Approximate#SUPPORTED_COMMANDS}); this contains almost all
- *        unary commands, but no {@code FORK} or {@code JOIN}.
+ *   <li> the other processing commands are from the supported set
+ *        ({@link Approximate#SUPPORTED_COMMANDS}); this set contains almost all
+ *        unary commands, but most notably not {@code FORK} or {@code JOIN}.
  *   <li> the aggregate functions are from the supported set
  *        ({@link Approximate#SUPPORTED_SINGLE_VALUED_AGGS} and
  *         {@link Approximate#SUPPORTED_MULTIVALUED_AGGS})
- *   <li> it contains only unary commands (so no {@code FORK} or {@code JOIN})
- *   <li> it doesn't contain a forbidden command (
  * </ul>
  * Some of these restrictions may be lifted in the future.
  * <p>
@@ -273,7 +270,7 @@ public class Approximate {
                                 List.of(
                                     Failure.fail(
                                         aggFn,
-                                        "aggregation function [" + aggFn.nodeName().toUpperCase() + "] cannot be approximated"
+                                        "aggregation function [" + aggFn.nodeName().toUpperCase(Locale.ROOT) + "] cannot be approximated"
                                     )
                                 )
                             );

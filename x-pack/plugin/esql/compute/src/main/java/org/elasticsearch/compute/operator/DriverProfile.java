@@ -115,7 +115,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_DRIVER_TASK_DESCRIPTION)) {
+        if (out.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)) {
             out.writeString(taskDescription);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {

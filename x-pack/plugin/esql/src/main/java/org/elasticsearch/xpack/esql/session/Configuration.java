@@ -142,7 +142,7 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeLong(queryStartTimeNanos);
         }
-        if (out.getTransportVersion().onOrAfter(ESQL_SUPPORT_PARTIAL_RESULTS)) {
+        if (out.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
             out.writeBoolean(allowPartialResults);
         }
     }

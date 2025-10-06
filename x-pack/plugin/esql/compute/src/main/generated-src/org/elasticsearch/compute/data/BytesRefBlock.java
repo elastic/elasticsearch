@@ -39,18 +39,18 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
 
     /**
-     * Checks if this block has the given value at valueIndex. If at this index we have a
+     * Checks if this block has the given value at position. If at this index we have a
      * multivalue, then it returns true if any values match.
      *
-     * @param valueIndex the index at which we should check the value(s)
+     * @param position the index at which we should check the value(s)
      * @param value the value to check against
+     * @param scratch the scratch BytesRef to use for this operation
      */
-    default boolean hasValue(int valueIndex, BytesRef value) {
-        final var count = getValueCount(valueIndex);
-        final var startIndex = getFirstValueIndex(valueIndex);
-        var ref = new BytesRef();
+    default boolean hasValue(int position, BytesRef value, BytesRef scratch) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
         for (int index = startIndex; index < startIndex + count; index++) {
-            ref = getBytesRef(index, ref);
+            var ref = getBytesRef(index, scratch);
             if (value.equals(ref)) {
                 return true;
             }

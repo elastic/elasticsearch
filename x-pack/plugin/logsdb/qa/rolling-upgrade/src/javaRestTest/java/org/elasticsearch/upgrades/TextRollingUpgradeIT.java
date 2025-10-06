@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -89,15 +87,7 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
         super(upgradedNodes);
     }
 
-    @Before
-    public void checkFeatures() {
-        if (Build.current().isSnapshot()) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
-    }
-
     public void testIndexing() throws Exception {
-
         if (isOldCluster()) {
             // given - enable logsdb and create a template
             startTrial();
@@ -120,8 +110,8 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
             // when/then - run some queries and verify results
             ensureGreen(DATA_STREAM);
             search(DATA_STREAM);
+            phraseSearch(DATA_STREAM);
             query(DATA_STREAM);
-
         } else if (isMixedCluster()) {
             // when
             bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
@@ -129,13 +119,14 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
             // when/then
             ensureGreen(DATA_STREAM);
             search(DATA_STREAM);
+            phraseSearch(DATA_STREAM);
             query(DATA_STREAM);
-
         } else if (isUpgradedCluster()) {
             // when/then
             ensureGreen(DATA_STREAM);
             bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
             search(DATA_STREAM);
+            phraseSearch(DATA_STREAM);
             query(DATA_STREAM);
 
             // when/then continued - force merge all shard segments into one
@@ -241,7 +232,7 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
         }
     }
 
-    void search(String dataStreamName) throws Exception {
+    private void search(String dataStreamName) throws Exception {
         var searchRequest = new Request("POST", "/" + dataStreamName + "/_search");
         searchRequest.addParameter("pretty", "true");
         searchRequest.setJsonEntity("""
@@ -256,6 +247,25 @@ public class TextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTest
 
         Integer totalCount = ObjectPath.evaluate(responseBody, "hits.total.value");
         assertThat(totalCount, greaterThanOrEqualTo(NUM_REQUESTS * NUM_DOCS_PER_REQUEST));
+    }
+
+    private void phraseSearch(String dataStreamName) throws Exception {
+        var searchRequest = new Request("POST", "/" + dataStreamName + "/_search");
+        searchRequest.addParameter("pretty", "true");
+        searchRequest.setJsonEntity("""
+                {
+                    "query": {
+                        "match_phrase": {
+                            "message": "$smallestMessage"
+                        }
+                    }
+                }
+            """.replace("$smallestMessage", smallestMessage));
+        var response = client().performRequest(searchRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        logger.info("{}", responseBody);
+        assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), greaterThanOrEqualTo(1));
     }
 
     private void query(String dataStreamName) throws Exception {

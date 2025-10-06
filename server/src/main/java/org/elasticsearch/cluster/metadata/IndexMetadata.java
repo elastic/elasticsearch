@@ -534,7 +534,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         "index.dimensions",
         Setting.Property.IndexScope,
         Property.Dynamic,
-        Property.PrivateIndex
+        Property.PrivateIndex,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Allows to disable the {@link #INDEX_DIMENSIONS}-based tsid creation strategy on a per-index basis.
+     * This can help to mitigate potential issues with that strategy.
+     * For example, when using this strategy,
+     * it's not allowed to add a dynamic template that defines dimension fields to existing backing indices of a time series data stream.
+     */
+    public static final Setting<Boolean> INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED = Setting.boolSetting(
+        "index.dimensions_tsid_strategy_enabled",
+        true,
+        Setting.Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**

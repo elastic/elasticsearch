@@ -12,16 +12,17 @@ import org.elasticsearch.test.InternalTestCluster;
 final class CrossClusterTestHelper {
 
     /**
-     * Returns {@link CrossClusterApiKeySigner} instance from a random node of the given cluster.
+     * Returns {@link CrossClusterApiKeySignatureManager} instance from a random node of the given cluster.
      */
-    static CrossClusterApiKeySigner getCrossClusterApiKeySigner(InternalTestCluster cluster) {
+    static CrossClusterApiKeySignatureManager getCrossClusterApiKeySignatureManager(InternalTestCluster cluster) {
         RemoteClusterTransportInterceptor interceptor = cluster.getInstance(
             RemoteClusterTransportInterceptor.class,
             cluster.getRandomNodeName()
         );
+
         assert interceptor instanceof CrossClusterAccessTransportInterceptor
             : "expected cross-cluster interceptor but got " + interceptor.getClass();
-        return ((CrossClusterAccessTransportInterceptor) interceptor).getCrossClusterApiKeySigner();
+        return ((CrossClusterAccessTransportInterceptor) interceptor).getCrossClusterApiKeySignatureManager();
     }
 
     private CrossClusterTestHelper() {

@@ -121,7 +121,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     private ClusterService clusterService;
     private MockLicenseState mockLicenseState;
     private DestructiveOperations destructiveOperations;
-    private CrossClusterApiKeySigner crossClusterApiKeySigner;
+    private CrossClusterApiKeySignatureManager crossClusterApiKeySignatureManager;
 
     @Override
     public void setUp() throws Exception {
@@ -137,7 +137,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
         );
-        crossClusterApiKeySigner = mock(CrossClusterApiKeySigner.class);
+        crossClusterApiKeySignatureManager = mock(CrossClusterApiKeySignatureManager.class);
     }
 
     @After
@@ -166,7 +166,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         );
@@ -220,7 +220,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         );
@@ -267,7 +267,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         ) {
@@ -332,7 +332,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         );
@@ -403,7 +403,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         );
@@ -472,7 +472,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         );
@@ -642,7 +642,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 unsupportedLicenseState,
                 mockRemoteClusterCredentialsResolver(remoteClusterAlias)
             )
@@ -782,7 +782,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 authzService,
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState,
                 ignored -> Optional.of(
                     new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
@@ -925,7 +925,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 authzService,
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState,
                 ignored -> notRemoteConnection
                     ? Optional.empty()
@@ -989,7 +989,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState,
                 ignored -> Optional.of(
                     new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
@@ -1093,7 +1093,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 authzService,
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState,
                 ignored -> Optional.of(
                     new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
@@ -1208,7 +1208,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         );
@@ -1269,7 +1269,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(AuthorizationService.class),
                 securityContext,
                 mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySigner,
+                crossClusterApiKeySignatureManager,
                 mockLicenseState
             )
         );

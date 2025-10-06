@@ -82,7 +82,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
     private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
-    private final CrossClusterApiKeySigner crossClusterApiKeySigner;
+    private final CrossClusterApiKeySignatureManager crossClusterApiKeySignatureManager;
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
     private final XPackLicenseState licenseState;
@@ -97,7 +97,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         AuthorizationService authzService,
         SecurityContext securityContext,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        CrossClusterApiKeySigner crossClusterApiKeySigner,
+        CrossClusterApiKeySignatureManager crossClusterApiKeySignatureManager,
         XPackLicenseState licenseState
     ) {
         this(
@@ -107,7 +107,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
             authzService,
             securityContext,
             crossClusterAccessAuthcService,
-            crossClusterApiKeySigner,
+            crossClusterApiKeySignatureManager,
             licenseState,
             RemoteConnectionManager::resolveRemoteClusterAliasWithCredentials
         );
@@ -121,13 +121,13 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         AuthorizationService authzService,
         SecurityContext securityContext,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        CrossClusterApiKeySigner crossClusterApiKeySigner,
+        CrossClusterApiKeySignatureManager crossClusterApiKeySignatureManager,
         XPackLicenseState licenseState,
         Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
-        this.crossClusterApiKeySigner = crossClusterApiKeySigner;
+        this.crossClusterApiKeySignatureManager = crossClusterApiKeySignatureManager;
         this.authcService = authcService;
         this.authzService = authzService;
         this.licenseState = licenseState;
@@ -383,8 +383,8 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
     }
 
     // package-protected for testing
-    CrossClusterApiKeySigner getCrossClusterApiKeySigner() {
-        return crossClusterApiKeySigner;
+    CrossClusterApiKeySignatureManager getCrossClusterApiKeySignatureManager() {
+        return crossClusterApiKeySignatureManager;
     }
 
     record RemoteClusterCredentials(String clusterAlias, String credentials) {

@@ -15,6 +15,8 @@ import org.junit.Before;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LinearScoreEvalOperatorTests extends FuseOperatorTestCase {
     private LinearConfig config;
@@ -28,13 +30,26 @@ public class LinearScoreEvalOperatorTests extends FuseOperatorTestCase {
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         assertOutput(input, results, (discriminator, actualScore, initialScore) -> {
             var weight = config.weights().getOrDefault(discriminator, 1.0);
-            assertEquals(actualScore, initialScore * weight, 0.00);
+            if (config.normalizer() == LinearConfig.Normalizer.NONE) {
+                assertEquals(actualScore, initialScore * weight, 0.00);
+            } else if (config.normalizer() == LinearConfig.Normalizer.MINMAX) {
+                // for min_max, we know the normalized scores will be between 0..1
+                // when we apply the weight, the scores should be between 0 and weight
+                assertThat(actualScore, lessThanOrEqualTo(weight));
+                assertThat(actualScore, greaterThanOrEqualTo(0.0));
+            } else {
+                // for l2_norm, we could be dealing with negative scores
+                // in this case the normalized scores will be between -1 and 1.
+                // when we apply the weight, the scores should be between -weight and weight
+                assertThat(actualScore, lessThanOrEqualTo(weight));
+                assertThat(actualScore, greaterThanOrEqualTo(-weight));
+            }
         });
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config);
+        return new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config, null, 0, 0);
     }
 
     @Override
@@ -64,6 +79,6 @@ public class LinearScoreEvalOperatorTests extends FuseOperatorTestCase {
     }
 
     private LinearConfig randomConfig() {
-        return new LinearConfig(LinearConfig.Normalizer.NONE, randomWeights());
+        return new LinearConfig(randomFrom(LinearConfig.Normalizer.values()), randomWeights());
     }
 }

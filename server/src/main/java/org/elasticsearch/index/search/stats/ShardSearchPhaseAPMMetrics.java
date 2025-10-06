@@ -10,6 +10,7 @@
 package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -21,13 +22,20 @@ import java.util.concurrent.TimeUnit;
 
 public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener {
 
+    public static final String DFS_SEARCH_PHASE_METRIC = "es.search.shards.phases.dfs.duration.histogram";
     public static final String QUERY_SEARCH_PHASE_METRIC = "es.search.shards.phases.query.duration.histogram";
     public static final String FETCH_SEARCH_PHASE_METRIC = "es.search.shards.phases.fetch.duration.histogram";
 
+    private final LongHistogram dfsPhaseMetric;
     private final LongHistogram queryPhaseMetric;
     private final LongHistogram fetchPhaseMetric;
 
     public ShardSearchPhaseAPMMetrics(MeterRegistry meterRegistry) {
+        this.dfsPhaseMetric = meterRegistry.registerLongHistogram(
+            DFS_SEARCH_PHASE_METRIC,
+            "DFS search phase execution times at the shard level, expressed as a histogram",
+            "ms"
+        );
         this.queryPhaseMetric = meterRegistry.registerLongHistogram(
             QUERY_SEARCH_PHASE_METRIC,
             "Query search phase execution times at the shard level, expressed as a histogram",
@@ -41,17 +49,39 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
     }
 
     @Override
+    public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
+        recordPhaseLatency(dfsPhaseMetric, tookInNanos);
+    }
+
+    @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request());
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+        Long rangeTimestampFrom = searchExecutionContext.getRangeTimestampFrom();
+        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request(), rangeTimestampFrom);
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
-        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request());
+        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+        Long rangeTimestampFrom = searchExecutionContext.getRangeTimestampFrom();
+        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request(), rangeTimestampFrom);
     }
 
-    private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos, ShardSearchRequest request) {
-        Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(request);
+    private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
+        histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+    }
+
+    private static void recordPhaseLatency(
+        LongHistogram histogramMetric,
+        long tookInNanos,
+        ShardSearchRequest request,
+        Long rangeTimestampFrom
+    ) {
+        Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(
+            request,
+            rangeTimestampFrom,
+            request.nowInMillis()
+        );
         histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);
     }
 }

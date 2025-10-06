@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 
 import java.io.IOException;
 
@@ -28,8 +28,8 @@ public class EmptyLocalSupplier implements LocalSupplier {
     }
 
     @Override
-    public Block[] get() {
-        return BlockUtils.NO_BLOCKS;
+    public Page get() {
+        return new Page(0, BlockUtils.NO_BLOCKS);
     }
 
     @Override

@@ -8,6 +8,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for absence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "boolean",
           "optional" : false,
           "description" : "Expression that outputs values to be checked for absence."

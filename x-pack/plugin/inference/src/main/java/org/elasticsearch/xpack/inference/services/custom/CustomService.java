@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -57,9 +56,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.TaskType.unsupportedTaskTypeErrorMsg;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -70,6 +69,8 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
+
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
@@ -106,7 +107,12 @@ public class CustomService extends SenderService implements RerankingInferenceSe
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            var chunkingSettings = extractChunkingSettings(config, taskType);
+            ChunkingSettings chunkingSettings = null;
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
 
             CustomModel model = createModel(
                 inferenceEntityId,
@@ -155,14 +161,6 @@ public class CustomService extends SenderService implements RerankingInferenceSe
                 Strings.format("Unsupported task type [%s] for custom service", model.getTaskType())
             );
         };
-    }
-
-    private static ChunkingSettings extractChunkingSettings(Map<String, Object> config, TaskType taskType) {
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return null;
     }
 
     @Override
@@ -214,7 +212,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         ConfigurationParseContext context
     ) {
         if (supportedTaskTypes.contains(taskType) == false) {
-            throw new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         }
         return new CustomModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, chunkingSettings, context);
     }
@@ -230,7 +228,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        var chunkingSettings = extractChunkingSettings(config, taskType);
+        var chunkingSettings = extractPersistentChunkingSettings(config, taskType);
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
@@ -242,12 +240,27 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         );
     }
 
+    private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            /*
+             * There's a sutle difference between how the chunking settings are parsed for the request context vs the persistent context.
+             * For persistent context, to support backwards compatibility, if the chunking settings are not present, removeFromMap will
+             * return null which results in the older word boundary chunking settings being used as the default.
+             * For request context, removeFromMapOrDefaultEmpty returns an empty map which results in the newer sentence boundary chunking
+             * settings being used as the default.
+             */
+            return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        return null;
+    }
+
     @Override
     public CustomModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        var chunkingSettings = extractChunkingSettings(config, taskType);
+        var chunkingSettings = extractPersistentChunkingSettings(config, taskType);
 
         return createModelWithoutLoggingDeprecations(
             inferenceEntityId,
@@ -359,7 +372,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
+        return INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override

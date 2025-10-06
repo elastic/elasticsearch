@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.project;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Custom;
@@ -51,6 +50,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     public static final ProjectStateRegistry EMPTY = new ProjectStateRegistry(Collections.emptyMap(), Collections.emptySet(), 0);
     private static final Entry EMPTY_ENTRY = new Entry(Settings.EMPTY, ImmutableOpenMap.of());
 
+    private static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = TransportVersion.fromName("cluster_state_projects_settings");
     private static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = TransportVersion.fromName(
         "project_state_registry_records_deletions"
     );
@@ -176,7 +176,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS;
+        return CLUSTER_STATE_PROJECTS_SETTINGS;
     }
 
     @Override

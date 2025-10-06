@@ -445,7 +445,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         setSkipUnavailable(REMOTE_CLUSTER_1, randomBoolean());
 
         Exception ex;
-        for (String index : List.of("values_lookup", "values_lookup_map", "values_lookup_map_lookup")) {
+        for (String index : List.of("values_lookup", "values_lookup_map_lookup")) {
             ex = expectThrows(
                 VerificationException.class,
                 () -> runQuery("FROM logs-* | LOOKUP JOIN " + index + " ON v | KEEP v", randomBoolean())
@@ -457,6 +457,18 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             );
             assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
         }
+
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-* | LOOKUP JOIN values_lookup_map ON v | KEEP v", randomBoolean())
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Lookup Join requires a single lookup mode index; "
+                    + "[values_lookup_map] resolves to [values_lookup_map] in [standard] mode"
+            )
+        );
     }
 
     public void testLookupJoinIndexMode() throws IOException {

@@ -46,13 +46,13 @@ public class JdkApiExtractor {
     // exclude both final and non-final variants of these
     private static final Set<AccessibleMethod> EXCLUDES = Set.of(
         new AccessibleMethod("toString", "()Ljava/lang/String;", true, false, false),
-        new AccessibleMethod("hashCode", "()I", true, false, false),
-        new AccessibleMethod("equals", "(Ljava/lang/Object;)Z", true, false, false),
-        new AccessibleMethod("close", "()V", true, false, false),
         new AccessibleMethod("toString", "()Ljava/lang/String;", true, true, false),
-        new AccessibleMethod("hashCode", "()I", true, false, true),
+        new AccessibleMethod("hashCode", "()I", true, false, false),
+        new AccessibleMethod("hashCode", "()I", true, true, false),
+        new AccessibleMethod("equals", "(Ljava/lang/Object;)Z", true, false, false),
         new AccessibleMethod("equals", "(Ljava/lang/Object;)Z", true, true, false),
-        new AccessibleMethod("close", "()V", true, false, true)
+        new AccessibleMethod("close", "()V", true, false, false),
+        new AccessibleMethod("close", "()V", true, true, false)
     );
 
     private static String DEPRECATIONS_ONLY = "--deprecations-only";
@@ -66,7 +66,7 @@ public class JdkApiExtractor {
 
         final Map<String, String> moduleNameByClass = new HashMap<>();
         final Map<ModuleClass, Set<AccessibleMethod>> accessibleImplementationsByClass = new TreeMap<>(ModuleClass.COMPARATOR);
-        final Map<ModuleClass, Set<AccessibleMethod>> accessibleForOverridesByClass = new TreeMap<>(ModuleClass.COMPARATOR);
+        final Map<ModuleClass, Set<AccessibleMethod>> inheritableAccessByClass = new TreeMap<>(ModuleClass.COMPARATOR);
         final Map<ModuleClass, Set<AccessibleMethod>> deprecationsByClass = new TreeMap<>(ModuleClass.COMPARATOR);
 
         final Map<String, Set<String>> exportsByModule = Utils.findModuleExports();
@@ -84,7 +84,7 @@ public class JdkApiExtractor {
             moduleNameByClass,
             exportsByModule,
             accessibleImplementationsByClass,
-            accessibleForOverridesByClass,
+            inheritableAccessByClass,
             deprecationsByClass
         );
         Predicate<String> modulePredicate = Utils.DEFAULT_MODULE_PREDICATE.or(
@@ -206,11 +206,11 @@ public class JdkApiExtractor {
         private final Map<String, String> moduleNameByClass;
         private final Map<String, Set<String>> exportsByModule;
         private final Map<ModuleClass, Set<AccessibleMethod>> accessibleImplementationsByClass;
-        private final Map<ModuleClass, Set<AccessibleMethod>> accessibleForOverridesByClass;
+        private final Map<ModuleClass, Set<AccessibleMethod>> inheritableAccessByClass;
         private final Map<ModuleClass, Set<AccessibleMethod>> deprecationsByClass;
 
         private Set<AccessibleMethod> accessibleImplementations;
-        private Set<AccessibleMethod> accessibleForOverrides;
+        private Set<AccessibleMethod> inheritableAccess;
         private Set<AccessibleMethod> deprecations;
 
         private ModuleClass moduleClass;
@@ -223,14 +223,14 @@ public class JdkApiExtractor {
             Map<String, String> moduleNameByClass,
             Map<String, Set<String>> exportsByModule,
             Map<ModuleClass, Set<AccessibleMethod>> accessibleImplementationsByClass,
-            Map<ModuleClass, Set<AccessibleMethod>> accessibleForOverridesByClass,
+            Map<ModuleClass, Set<AccessibleMethod>> inheritableAccessByClass,
             Map<ModuleClass, Set<AccessibleMethod>> deprecationsByClass
         ) {
             super(ASM9);
             this.moduleNameByClass = moduleNameByClass;
             this.exportsByModule = exportsByModule;
             this.accessibleImplementationsByClass = accessibleImplementationsByClass;
-            this.accessibleForOverridesByClass = accessibleForOverridesByClass;
+            this.inheritableAccessByClass = inheritableAccessByClass;
             this.deprecationsByClass = deprecationsByClass;
         }
 
@@ -240,13 +240,13 @@ public class JdkApiExtractor {
 
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-            final Set<AccessibleMethod> currentAccessibleForOverrides = newSortedSet();
+            final Set<AccessibleMethod> currentInheritedAccess = newSortedSet();
             if (superName != null) {
                 var superModuleClass = getModuleClass(superName);
                 if (accessibleImplementationsByClass.containsKey(superModuleClass) == false) {
                     visitSuperClass(superName);
                 }
-                currentAccessibleForOverrides.addAll(accessibleForOverridesByClass.getOrDefault(superModuleClass, emptySet()));
+                currentInheritedAccess.addAll(inheritableAccessByClass.getOrDefault(superModuleClass, emptySet()));
             }
             if (interfaces != null && interfaces.length > 0) {
                 for (var interfaceName : interfaces) {
@@ -254,7 +254,7 @@ public class JdkApiExtractor {
                     if (accessibleImplementationsByClass.containsKey(interfaceModuleClass) == false) {
                         visitInterface(interfaceName);
                     }
-                    currentAccessibleForOverrides.addAll(accessibleForOverridesByClass.getOrDefault(interfaceModuleClass, emptySet()));
+                    currentInheritedAccess.addAll(inheritableAccessByClass.getOrDefault(interfaceModuleClass, emptySet()));
                 }
             }
             // only initialize local state AFTER visiting all dependencies above!
@@ -264,7 +264,7 @@ public class JdkApiExtractor {
             this.isPublicClass = (access & ACC_PUBLIC) != 0;
             this.isFinalClass = (access & ACC_FINAL) != 0;
             this.isDeprecatedClass = (access & ACC_DEPRECATED) != 0;
-            this.accessibleForOverrides = currentAccessibleForOverrides;
+            this.inheritableAccess = currentInheritedAccess;
             this.accessibleImplementations = newSortedSet();
             this.deprecations = newSortedSet();
         }
@@ -289,7 +289,7 @@ public class JdkApiExtractor {
         public void visitEnd() {
             super.visitEnd();
             if (accessibleImplementationsByClass.put(moduleClass, unmodifiableSet(accessibleImplementations)) != null
-                || accessibleForOverridesByClass.put(moduleClass, unmodifiableSet(accessibleForOverrides)) != null
+                || inheritableAccessByClass.put(moduleClass, unmodifiableSet(inheritableAccess)) != null
                 || deprecationsByClass.put(moduleClass, unmodifiableSet(deprecations)) != null) {
                 throw new IllegalStateException("Class " + moduleClass.clazz + " was already visited!");
             }
@@ -337,18 +337,21 @@ public class JdkApiExtractor {
 
             var method = new AccessibleMethod(name, descriptor, isPublic, isFinal, isStatic);
             if (isPublicClass && isExported && EXCLUDES.contains(method) == false) {
-                // class is public and exported, for final classes skip non-public methods
+                // class is public and exported, to be accessible outside the JDK the method must be either:
+                // - public or
+                // - protected if not a final class
                 if (isPublic || isFinalClass == false) {
                     accessibleImplementations.add(method);
-                    // if not static, the method is accessible for overrides
-                    if (isStatic == false) {
-                        accessibleForOverrides.add(method);
+                    // if public and not static, the method can be accessible on non-public and non-exported subclasses,
+                    // but skip constructors
+                    if (isPublic && isStatic == false && name.equals("<init>") == false) {
+                        inheritableAccess.add(method);
                     }
                     if (isDeprecatedClass || isDeprecated) {
                         deprecations.add(method);
                     }
                 }
-            } else if (accessibleForOverrides.contains(method)) {
+            } else if (inheritableAccess.contains(method)) {
                 accessibleImplementations.add(method);
                 if (isDeprecatedClass || isDeprecated) {
                     deprecations.add(method);

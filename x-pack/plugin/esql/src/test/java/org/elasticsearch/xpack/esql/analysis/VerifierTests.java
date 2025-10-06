@@ -2699,9 +2699,9 @@ public class VerifierTests extends ESTestCase {
             )
         );
         assertThat(
-            error("TS test | STATS count(to_string(host)) BY bucket(@timestamp, 1 minute)", tsdb),
+            error("TS test | STATS count(count_over_time(host)) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(to_string(host))]. "
+                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(count_over_time(host))]. "
                     + "Dimension fields can only be used for grouping in a BY clause. "
                     + "To aggregate dimension fields, use the FROM command instead of the TS command."
             )

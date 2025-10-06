@@ -931,11 +931,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testShardMovementPriorityComparator() {
         final double maxWriteLoad = randomDoubleBetween(0.0, 100.0, true);
         final double writeLoadThreshold = maxWriteLoad * THRESHOLD_RATIO;
-        final int numAtMax = between(1, 5);
-        final int numBetweenThresholdAndMax = between(0, 50);
-        final int numBelowThreshold = between(0, 50);
-        final int numMissing = between(0, 50);
-        final int totalShards = numAtMax + numBetweenThresholdAndMax + numBelowThreshold + numMissing;
+        final int numberOfShardsWithMaxWriteLoad = between(1, 5);
+        final int numberOfShardsWithWriteLoadBetweenThresholdAndMax = between(0, 50);
+        final int numberOfShardsWithWriteLoadBelowThreshold = between(0, 50);
+        final int numberOfShardsWithNoWriteLoad = between(0, 50);
+        final int totalShards = numberOfShardsWithMaxWriteLoad + numberOfShardsWithWriteLoadBetweenThresholdAndMax
+            + numberOfShardsWithWriteLoadBelowThreshold + numberOfShardsWithNoWriteLoad;
 
         // We create single-shard indices for simplicity's sake and to make it clear the shards are independent of each other
         final var indices = new ArrayList<IndexMetadata.Builder>();
@@ -952,20 +953,20 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         final var allShards = stateWithIndices.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
         final var shardWriteLoads = new HashMap<ShardId, Double>();
-        addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numAtMax, () -> maxWriteLoad);
+        addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numberOfShardsWithMaxWriteLoad, () -> maxWriteLoad);
         addRandomWriteLoadAndRemoveShard(
             shardWriteLoads,
             allShards,
-            numBetweenThresholdAndMax,
+            numberOfShardsWithWriteLoadBetweenThresholdAndMax,
             () -> randomDoubleBetween(writeLoadThreshold, maxWriteLoad, true)
         );
         addRandomWriteLoadAndRemoveShard(
             shardWriteLoads,
             allShards,
-            numBelowThreshold,
+            numberOfShardsWithWriteLoadBelowThreshold,
             () -> randomDoubleBetween(0, writeLoadThreshold, true)
         );
-        assertThat(allShards, hasSize(numMissing));
+        assertThat(allShards, hasSize(numberOfShardsWithNoWriteLoad));
 
         final var allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
@@ -996,8 +997,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         double lastWriteLoad = 0.0;
         int currentIndex = 0;
 
-        logger.info("--> expecting {} between threshold and max in ascending order", numBetweenThresholdAndMax);
-        for (int i = 0; i < numBetweenThresholdAndMax; i++) {
+        logger.info("--> expecting {} between threshold and max in ascending order", numberOfShardsWithWriteLoadBetweenThresholdAndMax);
+        for (int i = 0; i < numberOfShardsWithWriteLoadBetweenThresholdAndMax; i++) {
             final var currentShardId = sortedShards.get(currentIndex++).shardId();
             assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
             final double currentWriteLoad = shardWriteLoads.get(currentShardId);
@@ -1007,8 +1008,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 assertThat(currentWriteLoad, greaterThanOrEqualTo(lastWriteLoad));
             }
         }
-        logger.info("--> expecting {} below threshold in descending order", numBelowThreshold);
-        for (int i = 0; i < numBelowThreshold; i++) {
+        logger.info("--> expecting {} below threshold in descending order", numberOfShardsWithWriteLoadBelowThreshold);
+        for (int i = 0; i < numberOfShardsWithWriteLoadBelowThreshold; i++) {
             final var currentShardId = sortedShards.get(currentIndex++).shardId();
             assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
             final double currentWriteLoad = shardWriteLoads.get(currentShardId);
@@ -1018,15 +1019,15 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 assertThat(currentWriteLoad, lessThanOrEqualTo(lastWriteLoad));
             }
         }
-        logger.info("--> expecting {} at max", numAtMax);
-        for (int i = 0; i < numAtMax; i++) {
+        logger.info("--> expecting {} at max", numberOfShardsWithMaxWriteLoad);
+        for (int i = 0; i < numberOfShardsWithMaxWriteLoad; i++) {
             final var currentShardId = sortedShards.get(currentIndex++).shardId();
             assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
             final double currentWriteLoad = shardWriteLoads.get(currentShardId);
             assertThat(currentWriteLoad, equalTo(maxWriteLoad));
         }
-        logger.info("--> expecting {} missing", numMissing);
-        for (int i = 0; i < numMissing; i++) {
+        logger.info("--> expecting {} missing", numberOfShardsWithNoWriteLoad);
+        for (int i = 0; i < numberOfShardsWithNoWriteLoad; i++) {
             final var currentShardId = sortedShards.get(currentIndex++);
             assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
         }

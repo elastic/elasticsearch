@@ -1067,7 +1067,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * <p>
              * We prefer to move shards that have a write-load close to <b>this value</b> x {@link #maxWriteLoadOnNode}.
              */
-            private static final double THRESHOLD_RATIO = 0.5;
+            public static final double THRESHOLD_RATIO = 0.5;
             private static final double MISSING_WRITE_LOAD = -1;
             private final Map<ShardId, Double> shardWriteLoads;
             private final double maxWriteLoadOnNode;

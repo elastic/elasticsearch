@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference.mock;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_ELSER_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -24,9 +27,6 @@ public class TestDefaultInferenceServiceExtension implements InferenceServiceExt
     }
 
     public static class TestDefaultInferenceService extends TestSparseInferenceServiceExtension.TestInferenceService {
-
-        private static final String DEFAULT_EIS_ELSER_INFERENCE_ID = ".elser-2-elastic";
-        private static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = ".elastic-inference";
 
         public static final String NAME = "default_inference_test_service";
 

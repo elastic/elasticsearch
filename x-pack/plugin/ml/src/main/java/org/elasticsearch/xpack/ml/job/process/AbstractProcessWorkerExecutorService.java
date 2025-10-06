@@ -44,6 +44,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
     private final AtomicReference<Exception> error = new AtomicReference<>();
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final AtomicBoolean shouldShutdownAfterCompletingWork = new AtomicBoolean(false);
+    private final AtomicReference<Runnable> onCompletion = new AtomicReference<>();
 
     /**
      * @param contextHolder the thread context holder
@@ -76,6 +77,11 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
     @Override
     public void shutdown() {
         shouldShutdownAfterCompletingWork.set(true);
+    }
+
+    public void shutdownWithCallback(Runnable onCompletion) {
+        this.onCompletion.set(onCompletion);
+        shutdown();
     }
 
     /**
@@ -124,6 +130,10 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            Runnable onComplete = onCompletion.get();
+            if (onComplete != null) {
+                onComplete.run();
+            }
             awaitTermination.countDown();
         }
     }

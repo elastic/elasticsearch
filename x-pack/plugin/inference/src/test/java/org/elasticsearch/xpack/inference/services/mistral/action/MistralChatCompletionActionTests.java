@@ -48,7 +48,7 @@ public class MistralChatCompletionActionTests extends ChatCompletionActionTests 
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(getResponseJson()));
 

@@ -435,7 +435,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         if (remote == null) {
             // this is a new cluster we have to add a new representation
-            remote = createRemoteClusterConnection(config);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
         } else if (forceRebuild || remote.shouldRebuildConnection(config)) {
@@ -446,21 +446,13 @@ public final class RemoteClusterService extends RemoteClusterAware
                 logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             connectionMap.remove(clusterAlias);
-            remote = createRemoteClusterConnection(config);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {
             // No changes to connection configuration.
             listener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
         }
-    }
-
-    private RemoteClusterConnection createRemoteClusterConnection(LinkedProjectConfig config) {
-        final var hasCredentials = remoteClusterCredentialsManager.hasCredentials(config.linkedProjectAlias());
-        final var transportProfile = crossProjectEnabled || hasCredentials
-            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
-            : TransportSettings.DEFAULT_PROFILE;
-        return new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, hasCredentials, transportProfile);
     }
 
     enum RemoteClusterConnectionStatus {

@@ -923,8 +923,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             RemoteClusterSettings.toConfig(alias, settings),
             transportService,
             hasCredentials ? buildCredentialsManager(alias) : RemoteClusterCredentialsManager.EMPTY,
-            hasCredentials,
-            hasCredentials ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
+            false
         );
     }
 }

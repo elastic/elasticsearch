@@ -19,6 +19,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 
 import java.util.HashMap;
@@ -58,12 +59,12 @@ public class ShardLimitValidator {
     );
     public static final String FROZEN_GROUP = "frozen";
     public static final String NORMAL_GROUP = "normal";
-    static final Set<String> VALID_GROUPS = Set.of(NORMAL_GROUP, FROZEN_GROUP);
+    private static final Set<String> VALID_INDEX_SETTING_GROUPS = Set.of(NORMAL_GROUP, FROZEN_GROUP);
     public static final Setting<String> INDEX_SETTING_SHARD_LIMIT_GROUP = Setting.simpleString(
         "index.shard_limit.group",
         NORMAL_GROUP,
         value -> {
-            if (VALID_GROUPS.contains(value) == false) {
+            if (VALID_INDEX_SETTING_GROUPS.contains(value) == false) {
                 throw new IllegalArgumentException("[" + value + "] is not a valid shard limit group");
             }
         },
@@ -96,6 +97,13 @@ public class ShardLimitValidator {
         return switch (resultGroup) {
             case NORMAL, INDEX, SEARCH -> shardLimitPerNode.get();
             case FROZEN -> shardLimitPerNodeFrozen.get();
+        };
+    }
+
+    public static int getShardLimitPerNode(ResultGroup resultGroup, HealthMetadata.ShardLimits shardLimits) {
+        return switch (resultGroup) {
+            case NORMAL, INDEX, SEARCH -> shardLimits.maxShardsPerNode();
+            case FROZEN -> shardLimits.maxShardsPerNodeFrozen();
         };
     }
 
@@ -202,12 +210,11 @@ public class ShardLimitValidator {
         // against such mixed nodes for production use anyway.
         Result result = null;
         for (var resultGroup : resultGroups) {
-            result = checkShardLimit(
-                resultGroup,
-                shardsToCreatePerGroup.get(resultGroup),
-                metadata,
+            result = resultGroup.checkShardLimit(
                 getShardLimitPerNode(resultGroup),
-                discoveryNodes
+                shardsToCreatePerGroup.get(resultGroup),
+                discoveryNodes,
+                metadata
             );
             // fail-fast: in case there's no room on an earlier group, e.g. `normal`, just return the result of that check.
             if (result.canAddShards() == false) {
@@ -216,91 +223,6 @@ public class ShardLimitValidator {
         }
         assert result != null;
         return result;
-    }
-
-    /**
-     * This method checks whether there is enough room in the cluster to add the given number of shards with the given number of replicas
-     * without exceeding the "cluster.max_shards_per_node" setting for _normal_ nodes. This check does not guarantee that the number of
-     * shards can be added, just that there is theoretically room to add them without exceeding the shards per node configuration.
-     * @param maxConfiguredShardsPerNode The maximum available number of shards to be allocated within a node
-     * @param numberOfNewShards          The number of primary shards that we want to be able to add to the cluster
-     * @param replicas                   The number of replicas of the primary shards that we want to be able to add to the cluster
-     * @param discoveryNodes             The nodes in the cluster, used to get the number of open shard already in the cluster
-     * @param metadata                   The cluster state metadata, used to get the cluster settings
-     */
-    public static Result checkShardLimitForNormalNodes(
-        int maxConfiguredShardsPerNode,
-        int numberOfNewShards,
-        int replicas,
-        DiscoveryNodes discoveryNodes,
-        Metadata metadata
-    ) {
-        return checkShardLimit(
-            ResultGroup.NORMAL,
-            numberOfNewShards * (1 + replicas),
-            metadata,
-            maxConfiguredShardsPerNode,
-            discoveryNodes
-        );
-    }
-
-    /**
-     * This method checks whether there is enough room in the cluster to add the given number of shards with the given number of replicas
-     * without exceeding the "cluster.max_shards_per_node_frozen" setting for _frozen_ nodes. This check does not guarantee that the number
-     * of shards can be added, just that there is theoretically room to add them without exceeding the shards per node configuration.
-     * @param maxConfiguredShardsPerNode The maximum available number of shards to be allocated within a node
-     * @param numberOfNewShards          The number of primary shards that we want to be able to add to the cluster
-     * @param replicas                   The number of replicas of the primary shards that we want to be able to add to the cluster
-     * @param discoveryNodes             The nodes in the cluster, used to get the number of open shard already in the cluster
-     * @param metadata                   The cluster state metadata, used to get the cluster settings
-     */
-    public static Result checkShardLimitForFrozenNodes(
-        int maxConfiguredShardsPerNode,
-        int numberOfNewShards,
-        int replicas,
-        DiscoveryNodes discoveryNodes,
-        Metadata metadata
-    ) {
-        return checkShardLimit(
-            ResultGroup.FROZEN,
-            numberOfNewShards * (1 + replicas),
-            metadata,
-            maxConfiguredShardsPerNode,
-            discoveryNodes
-        );
-    }
-
-    private static Result checkShardLimit(
-        ResultGroup resultGroup,
-        int newShards,
-        Metadata metadata,
-        int maxConfiguredShardsPerNode,
-        DiscoveryNodes discoveryNodes
-    ) {
-        final int nodeCount = resultGroup.numberOfNodes(discoveryNodes);
-        int maxShardsInCluster = maxConfiguredShardsPerNode * nodeCount;
-        int currentOpenShards = metadata.getTotalOpenIndexShards();
-
-        // Only enforce the shard limit if we have at least one data node, so that we don't block
-        // index creation during cluster setup
-        if (nodeCount == 0 || newShards <= 0) {
-            return new Result(true, Optional.empty(), newShards, maxShardsInCluster, resultGroup);
-        }
-
-        if ((currentOpenShards + newShards) > maxShardsInCluster) {
-            long currentFilteredShards = metadata.projects()
-                .values()
-                .stream()
-                .flatMap(projectMetadata -> projectMetadata.indices().values().stream())
-                .mapToInt(resultGroup::countShards)
-                .filter(value -> value > 0)
-                .sum();
-
-            if ((currentFilteredShards + newShards) > maxShardsInCluster) {
-                return new Result(false, Optional.of(currentFilteredShards), newShards, maxShardsInCluster, resultGroup);
-            }
-        }
-        return new Result(true, Optional.empty(), newShards, maxShardsInCluster, resultGroup);
     }
 
     private static int nodeCount(DiscoveryNodes discoveryNodes, Predicate<DiscoveryNode> nodePredicate) {
@@ -334,19 +256,19 @@ public class ShardLimitValidator {
         INDEX("index"),
         SEARCH("search");
 
-        private final String group;
+        private final String groupName;
 
-        ResultGroup(String group) {
-            this.group = group;
+        ResultGroup(String groupName) {
+            this.groupName = groupName;
         }
 
-        public String group() {
-            return group;
+        public String groupName() {
+            return groupName;
         }
 
         @Override
         public String toString() {
-            return group;
+            return groupName;
         }
 
         public int numberOfNodes(DiscoveryNodes discoveryNodes) {
@@ -360,10 +282,10 @@ public class ShardLimitValidator {
 
         public int countShards(IndexMetadata indexMetadata) {
             return switch (this) {
-                case NORMAL -> isOpenIndex(indexMetadata) && matchesGroup(indexMetadata, ResultGroup.NORMAL.group())
+                case NORMAL -> isOpenIndex(indexMetadata) && matchesGroup(indexMetadata, ResultGroup.NORMAL.groupName())
                     ? indexMetadata.getTotalNumberOfShards()
                     : 0;
-                case FROZEN -> isOpenIndex(indexMetadata) && matchesGroup(indexMetadata, ResultGroup.FROZEN.group())
+                case FROZEN -> isOpenIndex(indexMetadata) && matchesGroup(indexMetadata, ResultGroup.FROZEN.groupName())
                     ? indexMetadata.getTotalNumberOfShards()
                     : 0;
                 case INDEX -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() : 0;
@@ -394,6 +316,54 @@ public class ShardLimitValidator {
                 case INDEX -> 0;
                 case SEARCH -> numberOfShards * replicaIncrease;
             };
+        }
+
+        /**
+         * This method checks whether there is enough room in the cluster to add the given number of shards with the given number of
+         * replicas without exceeding the max_shards_per_node requirement as specified by maxConfiguredShardsPerNode.
+         * This check does not guarantee that the number of shards can be added, just that there is theoretically room to add them
+         * without exceeding the shards per node configuration.
+         * @param maxConfiguredShardsPerNode The maximum available number of shards to be allocated within a node
+         * @param numberOfNewShards          The number of primary shards that we want to be able to add to the cluster
+         * @param replicas                   The number of replicas of the primary shards that we want to be able to add to the cluster
+         * @param discoveryNodes             The nodes in the cluster, used to get the number of open shard already in the cluster
+         * @param metadata                   The cluster state metadata, used to get the cluster settings
+         */
+        public Result checkShardLimit(
+            int maxConfiguredShardsPerNode,
+            int numberOfNewShards,
+            int replicas,
+            DiscoveryNodes discoveryNodes,
+            Metadata metadata
+        ) {
+            return checkShardLimit(maxConfiguredShardsPerNode, numberOfNewShards * (1 + replicas), discoveryNodes, metadata);
+        }
+
+        private Result checkShardLimit(int maxConfiguredShardsPerNode, int newShards, DiscoveryNodes discoveryNodes, Metadata metadata) {
+            final int nodeCount = numberOfNodes(discoveryNodes);
+            int maxShardsInCluster = maxConfiguredShardsPerNode * nodeCount;
+            int currentOpenShards = metadata.getTotalOpenIndexShards();
+
+            // Only enforce the shard limit if we have at least one data node, so that we don't block
+            // index creation during cluster setup
+            if (nodeCount == 0 || newShards <= 0) {
+                return new Result(true, Optional.empty(), newShards, maxShardsInCluster, this);
+            }
+
+            if ((currentOpenShards + newShards) > maxShardsInCluster) {
+                long currentFilteredShards = metadata.projects()
+                    .values()
+                    .stream()
+                    .flatMap(projectMetadata -> projectMetadata.indices().values().stream())
+                    .mapToInt(this::countShards)
+                    .filter(value -> value > 0)
+                    .sum();
+
+                if ((currentFilteredShards + newShards) > maxShardsInCluster) {
+                    return new Result(false, Optional.of(currentFilteredShards), newShards, maxShardsInCluster, this);
+                }
+            }
+            return new Result(true, Optional.empty(), newShards, maxShardsInCluster, this);
         }
     }
 

@@ -39,23 +39,12 @@ import static org.mockito.Mockito.when;
 
 public class ShardLimitValidatorTests extends ESTestCase {
 
-    @FunctionalInterface
-    interface CheckShardLimitMethod {
-        ShardLimitValidator.Result call(
-            int maxConfiguredShardsPerNode,
-            int numberOfNewShards,
-            int replicas,
-            DiscoveryNodes discoveryNodes,
-            Metadata metadata
-        );
-    }
-
     public void testOverShardLimit() {
-        testOverShardLimit(ShardLimitValidator::checkShardLimitForNormalNodes, ResultGroup.NORMAL);
-        testOverShardLimit(ShardLimitValidator::checkShardLimitForFrozenNodes, ResultGroup.FROZEN);
+        testOverShardLimit(ResultGroup.NORMAL);
+        testOverShardLimit(ResultGroup.FROZEN);
     }
 
-    private void testOverShardLimit(CheckShardLimitMethod targetMethod, ResultGroup group) {
+    private void testOverShardLimit(ResultGroup group) {
         int nodesInCluster = randomIntBetween(1, 90);
         ShardCounts counts = forDataNodeCount(nodesInCluster);
         ClusterState state = createClusterForShardLimitTest(
@@ -65,7 +54,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
             counts.getShardsPerNode(),
             group
         );
-        ShardLimitValidator.Result shardLimitsResult = targetMethod.call(
+
+        ShardLimitValidator.Result shardLimitsResult = group.checkShardLimit(
             counts.getShardsPerNode(),
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas(),
@@ -99,11 +89,11 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public void testUnderShardLimit() {
-        testUnderShardLimit(ShardLimitValidator::checkShardLimitForNormalNodes, ResultGroup.NORMAL);
-        testUnderShardLimit(ShardLimitValidator::checkShardLimitForFrozenNodes, ResultGroup.FROZEN);
+        testUnderShardLimit(ResultGroup.NORMAL);
+        testUnderShardLimit(ResultGroup.FROZEN);
     }
 
-    private void testUnderShardLimit(CheckShardLimitMethod targetMethod, ResultGroup group) {
+    private void testUnderShardLimit(ResultGroup group) {
         int nodesInCluster = randomIntBetween(10, 90);
         // Calculate the counts for a cluster with maximum of 60% of occupancy
         ShardCounts counts = forDataNodeCount((int) (nodesInCluster * 0.6));
@@ -120,7 +110,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int availableRoom = maxShardsInCluster - existingShards;
         int shardsToAdd = randomIntBetween(1, Math.max(availableRoom / (replicas + 1), 1));
-        ShardLimitValidator.Result shardLimitsResult = targetMethod.call(
+        ShardLimitValidator.Result shardLimitsResult = group.checkShardLimit(
             counts.getShardsPerNode(),
             shardsToAdd,
             replicas,
@@ -228,7 +218,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
         Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (ResultGroup.FROZEN == group || randomBoolean()) {
-            settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group.group());
+            settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group.groupName());
         }
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 15))
             .settings(settings)

@@ -1,0 +1,67 @@
+"Test field name length limit":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index.mapping.field_name_length.limit: 45
+          mappings:
+            dynamic: true
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          test_really_long_field_name_that_will_be_ignored: foo
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.test_field_name_too_long: null }
+
+  - do:
+      get:
+        index: test_index
+  - match:
+      _source:
+        test_field_name_too_long: foo
+
+
+---
+
+"Test field name length limit synthetic source":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                field_name_length.limit: 45
+          mappings:
+            dynamic: true
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          test_really_long_field_name_that_will_be_ignored: foo
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.test_field_name_too_long: null }
+
+  - do:
+      get:
+        index: test_index
+  - match:
+      _source:
+        test_field_name_too_long: foo

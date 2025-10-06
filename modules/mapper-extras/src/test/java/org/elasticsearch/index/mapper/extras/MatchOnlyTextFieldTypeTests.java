@@ -173,14 +173,14 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
     }
 
     public void testPrefixIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -190,7 +190,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -200,7 +200,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(regexpIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -210,13 +210,13 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
     }
 
     public void testRangeIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
         assertThat(rangeIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -46,6 +45,8 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     );
     private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH = IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST
         .nextPatchVersion();
+    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = TransportVersion.fromName("stored_script_content_length");
+    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_PATCH = STORED_SCRIPT_CONTENT_LENGTH.nextPatchVersion();
 
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
@@ -102,12 +103,12 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         final TransportVersion version = randomBoolean()
             ? TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.STORED_SCRIPT_CONTENT_LENGTH_90,
+                STORED_SCRIPT_CONTENT_LENGTH_PATCH,
                 TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
             )
             : TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_8_0_0,
+                TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH)
             );
         final SamlServiceProviderDocument copy = copyWriteable(

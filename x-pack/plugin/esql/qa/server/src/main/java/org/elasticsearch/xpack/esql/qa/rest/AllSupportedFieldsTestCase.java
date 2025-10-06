@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -69,6 +68,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+
+    private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -445,7 +446,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Matcher<List<?>> expectedDenseVector(TransportVersion version) {
-        return version.onOrAfter(INDEX_SOURCE) // *after* 9.1
+        return version.supports(INDEX_SOURCE) // *after* 9.1
             ? matchesList().item(0.5).item(10.0).item(5.9999995)
             : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }

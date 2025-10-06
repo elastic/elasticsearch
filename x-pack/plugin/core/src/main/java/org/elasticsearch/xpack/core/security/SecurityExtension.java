@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccou
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -151,5 +152,9 @@ public interface SecurityExtension {
 
     default String extensionName() {
         return getClass().getName();
+    }
+
+    default AuthorizedProjectsResolver getAuthorizedProjectsResolver(SecurityComponents components) {
+        return null;
     }
 }

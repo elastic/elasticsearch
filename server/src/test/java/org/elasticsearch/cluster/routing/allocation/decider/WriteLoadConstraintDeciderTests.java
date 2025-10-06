@@ -57,25 +57,31 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(
             Decision.Type.YES,
             writeLoadDecider.canAllocate(
-                testHarness.shardRouting2,
+                testHarness.shardRoutingOnNodeBelowUtilThreshold,
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
             ).type()
         );
         assertEquals(
             Decision.Type.YES,
-            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.belowThresholdRoutingNode, testHarness.routingAllocation)
-                .type()
-        );
-        assertEquals(
-            Decision.Type.YES,
-            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.nearThresholdRoutingNode, testHarness.routingAllocation)
-                .type()
+            writeLoadDecider.canAllocate(
+                testHarness.shardRoutingOnNodeExceedingUtilThreshold,
+                testHarness.belowThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
         );
         assertEquals(
             Decision.Type.YES,
             writeLoadDecider.canAllocate(
-                testHarness.thirdRoutingNoWriteLoad,
+                testHarness.shardRoutingOnNodeExceedingUtilThreshold,
+                testHarness.nearThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canAllocate(
+                testHarness.shardRoutingNoWriteLoad,
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
             ).type()
@@ -85,7 +91,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             Decision.Type.YES,
             writeLoadDecider.canRemain(
                 testHarness.clusterState.metadata().getProject().index(indexName),
-                testHarness.shardRouting1,
+                testHarness.shardRoutingOnNodeExceedingUtilThreshold,
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
             ).type()
@@ -112,7 +118,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertDecisionMatches(
             "Assigning a new shard to a node that is above the threshold should fail",
             writeLoadDecider.canAllocate(
-                testHarness.shardRouting2,
+                testHarness.shardRoutingOnNodeBelowUtilThreshold,
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
             ),
@@ -132,14 +138,18 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Assigning a new shard to a node that has capacity should succeed",
-            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.belowThresholdRoutingNode, testHarness.routingAllocation),
+            writeLoadDecider.canAllocate(
+                testHarness.shardRoutingOnNodeExceedingUtilThreshold,
+                testHarness.belowThresholdRoutingNode,
+                testHarness.routingAllocation
+            ),
             Decision.Type.YES,
             null
         );
         assertDecisionMatches(
             "Assigning a new shard without a write load estimate should _not_ be blocked by lack of capacity",
             writeLoadDecider.canAllocate(
-                testHarness.thirdRoutingNoWriteLoad,
+                testHarness.shardRoutingNoWriteLoad,
                 testHarness.exceedingThresholdRoutingNode,
                 testHarness.routingAllocation
             ),
@@ -148,12 +158,83 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertDecisionMatches(
             "Assigning a new shard that would cause the node to exceed capacity should fail",
-            writeLoadDecider.canAllocate(testHarness.shardRouting1, testHarness.nearThresholdRoutingNode, testHarness.routingAllocation),
+            writeLoadDecider.canAllocate(
+                testHarness.shardRoutingOnNodeExceedingUtilThreshold,
+                testHarness.nearThresholdRoutingNode,
+                testHarness.routingAllocation
+            ),
             Decision.Type.NOT_PREFERRED,
             "The high utilization threshold of [0.900000] would be exceeded on node [*] with utilization [0.89] "
                 + "if shard [[test-index][0]] with estimated additional utilisation [0.06250] (write load [0.50000] / threads [8]) were "
                 + "assigned to it. Cannot allocate shard to node without risking increased write latencies."
+        );
+    }
 
+    /**
+     * Test the {@link WriteLoadConstraintDecider#canRemain} implementation.
+     */
+    public void testWriteLoadDeciderCanRemain() {
+        String indexName = "test-index";
+        var testHarness = createClusterStateAndRoutingAllocation(indexName);
+
+        var writeLoadDecider = createWriteLoadConstraintDecider(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                )
+                .build()
+        );
+
+        assertEquals(
+            "A shard on a node below the util threshold should remain on its node",
+            Decision.Type.YES,
+            writeLoadDecider.canRemain(
+                testHarness.clusterState.metadata().getProject().index(indexName),
+                testHarness.shardRoutingOnNodeBelowUtilThreshold,
+                testHarness.belowThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            "A shard on a node above the util threshold should remain on its node",
+            Decision.Type.YES,
+            writeLoadDecider.canRemain(
+                testHarness.clusterState.metadata().getProject().index(indexName),
+                testHarness.shardRoutingOnNodeExceedingUtilThreshold,
+                testHarness.exceedingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            "A shard on a node with queuing below the threshold should remain on its node",
+            Decision.Type.YES,
+            writeLoadDecider.canRemain(
+                testHarness.clusterState.metadata().getProject().index(indexName),
+                testHarness.shardRoutingOnNodeBelowQueueThreshold,
+                testHarness.belowQueuingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            "A shard on a node with queuing above the threshold should not remain",
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDecider.canRemain(
+                testHarness.clusterState.metadata().getProject().index(indexName),
+                testHarness.shardRoutingOnNodeAboveQueueThreshold,
+                testHarness.aboveQueuingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
+        );
+        assertEquals(
+            "A shard without write load should remain on a node with queuing above the threshold",
+            Decision.Type.YES,
+            writeLoadDecider.canRemain(
+                testHarness.clusterState.metadata().getProject().index(indexName),
+                testHarness.shardRoutingNoWriteLoad,
+                testHarness.aboveQueuingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ).type()
         );
     }
 
@@ -178,9 +259,13 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         RoutingNode exceedingThresholdRoutingNode,
         RoutingNode belowThresholdRoutingNode,
         RoutingNode nearThresholdRoutingNode,
-        ShardRouting shardRouting1,
-        ShardRouting shardRouting2,
-        ShardRouting thirdRoutingNoWriteLoad,
+        RoutingNode belowQueuingThresholdRoutingNode,
+        RoutingNode aboveQueuingThresholdRoutingNode,
+        ShardRouting shardRoutingOnNodeExceedingUtilThreshold,
+        ShardRouting shardRoutingOnNodeBelowUtilThreshold,
+        ShardRouting shardRoutingNoWriteLoad,
+        ShardRouting shardRoutingOnNodeBelowQueueThreshold,
+        ShardRouting shardRoutingOnNodeAboveQueueThreshold,
         ShardRouting unassignedShardRouting
     ) {}
 
@@ -192,9 +277,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
          * Create the ClusterState for multiple nodes and multiple index shards.
          */
 
-        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, 3, 1);
-        // The number of data nodes the util method above creates is numberOfReplicas+1, and three data nodes are needed for this test.
-        assertEquals(3, clusterState.nodes().size());
+        int numberOfShards = 6;
+        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            new String[] { indexName },
+            numberOfShards,
+            3
+        );
+        // The number of data nodes the util method above creates is numberOfReplicas+2, and five data nodes are needed for this test.
+        assertEquals(5, clusterState.nodes().size());
         assertEquals(1, clusterState.metadata().getTotalNumberOfIndices());
 
         /**
@@ -208,6 +298,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         var belowThresholdDiscoveryNode2 = discoveryNodeIterator.next();
         assertTrue(discoveryNodeIterator.hasNext());
         var nearThresholdDiscoveryNode3 = discoveryNodeIterator.next();
+        assertTrue(discoveryNodeIterator.hasNext());
+        var queuingBelowThresholdDiscoveryNode4 = discoveryNodeIterator.next();
+        assertTrue(discoveryNodeIterator.hasNext());
+        var queuingAboveThresholdDiscoveryNode5 = discoveryNodeIterator.next();
         assertFalse(discoveryNodeIterator.hasNext());
 
         var indexIterator = clusterState.metadata().indicesAllProjects().iterator();
@@ -215,11 +309,13 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         IndexMetadata testIndexMetadata = indexIterator.next();
         assertFalse(indexIterator.hasNext());
         Index testIndex = testIndexMetadata.getIndex();
-        assertEquals(3, testIndexMetadata.getNumberOfShards());
+        assertEquals(numberOfShards, testIndexMetadata.getNumberOfShards());
         ShardId testShardId1 = new ShardId(testIndex, 0);
         ShardId testShardId2 = new ShardId(testIndex, 1);
         ShardId testShardId3NoWriteLoad = new ShardId(testIndex, 2);
-        ShardId testShardId4Unassigned = new ShardId(testIndex, 3);
+        ShardId testShardId4 = new ShardId(testIndex, 3);
+        ShardId testShardId5 = new ShardId(testIndex, 4);
+        ShardId testShardId6Unassigned = new ShardId(testIndex, 5);
 
         /**
          * Create a ClusterInfo that includes the node and shard level write load estimates for a variety of node capacity situations.
@@ -233,20 +329,36 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         var nodeThreadPoolStatsWithWriteBelowThreshold = createNodeUsageStatsForThreadPools(belowThresholdDiscoveryNode2, 8, 0.50f, 0);
         var nodeThreadPoolStatsWithWriteNearThreshold = createNodeUsageStatsForThreadPools(nearThresholdDiscoveryNode3, 8, 0.89f, 0);
+        var nodeThreadPoolStatsWithQueuingBelowThreshold = createNodeUsageStatsForThreadPools(
+            exceedingThresholdDiscoveryNode,
+            8,
+            0.99f,
+            5_000
+        );
+        var nodeThreadPoolStatsWithQueuingAboveThreshold = createNodeUsageStatsForThreadPools(
+            exceedingThresholdDiscoveryNode,
+            8,
+            0.99f,
+            15_000
+        );
 
         // Create a map of usage per node.
         var nodeIdToNodeUsageStatsForThreadPools = new HashMap<String, NodeUsageStatsForThreadPools>();
         nodeIdToNodeUsageStatsForThreadPools.put(exceedingThresholdDiscoveryNode.getId(), nodeThreadPoolStatsWithWriteExceedingThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(belowThresholdDiscoveryNode2.getId(), nodeThreadPoolStatsWithWriteBelowThreshold);
         nodeIdToNodeUsageStatsForThreadPools.put(nearThresholdDiscoveryNode3.getId(), nodeThreadPoolStatsWithWriteNearThreshold);
+        nodeIdToNodeUsageStatsForThreadPools.put(queuingBelowThresholdDiscoveryNode4.getId(), nodeThreadPoolStatsWithQueuingBelowThreshold);
+        nodeIdToNodeUsageStatsForThreadPools.put(queuingAboveThresholdDiscoveryNode5.getId(), nodeThreadPoolStatsWithQueuingAboveThreshold);
 
         // Create a map of usage per shard.
         var shardIdToWriteLoadEstimate = new HashMap<ShardId, Double>();
         shardIdToWriteLoadEstimate.put(testShardId1, 0.5);
         shardIdToWriteLoadEstimate.put(testShardId2, 0.5);
         shardIdToWriteLoadEstimate.put(testShardId3NoWriteLoad, 0d);
+        shardIdToWriteLoadEstimate.put(testShardId4, 0.5);
+        shardIdToWriteLoadEstimate.put(testShardId5, 0.5d);
         if (randomBoolean()) {
-            shardIdToWriteLoadEstimate.put(testShardId4Unassigned, randomDoubleBetween(0.0, 2.0, true));
+            shardIdToWriteLoadEstimate.put(testShardId6Unassigned, randomDoubleBetween(0.0, 2.0, true));
         }
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
@@ -267,29 +379,43 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
 
-        ShardRouting shardRouting1 = TestShardRouting.newShardRouting(
+        ShardRouting shardRoutingOnNodeExceedingUtilThreshold = TestShardRouting.newShardRouting(
             testShardId1,
             exceedingThresholdDiscoveryNode.getId(),
             null,
             true,
             ShardRoutingState.STARTED
         );
-        ShardRouting shardRouting2 = TestShardRouting.newShardRouting(
+        ShardRouting shardRoutingOnNodeBelowUtilThreshold = TestShardRouting.newShardRouting(
             testShardId2,
             belowThresholdDiscoveryNode2.getId(),
             null,
             true,
             ShardRoutingState.STARTED
         );
-        ShardRouting thirdRoutingNoWriteLoad = TestShardRouting.newShardRouting(
+        ShardRouting shardRoutingNoWriteLoad = TestShardRouting.newShardRouting(
             testShardId3NoWriteLoad,
             belowThresholdDiscoveryNode2.getId(),
             null,
             true,
             ShardRoutingState.STARTED
         );
+        ShardRouting shardRoutingOnNodeBelowQueueThreshold = TestShardRouting.newShardRouting(
+            testShardId4,
+            queuingBelowThresholdDiscoveryNode4.getId(),
+            null,
+            true,
+            ShardRoutingState.STARTED
+        );
+        ShardRouting shardRoutingOnNodeAboveQueueThreshold = TestShardRouting.newShardRouting(
+            testShardId5,
+            queuingAboveThresholdDiscoveryNode5.getId(),
+            null,
+            true,
+            ShardRoutingState.STARTED
+        );
         ShardRouting unassignedShardRouting = TestShardRouting.newShardRouting(
-            testShardId4Unassigned,
+            testShardId6Unassigned,
             null,
             true,
             ShardRoutingState.UNASSIGNED
@@ -298,16 +424,26 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         RoutingNode exceedingThresholdRoutingNode = RoutingNodesHelper.routingNode(
             exceedingThresholdDiscoveryNode.getId(),
             exceedingThresholdDiscoveryNode,
-            shardRouting1
+            shardRoutingOnNodeExceedingUtilThreshold
         );
         RoutingNode belowThresholdRoutingNode = RoutingNodesHelper.routingNode(
             belowThresholdDiscoveryNode2.getId(),
             belowThresholdDiscoveryNode2,
-            shardRouting2
+            shardRoutingOnNodeBelowUtilThreshold
         );
         RoutingNode nearThresholdRoutingNode = RoutingNodesHelper.routingNode(
             nearThresholdDiscoveryNode3.getId(),
             nearThresholdDiscoveryNode3
+        );
+        RoutingNode belowQueuingThresholdRoutingNode = RoutingNodesHelper.routingNode(
+            queuingBelowThresholdDiscoveryNode4.getId(),
+            queuingBelowThresholdDiscoveryNode4,
+            shardRoutingOnNodeBelowQueueThreshold
+        );
+        RoutingNode aboveQueuingThresholdRoutingNode = RoutingNodesHelper.routingNode(
+            queuingAboveThresholdDiscoveryNode5.getId(),
+            queuingAboveThresholdDiscoveryNode5,
+            shardRoutingOnNodeAboveQueueThreshold
         );
 
         return new TestHarness(
@@ -316,9 +452,13 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             exceedingThresholdRoutingNode,
             belowThresholdRoutingNode,
             nearThresholdRoutingNode,
-            shardRouting1,
-            shardRouting2,
-            thirdRoutingNoWriteLoad,
+            belowQueuingThresholdRoutingNode,
+            aboveQueuingThresholdRoutingNode,
+            shardRoutingOnNodeExceedingUtilThreshold,
+            shardRoutingOnNodeBelowUtilThreshold,
+            shardRoutingNoWriteLoad,
+            shardRoutingOnNodeBelowQueueThreshold,
+            shardRoutingOnNodeAboveQueueThreshold,
             unassignedShardRouting
         );
     }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -36,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
@@ -962,102 +960,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
         verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), any(), anyActionListener());
-        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
-    }
-
-    public void testSendWithCrossClusterAccessHeadersThrowsOnOldConnection() throws Exception {
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User(randomAlphaOfLengthBetween(3, 10), randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 20))))
-            .realm()
-            .build();
-        authentication.writeToContext(threadContext);
-        final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
-        final String encodedApiKey = randomAlphaOfLengthBetween(10, 42);
-        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(encodedApiKey);
-
-        final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
-            settings,
-            threadPool,
-            mockSslService(),
-            securityContext,
-            destructiveOperations,
-            new CrossClusterAccessTransportInterceptor(
-                settings,
-                threadPool,
-                mock(AuthenticationService.class),
-                mock(AuthorizationService.class),
-                securityContext,
-                mock(CrossClusterAccessAuthenticationService.class),
-                crossClusterApiKeySignatureManager,
-                mockLicenseState,
-                ignored -> Optional.of(
-                    new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
-                )
-            )
-        );
-
-        final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
-            @Override
-            public <T extends TransportResponse> void sendRequest(
-                Transport.Connection connection,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options,
-                TransportResponseHandler<T> handler
-            ) {
-                fail("sender should not be called");
-            }
-        });
-        final Transport.Connection connection = mock(Transport.Connection.class);
-        final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
-            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-        );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            versionBeforeCrossClusterAccessRealm
-        );
-        when(connection.getTransportVersion()).thenReturn(version);
-        final AtomicBoolean calledHandleException = new AtomicBoolean(false);
-        final AtomicReference<TransportException> actualException = new AtomicReference<>();
-        sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
-            @Override
-            public Executor executor() {
-                return TransportResponseHandler.TRANSPORT_WORKER;
-            }
-
-            @Override
-            public void handleResponse(TransportResponse response) {
-                fail("should not receive a response");
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                if (calledHandleException.compareAndSet(false, true) == false) {
-                    fail("handle exception called more than once");
-                }
-                actualException.set(exp);
-            }
-
-            @Override
-            public TransportResponse read(StreamInput in) {
-                fail("should not receive a response");
-                return null;
-            }
-        });
-        assertThat(actualException.get(), instanceOf(SendRequestTransportException.class));
-        assertThat(actualException.get().getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(
-            actualException.get().getCause().getMessage(),
-            equalTo(
-                "Settings for remote cluster ["
-                    + remoteClusterAlias
-                    + "] indicate cross cluster access headers should be sent but target cluster version ["
-                    + connection.getTransportVersion().toReleaseVersion()
-                    + "] does not support receiving them"
-            )
-        );
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }

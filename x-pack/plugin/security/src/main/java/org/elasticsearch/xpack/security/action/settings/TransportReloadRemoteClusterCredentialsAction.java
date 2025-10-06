@@ -101,7 +101,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
     private void updateClusterCredentials(Supplier<Settings> settingsSupplier, ActionListener<ActionResponse.Empty> listener) {
         final var projectId = projectResolver.getProjectId();
         final var credentialsManager = remoteClusterService.getRemoteClusterCredentialsManager();
-        final var staticSettings = credentialsManager.getSettings();
+        final var staticSettings = clusterService.getSettings();
         final var newSettings = settingsSupplier.get();
         final var result = credentialsManager.updateClusterCredentials(newSettings);
         // We only need to rebuild connections when a credential was newly added or removed for a cluster alias, not if the credential

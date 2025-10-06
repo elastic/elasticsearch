@@ -26,17 +26,11 @@ import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CLUSTER_C
 public class RemoteClusterCredentialsManager {
     private static final Logger logger = LogManager.getLogger(RemoteClusterCredentialsManager.class);
 
-    private final Settings settings;
     private volatile Map<String, SecureString> clusterCredentials = Collections.emptyMap();
 
     @SuppressWarnings("this-escape")
     public RemoteClusterCredentialsManager(Settings settings) {
-        this.settings = settings;
         updateClusterCredentials(settings);
-    }
-
-    public Settings getSettings() {
-        return settings;
     }
 
     public final synchronized UpdateRemoteClusterCredentialsResult updateClusterCredentials(Settings settings) {

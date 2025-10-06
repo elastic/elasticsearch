@@ -183,7 +183,7 @@ public interface CuVSResourceManager {
                     }
                 }
                 var elapsed = started - System.nanoTime();
-                logger.debug("Resource acquired in [{}ms]", elapsed / 1e-6);
+                logger.debug("Resource acquired in [{}ms]", elapsed / 1_000_000.0);
                 res.locked = true;
                 return res;
             } finally {

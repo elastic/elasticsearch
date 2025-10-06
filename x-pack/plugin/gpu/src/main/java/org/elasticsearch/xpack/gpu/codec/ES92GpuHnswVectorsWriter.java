@@ -170,7 +170,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             throw new IOException("Failed to flush GPU index: ", t);
         }
         var elapsed = started - System.nanoTime();
-        logger.debug("Flush total time [{}ms]", elapsed / 1e-6);
+        logger.debug("Flush total time [{}ms]", elapsed / 1_000_000.0);
     }
 
     private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException, InterruptedException {
@@ -210,7 +210,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
             var elapsed = started - System.nanoTime();
-            logger.debug("Flushed [{}] vectors in [{}ms]", numVectors, elapsed / 1e-6);
+            logger.debug("Flushed [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
         }
     }
 
@@ -534,7 +534,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
         var elapsed = started - System.nanoTime();
-        logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1e-6);
+        logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
     }
 
     private ByteVectorValues getMergedByteVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {

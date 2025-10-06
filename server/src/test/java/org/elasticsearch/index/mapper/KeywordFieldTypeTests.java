@@ -322,7 +322,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         // when/then
@@ -354,7 +355,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         // when/then
@@ -385,7 +387,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         // when/then
@@ -417,7 +420,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         // when/then
@@ -449,7 +453,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         // when/then
@@ -481,7 +486,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         // when/then
@@ -513,7 +519,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         // when/then

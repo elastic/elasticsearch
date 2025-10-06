@@ -925,6 +925,28 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    public static class BytesRefsFromBinaryBlockLoader extends DocValuesBlockLoader {
+        private final String fieldName;
+
+        public BytesRefsFromBinaryBlockLoader(String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+            if (docValues == null) {
+                return new ConstantNullsReader();
+            }
+            return new BytesRefsFromBinary(docValues);
+        }
+    }
+
     abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
         protected final BinaryDocValues docValues;
 

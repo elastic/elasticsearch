@@ -675,6 +675,13 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> USE_BINARY_DOC_VALUES = Setting.boolSetting(
+        "index.mapping.use_binary_doc_values",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */

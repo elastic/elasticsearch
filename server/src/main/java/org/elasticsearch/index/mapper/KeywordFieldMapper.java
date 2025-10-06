@@ -13,15 +13,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -90,6 +93,7 @@ import java.util.function.Supplier;
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+import static org.elasticsearch.index.IndexSettings.USE_BINARY_DOC_VALUES;
 import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
@@ -108,6 +112,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         public static final FieldType FIELD_TYPE;
         public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
 
+        public static final FieldType FIELD_TYPE_WITH_BINARY_DOC_VALUES;
+
         static {
             FieldType ft = new FieldType();
             ft.setTokenized(false);
@@ -125,6 +131,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             ft.setDocValuesType(DocValuesType.SORTED_SET);
             ft.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
             FIELD_TYPE_WITH_SKIP_DOC_VALUES = freezeAndDeduplicateFieldType(ft);
+        }
+
+        static {
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(IndexOptions.NONE);
+            ft.setDocValuesType(DocValuesType.BINARY);
+            FIELD_TYPE_WITH_BINARY_DOC_VALUES = freezeAndDeduplicateFieldType(ft);
         }
 
         public static final TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
@@ -214,6 +229,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean forceDocValuesSkipper;
         private final SourceKeepMode indexSourceKeepMode;
         private final boolean isWithinMultiField;
+        private final boolean useBinaryDocValues;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
@@ -227,7 +243,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 USE_DOC_VALUES_SKIPPER.get(mappingParserContext.getSettings()),
                 false,
                 mappingParserContext.getIndexSettings().sourceKeepMode(),
-                mappingParserContext.isWithinMultiField()
+                mappingParserContext.isWithinMultiField(),
+                USE_BINARY_DOC_VALUES.get(mappingParserContext.getSettings())
             );
         }
 
@@ -250,7 +267,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 false,
                 false,
                 sourceKeepMode,
-                isWithinMultiField
+                isWithinMultiField,
+                false
             );
         }
 
@@ -265,7 +283,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             boolean enableDocValuesSkipper,
             boolean forceDocValuesSkipper,
             SourceKeepMode indexSourceKeepMode,
-            boolean isWithinMultiField
+            boolean isWithinMultiField,
+            boolean binaryDocValuesEnabled
         ) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
@@ -301,6 +320,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.forceDocValuesSkipper = forceDocValuesSkipper;
             this.indexSourceKeepMode = indexSourceKeepMode;
             this.isWithinMultiField = isWithinMultiField;
+            this.useBinaryDocValues = binaryDocValuesEnabled;
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
@@ -330,7 +350,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 enableDocValuesSkipper,
                 true,
                 SourceKeepMode.NONE,
-                isWithinMultiField
+                isWithinMultiField,
+                false
             );
         }
 
@@ -413,7 +434,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 dimension };
         }
 
-        private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
+        private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType, boolean useBinaryDocValues) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer quoteAnalyzer = Lucene.KEYWORD_ANALYZER;
@@ -448,20 +469,25 @@ public final class KeywordFieldMapper extends FieldMapper {
                 searchAnalyzer,
                 quoteAnalyzer,
                 this,
-                context.isSourceSynthetic()
+                context.isSourceSynthetic(),
+                useBinaryDocValues
             );
         }
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
+            String fullName = context.buildFullName(leafName());
+            // Index sorting by binary doc values not support (yet):
+            boolean useBinaryDocValues = fullName.equals("host.name") == false && this.useBinaryDocValues;
             FieldType fieldtype = resolveFieldType(
+                useBinaryDocValues,
                 enableDocValuesSkipper,
                 forceDocValuesSkipper,
                 hasDocValues,
                 indexCreatedVersion,
                 indexSortConfig,
                 indexMode,
-                context.buildFullName(leafName())
+                fullName
             );
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setStored(this.stored.getValue());
@@ -492,15 +518,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
-                buildFieldType(context, fieldtype),
+                buildFieldType(context, fieldtype, useBinaryDocValues),
                 builderParams(this, context),
                 this,
                 offsetsFieldName,
-                indexSourceKeepMode
+                indexSourceKeepMode,
+                useBinaryDocValues
             );
         }
 
         private static FieldType resolveFieldType(
+            final boolean useBinaryDocValues,
             final boolean enableDocValuesSkipper,
             final boolean forceDocValuesSkipper,
             final Parameter<Boolean> hasDocValues,
@@ -509,6 +537,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
+            if (useBinaryDocValues) {
+                return new FieldType(Defaults.FIELD_TYPE_WITH_BINARY_DOC_VALUES);
+            }
+
             if (enableDocValuesSkipper) {
                 if (forceDocValuesSkipper) {
                     assert hasDocValues.getValue();
@@ -553,6 +585,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final IndexSortConfig indexSortConfig;
         private final boolean hasDocValuesSkipper;
+        private final boolean useBinaryDocValues;
 
         public KeywordFieldType(
             String name,
@@ -561,7 +594,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             NamedAnalyzer searchAnalyzer,
             NamedAnalyzer quoteAnalyzer,
             Builder builder,
-            boolean isSyntheticSource
+            boolean isSyntheticSource,
+            boolean useBinaryDocValues
         ) {
             super(
                 name,
@@ -581,6 +615,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = builder.dimension.getValue();
             this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
+            this.useBinaryDocValues = useBinaryDocValues;
         }
 
         public KeywordFieldType(String name) {
@@ -597,6 +632,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
+            this.useBinaryDocValues = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType) {
@@ -618,6 +654,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
+            this.useBinaryDocValues = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -639,6 +676,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
+            this.useBinaryDocValues = false;
         }
 
         @Override
@@ -799,6 +837,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (useBinaryDocValues) {
+                return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
+            }
+
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
@@ -1119,6 +1161,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean forceDocValuesSkipper;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
+    private final boolean useBinaryDocValues;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1127,7 +1170,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         BuilderParams builderParams,
         Builder builder,
         String offsetsFieldName,
-        SourceKeepMode indexSourceKeepMode
+        SourceKeepMode indexSourceKeepMode,
+        boolean useBinaryDocValues
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
@@ -1148,6 +1192,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
+        this.useBinaryDocValues = useBinaryDocValues;
     }
 
     @Override
@@ -1208,6 +1253,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         // if field is disabled, skip indexing
         if ((fieldType.indexOptions() == IndexOptions.NONE) && (fieldType.stored() == false) && (fieldType().hasDocValues() == false)) {
             return false;
+        }
+
+        if (useBinaryDocValues) {
+            var utfBytes = value.bytes();
+            var binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+            context.doc().add(new BinaryDocValuesField(fieldType().name(), binaryValue));
+            return true;
         }
 
         // if the value's length exceeds ignore_above, then don't index it
@@ -1316,7 +1368,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             enableDocValuesSkipper,
             forceDocValuesSkipper,
             indexSourceKeepMode,
-            fieldType().isWithinMultiField()
+            fieldType().isWithinMultiField(),
+            useBinaryDocValues
         ).dimension(fieldType().isDimension()).init(this);
     }
 
@@ -1365,22 +1418,26 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             });
         } else if (hasDocValues) {
-            if (offsetsFieldName != null) {
-                layers.add(new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
+            if (useBinaryDocValues) {
+                layers.add(new BinarySyntheticFieldLoader());
             } else {
-                layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                if (offsetsFieldName != null) {
+                    layers.add(new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
+                } else {
+                    layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
 
-                    @Override
-                    protected BytesRef convert(BytesRef value) {
-                        return value;
-                    }
+                        @Override
+                        protected BytesRef convert(BytesRef value) {
+                            return value;
+                        }
 
-                    @Override
-                    protected BytesRef preserve(BytesRef value) {
-                        // Preserve must make a deep copy because convert gets a shallow copy from the iterator
-                        return BytesRef.deepCopyOf(value);
-                    }
-                });
+                        @Override
+                        protected BytesRef preserve(BytesRef value) {
+                            // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                            return BytesRef.deepCopyOf(value);
+                        }
+                    });
+                }
             }
         }
 
@@ -1398,5 +1455,51 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+    }
+
+    final class BinarySyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
+        private int docValueCount;
+        private BytesRef docValueBytes;
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            BinaryDocValues values = leafReader.getBinaryDocValues(fullPath());
+            if (values == null) {
+                docValueCount = 0;
+                return null;
+            }
+
+            return docId -> {
+                if (values.advanceExact(docId) == false) {
+                    docValueCount = 0;
+                    return hasValue();
+                }
+                docValueBytes = BytesRef.deepCopyOf(values.binaryValue());
+                docValueCount = 1;
+                return hasValue();
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return docValueCount > 0;
+        }
+
+        @Override
+        public long valueCount() {
+            return docValueCount;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (hasValue()) {
+                b.utf8Value(docValueBytes.bytes, docValueBytes.offset, docValueBytes.length);
+            }
+        }
+
+        @Override
+        public String fieldName() {
+            return fullPath();
+        }
     }
 }

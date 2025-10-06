@@ -1393,8 +1393,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             Lucene.KEYWORD_ANALYZER,
             Lucene.KEYWORD_ANALYZER,
             new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
-            true // TODO randomize - load from stored keyword fields if stored even in synthetic source
-        );
+            true, // TODO randomize - load from stored keyword fields if stored even in synthetic source
+                useBinaryDocValues);
     }
 
     @AwaitsFix(bugUrl = "Get working for multiple indices")

@@ -222,8 +222,8 @@ public class ValuesSourceReaderBenchmark {
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
                 new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(ft.docValuesType() != DocValuesType.NONE),
-                syntheticSource
-            ).blockLoader(new MappedFieldType.BlockLoaderContext() {
+                syntheticSource,
+                    useBinaryDocValues).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
                     return "benchmark";

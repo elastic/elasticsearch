@@ -298,8 +298,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
-        );
+            true,
+                useBinaryDocValues);
 
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "parent",
@@ -346,8 +346,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
-        );
+            true,
+                useBinaryDocValues);
 
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "parent",

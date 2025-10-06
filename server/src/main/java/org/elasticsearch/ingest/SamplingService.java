@@ -13,11 +13,14 @@ import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,6 +50,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
@@ -61,6 +65,7 @@ public class SamplingService implements ClusterStateListener {
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
     private final Random random;
+    private final AtomicBoolean firstCall = new AtomicBoolean(true);
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -132,17 +137,12 @@ public class SamplingService implements ClusterStateListener {
             return;
         }
         long startTime = statsTimeSupplier.getAsLong();
-        SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
-        if (samplingMetadata == null) {
-            return;
-        }
-        SamplingConfiguration samplingConfig = samplingMetadata.getIndexToSamplingConfigMap().get(indexName);
-        ProjectId projectId = projectMetadata.id();
+        SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
         if (samplingConfig == null) {
             return;
         }
         SoftReference<SampleInfo> sampleInfoReference = samples.compute(
-            new ProjectIndex(projectId, indexName),
+            new ProjectIndex(projectMetadata.id(), indexName),
             (k, v) -> v == null || v.get() == null
                 ? new SoftReference<>(
                     new SampleInfo(samplingConfig.maxSamples(), samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong())
@@ -211,6 +211,14 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    public SamplingConfiguration getSamplingConfiguration(ProjectMetadata projectMetadata, String indexName) {
+        SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+        if (samplingMetadata == null) {
+            return null;
+        }
+        return samplingMetadata.getIndexToSamplingConfigMap().get(indexName);
+    }
+
     /**
      * Gets the sample for the given projectId and index on this node only. The sample is not persistent.
      * @param projectId The project that this sample is for
@@ -241,6 +249,28 @@ public class SamplingService implements ClusterStateListener {
 
     public boolean atLeastOneSampleConfigured() {
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
+            if (firstCall.get()) {
+                clusterService.submitUnbatchedStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(
+                            currentState.metadata().getProject(ProjectId.DEFAULT)
+                        );
+                        SamplingMetadata samplingMetadata = new SamplingMetadata(
+                            Map.of("test", new SamplingConfiguration(1.0d, 50, null, null, null))
+                        );
+                        projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, samplingMetadata);
+                        ClusterState newState = new ClusterState.Builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
+                        return newState;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e.getMessage();
+                    }
+                });
+                firstCall.set(false);
+            }
             SamplingMetadata samplingMetadata = clusterService.state()
                 .projectState(projectResolver.getProjectId())
                 .metadata()
@@ -346,6 +376,30 @@ public class SamplingService implements ClusterStateListener {
         Exception lastException = null;
 
         public SampleStats() {}
+
+        public SampleStats(
+            long samples,
+            long potentialSamples,
+            long samplesRejectedForMaxSamplesExceeded,
+            long samplesRejectedForCondition,
+            long samplesRejectedForRate,
+            long samplesRejectedForException,
+            TimeValue timeSampling,
+            TimeValue timeEvaluatingCondition,
+            TimeValue timeCompilingCondition,
+            Exception lastException
+        ) {
+            this.samples.add(samples);
+            this.potentialSamples.add(potentialSamples);
+            this.samplesRejectedForMaxSamplesExceeded.add(samplesRejectedForMaxSamplesExceeded);
+            this.samplesRejectedForCondition.add(samplesRejectedForCondition);
+            this.samplesRejectedForRate.add(samplesRejectedForRate);
+            this.samplesRejectedForException.add(samplesRejectedForException);
+            this.timeSampling.add(timeSampling.nanos());
+            this.timeEvaluatingCondition.add(timeEvaluatingCondition.nanos());
+            this.timeCompilingCondition.add(timeCompilingCondition.nanos());
+            this.lastException = lastException;
+        }
 
         public SampleStats(StreamInput in) throws IOException {
             potentialSamples.add(in.readLong());
@@ -457,9 +511,17 @@ public class SamplingService implements ClusterStateListener {
             builder.field("samples_rejected_for_rate", samplesRejectedForRate.longValue());
             builder.field("samples_rejected_for_exception", samplesRejectedForException.longValue());
             builder.field("samples_accepted", samples.longValue());
-            builder.field("time_sampling", (timeSampling.longValue() / 1000000));
-            builder.field("time_evaluating_condition", (timeEvaluatingCondition.longValue() / 1000000));
-            builder.field("time_compiling_condition", (timeCompilingCondition.longValue() / 1000000));
+            builder.humanReadableField("time_sampling_millis", "time_sampling", TimeValue.timeValueNanos(timeSampling.longValue()));
+            builder.humanReadableField(
+                "time_evaluating_condition_millis",
+                "time_evaluating_condition",
+                TimeValue.timeValueNanos(timeEvaluatingCondition.longValue())
+            );
+            builder.humanReadableField(
+                "time_compiling_condition_millis",
+                "time_compiling_condition",
+                TimeValue.timeValueNanos(timeCompilingCondition.longValue())
+            );
             builder.endObject();
             return builder;
         }
@@ -557,6 +619,11 @@ public class SamplingService implements ClusterStateListener {
             } else {
                 return Objects.hash(e.getClass(), e.getMessage());
             }
+        }
+
+        public void adjustForMaxSize(int maxSize) {
+            samples.add(maxSize - samples.longValue());
+            samplesRejectedForMaxSamplesExceeded.add(samples.longValue() - maxSize);
         }
     }
 

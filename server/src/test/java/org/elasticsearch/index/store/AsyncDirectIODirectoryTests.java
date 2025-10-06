@@ -26,7 +26,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.store.Directory;
@@ -35,6 +34,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryTestCase;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.SuppressForbidden;
 import org.junit.BeforeClass;
 
@@ -42,11 +42,15 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.OptionalLong;
 
 import static org.apache.lucene.store.FSDirectory.open;
 
 public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
 
     @BeforeClass
     public static void checkSupported() throws IOException {
@@ -70,23 +74,7 @@ public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path path) throws IOException {
-        return new DirectIODirectory(open(path)) {
-            @Override
-            protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
-                return true;
-            }
-
-            @Override
-            public IndexInput openInput(String name, IOContext context) throws IOException {
-                int blockSize = getBlockSize(path);
-                ensureOpen();
-                if (useDirectIO(name, context, OptionalLong.of(fileLength(name)))) {
-                    return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, 32);
-                } else {
-                    return in.openInput(name, context);
-                }
-            }
-        };
+        return new FsDirectoryFactory.AlwaysDirectIODirectory(open(path), 8192, 8192, 32);
     }
 
     public void testIndexWriteRead() throws IOException {
@@ -116,15 +104,15 @@ public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
             byte[] b = new byte[fileSize];
             o.writeBytes(b, 0, fileSize);
             o.close();
-            IndexInput i = dir.openInput("out", newIOContext(random()));
-            i.seek(fileSize);
+            try (IndexInput i = dir.openInput("out", newIOContext(random()))) {
+                i.seek(fileSize);
 
-            // Seeking past EOF should always throw EOFException
-            expectThrows(EOFException.class, () -> i.seek(fileSize + RandomizedTest.randomIntBetween(1, 2048)));
+                // Seeking past EOF should always throw EOFException
+                expectThrows(EOFException.class, () -> i.seek(fileSize + RandomizedTest.randomIntBetween(1, 2048)));
 
-            // Reading immediately after seeking past EOF should throw EOFException
-            expectThrows(EOFException.class, () -> i.readByte());
-            i.close();
+                // Reading immediately after seeking past EOF should throw EOFException
+                expectThrows(EOFException.class, () -> i.readByte());
+            }
         }
     }
 

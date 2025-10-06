@@ -55,9 +55,6 @@ tasks.register("checkVec", JavaExec) {
   if (buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
   }
-  if (System.getenv("DO_ASYNC_PROFILING") != null) {
-    jvmArgs System.getenv("DO_ASYNC_PROFILING")
-  }
   if (System.getenv("DO_PROFILING") != null) {
     jvmArgs '-XX:StartFlightRecording=dumponexit=true,maxsize=250M,filename=knn.jfr,settings=profile.jfc'
   }

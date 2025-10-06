@@ -28,6 +28,8 @@ import com.carrotsearch.hppc.LongDeque;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -55,6 +57,9 @@ import static java.nio.ByteOrder.LITTLE_ENDIAN;
  * provides asynchronous prefetching of data.
  */
 public class AsyncDirectIOIndexInput extends IndexInput {
+
+    private static final Logger LOGGER = LogManager.getLogger(AsyncDirectIOIndexInput.class);
+
     /**
      * Copied from Lucene
      */
@@ -99,6 +104,15 @@ public class AsyncDirectIOIndexInput extends IndexInput {
      * Creates a new instance of AsyncDirectIOIndexInput for reading index input with direct IO bypassing
      * OS buffer
      *
+     * @param path the path to the file to read
+        * @param blockSize the block size to use for alignment. This must match the filesystem
+        *                  block size, otherwise an IOException will be thrown.
+     * @param bufferSize the size of the read buffer. This must be a multiple of blockSize.
+     * @param maxPrefetches the maximum number of concurrent prefetches to allow.
+     *                      This also determines the maximum number of total prefetches that can be
+     *                      outstanding. The total number of prefetches is maxPrefetches * 16.
+     *                      A larger number of maxPrefetches allows for more aggressive prefetching,
+     *                      but also uses more memory (maxPrefetches * bufferSize).
      * @throws UnsupportedOperationException if the JDK does not support Direct I/O
      * @throws IOException if the operating system or filesystem does not support Direct I/O
      *     or a sufficient equivalent.
@@ -362,6 +376,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         try {
             var clone = new AsyncDirectIOIndexInput("clone:" + this, this, offset, length);
             // TODO figure out how to make this async
+            // https://github.com/elastic/elasticsearch/issues/136046
             clone.seekInternal(getFilePointer());
             return clone;
         } catch (IOException ioe) {
@@ -376,6 +391,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         }
         var slice = new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
         // TODO figure out how to make this async
+        // https://github.com/elastic/elasticsearch/issues/136046
         slice.seekInternal(0L);
         return slice;
     }
@@ -418,12 +434,18 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         /**
          * Initiate prefetch of the given range. The range will be aligned to blockSize and
          * chopped up into chunks of prefetchBytesSize.
+         * If there are not enough slots available, the prefetch request will be queued
+         * until a slot becomes available. This throttling may occur if the number of
+         * concurrent prefetches is exceeded, or if there is significant IO pressure.
          * @param pos the position to prefetch from, must be non-negative and within file length
          * @param length the length to prefetch, must be non-negative.
          */
         void prefetch(long pos, long length) {
             // first determine how many slots we need given the length
-            int numSlots = (int) Math.min((length + prefetchBytesSize - 1) / prefetchBytesSize, Integer.MAX_VALUE - 1);
+            int numSlots = (int) Math.min(
+                (length + prefetchBytesSize - 1) / prefetchBytesSize,
+                maxTotalPrefetches - (this.posToSlot.size() + this.pendingPrefetches.size())
+            );
             while (numSlots > 0 && (this.posToSlot.size() + this.pendingPrefetches.size()) < maxTotalPrefetches) {
                 final int slot;
                 Integer existingSlot = this.posToSlot.get(pos);
@@ -438,6 +460,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                     prefetchPos[slot] = pos;
                 } else {
                     slot = -1;
+                    LOGGER.debug("queueing prefetch of pos [{}] with length [{}], waiting for open slot", pos, length);
                     pendingPrefetches.addLast(pos);
                 }
                 if (slot != -1) {

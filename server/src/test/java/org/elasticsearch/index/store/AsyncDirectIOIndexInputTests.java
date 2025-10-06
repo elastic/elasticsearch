@@ -28,15 +28,16 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
         return Math.toIntExact(Files.getFileStore(path).getBlockSize());
     }
 
+    private static final int BASE_BUFFER_SIZE = 8192;
+
     public void testPrefetchEdgeCase() throws IOException {
-        byte[] bytes = new byte[8192 * 32 + randomIntBetween(1, 8192)];
+        byte[] bytes = new byte[BASE_BUFFER_SIZE * 32 + randomIntBetween(1, BASE_BUFFER_SIZE)];
         int offset = 84;
         float[] vectorActual = new float[768];
         int[] toSeek = new int[] { 1, 2, 3, 5, 6, 9, 11, 14, 15, 16, 18, 23, 24, 25, 26, 29, 30, 31 };
-        int byteSize = 768 * 4;
+        int byteSize = vectorActual.length * Float.BYTES;
         Path path = createTempDir("testDirectIODirectory");
         int blockSize = getBlockSize(path);
-        int bufferSize = 8192;
         random().nextBytes(bytes);
         try (Directory dir = new NIOFSDirectory(path)) {
             try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
@@ -46,16 +47,16 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
                 AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(
                     path.resolve("test"),
                     blockSize,
-                    bufferSize,
+                    BASE_BUFFER_SIZE,
                     toSeek.length + 1
                 );
             ) {
                 IndexInput actualSlice = actualInput.slice("vectors", offset, bytes.length - offset);
                 for (int seek : toSeek) {
-                    actualSlice.prefetch(seek * byteSize, byteSize);
+                    actualSlice.prefetch((long) seek * byteSize, byteSize);
                 }
                 for (int seek : toSeek) {
-                    actualSlice.seek(seek * byteSize);
+                    actualSlice.seek((long) seek * byteSize);
                     actualSlice.readFloats(vectorActual, 0, vectorActual.length);
                     assertEquals("mismatch at seek: " + seek, (seek + 1) * byteSize, actualSlice.getFilePointer());
                 }
@@ -64,9 +65,9 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
     }
 
     public void testLargePrefetch() throws IOException {
-        byte[] bytes = new byte[8192 * 10 + randomIntBetween(1, 8192)];
-        int offset = randomIntBetween(1, 8192);
-        int numBytes = randomIntBetween(8192 + 1, 8192 * 8);
+        byte[] bytes = new byte[BASE_BUFFER_SIZE * 10 + randomIntBetween(1, BASE_BUFFER_SIZE)];
+        int offset = randomIntBetween(1, BASE_BUFFER_SIZE);
+        int numBytes = randomIntBetween(BASE_BUFFER_SIZE + 1, BASE_BUFFER_SIZE * 8);
         random().nextBytes(bytes);
         byte[] trueBytes = new byte[numBytes];
         System.arraycopy(bytes, offset, trueBytes, 0, numBytes);
@@ -95,7 +96,7 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
     }
 
     public void testWriteThenReadBytesConsistency() throws IOException {
-        byte[] bytes = new byte[8192 * 8 + randomIntBetween(1, 8192)];
+        byte[] bytes = new byte[BASE_BUFFER_SIZE * 8 + randomIntBetween(1, BASE_BUFFER_SIZE)];
         random().nextBytes(bytes);
         Path path = createTempDir("testDirectIODirectory");
         int blockSize = getBlockSize(path);

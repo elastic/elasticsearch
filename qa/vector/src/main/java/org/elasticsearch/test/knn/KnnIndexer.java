@@ -228,7 +228,7 @@ class KnnIndexer {
     static Directory getDirectory(Path indexPath) throws IOException {
         Directory dir = FSDirectory.open(indexPath);
         if (dir instanceof MMapDirectory mmapDir) {
-            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir);
+            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir, 64);
         }
         return dir;
     }

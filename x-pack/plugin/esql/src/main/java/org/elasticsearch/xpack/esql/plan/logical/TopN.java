@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TopN extends UnaryPlan implements PipelineBreaker {
+public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
     private final List<Order> order;
@@ -105,5 +105,10 @@ public class TopN extends UnaryPlan implements PipelineBreaker {
             return Objects.equals(order, other.order) && Objects.equals(limit, other.limit) && local == other.local;
         }
         return false;
+    }
+
+    @Override
+    public ExecuteLocation executesOn() {
+        return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
     }
 }

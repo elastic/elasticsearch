@@ -27,6 +27,9 @@ import java.util.List;
  * while making a copy of the original fields. Mark the original TopN as local.
  * This is the same idea as {@link HoistRemoteEnrichLimit} but for TopN instead of Limit.
  * This must happen after {@link ReplaceLimitAndSortAsTopN}.
+ * This also has handling for the case where Enrich overrides the field(s) TopN is using. In this case,
+ * we need to create aliases for the fields used by TopN, and then use those aliases in the copy TopN.
+ * Then we need to add Project to remove the alias fields. Fortunately, PushDownUtils has the logic to do that.
  */
 public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<Enrich> implements OptimizerRules.CoordinatorOnly {
     public HoistRemoteEnrichTopN() {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -230,9 +228,4 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
     // Other cases where hoisting does not happen:
     // - ExecutesOn.COORDINATOR - this fails the verifier
     // - PipelineBreaker - all relevant ones are also ExecutesOn.COORDINATOR
-
-    private void failPlan(String esql, String reason) {
-        var e = expectThrows(VerificationException.class, () -> plan(esql));
-        assertThat(e.getMessage(), containsString(reason));
-    }
 }

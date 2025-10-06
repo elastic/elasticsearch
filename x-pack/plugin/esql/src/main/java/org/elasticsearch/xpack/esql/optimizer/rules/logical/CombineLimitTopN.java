@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
 /**
  * Combines a Limit immediately followed by a TopN into a single TopN.
- * This is needed because {@link HoistRemoteEnrichTopN} can create new limits that are not covered by the previous rules.
+ * This is needed because {@link HoistRemoteEnrichTopN} can create new TopN nodes that are not covered by the previous rules.
  */
 public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<Limit> {
 
@@ -32,6 +33,10 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<Limit> 
             } else {
                 return new TopN(topn.source(), topn.child(), topn.order(), limit.limit(), topn.local());
             }
+        }
+        if (limit.child() instanceof Project proj) {
+            // It is possible that Project is sitting on top on TopN. Swap limit and project then.
+            return proj.replaceChild(limit.replaceChild(proj.child()));
         }
         return limit;
     }

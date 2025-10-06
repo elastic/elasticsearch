@@ -223,5 +223,18 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
             super.writeTo(out);
             sampleStats.writeTo(out);
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            GetSampleStatsAction.NodeResponse other = (GetSampleStatsAction.NodeResponse) o;
+            return getNode().equals(other.getNode()) && sampleStats.equals(other.sampleStats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getNode(), sampleStats);
+        }
     }
 }

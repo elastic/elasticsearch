@@ -45,18 +45,26 @@ import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.session.Result;
 
@@ -75,10 +83,14 @@ import java.util.stream.Collectors;
  * A query is currently suitable for approximation if:
  * <ul>
  *   <li> it contains exactly one {@code STATS} command
+ *   <li> the other commands are from the supported set
+ *        ({@link Approximate#SUPPORTED_COMMANDS}); this contains almost all
+ *        unary commands, but no {@code FORK} or {@code JOIN}.
  *   <li> the aggregate functions are from the supported set
  *        ({@link Approximate#SUPPORTED_SINGLE_VALUED_AGGS} and
  *         {@link Approximate#SUPPORTED_MULTIVALUED_AGGS})
  *   <li> it contains only unary commands (so no {@code FORK} or {@code JOIN})
+ *   <li> it doesn't contain a forbidden command (
  * </ul>
  * Some of these restrictions may be lifted in the future.
  * <p>
@@ -113,6 +125,35 @@ public class Approximate {
     public interface LogicalPlanRunner {
         void run(LogicalPlan plan, ActionListener<Result> listener);
     }
+
+    /**
+     * These processing commands are supported.
+     */
+    private static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS = Set.of(
+        Aggregate.class,
+        ChangePoint.class,
+        Completion.class,
+        Dissect.class,
+        Drop.class,
+        Enrich.class,
+        EsqlProject.class,
+        EsRelation.class,
+        Eval.class,
+        Filter.class,
+        Grok.class,
+        Insist.class,
+        Keep.class,
+        Limit.class,
+        MvExpand.class,
+        OrderBy.class,
+        Project.class,
+        RegexExtract.class,
+        Rename.class,
+        Rerank.class,
+        Row.class,
+        Sample.class,
+        TopN.class
+    );
 
     /**
      * These commands preserve all rows, making it easy to predict the number of output rows.
@@ -209,9 +250,9 @@ public class Approximate {
                 List.of(Failure.fail(logicalPlan.collectLeaves().getFirst(), "query without [STATS] cannot be approximated"))
             );
         }
-        // Only unary plans are supported for now (no FORK or JOIN).
+        // Verify that all commands are supported.
         logicalPlan.forEachUp(plan -> {
-            if (plan instanceof LeafPlan == false && plan instanceof UnaryPlan == false) {
+            if (SUPPORTED_COMMANDS.contains(plan.getClass()) == false) {
                 throw new VerificationException(
                     List.of(Failure.fail(plan, "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] cannot be approximated"))
                 );
@@ -239,7 +280,7 @@ public class Approximate {
                         }
                         return aggFn;
                     });
-                } else if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false) {
+                } else if (plan instanceof LeafPlan == false && ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false) {
                     // Keep track of whether the plan until the STATS preserves all rows.
                     preservesRows.set(false);
                 }

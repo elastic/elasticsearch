@@ -13,7 +13,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,6 +45,10 @@ public class RestGetSampleStatsAction extends BaseRestHandler {
             );
         }
         GetSampleStatsAction.Request getSampleStatsRequest = new GetSampleStatsAction.Request(indexNames[0]);
-        return channel -> client.execute(GetSampleStatsAction.INSTANCE, getSampleStatsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetSampleStatsAction.INSTANCE,
+            getSampleStatsRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 }

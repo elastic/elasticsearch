@@ -22,18 +22,21 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
 public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Response> {
 
@@ -131,7 +134,7 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
         }
     }
 
-    public static class Response extends BaseNodesResponse<GetSampleStatsAction.NodeResponse> implements Writeable, ToXContentObject {
+    public static class Response extends BaseNodesResponse<GetSampleStatsAction.NodeResponse> implements Writeable, ChunkedToXContent {
         final int maxSize;
 
         public Response(StreamInput in) throws IOException {
@@ -192,8 +195,8 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return getSampleStats().toXContent(builder, params);
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return chunk(getSampleStats());
         }
     }
 

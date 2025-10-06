@@ -100,49 +100,45 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
         final StringBuilder toolJsonArgs = new StringBuilder();
         final StringBuilder assistantText = new StringBuilder();
 
-        var handler = ConverseStreamResponseHandler.builder()
-            .onEventStream(es -> es.subscribe(event -> {
-                switch (event.sdkEventType()) {
-                    case MESSAGE_START:
-                        break;
-                    case CONTENT_BLOCK_START:
-                        var start = ((ContentBlockStartEvent) event).start();
-                        if (start.toolUse() != null) {
-                            toolUseIdHolder[0] = start.toolUse().toolUseId();
-                        }
-                        break;
-                    case CONTENT_BLOCK_DELTA:
-                        var delta = ((ContentBlockDeltaEvent) event).delta();
-                        if (delta.toolUse() != null && delta.toolUse().input() != null) {
-                            toolJsonArgs.append(delta.toolUse().input());
-                        }
-                        if (delta.text() != null) {
-                            assistantText.append(delta.text());
-                        }
-                        break;
-                    case MESSAGE_STOP:
-                        var stop = ((MessageStopEvent) event).stopReason();
-                        if ("tool_use".equalsIgnoreCase(stop.name())) {
-                            toolRequested.complete(true);
-                        } else {
-                            toolRequested.complete(false);
-                        }
-                        break;
-                    default:
-                }
-            }))
-            .onResponse(r -> toolRequested.complete(true))
-            .onError(toolRequested::completeExceptionally);
+        var handler = ConverseStreamResponseHandler.builder().onEventStream(es -> es.subscribe(event -> {
+            switch (event.sdkEventType()) {
+                case MESSAGE_START:
+                    break;
+                case CONTENT_BLOCK_START:
+                    var start = ((ContentBlockStartEvent) event).start();
+                    if (start.toolUse() != null) {
+                        toolUseIdHolder[0] = start.toolUse().toolUseId();
+                    }
+                    break;
+                case CONTENT_BLOCK_DELTA:
+                    var delta = ((ContentBlockDeltaEvent) event).delta();
+                    if (delta.toolUse() != null && delta.toolUse().input() != null) {
+                        toolJsonArgs.append(delta.toolUse().input());
+                    }
+                    if (delta.text() != null) {
+                        assistantText.append(delta.text());
+                    }
+                    break;
+                case MESSAGE_STOP:
+                    var stop = ((MessageStopEvent) event).stopReason();
+                    if ("tool_use".equalsIgnoreCase(stop.name())) {
+                        toolRequested.complete(true);
+                    } else {
+                        toolRequested.complete(false);
+                    }
+                    break;
+                default:
+            }
+        })).onResponse(r -> toolRequested.complete(true)).onError(toolRequested::completeExceptionally);
 
-        handler.subscriber(converseStreamOutput ->
-            getUnifiedConverseMessageList(requestEntity.messages()).forEach(toolJsonArgs::append));
+        handler.subscriber(converseStreamOutput -> getUnifiedConverseMessageList(requestEntity.messages()).forEach(toolJsonArgs::append));
 
         if (Boolean.TRUE.equals(toolRequested.get())) {
             toolJsonArgs.toString().contains("args");
             Map<String, Object> result = Map.of("tool_use", toolUseIdHolder[0]);
-//            var toolResultBlock = ContentBlock
-//                .fromToolResult(ToolResultContentBlock.builder()
-//                    .document(DocumentBlock.builder().context(result).build()));
+            // var toolResultBlock = ContentBlock
+            // .fromToolResult(ToolResultContentBlock.builder()
+            // .document(DocumentBlock.builder().context(result).build()));
 
         }
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);

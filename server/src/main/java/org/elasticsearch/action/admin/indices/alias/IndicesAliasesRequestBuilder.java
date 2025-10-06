@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
 
 import java.util.Map;
 
@@ -142,6 +143,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<
      * @param alias The alias
      */
     public IndicesAliasesRequestBuilder removeAlias(String index, String alias) {
+        LogManager.getLogger(IndicesAliasesRequestBuilder.class).info("removing alias [{}] from index [{}]", alias, index);
         request.addAliasAction(AliasActions.remove().index(index).alias(alias));
         return this;
     }

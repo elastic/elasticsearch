@@ -69,7 +69,7 @@ public final class MlIndexAndAlias {
     public static final String FIRST_INDEX_SIX_DIGIT_SUFFIX = "-000001";
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
-    private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
+    private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("^.*\\d{6}$").asMatchPredicate();
 
     static final Comparator<String> INDEX_NAME_COMPARATOR = (index1, index2) -> {
         String[] index1Parts = index1.split("-");
@@ -455,5 +455,55 @@ public final class MlIndexAndAlias {
      */
     public static boolean indexIsReadWriteCompatibleInV9(IndexVersion version) {
         return version.onOrAfter(IndexVersions.V_8_0_0);
+    }
+
+    /**
+     * True if the index name ends with a 6 digit suffix, e.g. 000001
+     */
+    public static boolean indexNameHasSixDigitSuffix(String indexName) {
+        boolean ret = HAS_SIX_DIGIT_SUFFIX.test(indexName);
+        logger.warn("indexNameHasSixDigitSuffix [{}] returning [{}]", indexName, ret);
+        return ret;
+    }
+
+    /**
+     * Strip any suffix from the index name and find any other indices
+     * that match the base name. Then return the latest index from the
+     * matching ones.
+     *
+     * @param index The index to check
+     * @param expressionResolver The expression resolver
+     * @param latestState The latest cluster state
+     * @return The latest index that matches the base name of the given index
+     */
+    public static String latestIndexMatchingBaseName(
+        String index,
+        IndexNameExpressionResolver expressionResolver,
+        ClusterState latestState
+    ) {
+        String baseIndexName = MlIndexAndAlias.has6DigitSuffix(index)
+            ? index.substring(0, index.length() - FIRST_INDEX_SIX_DIGIT_SUFFIX.length())
+            : index;
+
+        String[] matching = expressionResolver.concreteIndexNames(
+            latestState,
+            IndicesOptions.lenientExpandOpenHidden(),
+            baseIndexName + "*"
+        );
+
+        // This should never happen
+        assert matching.length > 0 : "No indices matching [" + baseIndexName + "*]";
+        if (matching.length == 0) {
+            return index;
+        }
+
+        // Exclude indices that start with the same base name but are a different index
+        // e.g. .ml-anomalies-foobar should not be included when the index name is
+        // .ml-anomalies-foo
+        String[] filtered = Arrays.stream(matching).filter(i -> {
+            return i.equals(index) || (has6DigitSuffix(i) && i.length() == baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length());
+        }).toArray(String[]::new);
+
+        return MlIndexAndAlias.latestIndex(filtered);
     }
 }

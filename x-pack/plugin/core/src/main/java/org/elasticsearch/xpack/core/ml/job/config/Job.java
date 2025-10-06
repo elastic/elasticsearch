@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +21,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,11 +30,13 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.utils.MlAnomaliesIndexUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -805,6 +812,8 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         private boolean allowLazyOpen;
         private Blocked blocked = Blocked.none();
         private DatafeedConfig.Builder datafeedConfig;
+        private SetOnce<ClusterState> clusterState = new SetOnce<>();
+        private SetOnce<IndexNameExpressionResolver> indexNameExpressionResolver = new SetOnce<>();
 
         public Builder() {}
 
@@ -877,6 +886,14 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
         public String getId() {
             return id;
+        }
+
+        private void setClusterState(ClusterState state) {
+            this.clusterState.set(state);
+        }
+
+        private void setIndexNameExpressionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
+            this.indexNameExpressionResolver.set(indexNameExpressionResolver);
         }
 
         public void setJobVersion(MlConfigVersion jobVersion) {
@@ -1305,6 +1322,18 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             }
         }
 
+        public Job build(
+            @SuppressWarnings("HiddenField") Date createTime,
+            ClusterState state,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+//            setCreateTime(createTime);
+//            setJobVersion(MlConfigVersion.CURRENT);
+            setClusterState(state);
+            setIndexNameExpressionResolver(indexNameExpressionResolver);
+            return build(createTime);
+        }
+
         /**
          * Builds a job with the given {@code createTime} and the current version.
          * This should be used when a new job is created as opposed to {@link #build()}.
@@ -1313,6 +1342,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
          * @return The job
          */
         public Job build(@SuppressWarnings("HiddenField") Date createTime) {
+            LogManager.getLogger(Job.class).debug("[ML] building job withe create time: [{}]", createTime);
             setCreateTime(createTime);
             setJobVersion(MlConfigVersion.CURRENT);
             return build();
@@ -1342,13 +1372,40 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             // Creation time is NOT required in user input, hence validated only on build
             ExceptionsHelper.requireNonNull(createTime, CREATE_TIME.getPreferredName());
 
+            LogManager.getLogger(Job.class).warn("resultsIndexName: [{}]: ", resultsIndexName);
+
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+                LogManager.getLogger(Job.class).warn("Using default resultsIndexName: [{}]: ", resultsIndexName);
+
             } else if (resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT) == false) {
-                // User-defined names are prepended with "custom"
+                // User-defined names are prepended with "custom" and end with a 6 digit suffix
                 // Conditional guards against multiple prepending due to updates instead of first creation
                 resultsIndexName = resultsIndexName.startsWith("custom-") ? resultsIndexName : "custom-" + resultsIndexName;
             }
+
+            LogManager.getLogger(Job.class).warn("Before: [{}]: ", resultsIndexName);
+
+            resultsIndexName = MlIndexAndAlias.indexNameHasSixDigitSuffix(resultsIndexName)
+                ? resultsIndexName
+                : resultsIndexName + "-000001";
+
+            if (indexNameExpressionResolver.get() != null && clusterState.get() != null) {
+                LogManager.getLogger(Job.class).warn("Getting latest index matching base name: [{}]: ", resultsIndexName);
+
+                String tmpResultsIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(
+                    AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + resultsIndexName,
+                    indexNameExpressionResolver.get(),
+                    clusterState.get()
+                );
+
+                resultsIndexName = tmpResultsIndexName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
+
+                LogManager.getLogger(Job.class).warn("OBTAINED latest index matching base name: [{}]: ", resultsIndexName);
+            }
+
+            LogManager.getLogger(Job.class).warn("After: [{}]: ", resultsIndexName);
+
             if (datafeedConfig != null) {
                 if (datafeedConfig.getId() == null) {
                     datafeedConfig.setId(id);

@@ -212,7 +212,7 @@ public class MlJobIT extends ESRestTestCase {
               "results_index_name" : "%s"}""";
 
         String jobId1 = "create-jobs-with-index-name-option-job-1";
-        String indexName = "non-default-index";
+        String indexName = "non-default-index-000001";
         putJob(jobId1, Strings.format(jobTemplate, indexName));
 
         String jobId2 = "create-jobs-with-index-name-option-job-2";
@@ -406,7 +406,7 @@ public class MlJobIT extends ESRestTestCase {
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request(
             "GET",
-            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index/_mapping"
+            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index-000001/_mapping"
         );
         getResultsMappingRequest.addParameter("pretty", null);
         String resultsMappingAfterJob1 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());

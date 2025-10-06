@@ -1348,6 +1348,7 @@ public class MachineLearning extends Plugin
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
+            indexNameExpressionResolver,
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
             machineLearningExtension.get().isNlpEnabled()

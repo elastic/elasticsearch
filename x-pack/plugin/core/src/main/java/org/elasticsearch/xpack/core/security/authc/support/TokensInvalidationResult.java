@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -59,9 +58,7 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         this.invalidatedTokens = in.readStringCollectionAsList();
         this.previouslyInvalidatedTokens = in.readStringCollectionAsList();
         this.errors = in.readCollectionAsList(StreamInput::readException);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.restStatus = RestStatus.readFrom(in);
-        }
+        this.restStatus = RestStatus.readFrom(in);
     }
 
     public static TokensInvalidationResult emptyResult(RestStatus restStatus) {
@@ -108,8 +105,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         out.writeStringCollection(invalidatedTokens);
         out.writeStringCollection(previouslyInvalidatedTokens);
         out.writeCollection(errors, StreamOutput::writeException);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            RestStatus.writeTo(out, restStatus);
-        }
+        RestStatus.writeTo(out, restStatus);
     }
 }

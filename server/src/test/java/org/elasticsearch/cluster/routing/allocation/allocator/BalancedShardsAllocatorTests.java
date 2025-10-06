@@ -945,13 +945,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         final var nodeId = randomIdentifier();
-        final var stateWithIndices = createStateWithIndices(
-            List.of(nodeId),
-            shardId -> nodeId,
-            indices.toArray(IndexMetadata.Builder[]::new)
-        );
+        final var clusterState = createStateWithIndices(List.of(nodeId), shardId -> nodeId, indices.toArray(IndexMetadata.Builder[]::new));
 
-        final var allShards = stateWithIndices.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
+        final var allShards = clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
         final var shardWriteLoads = new HashMap<ShardId, Double>();
         addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numberOfShardsWithMaxWriteLoad, () -> maxWriteLoad);
         addRandomWriteLoadAndRemoveShard(
@@ -970,7 +966,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         final var allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            stateWithIndices,
+            clusterState,
             ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes(),
             System.nanoTime()

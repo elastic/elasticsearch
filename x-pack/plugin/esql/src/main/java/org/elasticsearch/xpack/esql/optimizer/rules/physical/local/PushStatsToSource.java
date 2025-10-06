@@ -117,7 +117,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                     var countFilter = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, count.filter());
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.toQueryBuilder(), query));
                                 }
-                                return new EsStatsQueryExec.Stat(fieldName, COUNT, query);
+                                return new EsStatsQueryExec.BasicStat(fieldName, COUNT, query);
                             }
                         }
                     }

@@ -36,9 +36,19 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         EXISTS
     }
 
-    public record Stat(String name, StatsType type, QueryBuilder query) {
+    public sealed interface Stat {
+        QueryBuilder filter(QueryBuilder sourceQuery);
+    }
+
+    public record BasicStat(String name, StatsType type, QueryBuilder query) implements Stat {
         public QueryBuilder filter(QueryBuilder sourceQuery) {
             return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
+        }
+    }
+
+    public record ByStat(List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
+        public QueryBuilder filter(QueryBuilder sourceQuery) {
+            throw new AssertionError("TODO(gal) NOCOMMIT");
         }
     }
 

@@ -48,12 +48,9 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     default boolean hasValue(int valueIndex, BytesRef value) {
         final var count = getValueCount(valueIndex);
         final var startIndex = getFirstValueIndex(valueIndex);
+        var ref = new BytesRef();
         for (int index = startIndex; index < startIndex + count; index++) {
-            var ref = new BytesRef();
             ref = getBytesRef(index, ref);
-            if (ref.length == 0) {
-                continue;
-            }
             if (value.equals(ref)) {
                 return true;
             }

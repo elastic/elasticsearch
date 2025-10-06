@@ -64,13 +64,12 @@ $endif$
     default boolean hasValue(int valueIndex, $type$ value) {
         final var count = getValueCount(valueIndex);
         final var startIndex = getFirstValueIndex(valueIndex);
+$if(BytesRef)$
+        var ref = new BytesRef();
+$endif$
         for (int index = startIndex; index < startIndex + count; index++) {
 $if(BytesRef)$
-            var ref = new BytesRef();
             ref = getBytesRef(index, ref);
-            if (ref.length == 0) {
-                continue;
-            }
             if (value.equals(ref)) {
                 return true;
             }

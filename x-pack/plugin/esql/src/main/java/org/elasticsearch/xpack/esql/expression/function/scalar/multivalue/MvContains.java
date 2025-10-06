@@ -287,13 +287,10 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
 
         final var valueCount = subset.getValueCount(position);
         final var startIndex = subset.getFirstValueIndex(position);
+        var value = new BytesRef();
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            var value = new BytesRef();
             // we pass in a reference, but sometimes we only get a return value, see ConstantBytesRefVector.getBytesRef
             value = subset.getBytesRef(valueIndex, value);
-            if (value.length == 0) {
-                continue;
-            }
             if (superset.hasValue(position, value) == false) {
                 return false;
             }

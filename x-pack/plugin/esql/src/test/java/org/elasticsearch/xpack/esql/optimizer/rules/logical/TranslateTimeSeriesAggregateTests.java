@@ -143,7 +143,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         EsRelation relation = as(bucketEval.child(), EsRelation.class);
     }
 
-    public void testRenameTimestampWithRate() {
+    public void testRateWithRename() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
@@ -152,7 +152,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             """);
     }
 
-    public void testRenameTimestampWithOverTimeFunction() {
+    public void testOverTimeFunctionWithRename() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
@@ -161,7 +161,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             """);
     }
 
-    public void testRenameTimestampWithOverTimeFunctionWithTbucket() {
+    public void testTbucketWithRename() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s

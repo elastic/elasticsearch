@@ -561,6 +561,8 @@ cnt:long | cluster:keyword | pod:keyword
 ;
 
 Max of Rate with Bucket
+required_capability: ts_command_v0
+
 TS k8s
 | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
 ;
@@ -570,6 +572,8 @@ maxRate:double | tbucket:datetime
 ;
 
 Max of Rate with Bucket, Rename Timestamp
+required_capability: ts_command_v0
+
 TS k8s
 | RENAME `@timestamp` AS newTs
 | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour) 

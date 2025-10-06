@@ -26,21 +26,26 @@ import java.util.List;
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
     private final ShardSearchFailure[] shardFailures;
+    private final ElasticsearchException guessedCause; // log4j requires a stable cause!
 
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         this(phaseName, msg, null, shardFailures);
     }
 
+    @SuppressWarnings("this-escape")
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+        this.guessedCause = cause == null || super.getCause() == null ? guessFirstRootCause(shardFailures) : null;
     }
 
+    @SuppressWarnings("this-escape")
     public SearchPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
         phaseName = in.readOptionalString();
         shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
+        guessedCause = super.getCause() == null ? guessFirstRootCause(shardFailures) : null;
     }
 
     @Override
@@ -96,14 +101,9 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
 
     @Override
     public Throwable getCause() {
+        // note: log4j requires this to return a stable, consistent cause when called multiple times
         Throwable cause = super.getCause();
-        if (cause == null) {
-            // fall back to guessed root cause
-            for (ElasticsearchException rootCause : guessRootCauses()) {
-                return rootCause;
-            }
-        }
-        return cause;
+        return cause != null ? cause : guessedCause;
     }
 
     @Override
@@ -142,6 +142,16 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             rootCauses.addAll(Arrays.asList(guessRootCauses));
         }
         return rootCauses.toArray(new ElasticsearchException[0]);
+    }
+
+    private static ElasticsearchException guessFirstRootCause(ShardSearchFailure[] shardFailures) {
+        for (ShardOperationFailedException failure : shardFailures) {
+            ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(failure.getCause());
+            if (rootCauses.length > 0) {
+                return rootCauses[0];
+            }
+        }
+        return null;
     }
 
     @Override

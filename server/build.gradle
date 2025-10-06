@@ -202,12 +202,12 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
             'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
             'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+            'com.fasterxml.jackson.databind.util.ClassUtil',
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'org.fusesource.jansi.Ansi',
-            'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.EventFactory',
+            'com.lmax.disruptor.EventHandler',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
             'com.lmax.disruptor.EventTranslatorVararg',
@@ -246,6 +246,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.commons.csv.QuoteMode',
             'org.apache.kafka.clients.producer.Producer',
             'org.apache.kafka.clients.producer.RecordMetadata',
+            'org.apache.kafka.common.serialization.ByteArraySerializer',
             'org.codehaus.stax2.XMLStreamWriter2',
             'org.jctools.queues.MpscArrayQueue',
             'org.osgi.framework.Bundle',
@@ -257,13 +258,24 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
+            'org.osgi.framework.wiring.BundleRevision',
             'org.osgi.framework.wiring.BundleWire',
             'org.osgi.framework.wiring.BundleWiring',
+            'org.zeromq.SocketType',
+            'org.zeromq.ZContext',
+            'org.zeromq.ZMonitor',
+            'org.zeromq.ZMonitor$Event',
+            'org.zeromq.ZMonitor$ZEvent',
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
+
+    ignoreViolations(
+        'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
+        'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+    )
 }
 
 tasks.named("dependencyLicenses").configure {

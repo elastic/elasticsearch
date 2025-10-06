@@ -58,9 +58,18 @@ class JULBridge extends Handler {
 
     private JULBridge() {}
 
+    // package private for tests. Prefix log4j logger names with "jul" to distinguish from other loggers
+    static String loggerName(String julLoggerName) {
+        String loggerName = "jul";
+        if (julLoggerName.isEmpty() == false) {
+            loggerName += "." + julLoggerName;
+        }
+        return loggerName;
+    }
+
     @Override
     public void publish(LogRecord record) {
-        Logger logger = LogManager.getLogger(record.getLoggerName());
+        Logger logger = LogManager.getLogger(loggerName(record.getLoggerName()));
         Level level = translateJulLevel(record.getLevel());
         Throwable thrown = record.getThrown();
 

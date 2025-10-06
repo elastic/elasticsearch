@@ -21,6 +21,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.lang.invoke.MethodHandles;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
 
@@ -59,11 +60,12 @@ public class JULBridgeTests extends ESTestCase {
         }
     }
 
-    private void assertLogged(Runnable loggingCode, LoggingExpectation... expectations) {
-        Logger testLogger = LogManager.getLogger("");
+    private void assertLogged(String julLoggerName, Runnable loggingCode, LoggingExpectation... expectations) {
+        String loggerName = JULBridge.loggerName(julLoggerName);
+        Logger testLogger = LogManager.getLogger(loggerName);
         Level savedLevel = testLogger.getLevel();
 
-        try (var mockLog = MockLog.capture("")) {
+        try (var mockLog = MockLog.capture(loggerName)) {
             Loggers.setLevel(testLogger, Level.ALL);
             for (var expectation : expectations) {
                 mockLog.addExpectation(expectation);
@@ -76,7 +78,7 @@ public class JULBridgeTests extends ESTestCase {
     }
 
     private void assertMessage(String msg, java.util.logging.Level julLevel, Level expectedLevel) {
-        assertLogged(() -> logger.log(julLevel, msg), new SeenEventExpectation(msg, "", expectedLevel, msg));
+        assertLogged("", () -> logger.log(julLevel, msg), new SeenEventExpectation(msg, "jul", expectedLevel, msg));
     }
 
     private static java.util.logging.Level julLevel(int value) {
@@ -113,13 +115,13 @@ public class JULBridgeTests extends ESTestCase {
     public void testThrowable() {
         JULBridge.install();
         java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");
-        assertLogged(() -> logger.log(java.util.logging.Level.SEVERE, "error msg", new Exception("some error")), new LoggingExpectation() {
+        assertLogged("", () -> logger.log(java.util.logging.Level.SEVERE, "error msg", new Exception("some error")), new LoggingExpectation() {
             boolean matched = false;
 
             @Override
             public void match(LogEvent event) {
                 Throwable thrown = event.getThrown();
-                matched = event.getLoggerName().equals("")
+                matched = event.getLoggerName().equals("jul")
                     && event.getMessage().getFormattedMessage().equals("error msg")
                     && thrown != null
                     && thrown.getMessage().equals("some error");
@@ -135,19 +137,19 @@ public class JULBridgeTests extends ESTestCase {
     public void testChildLogger() {
         JULBridge.install();
         java.util.logging.Logger childLogger = java.util.logging.Logger.getLogger("foo");
-        assertLogged(() -> childLogger.info("child msg"), new SeenEventExpectation("child msg", "foo", Level.INFO, "child msg"));
+        assertLogged("foo", () -> childLogger.info("child msg"), new SeenEventExpectation("child msg", "jul.foo", Level.INFO, "child msg"));
     }
 
     public void testNullMessage() {
         JULBridge.install();
-        assertLogged(() -> logger.info((String) null), new SeenEventExpectation("null msg", "", Level.INFO, "<null message>"));
+        assertLogged("", () -> logger.info((String) null), new SeenEventExpectation("null msg", "jul", Level.INFO, "<null message>"));
     }
 
     public void testFormattedMessage() {
         JULBridge.install();
-        assertLogged(
+        assertLogged("",
             () -> logger.log(java.util.logging.Level.INFO, "{0}", "a var"),
-            new SeenEventExpectation("formatted msg", "", Level.INFO, "a var")
+            new SeenEventExpectation("formatted msg", "jul", Level.INFO, "a var")
         );
     }
 }

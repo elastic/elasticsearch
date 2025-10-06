@@ -591,8 +591,9 @@ public class SamplingService implements ClusterStateListener {
         }
 
         public void adjustForMaxSize(int maxSize) {
-            samples.add(maxSize - samples.longValue());
-            samplesRejectedForMaxSamplesExceeded.add(samples.longValue() - maxSize);
+            long actualSamples = samples.longValue();
+            samples.add(maxSize - actualSamples);
+            samplesRejectedForMaxSamplesExceeded.add(actualSamples - maxSize);
         }
     }
 

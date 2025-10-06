@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +27,9 @@ import java.util.Objects;
  * Profile results from a single {@link Driver}.
  */
 public class DriverProfile implements Writeable, ChunkedToXContentObject {
+
+    private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
+
     /**
      * Description of the task this driver is running. This description should be
      * short and meaningful as a grouping identifier. We use the phase of the
@@ -88,9 +92,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     }
 
     public DriverProfile(StreamInput in) throws IOException {
-        this.taskDescription = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19)
-            ? in.readString()
-            : "";
+        this.taskDescription = in.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION) ? in.readString() : "";
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.startMillis = in.readVLong();
             this.stopMillis = in.readVLong();
@@ -113,7 +115,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)) {
             out.writeString(taskDescription);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {

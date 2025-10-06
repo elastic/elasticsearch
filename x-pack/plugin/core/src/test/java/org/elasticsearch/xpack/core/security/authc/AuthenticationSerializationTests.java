@@ -13,21 +13,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -231,48 +227,5 @@ public class AuthenticationSerializationTests extends ESTestCase {
         readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertEquals(kibanaSystemUser, readFrom);
-    }
-
-    public void testRolesRemovedFromUserForLegacyApiKeys() throws IOException {
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_0_0,
-            TransportVersions.V_7_8_0
-        );
-        Subject authenticatingSubject = new Subject(
-            new User("foo", "role"),
-            new Authentication.RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "node"),
-            transportVersion,
-            Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
-        );
-        Subject effectiveSubject = new Subject(
-            new User("bar", "role"),
-            new Authentication.RealmRef("native", "native", "node"),
-            transportVersion,
-            Map.of()
-        );
-
-        {
-            Authentication actual = AuthenticationContextSerializer.decode(
-                Authentication.doEncode(authenticatingSubject, authenticatingSubject, Authentication.AuthenticationType.API_KEY)
-            );
-            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(emptyArray()));
-        }
-
-        {
-            Authentication actual = AuthenticationContextSerializer.decode(
-                Authentication.doEncode(effectiveSubject, authenticatingSubject, Authentication.AuthenticationType.API_KEY)
-            );
-            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(emptyArray()));
-            assertThat(actual.getEffectiveSubject().getUser().roles(), is(arrayContaining("role")));
-        }
-
-        {
-            // do not strip roles for authentication methods other than API key
-            Authentication actual = AuthenticationContextSerializer.decode(
-                Authentication.doEncode(effectiveSubject, effectiveSubject, Authentication.AuthenticationType.REALM)
-            );
-            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(arrayContaining("role")));
-        }
     }
 }

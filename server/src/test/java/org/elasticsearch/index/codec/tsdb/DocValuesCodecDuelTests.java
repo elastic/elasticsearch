@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -43,11 +44,6 @@ public class DocValuesCodecDuelTests extends ESTestCase {
     private static final String FIELD_3 = "number_field_3";
     private static final String FIELD_4 = "number_field_4";
     private static final String FIELD_5 = "binary_field_5";
-
-    public static BinaryDVCompressionMode randomCompressionMode() {
-        BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
-        return modes[random().nextInt(modes.length)];
-    }
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testDuel() throws IOException {
@@ -67,7 +63,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                         ESTestCase.randomIntBetween(1, 4096),
                         ESTestCase.randomIntBetween(1, 512),
                         random().nextBoolean(),
-                        randomCompressionMode()
+                        ES819TSDBDocValuesFormatTests.randomCompressionMode()
                     )
                     : new TestES87TSDBDocValuesFormat();
 

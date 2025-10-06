@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.es819;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
@@ -336,6 +337,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public BytesRef binaryValue() throws IOException {
                     return decoder.decode(doc);
+                }
+
+                @Override
+                public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered, BlockDocValuesReader.ToDouble toDouble, boolean toInt) throws IOException {
+                    return null;
                 }
             };
         } else {
@@ -1358,15 +1364,27 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.numDocsWithField = meta.readInt();
         entry.minLength = meta.readInt();
         entry.maxLength = meta.readInt();
-        if (entry.minLength < entry.maxLength) {
-            entry.addressesOffset = meta.readLong();
+        if (compression == BinaryDVCompressionMode.NO_COMPRESS) {
+            if (entry.minLength < entry.maxLength) {
+                entry.addressesOffset = meta.readLong();
+                // Old count of uncompressed addresses
+                long numAddresses = entry.numDocsWithField + 1L;
+                final int blockShift = meta.readVInt();
+                entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numAddresses, blockShift);
+                entry.addressesLength = meta.readLong();
+            }
+        } else {
+            if (entry.numDocsWithField > 0 || entry.minLength < entry.maxLength) {
+                entry.addressesOffset = meta.readLong();
+                // New count of compressed addresses - the number of compresseed blocks
+                int numCompressedChunks = meta.readVInt();
+                entry.docsPerChunkShift = meta.readVInt();
+                entry.maxUncompressedChunkSize = meta.readVInt();
 
-            // Old count of uncompressed addresses
-            long numAddresses = entry.numDocsWithField + 1L;
-
-            final int blockShift = meta.readVInt();
-            entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numAddresses, blockShift);
-            entry.addressesLength = meta.readLong();
+                final int blockShift = meta.readVInt();
+                entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numCompressedChunks, blockShift);
+                entry.addressesLength = meta.readLong();
+            }
         }
         return entry;
     }

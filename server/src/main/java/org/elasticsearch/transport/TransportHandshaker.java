@@ -175,7 +175,8 @@ final class TransportHandshaker {
     );
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
-    static final TransportVersion V8_19_FIRST_VERSION = TransportVersion.fromName("initial_elasticsearch_8_19_0");
+    // requires an unreferable transport version for initial elasticsearch 8.19.0
+    static final TransportVersion V8_19_FIRST_VERSION = TransportVersion.fromId(8841000);
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
 

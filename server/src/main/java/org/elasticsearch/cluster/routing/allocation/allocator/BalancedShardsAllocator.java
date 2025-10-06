@@ -1000,8 +1000,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Stores the most desirable shard seen so far and compares proposed shards against it using
-         * the {@link PrioritiseByShardWriteLoadComparator}.
+         * Keeps track of the single "best" shard movement we could make from each node, as scored by
+         * the {@link PrioritiseByShardWriteLoadComparator}. Provides a utility for checking if
+         * a proposed movement is "better" than the current best for that node.
          */
         private class BestShardMovementsTracker {
 

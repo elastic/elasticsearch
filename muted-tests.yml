@@ -648,6 +648,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/135032
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testResize {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135909
 
 # Examples:
 #

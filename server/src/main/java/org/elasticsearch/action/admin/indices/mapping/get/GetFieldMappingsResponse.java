@@ -43,8 +43,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
-        mappings = in.readImmutableMap(mapIn ->
-            mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))
+        mappings = in.readImmutableMap(
+            mapIn -> mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))
         );
     }
 

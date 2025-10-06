@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;

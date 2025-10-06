@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -77,8 +75,10 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     GetIndexResponse(StreamInput in) throws IOException {
         this.indices = in.readStringArray();
-        mappings = in.readImmutableOpenMap(StreamInput::readString,
-            i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
+        mappings = in.readImmutableOpenMap(
+            StreamInput::readString,
+            i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS
+        );
         aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new));
         settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);

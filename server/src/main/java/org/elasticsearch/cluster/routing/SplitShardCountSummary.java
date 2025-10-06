@@ -134,6 +134,8 @@ public class SplitShardCountSummary {
         return new SplitShardCountSummary(payload);
     }
 
+    private final int shardCountSummary;
+
     /**
      * Return an integer representation of this summary
      * Used for serialization.
@@ -142,8 +144,6 @@ public class SplitShardCountSummary {
         return shardCountSummary;
     }
 
-    private final int shardCountSummary;
-
     /**
      * Returns whether this shard count summary is carrying an actual value or is UNSET
      */
@@ -151,6 +151,7 @@ public class SplitShardCountSummary {
         return this.shardCountSummary == UNSET.shardCountSummary;
     }
 
+    // visible for testing
     SplitShardCountSummary(int shardCountSummary) {
         this.shardCountSummary = shardCountSummary;
     }

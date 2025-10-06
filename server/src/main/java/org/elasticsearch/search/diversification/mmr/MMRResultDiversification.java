@@ -116,6 +116,9 @@ public class MMRResultDiversification extends ResultDiversification {
             ret[i] = searchHits[scoredDocIndex];
         }
 
+        // cleanup for GC
+        searchHits = null;
+
         return new SearchHits(
             ret,
             hits.getTotalHits(),

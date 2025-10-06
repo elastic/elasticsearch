@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,9 +39,7 @@ public class RetryActionRequest extends AcknowledgedRequest<RetryActionRequest> 
         super(in);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().supports(RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18)) {
+        if (in.getTransportVersion().supports(RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR)) {
             this.requireError = in.readBoolean();
         }
     }
@@ -86,9 +83,7 @@ public class RetryActionRequest extends AcknowledgedRequest<RetryActionRequest> 
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().supports(RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18)) {
+        if (out.getTransportVersion().supports(RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR)) {
             out.writeBoolean(requireError);
         }
     }

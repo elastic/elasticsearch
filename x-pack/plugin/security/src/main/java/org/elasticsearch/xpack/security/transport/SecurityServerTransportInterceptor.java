@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -29,44 +31,92 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
+    private final AuthenticationService authcService;
+    private final AuthorizationService authzService;
     private final RemoteClusterTransportInterceptor remoteClusterTransportInterceptor;
     private final Map<String, ServerTransportFilter> profileFilters;
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
+    private final Settings settings;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
         ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         RemoteClusterTransportInterceptor remoteClusterTransportInterceptor
-
     ) {
         this.remoteClusterTransportInterceptor = remoteClusterTransportInterceptor;
         this.securityContext = securityContext;
         this.threadPool = threadPool;
+        this.settings = settings;
+        this.authcService = authcService;
+        this.authzService = authzService;
         final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
-        this.profileFilters = this.remoteClusterTransportInterceptor.getProfileTransportFilters(
-            profileConfigurations,
-            destructiveOperations
-        );
+        this.profileFilters = initializeProfileFilters(profileConfigurations, destructiveOperations);
+    }
+
+    private Map<String, ServerTransportFilter> initializeProfileFilters(
+        final Map<String, SslProfile> profileConfigurations,
+        final DestructiveOperations destructiveOperations
+    ) {
+        final Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
+        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+
+        for (Map.Entry<String, SslProfile> entry : profileConfigurations.entrySet()) {
+            final String profileName = entry.getKey();
+            final SslProfile sslProfile = entry.getValue();
+            if (profileName.equals(REMOTE_CLUSTER_PROFILE)) {
+                var remoteProfileTransportFilter = this.remoteClusterTransportInterceptor.getRemoteProfileTransportFilter(
+                    sslProfile,
+                    destructiveOperations
+                );
+                if (remoteProfileTransportFilter.isPresent()) {
+                    profileFilters.put(profileName, remoteProfileTransportFilter.get());
+                    continue;
+                }
+            }
+
+            final SslConfiguration profileConfiguration = sslProfile.configuration();
+            assert profileConfiguration != null : "SSL Profile [" + sslProfile + "] for [" + profileName + "] has a null configuration";
+            profileFilters.put(
+                profileName,
+                new ServerTransportFilter(
+                    authcService,
+                    authzService,
+                    threadPool.getThreadContext(),
+                    transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                    destructiveOperations,
+                    securityContext
+                )
+            );
+        }
+
+        return Collections.unmodifiableMap(profileFilters);
     }
 
     @Override

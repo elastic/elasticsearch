@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,6 +61,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
     }
 
     public void testActionNames() {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = mock(BigArrays.class);
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
@@ -67,7 +71,8 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
             bigArrays,
             transportService,
             actionFilters,
-            ccrRestoreSourceService
+            ccrRestoreSourceService,
+            namedWriteableRegistry
         );
         assertThat(action.actionName, equalTo(GetCcrRestoreFileChunkAction.NAME));
 
@@ -75,12 +80,14 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
             bigArrays,
             transportService,
             actionFilters,
-            ccrRestoreSourceService
+            ccrRestoreSourceService,
+            namedWriteableRegistry
         );
         assertThat(internalAction.actionName, equalTo(GetCcrRestoreFileChunkAction.INTERNAL_NAME));
     }
 
     public void testRequestedShardIdMustBeConsistentWithSessionShardId() {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofBytes(1024));
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
@@ -108,7 +115,8 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
             bigArrays,
             transportService,
             actionFilters,
-            ccrRestoreSourceService
+            ccrRestoreSourceService,
+            namedWriteableRegistry
         );
 
         final String expectedFileName = randomAlphaOfLengthBetween(3, 12);

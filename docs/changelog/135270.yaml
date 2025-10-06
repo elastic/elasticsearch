@@ -1,5 +1,0 @@
-pr: 135270
-summary: Add .reindexed-v7-ml-anomalies-* to anomaly results template index pattern
-area: Machine Learning
-type: bug
-issues: []

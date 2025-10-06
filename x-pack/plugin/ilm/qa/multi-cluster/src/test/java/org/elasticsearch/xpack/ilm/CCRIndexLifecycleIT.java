@@ -11,6 +11,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitUntilTimeSeriesEndTimePassesStep;
+import org.elasticsearch.xpack.ilm.action.RestPutLifecycleAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,6 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIndexLifecycleIT.class);
+    private static final String TEST_PHASE = "hot";
     private static final String TSDB_INDEX_TEMPLATE = """
         {
             "index_patterns": ["%s*"],
@@ -677,7 +680,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             {
                 builder.startObject("phases");
                 {
-                    builder.startObject("hot");
+                    builder.startObject(TEST_PHASE);
                     {
                         builder.startObject("actions");
                         {
@@ -733,6 +736,13 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
+        if (maxSize != null) {
+            request.setOptions(
+                expectWarnings(
+                    ParameterizedMessage.format(RestPutLifecycleAction.MAX_SIZE_DEPRECATION_MESSAGE, new Object[] { TEST_PHASE })
+                )
+            );
+        }
         assertOK(client().performRequest(request));
     }
 

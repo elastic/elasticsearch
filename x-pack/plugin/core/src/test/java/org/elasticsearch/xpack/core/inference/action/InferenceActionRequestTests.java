@@ -33,6 +33,9 @@ import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class InferenceActionRequestTests extends AbstractBWCWireSerializationTestCase<InferenceAction.Request> {
 
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
+    private static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = TransportVersion.fromName("rerank_common_options_added");
+
     @Override
     protected Writeable.Reader<InferenceAction.Request> instanceReader() {
         return InferenceAction.Request::new;
@@ -657,39 +660,37 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             InferenceAction.Request.DEFAULT_TIMEOUT,
                             false
                         );
-                    } else if (version.before(TransportVersions.INFERENCE_CONTEXT)
-                        && version.isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X) == false) {
-                            mutated = new InferenceAction.Request(
-                                instance.getTaskType(),
-                                instance.getInferenceEntityId(),
-                                instance.getQuery(),
-                                null,
-                                null,
-                                instance.getInput(),
-                                instance.getTaskSettings(),
-                                instance.getInputType(),
-                                instance.getInferenceTimeout(),
-                                false,
-                                InferenceContext.EMPTY_INSTANCE
-                            );
-                        } else if (version.before(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
-                            && version.isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19) == false) {
-                                mutated = new InferenceAction.Request(
-                                    instance.getTaskType(),
-                                    instance.getInferenceEntityId(),
-                                    instance.getQuery(),
-                                    null,
-                                    null,
-                                    instance.getInput(),
-                                    instance.getTaskSettings(),
-                                    instance.getInputType(),
-                                    instance.getInferenceTimeout(),
-                                    false,
-                                    instance.getContext()
-                                );
-                            } else {
-                                mutated = instance;
-                            }
+                    } else if (version.supports(INFERENCE_CONTEXT) == false) {
+                        mutated = new InferenceAction.Request(
+                            instance.getTaskType(),
+                            instance.getInferenceEntityId(),
+                            instance.getQuery(),
+                            null,
+                            null,
+                            instance.getInput(),
+                            instance.getTaskSettings(),
+                            instance.getInputType(),
+                            instance.getInferenceTimeout(),
+                            false,
+                            InferenceContext.EMPTY_INSTANCE
+                        );
+                    } else if (version.supports(RERANK_COMMON_OPTIONS_ADDED) == false) {
+                        mutated = new InferenceAction.Request(
+                            instance.getTaskType(),
+                            instance.getInferenceEntityId(),
+                            instance.getQuery(),
+                            null,
+                            null,
+                            instance.getInput(),
+                            instance.getTaskSettings(),
+                            instance.getInputType(),
+                            instance.getInferenceTimeout(),
+                            false,
+                            instance.getContext()
+                        );
+                    } else {
+                        mutated = instance;
+                    }
 
         // We always assume that a request has been rerouted, if it came from a node without adaptive rate limiting
         if (version.before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {

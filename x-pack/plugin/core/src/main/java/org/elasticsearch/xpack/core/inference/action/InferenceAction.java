@@ -94,6 +94,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return builder;
         }
 
+        private static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = TransportVersion.fromName("rerank_common_options_added");
+
         private final TaskType taskType;
         private final String inferenceEntityId;
         private final String query;
@@ -182,8 +184,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (in.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 this.returnDocuments = in.readOptionalBoolean();
                 this.topN = in.readOptionalInt();
             } else {
@@ -305,8 +306,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeTimeValue(inferenceTimeout);
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (out.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 out.writeOptionalBoolean(returnDocuments);
                 out.writeOptionalInt(topN);
             }

@@ -167,7 +167,7 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
-        assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+        assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
     }
 }

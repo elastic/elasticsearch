@@ -137,15 +137,14 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         } else {
             assertNull(attributes.get(SearchRequestAttributesExtractor.KNN_ATTRIBUTE));
         }
-        if (rangeOnTimestamp) {
-            assertEquals(rangeOnTimestamp, attributes.get(SearchRequestAttributesExtractor.RANGE_TIMESTAMP_ATTRIBUTE));
+        if (rangeOnTimestamp && rangeOnEventIngested) {
+            assertEquals("both", attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE));
+        } else if (rangeOnTimestamp) {
+            assertEquals("@timestamp", attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE));
+        } else if (rangeOnEventIngested) {
+            assertEquals("event.ingested", attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE));
         } else {
-            assertNull(attributes.get(SearchRequestAttributesExtractor.RANGE_TIMESTAMP_ATTRIBUTE));
-        }
-        if (rangeOnEventIngested) {
-            assertEquals(rangeOnEventIngested, attributes.get(SearchRequestAttributesExtractor.RANGE_EVENT_INGESTED_ATTRIBUTE));
-        } else {
-            assertNull(attributes.get(SearchRequestAttributesExtractor.RANGE_EVENT_INGESTED_ATTRIBUTE));
+            assertEquals("none", attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE));
         }
     }
 

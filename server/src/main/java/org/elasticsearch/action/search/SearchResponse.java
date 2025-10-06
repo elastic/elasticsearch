@@ -88,7 +88,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final Clusters clusters;
     private final long tookInMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
-    private transient Long rangeTimestampFromMillis;
+    private transient Long timeRangeFilterFromMillis;
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
@@ -189,7 +189,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             clusters,
             pointInTimeId
         );
-        this.rangeTimestampFromMillis = searchResponseSections.rangeTimestampFromMillis;
+        this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
     }
 
     public SearchResponse(
@@ -467,8 +467,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalBytesReference(pointInTimeId);
     }
 
-    public Long getRangeTimestampFromMillis() {
-        return rangeTimestampFromMillis;
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
     }
 
     @Override

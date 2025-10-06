@@ -288,9 +288,9 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals(target, attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
-            assertEquals(true, attributes.get("range_timestamp"));
+            assertEquals("@timestamp", attributes.get("time_range_filter_field"));
             assertEquals(isSystem, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
         }
     }
 
@@ -314,8 +314,9 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            // the range query was rewritten to one without bounds: we do track the from but we don't set the boolean flag
-            assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+            // the range query was rewritten to one without bounds: we do track the time range filter from value but we don't set
+            // the time range filter field because no range query is executed at the shard level.
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
         }
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         // in this case, each shard queried has results to be fetched
@@ -328,7 +329,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            // no time range filter bucketing on the fetch phase, the query was rewritten to one without bounds
+            // no time range filter bucketing on the fetch phase, because the query was rewritten to one without bounds
         }
     }
 

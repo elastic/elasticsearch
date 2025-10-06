@@ -56,15 +56,15 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long rangeTimestampFromMillis = searchExecutionContext.getRangeTimestampFromMillis();
-        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request(), rangeTimestampFromMillis);
+        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
+        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long rangeTimestampFromMillis = searchExecutionContext.getRangeTimestampFromMillis();
-        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request(), rangeTimestampFromMillis);
+        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
+        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
     }
 
     private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
@@ -75,11 +75,11 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
         LongHistogram histogramMetric,
         long tookInNanos,
         ShardSearchRequest request,
-        Long rangeTimestampFromMillis
+        Long timeRangeFilterFromMillis
     ) {
         Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(
             request,
-            rangeTimestampFromMillis,
+            timeRangeFilterFromMillis,
             request.nowInMillis()
         );
         histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);

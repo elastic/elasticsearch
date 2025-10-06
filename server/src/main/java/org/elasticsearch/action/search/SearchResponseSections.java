@@ -52,7 +52,7 @@ public class SearchResponseSections implements Releasable {
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
-    protected final Long rangeTimestampFromMillis;
+    protected final Long timeRangeFilterFromMillis;
 
     public SearchResponseSections(
         SearchHits hits,
@@ -62,7 +62,7 @@ public class SearchResponseSections implements Releasable {
         Boolean terminatedEarly,
         SearchProfileResults profileResults,
         int numReducePhases,
-        Long rangeTimestampFromMillis
+        Long timeRangeFilterFromMillis
     ) {
         this.hits = hits;
         this.aggregations = aggregations;
@@ -71,7 +71,7 @@ public class SearchResponseSections implements Releasable {
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
-        this.rangeTimestampFromMillis = rangeTimestampFromMillis;
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
     }
 
     public final SearchHits hits() {

@@ -487,7 +487,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
         // there were no results, and no shards queried, hence no range filter extracted from the query either
     }
 
@@ -539,8 +539,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
-        assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+        assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
     }
 
     public void testTimeRangeFilterAllResultsFilterOnEventIngested() {
@@ -560,11 +560,12 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         Measurement measurement = measurements.getFirst();
         assertEquals(searchResponse.getTook().millis(), measurement.getLong());
         Map<String, Object> attributes = measurement.attributes();
-        assertEquals(4, attributes.size());
+        assertEquals(5, attributes.size());
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_event_ingested"));
+        assertEquals("event.ingested", attributes.get("time_range_filter_field"));
+        assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
     }
 
     public void testTimeRangeFilterAllResultsFilterOnEventIngestedAndTimestamp() {
@@ -585,13 +586,12 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         Measurement measurement = measurements.getFirst();
         assertEquals(searchResponse.getTook().millis(), measurement.getLong());
         Map<String, Object> attributes = measurement.attributes();
-        assertEquals(6, attributes.size());
+        assertEquals(5, attributes.size());
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_event_ingested"));
-        assertEquals(true, attributes.get("range_timestamp"));
-        assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+        assertEquals("@timestamp_AND_event.ingested", attributes.get("time_range_filter_field"));
+        assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
     }
 
     public void testTimeRangeFilterOneResultQueryAndFetchRecentTimestamps() {
@@ -618,8 +618,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("@timestamp", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
-        assertEquals("15_minutes", attributes.get("timestamp_range_filter"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+        assertEquals("15_minutes", attributes.get("time_range_filter_from"));
     }
 
     public void testMultipleTimeRangeFiltersQueryAndFetchRecentTimestamps() {
@@ -651,8 +651,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("@timestamp", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
-        assertEquals("1_hour", attributes.get("timestamp_range_filter"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+        assertEquals("1_hour", attributes.get("time_range_filter_from"));
     }
 
     public void testTimeRangeFilterAllResultsShouldClause() {
@@ -714,8 +714,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
-        assertEquals("1_hour", attributes.get("timestamp_range_filter"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+        assertEquals("1_hour", attributes.get("time_range_filter_from"));
     }
 
     public void testTimeRangeFilterAllResultsMixedPrecision() {
@@ -741,8 +741,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
-        assertEquals("1_hour", attributes.get("timestamp_range_filter"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+        assertEquals("1_hour", attributes.get("time_range_filter_from"));
     }
 
     private void resetMeter() {

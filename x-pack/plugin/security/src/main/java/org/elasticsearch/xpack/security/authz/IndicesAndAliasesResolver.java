@@ -372,15 +372,16 @@ class IndicesAndAliasesResolver {
                 }
 
                 var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
-                resolvedExpressionsBuilder.addLocalExpressions(
+                resolvedExpressionsBuilder.addExpressions(
                     Metadata.ALL,
                     localExpressions,
-                    ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                    ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                    Collections.emptySet()
                 );
                 var resolved = resolvedExpressionsBuilder.build();
 
-                if (recordResolvedIndexExpressions) {
-                    replaceable.setResolvedIndexExpressions(resolved);
+                if (crossProjectModeDecider.crossProjectEnabled()) {
+                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                 }
                 resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
 

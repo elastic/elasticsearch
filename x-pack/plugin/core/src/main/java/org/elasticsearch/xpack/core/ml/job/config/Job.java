@@ -21,7 +21,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -1338,7 +1337,6 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
          * @return The job
          */
         public Job build(@SuppressWarnings("HiddenField") Date createTime) {
-            LogManager.getLogger(Job.class).debug("[ML] building job withe create time: [{}]", createTime);
             setCreateTime(createTime);
             setJobVersion(MlConfigVersion.CURRENT);
             return build();

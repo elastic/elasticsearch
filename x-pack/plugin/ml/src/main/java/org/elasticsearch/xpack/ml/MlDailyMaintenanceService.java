@@ -162,14 +162,14 @@ public class MlDailyMaintenanceService implements Releasable {
      * @param clusterName the cluster name is used to seed the random offset
      * @return the delay to the next time the maintenance should be triggered
      */
-     private static TimeValue delayToNextTime(ClusterName clusterName) {
-     Random random = new Random(clusterName.hashCode());
-     int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
+    private static TimeValue delayToNextTime(ClusterName clusterName) {
+        Random random = new Random(clusterName.hashCode());
+        int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
 
-     ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
-     ZonedDateTime next = now.plusDays(1).toLocalDate().atStartOfDay(now.getZone()).plusMinutes(30).plusMinutes(minutesOffset);
-     return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
-     }
+        ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
+        ZonedDateTime next = now.plusDays(1).toLocalDate().atStartOfDay(now.getZone()).plusMinutes(30).plusMinutes(minutesOffset);
+        return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
+    }
 
     public synchronized void start() {
         logger.info("Starting ML daily maintenance service");
@@ -308,9 +308,7 @@ public class MlDailyMaintenanceService implements Releasable {
             );
 
         // 4 Clean up any dangling aliases
-        ActionListener<Boolean> aliasListener = ActionListener.wrap(r -> {
-            listener.onResponse(r);
-        }, e -> {
+        ActionListener<Boolean> aliasListener = ActionListener.wrap(r -> { listener.onResponse(r); }, e -> {
             if (e instanceof IndexNotFoundException) {
                 // Removal of the rollover alias may have failed in the case of rollover not occurring, e.g. when the rollover conditions
                 // were not satisfied.
@@ -506,16 +504,13 @@ public class MlDailyMaintenanceService implements Releasable {
             Set<String> jobsInStateWithoutTask = Sets.difference(jobsInState, jobsWithTask);
             if (jobsInStateWithoutTask.isEmpty()) {
                 finalListener.onResponse(AcknowledgedResponse.TRUE);
-
                 return;
             }
-
             TypedChainTaskExecutor<Tuple<String, AcknowledgedResponse>> chainTaskExecutor = new TypedChainTaskExecutor<>(
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 Predicates.always(),
                 Predicates.always()
             );
-
             for (String jobId : jobsInStateWithoutTask) {
                 chainTaskExecutor.add(
                     listener -> executeAsyncWithOrigin(
@@ -527,16 +522,12 @@ public class MlDailyMaintenanceService implements Releasable {
                     )
                 );
             }
-
             chainTaskExecutor.execute(jobsActionListener);
         }, finalListener::onFailure);
-
         ActionListener<GetJobsAction.Response> getJobsActionListener = ActionListener.wrap(getJobsResponse -> {
             Set<String> jobsInState = getJobsResponse.getResponse().results().stream().filter(jobFilter).map(Job::getId).collect(toSet());
             if (jobsInState.isEmpty()) {
-                logger.warn("[{}]: no jobs in state [{}]", maintenanceTaskName, jobsInState);
                 finalListener.onResponse(AcknowledgedResponse.TRUE);
-
                 return;
             }
             jobsInStateHolder.set(jobsInState);
@@ -549,7 +540,6 @@ public class MlDailyMaintenanceService implements Releasable {
                 listTasksActionListener
             );
         }, finalListener::onFailure);
-
         executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request("*"), getJobsActionListener);
     }
 

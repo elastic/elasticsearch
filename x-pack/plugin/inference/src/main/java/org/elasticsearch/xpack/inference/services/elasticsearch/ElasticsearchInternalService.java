@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -115,8 +114,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
-
-    public static final FeatureFlag ELASTIC_RERANKER_CHUNKING = new FeatureFlag("elastic_reranker_chunking_long_documents");
 
     /**
      * Fix for https://github.com/elastic/elasticsearch/issues/124675
@@ -698,7 +695,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         });
 
-        if (model instanceof ElasticRerankerModel elasticRerankerModel && ELASTIC_RERANKER_CHUNKING.isEnabled()) {
+        if (model instanceof ElasticRerankerModel elasticRerankerModel) {
             var serviceSettings = elasticRerankerModel.getServiceSettings();
             var longDocumentStrategy = serviceSettings.getLongDocumentStrategy();
             if (longDocumentStrategy == ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK) {

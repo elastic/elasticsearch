@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -70,7 +71,16 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            RestSearchAction.parseSearchRequest(searchRequest, request, parser, clusterSupportsFeature, setSize, searchUsageHolder);
+            RestSearchAction.parseSearchRequest(
+                searchRequest,
+                request,
+                parser,
+                clusterSupportsFeature,
+                setSize,
+                searchUsageHolder,
+                // This endpoint is not CPS-enabled.
+                Optional.empty()
+            );
             String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
             final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
             for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {

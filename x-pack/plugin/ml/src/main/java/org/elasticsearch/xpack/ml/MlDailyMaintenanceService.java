@@ -399,13 +399,10 @@ public class MlDailyMaintenanceService implements Releasable {
                 client,
                 new RolloverRequestBuilder(client).setRolloverTarget(rolloverAlias)
                     .setNewIndexName(newIndexName)
+                    // TODO Make these conditions configurable settings?
                     // .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(50,
-                    // ByteSizeUnit.GB)).build()) // TODO Make these settings?
-                    .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(2, ByteSizeUnit.MB)).build()) // TODO
-                                                                                                                                           // Make
-                                                                                                                                           // these
-                                                                                                                                           // changeable
-                                                                                                                                           // settings?
+                    // ByteSizeUnit.GB)).build())
+                    .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(2, ByteSizeUnit.MB)).build())
                     .request(),
                 rolloverListener
             );

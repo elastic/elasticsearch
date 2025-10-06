@@ -1031,6 +1031,14 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
+    /**
+     * Randomly select a shard and add a random write-load for it
+     *
+     * @param shardWriteLoads The map of shards to write-loads, this will be added to
+     * @param shards The set of shards to select from, selected shards will be removed from this set
+     * @param count The number of shards to generate write loads for
+     * @param writeLoadSupplier The supplier of random write loads to use
+     */
     private void addRandomWriteLoadAndRemoveShard(
         Map<ShardId, Double> shardWriteLoads,
         Set<ShardRouting> shards,

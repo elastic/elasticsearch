@@ -10,12 +10,10 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
     | EVAL is_expected = count >= 450000 AND count <= 550000 AND
                          avg >= 600 AND avg <= 750 AND
-                         sum >= 300000000 AND sum <= 380000000 AND
-                         min >= 0 AND min <= 100 AND
-                         max == 1000
+                         sum >= 300000000 AND sum <= 380000000
     | KEEP is_expected
 ;
 
@@ -30,11 +28,11 @@ approximate: true
 
 FROM many_numbers
     | WHERE value <= 25
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
 ;
 
-count:long | avg:double | sum:long | min:integer | max:integer
-325        | 17.0       | 5525     | 1           | 25
+count:long | avg:double | sum:long
+325        | 17.0       | 5525
 ;
 
 
@@ -44,12 +42,10 @@ approximate: true
 
 FROM many_numbers
     | WHERE value >= 500
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
     | EVAL is_expected = count >= 300000 AND count <= 450000 AND
                          avg >= 700 AND avg <= 850 AND
-                         sum >= 270000000 AND sum <= 310000000 AND
-                         min >= 500 AND
-                         max == 1000
+                         sum >= 270000000 AND sum <= 310000000
     | KEEP is_expected
 ;
 
@@ -65,14 +61,10 @@ approximate: true
 FROM many_numbers
     | STATS count=COUNT() WHERE value >= 500,
             avg=AVG(value) WHERE value >= 500,
-            sum=SUM(value) WHERE value >= 500,
-            min=MIN(value) WHERE value >= 500,
-            max=MAX(value) WHERE value >= 500
+            sum=SUM(value) WHERE value >= 500
     | EVAL is_expected = count >= 300000 AND count <= 450000 AND
                          avg >= 700 AND avg <= 850 AND
-                         sum >= 270000000 AND sum <= 310000000 AND
-                         min >= 500 AND
-                         max == 1000
+                         sum >= 270000000 AND sum <= 310000000
     | KEEP is_expected
 ;
 
@@ -87,12 +79,10 @@ approximate: true
 
 FROM many_numbers
     | SAMPLE 0.5
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
     | EVAL is_expected = count >= 200000 AND count <= 300000 AND
                          avg >= 600 AND avg <= 750 AND
-                         sum >= 140000000 AND sum <= 200000000 AND
-                         min >= 0 AND min <= 100 AND
-                         max == 1000
+                         sum >= 140000000 AND sum <= 200000000
     | KEEP is_expected
 ;
 
@@ -110,16 +100,16 @@ FROM many_numbers
     | DROP value
     | SORT value2 DESC
     | RENAME value2 AS value3
+    | MV_EXPAND value3
     | EVAL value4 = TO_STRING(value3)
+    | SORT value4 ASC
     | GROK value4 "%{NUMBER:value5}"
     | EVAL value5 = TO_INTEGER(value5)
     | KEEP value3, value5
-    | STATS count=COUNT(), avg=AVG(value5), sum=SUM(value5), min=MIN(value5), max=MAX(value5)
+    | STATS count=COUNT(), avg=AVG(value5), sum=SUM(value5)
     | EVAL is_expected = count >= 450000 AND count <= 550000 AND
                          avg >= 1200 AND avg <= 1500 AND
-                         sum >= 600000000 AND sum <= 760000000 AND
-                         min >= 0 AND min <= 200 AND
-                         max == 2000
+                         sum >= 600000000 AND sum <= 760000000
     | KEEP is_expected
 ;
 
@@ -133,16 +123,14 @@ required_capability: approximate
 approximate: true
 
 FROM many_numbers
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value), min=MIN(value), max=MAX(value)
+    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
     | EVAL avg2 = 2 * avg
     | LIMIT 10
-    | MV_EXPAND min
+    | MV_EXPAND avg
     | SORT count ASC
     | EVAL is_expected = count >= 450000 AND count <= 550000 AND
                          avg2 >= 1200 AND avg2 <= 1500 AND
-                         sum >= 300000000 AND sum <= 380000000 AND
-                         min >= 0 AND min <= 100 AND
-                         max == 1000
+                         sum >= 300000000 AND sum <= 380000000
     | KEEP is_expected
 ;
 

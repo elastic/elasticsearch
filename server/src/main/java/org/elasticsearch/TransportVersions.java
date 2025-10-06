@@ -166,11 +166,6 @@ public class TransportVersions {
     public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
     public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_0_00);
     public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_070_0_00);
-    public static final TransportVersion FILE_SETTINGS_HEALTH_INFO = def(9_072_0_00);
-    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = def(9_075_0_00);
-    public static final TransportVersion ESQL_TIME_SERIES_SOURCE_STATUS = def(9_076_0_00);
-    public static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = def(9_079_0_00);
-    public static final TransportVersion ESQL_LIMIT_ROW_SIZE = def(9_085_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -16,6 +16,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Holds information about the target projects for a cross-project search request. This record is used both by the
+ * project authorization filter and project routing logic.
+ * @param originProject the origin project, can be null if the request is not cross-project OR it was excluded by
+ *                      project routing
+ * @param linkedProjects all projects that are linked and authorized, can be empty if the request is not cross-project
+ */
 public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
     public static final TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
 
@@ -37,7 +44,7 @@ public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<Pr
         return Collections.unmodifiableSet(allProjectAliases);
     }
 
-    public boolean isEmpty() {
-        return originProject == null && linkedProjects.isEmpty();
+    public boolean crossProject() {
+        return originProject != null || linkedProjects.isEmpty() == false;
     }
 }

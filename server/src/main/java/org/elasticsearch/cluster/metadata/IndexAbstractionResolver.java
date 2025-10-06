@@ -78,9 +78,10 @@ public class IndexAbstractionResolver {
     ) {
         assert targetProjects != TargetProjects.NOT_CROSS_PROJECT
             : "cannot resolve indices cross project if target set is NOT_CROSS_PROJECT";
-        if (targetProjects.isEmpty()) {
-            assert false : "cannot resolve indices cross project if target set is empty";
-            throw new IllegalArgumentException("cannot resolve indices cross project if target set is empty");
+        if (false == targetProjects.crossProject()) {
+            final String message = "cannot resolve indices cross project if target set is empty";
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
 
         final String originProjectAlias = targetProjects.originProjectAlias();
@@ -93,6 +94,8 @@ public class IndexAbstractionResolver {
 
             final String localIndexExpression = indexRewriteResult.localExpression();
             if (localIndexExpression == null) {
+                // TODO we may still need to update the `wildcardSeen` value to correctly handle exclusions
+                // (there can be an exclusion without any local index expressions)
                 // nothing to resolve locally so skip resolve abstraction call
                 resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
                 continue;

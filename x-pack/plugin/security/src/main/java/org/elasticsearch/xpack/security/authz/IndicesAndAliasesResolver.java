@@ -66,7 +66,6 @@ class IndicesAndAliasesResolver {
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
-    private final boolean recordResolvedIndexExpressions;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
     IndicesAndAliasesResolver(
@@ -79,7 +78,6 @@ class IndicesAndAliasesResolver {
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        this.recordResolvedIndexExpressions = crossProjectModeDecider.crossProjectEnabled();
     }
 
     /**
@@ -376,7 +374,7 @@ class IndicesAndAliasesResolver {
                     // a none expression should not go through cross-project resolution -- fall back to local resolution logic
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
-                    assert recordResolvedIndexExpressions : "cross-project requests must record resolved index expressions";
+                    assert authorizedProjects.crossProject() : "cross-project requests must have cross-project target set";
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
@@ -390,14 +388,6 @@ class IndicesAndAliasesResolver {
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
-                    // we need an early return here, instead of relying on the outer none expression logic since the outer handling will
-                    // prematurely throw an IndexNotFound exception if the resolved indices are empty and allow_no_indices is false.
-                    if (resolvedIndicesBuilder.isEmpty()) {
-                        setNoneExpression(replaceable, resolvedIndicesBuilder);
-                    } else {
-                        replaceable.indices(resolvedIndicesBuilder.build().toArray());
-                    }
-                    return resolvedIndicesBuilder.build();
                 } else {
                     final ResolvedIndices split;
                     if (replaceable.allowsRemoteIndices()) {
@@ -416,7 +406,7 @@ class IndicesAndAliasesResolver {
                     // only store resolved expressions if configured, to avoid unnecessary memory usage
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them
-                    if (recordResolvedIndexExpressions) {
+                    if (crossProjectModeDecider.crossProjectEnabled()) {
                         setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
@@ -424,9 +414,15 @@ class IndicesAndAliasesResolver {
                 }
             }
             if (resolvedIndicesBuilder.isEmpty()) {
-                if (indicesOptions.allowNoIndices()) {
+                // if we resolved the request according to CPS rules, error handling (like throwing IndexNotFoundException) happens later
+                // therefore, don't throw here
+                if (indicesOptions.allowNoIndices() || crossProjectModeDecider.resolvesCrossProject(replaceable)) {
                     indicesReplacedWithNoIndices = true;
-                    setNoneExpression(replaceable, resolvedIndicesBuilder);
+                    // this is how we tell es core to return an empty response, we can let the request through being sure
+                    // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
+                    // as that would be resolved to _all by es core.
+                    replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
+                    resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
                     throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
                 }
@@ -482,15 +478,6 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
-    }
-
-    private static void setNoneExpression(IndicesRequest.Replaceable replaceable, ResolvedIndices.Builder resolvedIndicesBuilder) {
-        assert resolvedIndicesBuilder.isEmpty() : "we only mark with none expression on empty resolved indices";
-        // this is how we tell es core to return an empty response, we can let the request through being sure
-        // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
-        // as that would be resolved to _all by es core.
-        replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
-        resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
     }
 
     private static void setResolvedIndexExpressionsIfUnset(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {

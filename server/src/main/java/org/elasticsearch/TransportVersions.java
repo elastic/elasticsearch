@@ -156,11 +156,6 @@ public class TransportVersions {
     public static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = def(9_041_0_00);
     public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);
     public static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = def(9_046_0_00);
-    public static final TransportVersion REPO_ANALYSIS_COPY_BLOB = def(9_048_0_00);
-    public static final TransportVersion DEAD_ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
-    public static final TransportVersion DEAD_BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
-    public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
-    public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

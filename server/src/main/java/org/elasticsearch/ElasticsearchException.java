@@ -2018,13 +2018,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             183,
             TransportVersions.V_8_16_0
         ),
-        REMOTE_EXCEPTION(
-            RemoteException.class,
-            RemoteException::new,
-            184,
-            TransportVersions.REMOTE_EXCEPTION,
-            TransportVersions.REMOTE_EXCEPTION_8_19
-        ),
+        REMOTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersion.minimumCompatible()),
         NO_MATCHING_PROJECT_EXCEPTION(
             NoMatchingProjectException.class,
             NoMatchingProjectException::new,

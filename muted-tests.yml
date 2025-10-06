@@ -639,6 +639,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135908
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testRollover {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135952
 
 # Examples:
 #

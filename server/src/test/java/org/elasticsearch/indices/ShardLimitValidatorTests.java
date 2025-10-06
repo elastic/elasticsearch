@@ -276,10 +276,9 @@ public class ShardLimitValidatorTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < nodesInCluster; i++) {
             Set<DiscoveryNodeRole> roles;
-            if (ResultGroup.FROZEN == group) {
-                roles = randomBoolean() ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
-            } else {
-                roles = randomBoolean()
+            roles = switch (group) {
+                case FROZEN -> randomBoolean() ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+                case NORMAL -> randomBoolean()
                     ? DiscoveryNodeRole.roles()
                     : Set.of(
                         randomFrom(
@@ -289,8 +288,9 @@ public class ShardLimitValidatorTests extends ESTestCase {
                             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
                         )
                     );
-            }
-
+                case INDEX -> Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.MASTER_ROLE);
+                case SEARCH -> Set.of(DiscoveryNodeRole.SEARCH_ROLE);
+            };
             builder.add(DiscoveryNodeUtils.builder(randomAlphaOfLengthBetween(5, 15)).roles(roles).build());
         }
         return builder.build();

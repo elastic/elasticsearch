@@ -118,7 +118,7 @@ public class ShardLimitValidator {
     public void validateShardLimit(final Settings settings, final DiscoveryNodes discoveryNodes, final Metadata metadata) {
         final var resultGroups = applicableResultGroups(isStateless);
         final var shardsToCreatePerGroup = resultGroups.stream()
-            .collect(Collectors.toUnmodifiableMap(Function.identity(), resultGroup -> resultGroup.numberOfNewShards(settings)));
+            .collect(Collectors.toUnmodifiableMap(Function.identity(), resultGroup -> resultGroup.newShardsTotal(settings)));
 
         final var result = checkShardLimitOnGroups(resultGroups, shardsToCreatePerGroup, discoveryNodes, metadata);
         if (result.canAddShards == false) {
@@ -145,7 +145,7 @@ public class ShardLimitValidator {
             IndexMetadata imd = metadata.indexMetadata(index);
             if (imd.getState().equals(IndexMetadata.State.CLOSE)) {
                 resultGroups.forEach(
-                    resultGroup -> shardsToCreatePerGroup.merge(resultGroup, resultGroup.numberOfNewShards(imd.getSettings()), Integer::sum)
+                    resultGroup -> shardsToCreatePerGroup.merge(resultGroup, resultGroup.newShardsTotal(imd.getSettings()), Integer::sum)
                 );
             }
         }
@@ -167,7 +167,7 @@ public class ShardLimitValidator {
             resultGroups.forEach(
                 resultGroup -> shardsToCreatePerGroup.merge(
                     resultGroup,
-                    resultGroup.numberOfNewShards(imd.getSettings(), replicas),
+                    resultGroup.newShardsTotal(imd.getSettings(), replicas),
                     Integer::sum
                 )
             );
@@ -293,28 +293,52 @@ public class ShardLimitValidator {
             };
         }
 
-        public int numberOfNewShards(Settings indexSettings) {
-            final int numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
-            final int numberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings);
+        /**
+         * Compute the total number of new shards including both primaries and replicas that would be created for an index with the
+         * given index settings.
+         * @param indexSettings The index settings for the index to be created.
+         * @return The total number of new shards to be created for this group.
+         */
+        public int newShardsTotal(Settings indexSettings) {
             final boolean frozen = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
+            final int numberOfShards = (frozen == false || this == FROZEN) ? INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings) : 0;
+            final int numberOfReplicas = (frozen == false || this == FROZEN)
+                ? IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings)
+                : 0;
+            return newShardsTotal(numberOfShards, numberOfReplicas);
+        }
+
+        /**
+         * Compute the total number of new replica shards that would be created by updating the number of replicas to the given number.
+         * @param indexSettings The index settings for the index to be updated.
+         * @param updatedReplicas The updated number of replicas for the index.
+         * @return The number of new replica shards to be created for this group.
+         */
+        public int newShardsTotal(Settings indexSettings, int updatedReplicas) {
+            final boolean frozen = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
+            final int shards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
+            final int replicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings);
+            final int replicaIncrease = updatedReplicas - replicas;
             return switch (this) {
-                case NORMAL -> frozen ? 0 : numberOfShards * (1 + numberOfReplicas);
-                case FROZEN -> frozen ? numberOfShards * (1 + numberOfReplicas) : 0;
-                case INDEX -> numberOfShards;
-                case SEARCH -> numberOfShards * numberOfReplicas;
+                case NORMAL -> frozen ? 0 : shards * replicaIncrease;
+                case FROZEN -> frozen ? shards * replicaIncrease : 0;
+                case INDEX -> 0;
+                case SEARCH -> shards * replicaIncrease;
             };
         }
 
-        public int numberOfNewShards(Settings indexSettings, int updatedReplicas) {
-            final int numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
-            final int numberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings);
-            final int replicaIncrease = updatedReplicas - numberOfReplicas;
-            final boolean frozen = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
+        /**
+         * Compute the total number of new shards including both primaries and replicas that would be created for the given
+         * number of shards and replicas in this group.
+         * @param shards Number of primary shards
+         * @param replicas Number of replica shards per primary
+         * @return Number of total new shards to be created for the group.
+         */
+        public int newShardsTotal(int shards, int replicas) {
             return switch (this) {
-                case NORMAL -> frozen ? 0 : numberOfShards * replicaIncrease;
-                case FROZEN -> frozen ? numberOfShards * replicaIncrease : 0;
-                case INDEX -> 0;
-                case SEARCH -> numberOfShards * replicaIncrease;
+                case NORMAL, FROZEN -> shards * (1 + replicas);
+                case INDEX -> shards;
+                case SEARCH -> shards * replicas;
             };
         }
 
@@ -336,7 +360,7 @@ public class ShardLimitValidator {
             DiscoveryNodes discoveryNodes,
             Metadata metadata
         ) {
-            return checkShardLimit(maxConfiguredShardsPerNode, numberOfNewShards * (1 + replicas), discoveryNodes, metadata);
+            return checkShardLimit(maxConfiguredShardsPerNode, newShardsTotal(numberOfNewShards, replicas), discoveryNodes, metadata);
         }
 
         private Result checkShardLimit(int maxConfiguredShardsPerNode, int newShards, DiscoveryNodes discoveryNodes, Metadata metadata) {

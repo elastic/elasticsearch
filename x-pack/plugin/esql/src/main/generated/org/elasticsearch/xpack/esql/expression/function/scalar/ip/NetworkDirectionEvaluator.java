@@ -35,7 +35,7 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
 
   private final EvalOperator.ExpressionEvaluator destinationIp;
 
-  private final EvalOperator.ExpressionEvaluator internalNetworks;
+  private final EvalOperator.ExpressionEvaluator networks;
 
   private final DriverContext driverContext;
 
@@ -43,12 +43,12 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
 
   public NetworkDirectionEvaluator(Source source, BytesRef scratch,
       EvalOperator.ExpressionEvaluator sourceIp, EvalOperator.ExpressionEvaluator destinationIp,
-      EvalOperator.ExpressionEvaluator internalNetworks, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator networks, DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.sourceIp = sourceIp;
     this.destinationIp = destinationIp;
-    this.internalNetworks = internalNetworks;
+    this.networks = networks;
     this.driverContext = driverContext;
   }
 
@@ -56,16 +56,16 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
   public Block eval(Page page) {
     try (BytesRefBlock sourceIpBlock = (BytesRefBlock) sourceIp.eval(page)) {
       try (BytesRefBlock destinationIpBlock = (BytesRefBlock) destinationIp.eval(page)) {
-        try (BytesRefBlock internalNetworksBlock = (BytesRefBlock) internalNetworks.eval(page)) {
+        try (BytesRefBlock networksBlock = (BytesRefBlock) networks.eval(page)) {
           BytesRefVector sourceIpVector = sourceIpBlock.asVector();
           if (sourceIpVector == null) {
-            return eval(page.getPositionCount(), sourceIpBlock, destinationIpBlock, internalNetworksBlock);
+            return eval(page.getPositionCount(), sourceIpBlock, destinationIpBlock, networksBlock);
           }
           BytesRefVector destinationIpVector = destinationIpBlock.asVector();
           if (destinationIpVector == null) {
-            return eval(page.getPositionCount(), sourceIpBlock, destinationIpBlock, internalNetworksBlock);
+            return eval(page.getPositionCount(), sourceIpBlock, destinationIpBlock, networksBlock);
           }
-          return eval(page.getPositionCount(), sourceIpVector, destinationIpVector, internalNetworksBlock).asBlock();
+          return eval(page.getPositionCount(), sourceIpVector, destinationIpVector, networksBlock).asBlock();
         }
       }
     }
@@ -76,12 +76,12 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += sourceIp.baseRamBytesUsed();
     baseRamBytesUsed += destinationIp.baseRamBytesUsed();
-    baseRamBytesUsed += internalNetworks.baseRamBytesUsed();
+    baseRamBytesUsed += networks.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock sourceIpBlock,
-      BytesRefBlock destinationIpBlock, BytesRefBlock internalNetworksBlock) {
+      BytesRefBlock destinationIpBlock, BytesRefBlock networksBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef sourceIpScratch = new BytesRef();
       BytesRef destinationIpScratch = new BytesRef();
@@ -108,12 +108,12 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
-        if (internalNetworksBlock.isNull(p)) {
+        if (networksBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (internalNetworksBlock.getValueCount(p) != 1) {
-          if (internalNetworksBlock.getValueCount(p) > 1) {
+        if (networksBlock.getValueCount(p) != 1) {
+          if (networksBlock.getValueCount(p) > 1) {
             warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
@@ -121,21 +121,21 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
         }
         BytesRef sourceIp = sourceIpBlock.getBytesRef(sourceIpBlock.getFirstValueIndex(p), sourceIpScratch);
         BytesRef destinationIp = destinationIpBlock.getBytesRef(destinationIpBlock.getFirstValueIndex(p), destinationIpScratch);
-        result.appendBytesRef(NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, internalNetworksBlock));
+        result.appendBytesRef(NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, networksBlock));
       }
       return result.build();
     }
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector sourceIpVector,
-      BytesRefVector destinationIpVector, BytesRefBlock internalNetworksBlock) {
+      BytesRefVector destinationIpVector, BytesRefBlock networksBlock) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef sourceIpScratch = new BytesRef();
       BytesRef destinationIpScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef sourceIp = sourceIpVector.getBytesRef(p, sourceIpScratch);
         BytesRef destinationIp = destinationIpVector.getBytesRef(p, destinationIpScratch);
-        result.appendBytesRef(NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, internalNetworksBlock));
+        result.appendBytesRef(NetworkDirection.process(this.scratch, sourceIp, destinationIp, p, networksBlock));
       }
       return result.build();
     }
@@ -143,12 +143,12 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public String toString() {
-    return "NetworkDirectionEvaluator[" + "sourceIp=" + sourceIp + ", destinationIp=" + destinationIp + ", internalNetworks=" + internalNetworks + "]";
+    return "NetworkDirectionEvaluator[" + "sourceIp=" + sourceIp + ", destinationIp=" + destinationIp + ", networks=" + networks + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(sourceIp, destinationIp, internalNetworks);
+    Releasables.closeExpectNoException(sourceIp, destinationIp, networks);
   }
 
   private Warnings warnings() {
@@ -172,27 +172,27 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
 
     private final EvalOperator.ExpressionEvaluator.Factory destinationIp;
 
-    private final EvalOperator.ExpressionEvaluator.Factory internalNetworks;
+    private final EvalOperator.ExpressionEvaluator.Factory networks;
 
     public Factory(Source source, Function<DriverContext, BytesRef> scratch,
         EvalOperator.ExpressionEvaluator.Factory sourceIp,
         EvalOperator.ExpressionEvaluator.Factory destinationIp,
-        EvalOperator.ExpressionEvaluator.Factory internalNetworks) {
+        EvalOperator.ExpressionEvaluator.Factory networks) {
       this.source = source;
       this.scratch = scratch;
       this.sourceIp = sourceIp;
       this.destinationIp = destinationIp;
-      this.internalNetworks = internalNetworks;
+      this.networks = networks;
     }
 
     @Override
     public NetworkDirectionEvaluator get(DriverContext context) {
-      return new NetworkDirectionEvaluator(source, scratch.apply(context), sourceIp.get(context), destinationIp.get(context), internalNetworks.get(context), context);
+      return new NetworkDirectionEvaluator(source, scratch.apply(context), sourceIp.get(context), destinationIp.get(context), networks.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "NetworkDirectionEvaluator[" + "sourceIp=" + sourceIp + ", destinationIp=" + destinationIp + ", internalNetworks=" + internalNetworks + "]";
+      return "NetworkDirectionEvaluator[" + "sourceIp=" + sourceIp + ", destinationIp=" + destinationIp + ", networks=" + networks + "]";
     }
   }
 }

@@ -24,9 +24,32 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.core.IsEqual.equalTo;
+
 public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
     public NetworkDirectionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        var suppliers = List.of(
+            new TestCaseSupplier(
+                List.of(DataType.IP, DataType.IP, DataType.KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("10.0.1.1"), DataType.IP, "source_ip"),
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.2"), DataType.IP, "destination_ip"),
+                        new TestCaseSupplier.TypedData(List.of("10.0.0.0/8"), DataType.KEYWORD, "internal_networks")
+                    ),
+                    "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                    DataType.KEYWORD,
+                    equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INBOUND))
+                )
+            )
+        );
+
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

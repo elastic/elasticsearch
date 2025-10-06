@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -118,7 +120,7 @@ public class NetworkDirection extends EsqlScalarFunction {
         var internalNetworksEvaluatorSupplier = toEvaluator.apply(internalNetworks);
         return new NetworkDirectionEvaluator.Factory(
             source(),
-            context -> new BytesRef(),
+            context -> new BytesRef(16),
             sourceIpEvaluatorSupplier,
             destinationIpEvaluatorSupplier,
             internalNetworksEvaluatorSupplier
@@ -127,9 +129,11 @@ public class NetworkDirection extends EsqlScalarFunction {
 
     @Evaluator
     static BytesRef process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock networks) {
-        // Pulling the bytes out directly using InetAddress.getByAddress() requires error handling TODO
-        InetAddress sourceIpAddress = InetAddresses.forString(sourceIp.utf8ToString());
-        InetAddress destinationIpAddress = InetAddresses.forString(destinationIp.utf8ToString());
+        System.arraycopy(sourceIp.bytes, sourceIp.offset, scratch.bytes, 0, sourceIp.length);
+        InetAddress sourceIpAddress = InetAddressPoint.decode(scratch.bytes);
+        System.arraycopy(destinationIp.bytes, destinationIp.offset, scratch.bytes, 0, destinationIp.length);
+        InetAddress destinationIpAddress = InetAddressPoint.decode(scratch.bytes);
+
         boolean sourceInternal = false;
         boolean destinationInternal = false;
 

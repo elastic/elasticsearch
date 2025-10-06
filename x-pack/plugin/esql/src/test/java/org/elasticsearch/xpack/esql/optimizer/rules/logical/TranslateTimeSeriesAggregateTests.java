@@ -12,8 +12,13 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -86,10 +91,10 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | LIMIT 10
             """);
         Limit limit = as(plan, Limit.class);
-        Aggregate innerStats = as(limit.child(), Aggregate.class);
-        TimeSeriesAggregate outerStats = as(innerStats.child(), TimeSeriesAggregate.class);
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
+        TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
         // TODO: Add asserts about the specific aggregation details here
-        Eval eval = as(outerStats.child(), Eval.class);
+        Eval eval = as(innerStats.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
@@ -101,10 +106,29 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | LIMIT 10
             """);
         Limit limit = as(plan, Limit.class);
-        Aggregate innerStats = as(limit.child(), Aggregate.class);
-        TimeSeriesAggregate outerStats = as(innerStats.child(), TimeSeriesAggregate.class);
-        // TODO: Add asserts about the specific aggregation details here
-        Eval eval = as(outerStats.child(), Eval.class);
+
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
+        assertEquals(1, outerStats.groupings().size());
+        Attribute timeBucketGroup = as(outerStats.groupings().get(0), Attribute.class);
+        assertEquals("time_bucket", timeBucketGroup.name());
+        assertEquals(2, outerStats.aggregates().size());
+        assertEquals(timeBucketGroup, outerStats.aggregates().get(1));
+        Alias outerAggFunction = as(outerStats.aggregates().get(0), Alias.class);
+        Max outerMax = as(outerAggFunction.child(), Max.class);
+
+        TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
+        assertEquals(2, innerStats.groupings().size());
+        assertEquals(timeBucketGroup, innerStats.groupings().get(1));
+        Attribute tsidGroup = as(innerStats.groupings().get(0), Attribute.class);
+        assertEquals("_tsid", tsidGroup.name());
+
+        assertEquals(2, innerStats.aggregates().size());
+        Alias innerAggFunction = as(innerStats.aggregates().get(0), Alias.class);
+        Rate rateAgg = as(innerAggFunction.child(), Rate.class);
+        Alias timeBucketAlias = as(innerStats.aggregates().get(1), Alias.class);
+        assertEquals(timeBucketGroup, timeBucketAlias.child());
+
+        Eval eval = as(innerStats.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
@@ -148,6 +172,44 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS newTs
+            | STATS maxRate = max(rate(network.total_cost))  BY time_bucket = bucket(newTs, 1hour)
+            """);
+        Limit limit = as(plan, Limit.class);
+
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
+        assertEquals(1, outerStats.groupings().size());
+        Attribute timeBucketGroup = as(outerStats.groupings().get(0), Attribute.class);
+        assertEquals("time_bucket", timeBucketGroup.name());
+        assertEquals(2, outerStats.aggregates().size());
+        assertEquals(timeBucketGroup, outerStats.aggregates().get(1));
+        Alias outerAggFunction = as(outerStats.aggregates().get(0), Alias.class);
+        Max outerMax = as(outerAggFunction.child(), Max.class);
+
+        TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
+        assertEquals(2, innerStats.groupings().size());
+        assertEquals(timeBucketGroup, innerStats.groupings().get(1));
+        Attribute tsidGroup = as(innerStats.groupings().get(0), Attribute.class);
+        assertEquals("_tsid", tsidGroup.name());
+
+        assertEquals(2, innerStats.aggregates().size());
+        Alias innerAggFunction = as(innerStats.aggregates().get(0), Alias.class);
+        Rate rateAgg = as(innerAggFunction.child(), Rate.class);
+        Alias timeBucketAlias = as(innerStats.aggregates().get(1), Alias.class);
+        assertEquals(timeBucketGroup, timeBucketAlias.child());
+
+        Eval eval = as(innerStats.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+    }
+
+    public void testRateWithManyRenames() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | RENAME `@timestamp` AS ts1
+            | RENAME ts1 AS ts2
+            | RENAME ts2 AS ts3
+            | RENAME ts3 AS ts4
+            | RENAME ts4 as newTs
             | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)
             """);
     }
@@ -166,6 +228,18 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS newTs
+            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)
+            """);
+    }
+
+    public void testTbucketWithManyRenames() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | RENAME `@timestamp` AS ts1
+            | RENAME ts1 AS ts2
+            | RENAME ts2 AS ts3
+            | RENAME ts3 AS ts4
             | STATS maxRate = max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)
             """);
     }

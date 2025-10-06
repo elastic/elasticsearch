@@ -165,7 +165,7 @@ public class ExponentialHistogramBuilder implements Releasable {
             // so far, all received buckets were in order, try to directly build the result
             if (result == null) {
                 // Initialize the result buffer if required
-                adjustResultCapacity(estimatedBucketCount, false);
+                reallocateResultWithCapacity(estimatedBucketCount, false);
             }
             if ((isPositive && result.wasLastAddedBucketPositive() == false)
                 || (isPositive == result.wasLastAddedBucketPositive() && index > result.getLastAddedBucketIndex())) {
@@ -206,21 +206,21 @@ public class ExponentialHistogramBuilder implements Releasable {
     private void addBucketToResult(long index, long count, boolean isPositive) {
         if (resultAlreadyReturned) {
             // we cannot modify the result anymore, create a new one
-            adjustResultCapacity(result.getCapacity(), true);
+            reallocateResultWithCapacity(result.getCapacity(), true);
         }
         assert resultAlreadyReturned == false;
         boolean sufficientCapacity = result.tryAddBucket(index, count, isPositive);
         if (sufficientCapacity == false) {
             int newCapacity = Math.max(result.getCapacity() * 2, DEFAULT_ESTIMATED_BUCKET_COUNT);
-            adjustResultCapacity(newCapacity, true);
+            reallocateResultWithCapacity(newCapacity, true);
             boolean bucketAdded = result.tryAddBucket(index, count, isPositive);
             assert bucketAdded : "Output histogram should have enough capacity";
         }
     }
 
-    private void adjustResultCapacity(int newCapacity, boolean copyExistingBuckets) {
+    private void reallocateResultWithCapacity(int newCapacity, boolean copyBucketsFromPreviousResult) {
         FixedCapacityExponentialHistogram newResult = FixedCapacityExponentialHistogram.create(newCapacity, breaker);
-        if (copyExistingBuckets && result != null) {
+        if (copyBucketsFromPreviousResult && result != null) {
             BucketIterator it = result.negativeBuckets().iterator();
             while (it.hasNext()) {
                 boolean added = newResult.tryAddBucket(it.peekIndex(), it.peekCount(), false);
@@ -244,19 +244,19 @@ public class ExponentialHistogramBuilder implements Releasable {
     public ReleasableExponentialHistogram build() {
         if (resultAlreadyReturned) {
             // result was already returned on a previous call, return a new instance
-            adjustResultCapacity(result.getCapacity(), true);
+            reallocateResultWithCapacity(result.getCapacity(), true);
         }
         assert resultAlreadyReturned == false;
         if (negativeBuckets != null) {
             // copy buckets from tree maps into result
-            adjustResultCapacity(negativeBuckets.size() + positiveBuckets.size(), false);
+            reallocateResultWithCapacity(negativeBuckets.size() + positiveBuckets.size(), false);
             result.resetBuckets(scale);
             negativeBuckets.forEach((index, count) -> result.tryAddBucket(index, count, false));
             positiveBuckets.forEach((index, count) -> result.tryAddBucket(index, count, true));
         } else {
             if (result == null) {
                 // no buckets were added
-                adjustResultCapacity(0, false);
+                reallocateResultWithCapacity(0, false);
             }
             result.setScale(scale);
         }

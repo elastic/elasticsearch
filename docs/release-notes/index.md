@@ -38,10 +38,6 @@ FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:client
 To avoid this error, reorder your query, for example by moving ENRICH earlier in the pipeline.
 ::::
 
-::::{dropdown} Security advisory
-The 9.1.5 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
-::::
-
 ### Features and enhancements [elasticsearch-9.1.5-features-enhancements]
 
 Audit:
@@ -98,16 +94,9 @@ Transform:
 * Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing [#134963](https://github.com/elastic/elasticsearch/pull/134963) (issue: [#134263](https://github.com/elastic/elasticsearch/issues/134263))
 * Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint [#134955](https://github.com/elastic/elasticsearch/pull/134955) (issue: [#134925](https://github.com/elastic/elasticsearch/issues/134925))
 
+
+
 ## 9.0.8 [elasticsearch-9.0.8-release-notes]
-```{applies_to}
-stack: ga 9.0.8
-```
-
-### Highlights [elasticsearch-9.0.8-highlights]
-
-::::{dropdown} Security advisory
-The 9.0.8 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
-::::
 
 ### Features and enhancements [elasticsearch-9.0.8-features-enhancements]
 
@@ -2020,3 +2009,5 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
+
+

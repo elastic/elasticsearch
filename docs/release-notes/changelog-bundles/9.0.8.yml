@@ -1,6 +1,6 @@
 version: 9.0.8
-released: false
-generated: 2025-10-03T13:09:24.707151330Z
+released: true
+generated: 2025-10-06T17:16:19.803933724Z
 changelogs:
   - pr: 134134
     summary: Prevent field caps from failing due to can match failure

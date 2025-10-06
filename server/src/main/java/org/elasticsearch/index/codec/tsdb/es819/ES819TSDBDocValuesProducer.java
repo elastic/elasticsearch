@@ -45,12 +45,15 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode.COMPRESSED_WITH_LZ4;
+import static org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode.NO_COMPRESS;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -97,7 +100,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     state.segmentSuffix
                 );
 
-                readFields(in, state.fieldInfos);
+                readFields(in, state.fieldInfos, version);
 
             } catch (Throwable exception) {
                 priorE = exception;
@@ -193,6 +196,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return DocValues.emptyBinary();
         }
 
+        return switch (entry.compression) {
+            case NO_COMPRESS -> getUncompressedBinary(entry);
+            case COMPRESSED_WITH_LZ4 -> getCompressedBinary(entry);
+        };
+    }
+
+    public BinaryDocValues getUncompressedBinary(BinaryEntry entry) throws IOException {
         final RandomAccessInput bytesSlice = data.randomAccessSlice(entry.dataOffset, entry.dataLength);
 
         if (entry.docsWithFieldOffset == -1) {
@@ -309,6 +319,132 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    // START: Copied fom LUCENE-9211
+    private BinaryDocValues getCompressedBinary(BinaryEntry entry) throws IOException {
+        if (entry.docsWithFieldOffset == -1) {
+            // dense
+            final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+            final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+            return new DenseBinaryDocValues(maxDoc) {
+                final BinaryDecoder decoder = new BinaryDecoder(
+                    addresses,
+                    data.clone(),
+                    entry.maxUncompressedChunkSize,
+                    entry.docsPerChunkShift
+                );
+
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return decoder.decode(doc);
+                }
+            };
+        } else {
+            // sparse
+            final IndexedDISI disi = new IndexedDISI(
+                data,
+                entry.docsWithFieldOffset,
+                entry.docsWithFieldLength,
+                entry.jumpTableEntryCount,
+                entry.denseRankPower,
+                entry.numDocsWithField
+            );
+            final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+            final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+            return new SparseBinaryDocValues(disi) {
+                final BinaryDecoder decoder = new BinaryDecoder(
+                    addresses,
+                    data.clone(),
+                    entry.maxUncompressedChunkSize,
+                    entry.docsPerChunkShift
+                );
+
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return decoder.decode(disi.index());
+                }
+            };
+        }
+
+    }
+
+    // Decompresses blocks of binary values to retrieve content
+    static final class BinaryDecoder {
+
+        private final LongValues addresses;
+        private final IndexInput compressedData;
+        // Cache of last uncompressed block
+        private long lastBlockId = -1;
+        private final int[] uncompressedDocStarts;
+        private final byte[] uncompressedBlock;
+        private final BytesRef uncompressedBytesRef;
+        private final int docsPerChunk;
+        private final int docsPerChunkShift;
+
+        BinaryDecoder(LongValues addresses, IndexInput compressedData, int biggestUncompressedBlockSize, int docsPerChunkShift) {
+            super();
+            this.addresses = addresses;
+            this.compressedData = compressedData;
+            // pre-allocate a byte array large enough for the biggest uncompressed block needed.
+            this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
+            uncompressedBytesRef = new BytesRef(uncompressedBlock);
+            this.docsPerChunk = 1 << docsPerChunkShift;
+            this.docsPerChunkShift = docsPerChunkShift;
+            uncompressedDocStarts = new int[docsPerChunk + 1];
+        }
+
+        BytesRef decode(int docNumber) throws IOException {
+            int blockId = docNumber >> docsPerChunkShift;
+            int docInBlockId = docNumber % docsPerChunk;
+            assert docInBlockId < docsPerChunk;
+
+            // already read and uncompressed?
+            if (blockId != lastBlockId) {
+                lastBlockId = blockId;
+                long blockStartOffset = addresses.get(blockId);
+                compressedData.seek(blockStartOffset);
+
+                int uncompressedBlockLength = 0;
+
+                int onlyLength = -1;
+                for (int i = 0; i < docsPerChunk; i++) {
+                    if (i == 0) {
+                        // The first length value is special. It is shifted and has a bit to denote if
+                        // all other values are the same length
+                        int lengthPlusSameInd = compressedData.readVInt();
+                        int sameIndicator = lengthPlusSameInd & 1;
+                        int firstValLength = lengthPlusSameInd >>> 1;
+                        if (sameIndicator == 1) {
+                            onlyLength = firstValLength;
+                        }
+                        uncompressedBlockLength += firstValLength;
+                    } else {
+                        if (onlyLength == -1) {
+                            // Various lengths are stored - read each from disk
+                            uncompressedBlockLength += compressedData.readVInt();
+                        } else {
+                            // Only one length
+                            uncompressedBlockLength += onlyLength;
+                        }
+                    }
+                    uncompressedDocStarts[i + 1] = uncompressedBlockLength;
+                }
+
+                if (uncompressedBlockLength == 0) {
+                    uncompressedBytesRef.offset = 0;
+                    uncompressedBytesRef.length = 0;
+                    return uncompressedBytesRef;
+                }
+
+                assert uncompressedBlockLength <= uncompressedBlock.length;
+                LZ4.decompress(EndiannessReverserUtil.wrapDataInput(compressedData), uncompressedBlockLength, uncompressedBlock, 0);
+            }
+
+            uncompressedBytesRef.offset = uncompressedDocStarts[docInBlockId];
+            uncompressedBytesRef.length = uncompressedDocStarts[docInBlockId + 1] - uncompressedBytesRef.offset;
+            return uncompressedBytesRef;
+        }
+    }
+    // END: Copied fom LUCENE-9211
     private abstract static class DenseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 
         final int maxDoc;
@@ -1129,7 +1265,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return -1;
     }
 
-    private void readFields(IndexInput meta, FieldInfos infos) throws IOException {
+    private void readFields(IndexInput meta, FieldInfos infos, int version) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -1142,7 +1278,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             if (type == ES819TSDBDocValuesFormat.NUMERIC) {
                 numerics.put(info.number, readNumeric(meta));
             } else if (type == ES819TSDBDocValuesFormat.BINARY) {
-                binaries.put(info.number, readBinary(meta));
+                binaries.put(info.number, readBinary(meta, version));
             } else if (type == ES819TSDBDocValuesFormat.SORTED) {
                 sorted.put(info.number, readSorted(meta));
             } else if (type == ES819TSDBDocValuesFormat.SORTED_SET) {
@@ -1204,8 +1340,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.denseRankPower = meta.readByte();
     }
 
-    private BinaryEntry readBinary(IndexInput meta) throws IOException {
-        final BinaryEntry entry = new BinaryEntry();
+    private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
+        final BinaryDVCompressionMode compression;
+        if (version >= ES819TSDBDocValuesFormat.VERSION_BINARY_DV_COMPRESSION) {
+            compression = BinaryDVCompressionMode.fromMode(meta.readByte());
+        } else {
+            compression = BinaryDVCompressionMode.NO_COMPRESS;
+        }
+        final BinaryEntry entry = new BinaryEntry(compression);
+
         entry.dataOffset = meta.readLong();
         entry.dataLength = meta.readLong();
         entry.docsWithFieldOffset = meta.readLong();
@@ -1888,6 +2031,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     static class BinaryEntry {
+        final BinaryDVCompressionMode compression;
+
         long dataOffset;
         long dataLength;
         long docsWithFieldOffset;
@@ -1899,7 +2044,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         int maxLength;
         long addressesOffset;
         long addressesLength;
+        // compression mode
+        int maxUncompressedChunkSize;
+        int docsPerChunkShift;
         DirectMonotonicReader.Meta addressesMeta;
+
+        BinaryEntry(BinaryDVCompressionMode compression) {
+            this.compression = compression;
+        }
     }
 
     static class SortedNumericEntry extends NumericEntry {

@@ -462,116 +462,51 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     public void doAddCompressedBinaryLZ4(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        if (valuesProducer instanceof TsdbDocValuesProducer tsdbValuesProducer && tsdbValuesProducer.mergeStats.supported()) {
-            final int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
-            final int minLength = tsdbValuesProducer.mergeStats.minLength();
-            final int maxLength = tsdbValuesProducer.mergeStats.maxLength();
-
-            assert numDocsWithField <= maxDoc;
-
+        try (CompressedBinaryBlockWriter blockWriter = new CompressedBinaryBlockWriter()) {
             BinaryDocValues values = valuesProducer.getBinary(field);
             long start = data.getFilePointer();
             meta.writeLong(start); // dataOffset
-
-            OffsetsAccumulator offsetsAccumulator = null;
-            DISIAccumulator disiAccumulator = null;
-            try {
-                if (numDocsWithField > 0 && numDocsWithField < maxDoc) {
-                    disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-                }
-
-                assert maxLength >= minLength;
-                if (maxLength > minLength) {
-                    offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
-                }
-
-                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    BytesRef v = values.binaryValue();
-                    data.writeBytes(v.bytes, v.offset, v.length);
-                    if (disiAccumulator != null) {
-                        disiAccumulator.addDocId(doc);
-                    }
-                    if (offsetsAccumulator != null) {
-                        offsetsAccumulator.addDoc(v.length);
-                    }
-                }
-                meta.writeLong(data.getFilePointer() - start); // dataLength
-
-                if (numDocsWithField == 0) {
-                    meta.writeLong(-2); // docsWithFieldOffset
-                    meta.writeLong(0L); // docsWithFieldLength
-                    meta.writeShort((short) -1); // jumpTableEntryCount
-                    meta.writeByte((byte) -1); // denseRankPower
-                } else if (numDocsWithField == maxDoc) {
-                    meta.writeLong(-1); // docsWithFieldOffset
-                    meta.writeLong(0L); // docsWithFieldLength
-                    meta.writeShort((short) -1); // jumpTableEntryCount
-                    meta.writeByte((byte) -1); // denseRankPower
-                } else {
-                    long offset = data.getFilePointer();
-                    meta.writeLong(offset); // docsWithFieldOffset
-                    final short jumpTableEntryCount = disiAccumulator.build(data);
-                    meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-                    meta.writeShort(jumpTableEntryCount);
-                    meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-                }
-
-                meta.writeInt(numDocsWithField);
-                meta.writeInt(minLength);
-                meta.writeInt(maxLength);
-                if (offsetsAccumulator != null) {
-                    offsetsAccumulator.build(meta, data);
-                }
-            } finally {
-                IOUtils.close(disiAccumulator, offsetsAccumulator);
+            int numDocsWithField = 0;
+            int minLength = Integer.MAX_VALUE;
+            int maxLength = 0;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                numDocsWithField++;
+                BytesRef v = values.binaryValue();
+                blockWriter.addDoc(doc, v);
+                int length = v.length;
+                minLength = Math.min(length, minLength);
+                maxLength = Math.max(length, maxLength);
             }
-        } else {
-            try (CompressedBinaryBlockWriter blockWriter = new CompressedBinaryBlockWriter()) {
-                BinaryDocValues values = valuesProducer.getBinary(field);
-                long start = data.getFilePointer();
-                meta.writeLong(start); // dataOffset
-                int numDocsWithField = 0;
-                int minLength = Integer.MAX_VALUE;
-                int maxLength = 0;
-                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    numDocsWithField++;
-                    BytesRef v = values.binaryValue();
-                    blockWriter.addDoc(doc, v);
-                    int length = v.length;
-                    minLength = Math.min(length, minLength);
-                    maxLength = Math.max(length, maxLength);
-                }
-                blockWriter.flushData();
+            blockWriter.flushData();
 
-                assert numDocsWithField <= maxDoc;
-                meta.writeLong(data.getFilePointer() - start); // dataLength
+            assert numDocsWithField <= maxDoc;
+            meta.writeLong(data.getFilePointer() - start); // dataLength
 
-                if (numDocsWithField == 0) {
-                    meta.writeLong(-2); // docsWithFieldOffset
-                    meta.writeLong(0L); // docsWithFieldLength
-                    meta.writeShort((short) -1); // jumpTableEntryCount
-                    meta.writeByte((byte) -1); // denseRankPower
-                } else if (numDocsWithField == maxDoc) {
-                    meta.writeLong(-1); // docsWithFieldOffset
-                    meta.writeLong(0L); // docsWithFieldLength
-                    meta.writeShort((short) -1); // jumpTableEntryCount
-                    meta.writeByte((byte) -1); // denseRankPower
-                } else {
-                    long offset = data.getFilePointer();
-                    meta.writeLong(offset); // docsWithFieldOffset
-                    values = valuesProducer.getBinary(field);
-                    final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-                    meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-                    meta.writeShort(jumpTableEntryCount);
-                    meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-                }
-
-                meta.writeInt(numDocsWithField);
-                meta.writeInt(minLength);
-                meta.writeInt(maxLength);
-
-                blockWriter.writeMetaData();
+            if (numDocsWithField == 0) {
+                meta.writeLong(-2); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else if (numDocsWithField == maxDoc) {
+                meta.writeLong(-1); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1); // denseRankPower
+            } else {
+                long offset = data.getFilePointer();
+                meta.writeLong(offset); // docsWithFieldOffset
+                values = valuesProducer.getBinary(field);
+                final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+                meta.writeShort(jumpTableEntryCount);
+                meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
             }
+
+            meta.writeInt(numDocsWithField);
+            meta.writeInt(minLength);
+            meta.writeInt(maxLength);
+
+            blockWriter.writeMetaData();
         }
     }
 

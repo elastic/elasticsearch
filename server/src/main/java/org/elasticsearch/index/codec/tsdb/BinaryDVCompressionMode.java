@@ -19,7 +19,7 @@ public enum BinaryDVCompressionMode {
         this.code = code;
     }
 
-    static BinaryDVCompressionMode fromMode(byte mode) {
+    public static BinaryDVCompressionMode fromMode(byte mode) {
         return switch (mode) {
             case 0 -> NO_COMPRESS;
             case 1 -> COMPRESSED_WITH_LZ4;

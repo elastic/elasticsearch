@@ -44,6 +44,11 @@ public class DocValuesCodecDuelTests extends ESTestCase {
     private static final String FIELD_4 = "number_field_4";
     private static final String FIELD_5 = "binary_field_5";
 
+    public static BinaryDVCompressionMode randomCompressionMode() {
+        BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
+        return modes[random().nextInt(modes.length)];
+    }
+
     @SuppressWarnings("checkstyle:LineLength")
     public void testDuel() throws IOException {
         try (var baselineDirectory = newDirectory(); var contenderDirectory = newDirectory()) {
@@ -61,7 +66,8 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                     ? new ES819TSDBDocValuesFormat(
                         ESTestCase.randomIntBetween(1, 4096),
                         ESTestCase.randomIntBetween(1, 512),
-                        random().nextBoolean()
+                        random().nextBoolean(),
+                        randomCompressionMode()
                     )
                     : new TestES87TSDBDocValuesFormat();
 

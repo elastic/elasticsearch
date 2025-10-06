@@ -1,0 +1,6 @@
+pr: 136062
+summary: ESQL Fix bug when renaming @timestamp in TS queries
+area: ES|QL
+type: bug
+issues:
+ - 134994

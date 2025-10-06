@@ -373,14 +373,20 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
         if (group == ResultGroup.INDEX) {
             // Also add search nodes for index result group and they should not affect the result of the index group
-            IntStream.range(0, nodesInCluster).forEach(i -> {
-                builder.add(DiscoveryNodeUtils.builder(randomAlphaOfLength(16) + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build());
-            });
+            IntStream.range(0, nodesInCluster + 1)
+                .forEach(
+                    i -> builder.add(
+                        DiscoveryNodeUtils.builder(randomAlphaOfLength(16) + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build()
+                    )
+                );
         } else if (group == ResultGroup.SEARCH) {
             // Also add index nodes for search result group and they should not affect the result of the search group
-            IntStream.range(0, nodesInCluster).forEach(i -> {
-                builder.add(DiscoveryNodeUtils.builder(randomAlphaOfLength(16) + i).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build());
-            });
+            IntStream.range(0, nodesInCluster + 1)
+                .forEach(
+                    i -> builder.add(
+                        DiscoveryNodeUtils.builder(randomAlphaOfLength(16) + i).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build()
+                    )
+                );
         }
 
         return builder.build();

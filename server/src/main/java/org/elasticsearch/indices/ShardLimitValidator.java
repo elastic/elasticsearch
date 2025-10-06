@@ -204,7 +204,7 @@ public class ShardLimitValidator {
         Metadata metadata
     ) {
         assert shardsToCreatePerGroup.size() == resultGroups.size()
-            : "inconsistent result groups " + resultGroups + "and groups for shards to create " + shardsToCreatePerGroup.keySet();
+            : "inconsistent result groups " + resultGroups + " and groups for shards to create " + shardsToCreatePerGroup.keySet();
         // we verify the two limits independently. This also means that if they have mixed frozen and other data-roles nodes, such a mixed
         // node can have both 1000 normal and 3000 frozen shards. This is the trade-off to keep the simplicity of the counts. We advocate
         // against such mixed nodes for production use anyway.
@@ -282,10 +282,10 @@ public class ShardLimitValidator {
 
         public int countShards(IndexMetadata indexMetadata) {
             return switch (this) {
-                case NORMAL -> isOpenIndex(indexMetadata) && matchesGroup(indexMetadata, ResultGroup.NORMAL.groupName())
+                case NORMAL -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, ResultGroup.NORMAL.groupName())
                     ? indexMetadata.getTotalNumberOfShards()
                     : 0;
-                case FROZEN -> isOpenIndex(indexMetadata) && matchesGroup(indexMetadata, ResultGroup.FROZEN.groupName())
+                case FROZEN -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, ResultGroup.FROZEN.groupName())
                     ? indexMetadata.getTotalNumberOfShards()
                     : 0;
                 case INDEX -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() : 0;
@@ -301,8 +301,8 @@ public class ShardLimitValidator {
          */
         public int newShardsTotal(Settings indexSettings) {
             final boolean frozen = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
-            final int numberOfShards = (frozen == false || this == FROZEN) ? INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings) : 0;
-            final int numberOfReplicas = (frozen == false || this == FROZEN)
+            final int numberOfShards = (frozen == (this == FROZEN)) ? INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings) : 0;
+            final int numberOfReplicas = (frozen == (this == FROZEN))
                 ? IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings)
                 : 0;
             return newShardsTotal(numberOfShards, numberOfReplicas);
@@ -394,7 +394,7 @@ public class ShardLimitValidator {
         return indexMetadata.getState().equals(IndexMetadata.State.OPEN);
     }
 
-    private static boolean matchesGroup(IndexMetadata indexMetadata, String group) {
+    private static boolean matchesIndexSettingGroup(IndexMetadata indexMetadata, String group) {
         return group.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexMetadata.getSettings()));
     }
 

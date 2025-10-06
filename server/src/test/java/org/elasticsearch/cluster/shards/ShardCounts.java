@@ -72,17 +72,6 @@ public class ShardCounts {
             shardsPerNode = ESTestCase.between(shardsPerNode, maxShardsPerNode);
         }
 
-        System.out.println(
-            "--> numIndexNodes: "
-                + numIndexNodes
-                + ", mainIndexShards: "
-                + mainIndexShards
-                + ", mainIndexReplicas: "
-                + mainIndexReplicas
-                + ", shardsPerNode: "
-                + shardsPerNode
-        );
-
         // Number of new shards for the failing index should be over the limit determined by shardsPerNode
         int failingIndexShards = ESTestCase.between(shardsPerNode * numIndexNodes - mainIndexShards + 1, PER_INDEX_MAX_NUMBER_OF_SHARDS);
         int failingIndexReplicas = ESTestCase.between(0, 1);
@@ -108,21 +97,6 @@ public class ShardCounts {
 
         int failingIndexReplicas = (int) Math.ceil(
             (double) (shardsPerNode * numSearchNodes - mainIndexShards * mainIndexReplicas + 1) / failingIndexShards
-        );
-
-        System.out.println(
-            "--> numSearchNodes: "
-                + numSearchNodes
-                + ", mainIndexShards: "
-                + mainIndexShards
-                + ", mainIndexReplicas: "
-                + mainIndexReplicas
-                + ", shardsPerNode: "
-                + shardsPerNode
-                + ", failingIndexShards: "
-                + failingIndexShards
-                + ", failingIndexReplicas: "
-                + failingIndexReplicas
         );
 
         assert failingIndexReplicas <= numSearchNodes : failingIndexReplicas + " > " + numSearchNodes;

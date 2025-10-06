@@ -24,9 +24,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -48,8 +48,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -105,6 +107,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
     private final AtomicLong seqNo = new AtomicLong();
     private final ClusterService clusterService;
     private final HollowShardsService hollowShardsService;
+    private final Set<ShardId> recentlyStartedShards = new HashSet<>();
     private volatile PublishTask publishTask;
     private volatile ByteSizeValue fixedHollowShardMemoryOverhead;
     private volatile ByteSizeValue hollowShardSegmentMemoryOverhead;
@@ -202,10 +205,16 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
         if (isIndexNode == false) {
             return;
         }
+
         if (event.nodesDelta().masterNodeChanged()) {
-            // new master does not have any mapping size estimation data
+            // new master does not have any mapping size estimation data, publish everything
             updateMappingMetricsForAllIndices(event.state().version());
+            recentlyStartedShards.clear();
+            return;
         }
+
+        // Some shards started, or some mappings might have changed, publish changed indices and shards
+        final Set<Index> indicesWithMappingChanges = new HashSet<>();
         if (event.metadataChanged()) {
             // handle index metadata mapping updates
             for (final IndexService indexService : indicesService) {
@@ -216,15 +225,70 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
                     && newIndexMetadata != null
                     && ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) { // ignore all unrelated events
                     if (oldIndexMetadata.getMappingVersion() < newIndexMetadata.getMappingVersion()) {
-                        updateMappingMetricsForIndex(index, event.state().version());
+                        indicesWithMappingChanges.add(index);
                     }
                 }
+            }
+        }
+        if (recentlyStartedShards.isEmpty() == false || indicesWithMappingChanges.isEmpty() == false) {
+            final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
+            final var recentlyStartedShardsCopy = Set.copyOf(recentlyStartedShards);
+            final long clusterStateVersion = event.state().version();
+            threadPool.generic()
+                .execute(
+                    () -> publishMetricsForIndicesAndShards(
+                        indicesWithMappingChanges,
+                        recentlyStartedShardsCopy,
+                        publishSeqNo,
+                        clusterStateVersion
+                    )
+                );
+            recentlyStartedShards.clear();
+        }
+    }
+
+    private void publishMetricsForIndicesAndShards(Set<Index> indices, Set<ShardId> shards, long publishSeqNo, long clusterStateVersion) {
+        final Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
+
+        for (Index index : indices) {
+            addMetricsForAllShardsInIndex(index, shardMappingSizes);
+        }
+
+        // Add any shards we're not already reporting on
+        for (ShardId shardId : shards) {
+            if (shardMappingSizes.containsKey(shardId) == false) {
+                final var indexService = indicesService.indexService(shardId.getIndex());
+                if (indexService != null) {
+                    addMetricsForShard(shardId, indexService, shardMappingSizes);
+                }
+            }
+        }
+
+        if (shardMappingSizes.isEmpty() == false) {
+            publishHeapUsage(new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion));
+        }
+    }
+
+    private void addMetricsForShard(ShardId shardId, IndexService indexService, Map<ShardId, ShardMappingSize> shardMappingSizes) {
+        final IndexShard shard = indexService.getShardOrNull(shardId.id());
+        final var nodeMappingStats = indexService.getNodeMappingStats();
+        if (shard != null && nodeMappingStats != null) {
+            addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), List.of(shard), shardMappingSizes);
+        }
+    }
+
+    private void addMetricsForAllShardsInIndex(Index index, Map<ShardId, ShardMappingSize> shardMappingSizes) {
+        final IndexService indexService = indicesService.indexService(index);
+        if (indexService != null) {
+            final var nodeMappingStats = indexService.getNodeMappingStats();
+            if (nodeMappingStats != null) {
+                addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
             }
         }
     }
 
     /**
-     * Update shard metrics after a shard is started
+     * We need to update shard metrics after a shard is started
      *
      * This method gets called on the cluster state applier thread in the apply phase
      * and because it's an {@link IndexEventListener} lifecycle method, we don't get passed
@@ -236,20 +300,18 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
      * via the {@link ClusterChangedEvent} and this is what should be used by
      * {@link org.elasticsearch.cluster.ClusterStateApplier}s.
      *
-     * So it's impossible to know the version to send unless we defer sending the metric
-     * update until the apply phase is complete. For this reason we send {@link ClusterState#UNKNOWN_VERSION}.
-     *
-     * The {@link MemoryMetricsService} will never silently ignore metrics with an unknown
-     * version because it can't know if they're stale. This means the update will be
-     * retried for up to two minutes in the event the sender and the receiver disagree
-     * about the location of the primary copy of this shard.
+     * Accumulate the IDs of any shards that were started in this apply phase, so their
+     * metrics can be published in the publish phase that follows. This allows us to send
+     * the correct cluster state version with the update.
      */
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
         if (isIndexNode == false) {
             return;
         }
-        updateMappingMetricsForShard(indexShard.shardId(), ClusterState.UNKNOWN_VERSION);
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
+            : "We assume this is only run on the applier thread";
+        recentlyStartedShards.add(indexShard.shardId());
     }
 
     private void addShardMappingSizes(long indexMappingSizeInBytes, Iterable<IndexShard> shards, Map<ShardId, ShardMappingSize> map) {
@@ -296,23 +358,6 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
             HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
             publishHeapUsage(heapUsage);
         });
-    }
-
-    void updateMappingMetricsForIndex(Index index, long clusterStateVersion) {
-        final long publishSeqNo = seqNo.incrementAndGet(); // generate seq_no before capturing data
-        final IndexService indexService = indicesService.indexService(index);
-        if (indexService != null) {
-            // Fork to generic thread pool to compute the node's mapping stats for the index
-            threadPool.generic().execute(() -> {
-                final var nodeMappingStats = indexService.getNodeMappingStats();
-                if (nodeMappingStats != null) {
-                    Map<ShardId, ShardMappingSize> shardMappingSizes = new HashMap<>();
-                    addShardMappingSizes(nodeMappingStats.getTotalEstimatedOverhead().getBytes(), indexService, shardMappingSizes);
-                    HeapMemoryUsage heapUsage = new HeapMemoryUsage(publishSeqNo, shardMappingSizes, clusterStateVersion);
-                    publishHeapUsage(heapUsage);
-                }
-            });
-        }
     }
 
     /**

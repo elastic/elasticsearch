@@ -25,9 +25,7 @@ import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
 import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
-import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90;
 import static org.elasticsearch.TransportVersions.REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
@@ -50,6 +48,10 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, BYTES);
     public static final ByteSizeValue ONE = new ByteSizeValue(1, BYTES);
     public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, BYTES);
+
+    private static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = TransportVersion.fromName(
+        "byte_size_value_always_uses_bytes"
+    );
 
     /**
      * @param size the number of {@code unit}s
@@ -133,8 +135,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     private static boolean alwaysUseBytes(TransportVersion tv) {
-        return tv.onOrAfter(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES)
-            || tv.isPatchFrom(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90)
+        return tv.supports(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES)
             || tv.between(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1, REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1);
     }
 

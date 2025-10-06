@@ -1737,7 +1737,7 @@ setup:
               dims: 64
               index_options:
                 type: bbq_disk
-                on_disk_rescoring: true
+                on_disk_rescore: true
 
   - do:
       indices.get_mapping:
@@ -1745,7 +1745,7 @@ setup:
 
   - match: { test_index.mappings.properties.embedding.type: dense_vector }
   - match: { test_index.mappings.properties.embedding.index_options.type: bbq_disk }
-  - match: { test_index.mappings.properties.embedding.index_options.on_disk_rescoring: true }
+  - match: { test_index.mappings.properties.embedding.index_options.on_disk_rescore: true }
 
   - do:
       index:

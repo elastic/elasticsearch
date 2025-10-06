@@ -132,7 +132,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "expected a result of type ["
                         + MlTextEmbeddingResults.NAME
                         + "] received ["

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -53,6 +54,16 @@ public class TransportGetSampleStatsAction extends TransportNodesAction<Request,
         );
         this.samplingService = samplingService;
         this.projectResolver = projectResolver;
+    }
+
+    @Override
+    protected Void createActionContext(Task task, GetSampleStatsAction.Request request) {
+        String indexName = request.indices()[0];
+        SamplingMetadata samplingMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(SamplingMetadata.TYPE);
+        if (samplingMetadata == null || samplingMetadata.getIndexToSamplingConfigMap().get(indexName) == null) {
+            throw new ResourceNotFoundException("No sampling configuration found for [" + indexName + "]");
+        }
+        return null;
     }
 
     @Override

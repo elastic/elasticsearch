@@ -202,6 +202,13 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    /**
+     * Retrieves the sampling configuration for the specified index from the given project metadata.
+     *
+     * @param projectMetadata The project metadata containing sampling information.
+     * @param indexName The name of the index or data stream for which to retrieve the sampling configuration.
+     * @return The {@link SamplingConfiguration} for the specified index, or {@code null} if none exists.
+     */
     public SamplingConfiguration getSamplingConfiguration(ProjectMetadata projectMetadata, String indexName) {
         SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
         if (samplingMetadata == null) {

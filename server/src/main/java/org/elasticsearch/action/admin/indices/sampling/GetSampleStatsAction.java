@@ -59,8 +59,10 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
 
         @Override
         public ActionRequestValidationException validate() {
-            if (this.indices().length != 1) {
-                return new ActionRequestValidationException();
+            if (this.indexName.contains("*")) {
+                return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(
+                    "Wildcards are not supported, but found [" + indexName + "]"
+                );
             }
             return null;
         }

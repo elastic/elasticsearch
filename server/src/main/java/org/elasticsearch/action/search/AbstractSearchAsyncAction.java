@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -93,6 +94,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
     private final int skippedCount;
+    protected final CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics;
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -114,7 +116,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -155,6 +158,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
+        this.coordinatorSearchPhaseAPMMetrics = coordinatorSearchPhaseAPMMetrics;
     }
 
     protected void notifyListShards(
@@ -666,8 +670,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+        recordPhaseLatency();
         executeNextPhase(getName(), this::getNextPhase);
     }
+
+    protected void recordPhaseLatency() {}
 
     /**
      * Returns a connection to the node if connected otherwise and {@link org.elasticsearch.transport.ConnectTransportException} will be

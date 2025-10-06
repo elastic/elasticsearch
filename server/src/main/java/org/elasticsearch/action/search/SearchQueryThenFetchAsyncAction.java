@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -92,6 +93,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     private volatile BottomSortValuesCollector bottomSortCollector;
     private final Client client;
     private final boolean batchQueryPhase;
+    private long phaseStartTimeNanos;
 
     SearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -110,7 +112,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchTask task,
         SearchResponse.Clusters clusters,
         Client client,
-        boolean batchQueryPhase
+        boolean batchQueryPhase,
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
     ) {
         super(
             "query",
@@ -129,7 +132,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            coordinatorSearchPhaseAPMMetrics
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
@@ -421,6 +425,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     @Override
     protected void doRun(Map<SearchShardIterator, Integer> shardIndexMap) {
+        phaseStartTimeNanos = System.nanoTime();
         if (this.batchQueryPhase == false) {
             super.doRun(shardIndexMap);
             return;
@@ -562,6 +567,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             int idx = shard.shardIndex;
             onShardFailure(idx, new SearchShardTarget(target.nodeId(), shard.shardId, target.clusterAlias()), shardIterators[idx], e);
         }
+    }
+
+    @Override
+    protected void recordPhaseLatency() {
+        final long tookInNanos = System.nanoTime() - phaseStartTimeNanos;
+        coordinatorSearchPhaseAPMMetrics.onQueryPhaseDone(tookInNanos);
     }
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";

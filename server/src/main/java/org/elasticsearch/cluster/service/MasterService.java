@@ -415,13 +415,30 @@ public class MasterService extends AbstractLifecycleComponent {
 
                 @Override
                 public void onFailure(Exception exception) {
-                    if (exception instanceof FailedToCommitClusterStateException failedToCommitClusterStateException) {
+                    if (exception instanceof FailedToCommitClusterStateException || exception instanceof NotMasterException) {
                         final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
                         final long version = newClusterState.version();
-                        logger.warn(() -> format("failing [%s]: failed to commit cluster state version [%s]", summary, version), exception);
-                        for (final var executionResult : executionResults) {
-                            executionResult.onPublishFailure(failedToCommitClusterStateException);
+
+                        if (exception instanceof FailedToCommitClusterStateException) {
+                            logger.warn(
+                                () -> format("Failing [%s]: failed to commit cluster state version [%s]", summary, version),
+                                exception
+                            );
+                        } else {
+                            logger.debug(
+                                () -> format(
+                                    "Failing [%s]: node is no longer the master. Failed to publish cluster state version [%s]",
+                                    summary,
+                                    version
+                                ),
+                                exception
+                            );
                         }
+
+                        for (final var executionResult : executionResults) {
+                            executionResult.onPublishFailure(exception);
+                        }
+
                         final long notificationMillis = threadPool.rawRelativeTimeInMillis() - notificationStartTime;
                         clusterStateUpdateStatsTracker.onPublicationFailure(
                             threadPool.rawRelativeTimeInMillis(),
@@ -985,11 +1002,18 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        void onPublishFailure(FailedToCommitClusterStateException e) {
+        void onPublishFailure(Exception e) {
+            assert e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException : e;
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 var taskFailure = failure;
-                failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+
+                if (e instanceof FailedToCommitClusterStateException) {
+                    failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+                } else {
+                    failure = new NotMasterException(e.getMessage(), e);
+                }
+
                 failure.addSuppressed(taskFailure);
                 notifyFailure();
                 return;

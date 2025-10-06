@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings;
 
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -31,7 +33,8 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
             .stream()
             .filter(ElasticInferenceServiceMinimalSettings::containsModelName)
             .map((modelId) -> of(ElasticInferenceServiceMinimalSettings.getWithModelName(modelId)))
-            .filter(Objects::nonNull).collect(Collectors.toMap(PreconfiguredEndpoint::inferenceEntityId, Function.identity()));
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(PreconfiguredEndpoint::inferenceEntityId, Function.identity()));
 
         return new PreconfiguredEndpointsModel(endpoints);
     }
@@ -133,5 +136,13 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
         }
 
         return endpoint.toUnparsedModel();
+    }
+
+    public List<UnparsedModel> toUnparsedModels() {
+        return preconfiguredEndpoints.values()
+            .stream()
+            .map(PreconfiguredEndpoint::toUnparsedModel)
+            .sorted(Comparator.comparing(UnparsedModel::inferenceEntityId))
+            .toList();
     }
 }

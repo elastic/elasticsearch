@@ -36,7 +36,7 @@ public class ElasticInferenceServiceMinimalSettings {
     static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
     static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
 
-    private static final Set<String> EIS_PRECONFIGURED_ENDPOINTS = Set.of(
+    public static final Set<String> EIS_PRECONFIGURED_ENDPOINTS = Set.of(
         DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
         DEFAULT_ELSER_ENDPOINT_ID_V2,
         DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,

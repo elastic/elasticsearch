@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -36,6 +37,15 @@ public class PreconfiguredEndpointsRequestHandler {
         })
             .andThenApply(PreconfiguredEndpointsModel::of)
             .andThenApply(preconfiguredEndpointsModel -> preconfiguredEndpointsModel.toUnparsedModel(inferenceId))
+            .addListener(listener);
+    }
+
+    public void getAllPreconfiguredEndpointsAsUnparsedModels(ActionListener<List<UnparsedModel>> listener) {
+        SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(authListener -> {
+            eisAuthorizationRequestHandler.getAuthorization(authListener, sender);
+        })
+            .andThenApply(PreconfiguredEndpointsModel::of)
+            .andThenApply(PreconfiguredEndpointsModel::toUnparsedModels)
             .addListener(listener);
     }
 }

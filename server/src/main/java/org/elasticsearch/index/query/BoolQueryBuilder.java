@@ -302,11 +302,11 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
         try {
             // disable tracking of the @timestamp range for must_not and should clauses
-            context.setTrackRangeTimestampFrom(false);
+            context.setTrackRangeTimestampFromMillis(false);
             addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
             addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
         } finally {
-            context.setTrackRangeTimestampFrom(true);
+            context.setTrackRangeTimestampFromMillis(true);
         }
         addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
@@ -357,18 +357,18 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
         try {
             // disable tracking of the @timestamp range for must_not clauses
-            queryRewriteContext.setTrackRangeTimestampFrom(false);
+            queryRewriteContext.setTrackRangeTimestampFromMillis(false);
             changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
         } finally {
-            queryRewriteContext.setTrackRangeTimestampFrom(true);
+            queryRewriteContext.setTrackRangeTimestampFromMillis(true);
         }
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
         try {
             // disable tracking of the @timestamp range for should clauses
-            queryRewriteContext.setTrackRangeTimestampFrom(false);
+            queryRewriteContext.setTrackRangeTimestampFromMillis(false);
             changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
         } finally {
-            queryRewriteContext.setTrackRangeTimestampFrom(true);
+            queryRewriteContext.setTrackRangeTimestampFromMillis(true);
         }
 
         // early termination when must clause is empty and optional clauses is returning MatchNoneQueryBuilder

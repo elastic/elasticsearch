@@ -140,7 +140,7 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
 
-        addCollectorsAndSearch(searchContext, searchContext.getSearchExecutionContext().getRangeTimestampFrom());
+        addCollectorsAndSearch(searchContext, searchContext.getSearchExecutionContext().getRangeTimestampFromMillis());
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
@@ -157,7 +157,7 @@ public class QueryPhase {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
-        queryResult.setRangeTimestampFrom(rangeTimestampFrom);
+        queryResult.setRangeTimestampFromMillis(rangeTimestampFrom);
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());

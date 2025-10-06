@@ -2094,7 +2094,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             try {
                 searchResponseMetrics.recordTookTime(
                     searchResponse.getTookInMillis(),
-                    searchResponse.getRangeTimestampFrom(),
+                    searchResponse.getRangeTimestampFromMillis(),
                     nowInMillis,
                     searchRequestAttributes
                 );

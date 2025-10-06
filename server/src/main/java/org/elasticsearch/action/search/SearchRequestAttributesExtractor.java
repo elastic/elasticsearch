@@ -53,11 +53,11 @@ public final class SearchRequestAttributesExtractor {
     /**
      * Introspects the provided shard search request and extracts metadata from it about some of its characteristics.
      */
-    public static Map<String, Object> extractAttributes(ShardSearchRequest shardSearchRequest, Long rangeTimestampFrom, long nowInMillis) {
+    public static Map<String, Object> extractAttributes(ShardSearchRequest shardSearchRequest, Long rangeTimestampFromMillis, long nowInMillis) {
         Map<String, Object> attributes = extractAttributes(
             shardSearchRequest.source(),
             shardSearchRequest.scroll(),
-            rangeTimestampFrom,
+            rangeTimestampFromMillis,
             nowInMillis,
             shardSearchRequest.shardId().getIndexName()
         );
@@ -69,7 +69,7 @@ public final class SearchRequestAttributesExtractor {
     private static Map<String, Object> extractAttributes(
         SearchSourceBuilder searchSourceBuilder,
         TimeValue scroll,
-        Long rangeTimestampFrom,
+        Long rangeTimestampFromMillis,
         long nowInMillis,
         String... localIndices
     ) {
@@ -108,8 +108,8 @@ public final class SearchRequestAttributesExtractor {
 
         final boolean hasKnn = searchSourceBuilder.knnSearch().isEmpty() == false || queryMetadataBuilder.knnQuery;
         String timestampRangeFilter = null;
-        if (rangeTimestampFrom != null) {
-            timestampRangeFilter = introspectTimeRange(rangeTimestampFrom, nowInMillis);
+        if (rangeTimestampFromMillis != null) {
+            timestampRangeFilter = introspectTimeRange(rangeTimestampFromMillis, nowInMillis);
         }
         return buildAttributesMap(
             target,
@@ -350,9 +350,9 @@ public final class SearchRequestAttributesExtractor {
         }
     }
 
-    static String introspectTimeRange(long timeRangeFrom, long nowInMillis) {
+    static String introspectTimeRange(long timeRangeFromMillis, long nowInMillis) {
         for (TimeRangeBucket value : TimeRangeBucket.values()) {
-            if (timeRangeFrom >= nowInMillis - value.millis) {
+            if (timeRangeFromMillis >= nowInMillis - value.millis) {
                 return value.bucketName;
             }
         }

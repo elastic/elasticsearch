@@ -805,7 +805,7 @@ public final class DateFieldMapper extends FieldMapper {
                         ++l;
                     }
                     if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-                        context.setRangeTimestampFrom(l);
+                        context.setRangeTimestampFromMillis(l);
                     }
                 }
                 if (upperTerm == null) {
@@ -997,7 +997,7 @@ public final class DateFieldMapper extends FieldMapper {
                     ++fromInclusive;
                 }
                 if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-                    context.setRangeTimestampFrom(fromInclusive);
+                    context.setRangeTimestampFromMillis(fromInclusive);
                 }
             }
 

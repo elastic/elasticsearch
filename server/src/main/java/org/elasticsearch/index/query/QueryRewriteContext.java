@@ -77,8 +77,8 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
-    private Long rangeTimestampFrom;
-    private boolean trackRangeTimestampFrom = true;
+    private Long rangeTimestampFromMillis;
+    private boolean trackRangeTimestampFromMillis = true;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -520,34 +520,34 @@ public class QueryRewriteContext {
     /**
      * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
      */
-    public Long getRangeTimestampFrom() {
-        return rangeTimestampFrom;
+    public Long getRangeTimestampFromMillis() {
+        return rangeTimestampFromMillis;
     }
 
     /**
      * Records the lower bound of a time range filter against the @timestamp field included in the query. For telemetry purposes.
      */
-    public void setRangeTimestampFrom(long rangeTimestampFrom) {
-        if (trackRangeTimestampFrom) {
+    public void setRangeTimestampFromMillis(long rangeTimestampFromMillis) {
+        if (trackRangeTimestampFromMillis) {
             // if we got a timestamp with nanoseconds precision, round it down to millis
-            if (rangeTimestampFrom > 1_000_000_000_000_000L) {
-                rangeTimestampFrom = rangeTimestampFrom / 1_000_000;
+            if (rangeTimestampFromMillis > 1_000_000_000_000_000L) {
+                rangeTimestampFromMillis = rangeTimestampFromMillis / 1_000_000;
             }
-            if (this.rangeTimestampFrom == null) {
-                this.rangeTimestampFrom = rangeTimestampFrom;
+            if (this.rangeTimestampFromMillis == null) {
+                this.rangeTimestampFromMillis = rangeTimestampFromMillis;
             } else {
                 // if there's more range filters on timestamp, we'll take the lowest of the lower bounds
-                this.rangeTimestampFrom = Math.min(rangeTimestampFrom, this.rangeTimestampFrom);
+                this.rangeTimestampFromMillis = Math.min(rangeTimestampFromMillis, this.rangeTimestampFromMillis);
             }
         }
     }
 
     /**
      * Enables or disables the tracking of the lower bound for time range filters against the @timestamp field,
-     * done via {@link #setRangeTimestampFrom(long)}. Tracking is enabled by default, and explicitly disabled to ensure
+     * done via {@link #setRangeTimestampFromMillis(long)}. Tracking is enabled by default, and explicitly disabled to ensure
      * we don't record the bound for range queries within should and must_not clauses.
      */
-    public void setTrackRangeTimestampFrom(boolean trackRangeTimestampFrom) {
-        this.trackRangeTimestampFrom = trackRangeTimestampFrom;
+    public void setTrackRangeTimestampFromMillis(boolean trackRangeTimestampFromMillis) {
+        this.trackRangeTimestampFromMillis = trackRangeTimestampFromMillis;
     }
 }

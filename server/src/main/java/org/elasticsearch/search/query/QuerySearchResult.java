@@ -80,7 +80,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private final SubscribableListener<Void> aggsContextReleased;
 
     @Nullable
-    private Long rangeTimestampFrom;
+    private Long rangeTimestampFromMillis;
 
     public QuerySearchResult() {
         this(false);
@@ -459,7 +459,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 }
             }
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
-                rangeTimestampFrom = in.readOptionalLong();
+                rangeTimestampFromMillis = in.readOptionalLong();
             }
             success = true;
         } finally {
@@ -532,7 +532,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(reduced);
         }
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
-            out.writeOptionalLong(rangeTimestampFrom);
+            out.writeOptionalLong(rangeTimestampFromMillis);
         }
     }
 
@@ -587,11 +587,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             || transportVersion.isPatchFrom(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X);
     }
 
-    public Long getRangeTimestampFrom() {
-        return rangeTimestampFrom;
+    public Long getRangeTimestampFromMillis() {
+        return rangeTimestampFromMillis;
     }
 
-    public void setRangeTimestampFrom(Long rangeTimestampFrom) {
-        this.rangeTimestampFrom = rangeTimestampFrom;
+    public void setRangeTimestampFromMillis(Long rangeTimestampFromMillis) {
+        this.rangeTimestampFromMillis = rangeTimestampFromMillis;
     }
 }

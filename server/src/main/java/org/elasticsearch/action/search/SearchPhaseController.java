@@ -517,7 +517,7 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
-        Long rangeTimestampFrom = null;
+        Long rangeTimestampFromMillis = null;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -527,13 +527,13 @@ public final class SearchPhaseController {
                 sortValueFormats = result.sortValueFormats();
             }
 
-            if (rangeTimestampFrom == null) {
+            if (rangeTimestampFromMillis == null) {
                 // we simply take the first one: we should get the same value from all shards anyway
-                rangeTimestampFrom = result.getRangeTimestampFrom();
+                rangeTimestampFromMillis = result.getRangeTimestampFromMillis();
             }
-            assert rangeTimestampFrom == null
-                || result.getRangeTimestampFrom() == null
-                || rangeTimestampFrom.equals(result.getRangeTimestampFrom()) : rangeTimestampFrom + " != " + result.getRangeTimestampFrom();
+            assert rangeTimestampFromMillis == null
+                || result.getRangeTimestampFromMillis() == null
+                || rangeTimestampFromMillis.equals(result.getRangeTimestampFromMillis()) : rangeTimestampFromMillis + " != " + result.getRangeTimestampFromMillis();
 
             if (hasSuggest) {
                 assert result.suggest() != null;
@@ -590,7 +590,7 @@ public final class SearchPhaseController {
             size,
             from,
             false,
-            rangeTimestampFrom
+            rangeTimestampFromMillis
         );
     }
 
@@ -674,7 +674,7 @@ public final class SearchPhaseController {
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
-        Long rangeTimestampFrom
+        Long rangeTimestampFromMillis
     ) {
 
         public ReducedQueryPhase {
@@ -696,7 +696,7 @@ public final class SearchPhaseController {
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
-                rangeTimestampFrom
+                rangeTimestampFromMillis
             );
         }
 

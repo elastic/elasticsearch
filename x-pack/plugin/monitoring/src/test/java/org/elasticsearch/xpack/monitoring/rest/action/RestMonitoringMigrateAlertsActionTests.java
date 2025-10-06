@@ -11,6 +11,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse.ExporterMigrationResult;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -34,8 +37,15 @@ public class RestMonitoringMigrateAlertsActionTests extends ESTestCase {
         assertThat(action.getName(), is("monitoring_migrate_alerts"));
     }
 
-    public void testSupportsContentStream() {
-        assertThat(action.supportsBulkContent(), is(false));
+    public void testSupportsAllContentTypes() {
+        final var route = action.routes().get(0);
+        for (var xContentType : XContentType.values()) {
+            final var request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(route.getMethod())
+                .withPath(route.getPath())
+                .withHeaders(Map.of("Content-Type", List.of(xContentType.mediaType())))
+                .build();
+            assertTrue(xContentType.toString(), action.mediaTypesValid(request));
+        }
     }
 
     public void testRestActionCompletion() throws Exception {

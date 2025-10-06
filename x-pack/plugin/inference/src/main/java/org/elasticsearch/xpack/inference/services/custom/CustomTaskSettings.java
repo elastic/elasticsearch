@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +31,8 @@ public class CustomTaskSettings implements TaskSettings {
     public static final String PARAMETERS = "parameters";
 
     static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(new HashMap<>());
+
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
     public static CustomTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -100,7 +101,7 @@ public class CustomTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19;
+        return INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override

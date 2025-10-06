@@ -467,7 +467,7 @@ public class TransportVersionTests extends ESTestCase {
             "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
                 + "and generateTransportVersion gradle task",
             versions.get(versions.size() - 1).id(),
-            equalTo(8_841_0_50)
+            equalTo(8_841_0_30)
         );
     }
 }

@@ -41,6 +41,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
+        "idp_custom_saml_attributes_allow_list"
+    );
+
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
         doc.setDocId(randomAlphaOfLength(16));
@@ -96,7 +100,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_7_7_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
+            TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
         );
         final SamlServiceProviderDocument copy = copyWriteable(
             original,
@@ -183,7 +187,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19,
+            IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
             TransportVersion.current()
         );
         final SamlServiceProviderDocument read = copyWriteable(

@@ -619,7 +619,7 @@ POST _reindex
 % TEST[s/"username": "user",/"username": "test_admin",/]
 % TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
-The `host` parameter must contain a scheme, host, port (for example, `https://otherhost:9200`), and optional path (for example, `https://otherhost:9200/proxy`).
+The `host` parameter must contain a scheme, host, port (for example, `https://<OTHER_HOST_URL>:9200`), and optional path (for example, `https://<OTHER_HOST_URL>:9200/proxy`).
 
 ### Using basic auth [reindex-basic-auth]
 

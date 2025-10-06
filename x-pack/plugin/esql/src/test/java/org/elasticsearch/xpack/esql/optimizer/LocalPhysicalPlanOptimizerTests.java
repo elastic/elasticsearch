@@ -1226,7 +1226,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
-            if (DataType.UNDER_CONSTRUCTION.containsKey(fieldDataType)) {
+            if (DataType.UNDER_CONSTRUCTION.contains(fieldDataType)) {
                 continue;
             }
 

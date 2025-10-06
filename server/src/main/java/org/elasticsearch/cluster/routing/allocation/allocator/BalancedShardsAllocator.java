@@ -1026,7 +1026,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 int comparison = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),
-                    nodeId -> new PrioritiseByShardWriteLoadComparator(allocation, allocation.routingNodes().node(nodeId))
+                    nodeId -> new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), allocation.routingNodes().node(nodeId))
                 ).compare(shardRouting, currentShardForNode.shardRouting());
                 // Ignore inferior non-preferred moves
                 return comparison < 0;
@@ -1059,7 +1059,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * </ul>
          */
         // Visible for testing
-        static class PrioritiseByShardWriteLoadComparator implements Comparator<ShardRouting> {
+        public static class PrioritiseByShardWriteLoadComparator implements Comparator<ShardRouting> {
 
             /**
              * This is the threshold over which we consider shards to have a "high" write load represented
@@ -1074,8 +1074,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             private final double threshold;
             private final String nodeId;
 
-            PrioritiseByShardWriteLoadComparator(RoutingAllocation allocation, RoutingNode routingNode) {
-                shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
+            public PrioritiseByShardWriteLoadComparator(ClusterInfo clusterInfo, RoutingNode routingNode) {
+                shardWriteLoads = clusterInfo.getShardWriteLoads();
                 double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
                 for (ShardRouting shardRouting : routingNode) {
                     maxWriteLoadOnNode = Math.max(

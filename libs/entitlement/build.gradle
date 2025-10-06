@@ -46,6 +46,9 @@ tasks.register('dumpInstrumentedMethods', Test) {
   classpath = sourceSets.test.runtimeClasspath
   testClassesDirs = sourceSets.test.output.classesDirs
   filter {
-    includeTestsMatching("org.elasticsearch.entitlement.initialization.DynamicInstrumentationTests.testAndDumpMethodsToInstrument")
+    includeTestsMatching("org.elasticsearch.entitlement.initialization.DynamicInstrumentationTests.testToDumpInstrumentedMethods")
+  }
+  if (System.getProperty('es.entitlements.dump') == null) {
+    systemProperty 'es.entitlements.dump', project.getProjectDir().toPath().toAbsolutePath().resolve("build/entitlement-methods.dump").toString()
   }
 }

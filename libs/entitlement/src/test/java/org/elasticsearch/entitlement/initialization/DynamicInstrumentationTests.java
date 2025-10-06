@@ -13,7 +13,6 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -39,23 +38,8 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class DynamicInstrumentationTests extends ESTestCase {
 
-    public void testAndDumpMethodsToInstrument() throws Exception {
-        Map<MethodKey, CheckMethod> methodsToInstrument = DynamicInstrumentation.getMethodsToInstrument(
-            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature())
-        );
-
-        List<Descriptor> descriptors = methodsToInstrument.keySet().stream().map(DynamicInstrumentationTests::lookupDescriptor).toList();
-
-        if (System.getProperty("es.entitlements.dump") != null) {
-            Path path = Path.of(System.getProperty("es.entitlements.dump"));
-            assert path.isAbsolute() : "absolute path required for es.entitlements.dump";
-            Files.write(
-                path,
-                () -> descriptors.stream().filter(d -> d.methodDescriptor != null).map(Descriptor::toLine).iterator(),
-                StandardCharsets.UTF_8
-            );
-        }
-
+    public void testInstrumentedMethodsExist() throws Exception {
+        List<Descriptor> descriptors = loadInstrumentedMethodDescriptors();
         assertThat(
             descriptors,
             everyItem(
@@ -75,6 +59,27 @@ public class DynamicInstrumentationTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    // allows dumping instrumented methods for entitlements according to `es.entitlements.dump`
+    public void testToDumpInstrumentedMethods() throws Exception {
+        assumeTrue("Location where to dump instrumented methods is required", System.getProperty("es.entitlements.dump") != null);
+
+        List<Descriptor> descriptors = loadInstrumentedMethodDescriptors();
+        Path path = Path.of(System.getProperty("es.entitlements.dump"));
+        assert path.isAbsolute() : "absolute path required for es.entitlements.dump";
+        Files.write(
+            path,
+            () -> descriptors.stream().filter(d -> d.methodDescriptor != null).map(Descriptor::toLine).iterator(),
+            StandardCharsets.UTF_8
+        );
+    }
+
+    private List<Descriptor> loadInstrumentedMethodDescriptors() throws Exception {
+        Map<MethodKey, CheckMethod> methodsToInstrument = DynamicInstrumentation.getMethodsToInstrument(
+            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature())
+        );
+        return methodsToInstrument.keySet().stream().map(DynamicInstrumentationTests::lookupDescriptor).toList();
     }
 
     private static Descriptor lookupDescriptor(MethodKey key) {
@@ -129,17 +134,4 @@ public class DynamicInstrumentationTests extends ESTestCase {
         }
 
     }
-
-    static <T> Matcher<T> never() {
-        return new BaseMatcher<>() {
-            @Override
-            public boolean matches(Object actual) {
-                return false;
-            }
-
-            @Override
-            public void describeTo(Description description) {}
-        };
-    }
-
 }

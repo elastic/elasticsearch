@@ -692,14 +692,16 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     }
 
     /**
-     * Helper to create a list of dummy {@link ShardStats} for the given index, each shard reporting a {@code peakShardWriteLoad} stat.
+     * Helper to create a list of dummy {@link ShardStats} for the given index, each shard being randomly allocated a peak write load
+     * between 0 and {@code maximumShardWriteLoad}. There will always be at least one shard reporting the specified
+     * {@code maximumShardWriteLoad}.
      */
     private List<ShardStats> createShardStatsResponseForIndex(
         IndexMetadata indexMetadata,
         float maximumShardWriteLoad,
         String assignedShardNodeId
     ) {
-        // Randomly distribute shards' write-loads so that we can check later that shard movements are prioritized correctly
+        // Randomly distribute shards' peak write-loads so that we can check later that shard movements are prioritized correctly
         final double writeLoadThreshold = maximumShardWriteLoad
             * BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
         final List<Double> shardPeakWriteLoads = new ArrayList<>();

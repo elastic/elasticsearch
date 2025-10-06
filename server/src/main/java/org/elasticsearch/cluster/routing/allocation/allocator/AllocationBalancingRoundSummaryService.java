@@ -58,6 +58,7 @@ public class AllocationBalancingRoundSummaryService {
     private final ThreadPool threadPool;
     private volatile boolean enableBalancerRoundSummaries;
     private volatile TimeValue summaryReportInterval;
+    private final AllocationBalancingRoundMetrics balancingRoundMetrics;
 
     /**
      * A concurrency-safe list of balancing round summaries. Balancer rounds are run and added here serially, so the queue will naturally
@@ -69,11 +70,17 @@ public class AllocationBalancingRoundSummaryService {
     private final AtomicReference<Scheduler.Cancellable> scheduledReportFuture = new AtomicReference<>();
 
     public AllocationBalancingRoundSummaryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
+        this(threadPool, clusterSettings, AllocationBalancingRoundMetrics.NOOP);
+    }
+
+    public AllocationBalancingRoundSummaryService(ThreadPool threadPool, ClusterSettings clusterSettings,
+        AllocationBalancingRoundMetrics balancingRoundMetrics) {
         this.threadPool = threadPool;
         // Initialize the local setting values to avoid a null access when ClusterSettings#initializeAndWatch is called on each setting:
         // updating enableBalancerRoundSummaries accesses summaryReportInterval.
         this.enableBalancerRoundSummaries = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_SETTING);
         this.summaryReportInterval = clusterSettings.get(BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING);
+        this.balancingRoundMetrics = balancingRoundMetrics;
 
         clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_SETTING, value -> {
             this.enableBalancerRoundSummaries = value;
@@ -185,6 +192,8 @@ public class AllocationBalancingRoundSummaryService {
         }
 
         logger.info("Balancing round summaries: " + combinedSummaries);
+
+        balancingRoundMetrics.updateRoundMetrics(combinedSummaries);
     }
 
     /**
@@ -213,6 +222,7 @@ public class AllocationBalancingRoundSummaryService {
             cancelReporting();
             // Clear the data structure so that we don't retain unnecessary memory.
             drainSummaries();
+            balancingRoundMetrics.clearRoundMetrics();
         }
     }
 

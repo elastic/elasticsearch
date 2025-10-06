@@ -32,7 +32,6 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.utils.MlAnomaliesIndexUtils;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 
 import java.util.List;
@@ -53,15 +52,15 @@ import static org.mockito.Mockito.when;
 public class MlAnomaliesIndexUpdateTests extends ESTestCase {
 
     public void testIsAnomaliesWriteAlias() {
-        assertTrue(MlAnomaliesIndexUtils.isAnomaliesWriteAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlAnomaliesIndexUtils.isAnomaliesWriteAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlAnomaliesIndexUtils.isAnomaliesWriteAlias("some-index"));
+        assertTrue(MlIndexAndAlias.isAnomaliesWriteAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesWriteAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesWriteAlias("some-index"));
     }
 
     public void testIsAnomaliesAlias() {
-        assertTrue(MlAnomaliesIndexUtils.isAnomaliesReadAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlAnomaliesIndexUtils.isAnomaliesReadAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlAnomaliesIndexUtils.isAnomaliesReadAlias("some-index"));
+        assertTrue(MlIndexAndAlias.isAnomaliesReadAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesReadAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesReadAlias("some-index"));
     }
 
     public void testIsAbleToRun_IndicesDoNotExist() {
@@ -115,7 +114,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         );
 
         var newIndex = anomaliesIndex + "-000001";
-        var request = MlAnomaliesIndexUtils.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
+        var request = MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
         var actions = request.request().getAliasActions();
         assertThat(actions, hasSize(6));
 

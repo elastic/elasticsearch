@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.utils.MlAnomaliesIndexUtils;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
@@ -285,7 +284,7 @@ public class MlDailyMaintenanceService implements Releasable {
         ActionListener<Boolean> listener
     ) {
         aliasRequestBuilder.removeAlias(index, alias);
-        MlAnomaliesIndexUtils.updateAliases(aliasRequestBuilder, listener);
+        MlIndexAndAlias.updateAliases(aliasRequestBuilder, listener);
     }
 
     private void rollAndUpdateAliases(ClusterState clusterState, String index, ActionListener<Boolean> listener) {
@@ -336,7 +335,7 @@ public class MlDailyMaintenanceService implements Releasable {
 
         // 3 Update aliases
         ActionListener<String> rolloverListener = ActionListener.wrap(newIndexNameResponse -> {
-            MlAnomaliesIndexUtils.addIndexAliasesRequests(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
+            MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
             // On success, the rollover alias may have been moved to the new index, so we attempt to remove it from there.
             // Note that the rollover request is considered "successful" even if it didn't occur due to a condition not being met
             // (no exception will be thrown). In which case the attempt to remove the alias here will fail with an
@@ -352,7 +351,7 @@ public class MlDailyMaintenanceService implements Releasable {
 
         // 2 rollover the index alias to the new index name
         ActionListener<IndicesAliasesResponse> getIndicesAliasesListener = ActionListener.wrap(getIndicesAliasesResponse -> {
-            MlAnomaliesIndexUtils.rollover(
+            MlIndexAndAlias.rollover(
                 client,
                 new RolloverRequestBuilder(client).setRolloverTarget(rolloverAlias)
                     .setNewIndexName(newIndexName)
@@ -364,7 +363,7 @@ public class MlDailyMaintenanceService implements Releasable {
         }, rolloverListener::onFailure);
 
         // 1. Create necessary aliases
-        MlAnomaliesIndexUtils.createAliasForRollover(logger, client, index, rolloverAlias, getIndicesAliasesListener);
+        MlIndexAndAlias.createAliasForRollover(logger, client, index, rolloverAlias, getIndicesAliasesListener);
     }
 
     // TODO make public for testing?

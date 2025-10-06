@@ -28,7 +28,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.utils.MlAnomaliesIndexUtils;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 
 import java.util.ArrayList;
@@ -167,18 +166,18 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         ).<String>andThen((l, success) -> {
             rollover(rolloverAlias, newIndexName, l);
         }).<Boolean>andThen((l, newIndexNameResponse) -> {
-            MlAnomaliesIndexUtils.addIndexAliasesRequests(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
+            MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
             // Delete the new alias created for the rollover action
             aliasRequestBuilder.removeAlias(newIndexNameResponse, rolloverAlias);
-            MlAnomaliesIndexUtils.updateAliases(aliasRequestBuilder, l);
+            MlIndexAndAlias.updateAliases(aliasRequestBuilder, l);
         }).addListener(listener);
     }
 
     private void rollover(String alias, @Nullable String newIndexName, ActionListener<String> listener) {
-        MlAnomaliesIndexUtils.rollover(client, new RolloverRequest(alias, newIndexName), listener);
+        MlIndexAndAlias.rollover(client, new RolloverRequest(alias, newIndexName), listener);
     }
 
     private void createAliasForRollover(String indexName, String aliasName, ActionListener<IndicesAliasesResponse> listener) {
-        MlAnomaliesIndexUtils.createAliasForRollover(logger, client, indexName, aliasName, listener);
+        MlIndexAndAlias.createAliasForRollover(logger, client, indexName, aliasName, listener);
     }
 }

@@ -78,21 +78,22 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     private final Configuration configuration;
 
     public PlanStreamInput(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, Configuration configuration) {
-        this(streamInput, namedWriteableRegistry, configuration, new NameIdMapper());
+        this(streamInput, namedWriteableRegistry, configuration, null);
     }
 
     /**
-     * Public for testing, only. Use {@link #PlanStreamInput(StreamInput, NamedWriteableRegistry, Configuration)} in production.
+     * @param idMapper should always be null in production! Custom mappers are only used in tests to force ID values to be the same after
+     *                 serialization and deserialization, which is not the case when they are generated as usual.
      */
     public PlanStreamInput(
         StreamInput streamInput,
         NamedWriteableRegistry namedWriteableRegistry,
         Configuration configuration,
-        NameIdMapper nameIdFunction
+        NameIdMapper idMapper
     ) {
         super(streamInput, namedWriteableRegistry);
         this.configuration = configuration;
-        this.nameIdFunction = nameIdFunction;
+        this.nameIdFunction = idMapper == null ? new NameIdMapper() : idMapper;
     }
 
     public Configuration configuration() throws IOException {

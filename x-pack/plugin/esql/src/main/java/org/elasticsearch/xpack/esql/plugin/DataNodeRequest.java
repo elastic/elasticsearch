@@ -82,7 +82,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     }
 
     /**
-     * @param idMapper non-null for testing only, never in production!
+     * @param idMapper should always be null in production! Custom mappers are only used in tests to force ID values to be the same after
+     *                 serialization and deserialization, which is not the case when they are generated as usual.
      */
     DataNodeRequest(StreamInput in, PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
@@ -94,9 +95,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.clusterAlias = in.readString();
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        PlanStreamInput pin = idMapper == null
-            ? new PlanStreamInput(in, in.namedWriteableRegistry(), configuration)
-            : new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper);
+        PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper);
         this.plan = pin.readNamedWriteable(PhysicalPlan.class);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);

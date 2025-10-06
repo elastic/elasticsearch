@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -928,6 +929,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         applyStartedShardsUntilNoChange(clusterState, allocationService);
     }
 
+    /**
+     * Test for {@link PrioritiseByShardWriteLoadComparator}. See Comparator Javadoc for expected
+     * ordering.
+     */
     public void testShardMovementPriorityComparator() {
         final double maxWriteLoad = randomDoubleBetween(0.0, 100.0, true);
         final double writeLoadThreshold = maxWriteLoad * THRESHOLD_RATIO;
@@ -978,10 +983,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), NOOP);
         }
 
-        final var comparator = new BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator(
-            allocation,
-            allocatedRoutingNodes.node(nodeId)
-        );
+        final var comparator = new PrioritiseByShardWriteLoadComparator(allocation, allocatedRoutingNodes.node(nodeId));
 
         logger.info("--> testing shard movement priority comparator, maxValue={}, threshold={}", maxWriteLoad, writeLoadThreshold);
         var sortedShards = allocatedRoutingNodes.getAssignedShards().values().stream().flatMap(List::stream).sorted(comparator).toList();

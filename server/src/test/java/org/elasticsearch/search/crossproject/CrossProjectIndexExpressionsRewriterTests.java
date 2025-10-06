@@ -20,7 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class IndexExpressionsRewriterTests extends ESTestCase {
+public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
     public void testFlatOnlyRewrite() {
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
@@ -31,7 +31,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "logs*", "metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("logs*", "metrics*"));
         assertIndexRewriteResultsContains(actual.get("logs*"), containsInAnyOrder("logs*", "P1:logs*", "P2:logs*", "P3:logs*"));
@@ -50,7 +50,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "P1:logs*", "metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("P1:logs*", "metrics*"));
         assertIndexRewriteResultsContains(actual.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -69,7 +69,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "P1:logs*", "P2:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("P1:logs*", "P2:metrics*"));
         assertIndexRewriteResultsContains(actual.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -85,7 +85,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "_origin:logs*", "_origin:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("_origin:logs*", "_origin:metrics*"));
         assertIndexRewriteResultsContains(actual.get("_origin:logs*"), containsInAnyOrder("logs*"));
@@ -97,7 +97,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of();
         String[] requestedResources = new String[] { "_origin:logs*", "_origin:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("_origin:logs*", "_origin:metrics*"));
         assertIndexRewriteResultsContains(actual.get("_origin:logs*"), containsInAnyOrder("logs*"));
@@ -118,7 +118,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         String metricResource = aliasForOrigin + ":" + metricsIndexAlias;
         String[] requestedResources = new String[] { logResource, metricResource };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder(logResource, metricResource));
         assertIndexRewriteResultsContains(actual.get(logResource), containsInAnyOrder(logIndexAlias));
@@ -134,7 +134,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "P1:logs*", "_origin:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("P1:logs*", "_origin:metrics*"));
         assertIndexRewriteResultsContains(actual.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
@@ -151,7 +151,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "Q*:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("Q*:metrics*"));
         assertIndexRewriteResultsContains(actual.get("Q*:metrics*"), containsInAnyOrder("Q1:metrics*", "Q2:metrics*"));
@@ -167,7 +167,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "*1:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("*1:metrics*"));
         assertIndexRewriteResultsContains(actual.get("*1:metrics*"), containsInAnyOrder("P1:metrics*", "Q1:metrics*"));
@@ -178,7 +178,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
         String[] requestedResources = new String[] { "P0:metrics*", "_origin:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("P0:metrics*", "_origin:metrics*"));
         assertIndexRewriteResultsContains(actual.get("P0:metrics*"), containsInAnyOrder("metrics*"));
@@ -190,7 +190,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("_P1"), createRandomProjectWithAlias("_P2"));
         String[] requestedResources = new String[] { "_*:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("_*:metrics*"));
         assertIndexRewriteResultsContains(actual.get("_*:metrics*"), containsInAnyOrder("_P1:metrics*", "_P2:metrics*"));
@@ -207,7 +207,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         String indexPattern = "Q*:metrics*";
         String[] requestedResources = new String[] { indexPattern, indexPattern };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder(indexPattern));
         assertIndexRewriteResultsContains(actual.get(indexPattern), containsInAnyOrder("Q1:metrics*", "Q2:metrics*"));
@@ -225,7 +225,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             ResourceNotFoundException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 
@@ -242,7 +242,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 
@@ -259,7 +259,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 
@@ -273,7 +273,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "*:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("*:metrics*"));
         assertIndexRewriteResultsContains(
@@ -292,7 +292,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "alias*:metrics*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("alias*:metrics*"));
         assertIndexRewriteResultsContains(actual.get("alias*:metrics*"), containsInAnyOrder("metrics*"));
@@ -303,7 +303,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
         String[] requestedResources = new String[] {};
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("_all"));
         assertIndexRewriteResultsContains(actual.get("_all"), containsInAnyOrder("P1:_all", "P2:_all", "_all"));
@@ -313,7 +313,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, null);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, null);
 
         assertThat(actual.keySet(), containsInAnyOrder("_all"));
         assertIndexRewriteResultsContains(actual.get("_all"), containsInAnyOrder("P1:_all", "P2:_all", "_all"));
@@ -324,7 +324,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
         String[] requestedResources = new String[] { "*" };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder("*"));
         assertIndexRewriteResultsContains(actual.get("*"), containsInAnyOrder("P1:*", "P2:*", "*"));
@@ -336,7 +336,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
         String all = randomBoolean() ? "_ALL" : "_all";
         String[] requestedResources = new String[] { all };
 
-        var actual = IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
         assertThat(actual.keySet(), containsInAnyOrder(all));
         assertIndexRewriteResultsContains(actual.get(all), containsInAnyOrder("P1:" + all, "P2:" + all, all));
@@ -354,7 +354,7 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
 
         expectThrows(
             NoMatchingProjectException.class,
-            () -> IndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
         );
     }
 
@@ -369,15 +369,15 @@ public class IndexExpressionsRewriterTests extends ESTestCase {
     }
 
     private static void assertIndexRewriteResultsContains(
-        IndexExpressionsRewriter.IndexRewriteResult actual,
+        CrossProjectIndexExpressionsRewriter.IndexRewriteResult actual,
         Matcher<Iterable<?>> iterableMatcher
     ) {
         assertThat(resultAsList(actual), iterableMatcher);
     }
 
-    private static List<String> resultAsList(IndexExpressionsRewriter.IndexRewriteResult result) {
+    private static List<String> resultAsList(CrossProjectIndexExpressionsRewriter.IndexRewriteResult result) {
         if (result.localExpression() == null) {
-            return result.remoteExpressions();
+            return List.copyOf(result.remoteExpressions());
         }
         List<String> all = new ArrayList<>();
         all.add(result.localExpression());

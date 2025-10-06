@@ -225,7 +225,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void test_block_loader_uses_stored_fields_for_loading_when_synthetic_source_delegate_is_absent() {
+    public void testBlockLoaderUsesStoredFieldsForLoadingWhenSyntheticSourceDelegateIsAbsent() {
         // given
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "parent",
@@ -246,7 +246,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
     }
 
-    public void test_block_loader_uses_synthetic_source_delegate_when_ignore_above_is_not_set() {
+    public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
         // given
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
@@ -274,7 +274,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSet() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -322,7 +322,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set_at_index_level() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSetAtIndexLevel() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

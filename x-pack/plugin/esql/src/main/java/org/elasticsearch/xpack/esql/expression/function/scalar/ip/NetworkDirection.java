@@ -126,24 +126,24 @@ public class NetworkDirection extends EsqlScalarFunction {
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock internalNetworks) {
+    static BytesRef process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock networks) {
         // Pulling the bytes out directly using InetAddress.getByAddress() requires error handling TODO
         InetAddress sourceIpAddress = InetAddresses.forString(sourceIp.utf8ToString());
         InetAddress destinationIpAddress = InetAddresses.forString(destinationIp.utf8ToString());
         boolean sourceInternal = false;
         boolean destinationInternal = false;
 
-        int valueCount = internalNetworks.getValueCount(position);
-        int first = internalNetworks.getFirstValueIndex(position);
+        int valueCount = networks.getValueCount(position);
+        int first = networks.getFirstValueIndex(position);
 
         for (int i = first; i < first + valueCount; i++) {
-            if (NetworkDirectionUtils.inNetwork(sourceIpAddress, internalNetworks.getBytesRef(i, scratch).utf8ToString())) {
+            if (NetworkDirectionUtils.inNetwork(sourceIpAddress, networks.getBytesRef(i, scratch).utf8ToString())) {
                 sourceInternal = true;
                 break;
             }
         }
         for (int i = first; i < first + valueCount; i++) {
-            if (NetworkDirectionUtils.inNetwork(destinationIpAddress, internalNetworks.getBytesRef(i, scratch).utf8ToString())) {
+            if (NetworkDirectionUtils.inNetwork(destinationIpAddress, networks.getBytesRef(i, scratch).utf8ToString())) {
                 destinationInternal = true;
                 break;
             }

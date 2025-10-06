@@ -42,18 +42,7 @@ public class GetFieldMappingsRequest extends LegacyActionRequest implements Indi
     public GetFieldMappingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String[] types = in.readStringArray();
-            if (types != Strings.EMPTY_ARRAY) {
-                throw new IllegalArgumentException("Expected empty type array but received [" + Arrays.toString(types) + "]");
-            }
-
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        // Consume the deprecated local parameter
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readBoolean();
-        }
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
     }
@@ -117,13 +106,7 @@ public class GetFieldMappingsRequest extends LegacyActionRequest implements Indi
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(true);
-        }
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
     }

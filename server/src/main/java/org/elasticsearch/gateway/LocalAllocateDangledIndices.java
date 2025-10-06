@@ -277,19 +277,11 @@ public class LocalAllocateDangledIndices {
 
     public static class AllocateDangledResponse extends TransportResponse {
 
-        private AllocateDangledResponse(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readBoolean();
-            }
-        }
+        private AllocateDangledResponse(StreamInput in) throws IOException {}
 
         private AllocateDangledResponse() {}
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeBoolean(true);
-            }
-        }
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

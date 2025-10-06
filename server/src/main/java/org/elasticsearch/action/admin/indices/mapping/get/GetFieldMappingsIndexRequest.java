@@ -29,14 +29,8 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
 
     GetFieldMappingsIndexRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readStringArray();   // former types array
-        }
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readBoolean();       // former probablySingleField boolean
-        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -74,14 +68,8 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(false);
-        }
         OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 

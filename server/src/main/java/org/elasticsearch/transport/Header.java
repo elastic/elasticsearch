@@ -96,10 +96,6 @@ public class Header {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
-            if (version.before(TransportVersions.V_8_0_0)) {
-                // discard features
-                input.readStringArray();
-            }
             this.actionName = input.readString();
         } else {
             this.actionName = RESPONSE_NAME;

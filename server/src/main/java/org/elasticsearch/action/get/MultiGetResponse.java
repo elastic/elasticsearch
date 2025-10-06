@@ -47,9 +47,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
         Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readOptionalString();
-            }
             id = in.readString();
             exception = in.readException();
         }
@@ -78,9 +75,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeString(id);
             out.writeException(exception);
         }

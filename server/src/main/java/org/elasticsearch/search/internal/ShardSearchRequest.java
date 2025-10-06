@@ -306,15 +306,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
                 source.subSearches(subSearchSourceBuilders);
             }
         }
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            String[] types = in.readStringArray();
-            if (types.length > 0) {
-                throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
-                );
-            }
-        }
         aliasFilter = AliasFilter.readFrom(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
@@ -370,10 +361,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
                 }
             }
             out.writeNamedWriteableCollection(rankQueryBuilders);
-        }
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);

@@ -61,9 +61,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
     public GetResult(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalString();
-        }
         id = in.readString();
         seqNo = in.readZLong();
         primaryTerm = in.readVLong();
@@ -287,9 +284,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeZLong(seqNo);
         out.writeVLong(primaryTerm);

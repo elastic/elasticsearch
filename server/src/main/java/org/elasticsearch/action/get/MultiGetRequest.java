@@ -82,9 +82,6 @@ public class MultiGetRequest extends LegacyActionRequest
 
         public Item(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readOptionalString();
-            }
             id = in.readString();
             routing = in.readOptionalString();
             storedFields = in.readOptionalStringArray();
@@ -176,9 +173,6 @@ public class MultiGetRequest extends LegacyActionRequest
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeString(id);
             out.writeOptionalString(routing);
             out.writeOptionalStringArray(storedFields);

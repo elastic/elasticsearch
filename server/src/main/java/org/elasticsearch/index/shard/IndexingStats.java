@@ -400,13 +400,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readBoolean()) {
-                Map<String, Stats> typeStats = in.readMap(Stats::new);
-                assert typeStats.size() == 1;
-                assert typeStats.containsKey(MapperService.SINGLE_MAPPING_NAME);
-            }
-        }
     }
 
     public IndexingStats(Stats totalStats) {
@@ -476,8 +469,5 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(false);
-        }
     }
 }

@@ -113,9 +113,6 @@ public class GetIndexRequest extends LocalClusterStateRequest implements Indices
     public GetIndexRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readStringArray();
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         features = in.readArray(i -> Feature.fromId(i.readByte()), Feature[]::new);
         humanReadable = in.readBoolean();

@@ -201,13 +201,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @SuppressWarnings("unchecked")
         Item(StreamInput in) throws IOException {
             index = in.readOptionalString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                // types no longer relevant so ignore
-                String type = in.readOptionalString();
-                if (type != null) {
-                    throw new IllegalStateException("types are no longer supported but found [" + type + "]");
-                }
-            }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
                 xContentType = in.readEnum(XContentType.class);
@@ -224,10 +217,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                // types not supported so send an empty array to previous versions
-                out.writeOptionalString(null);
-            }
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);

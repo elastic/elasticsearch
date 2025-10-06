@@ -77,15 +77,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                in.readString();    // type - cannot assert on _doc because 7x allows arbitrary type names
-                this.mappings = in.readString();
-            }
-        } else {
-            this.mappings = in.readOptionalString();
-        }
+        mappings = in.readOptionalString();
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(new Alias(in));
@@ -450,15 +442,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeInt(order);
         out.writeBoolean(create);
         settings.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeVInt(mappings == null ? 0 : 1);
-            if (mappings != null) {
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                out.writeString(mappings);
-            }
-        } else {
-            out.writeOptionalString(mappings);
-        }
+        out.writeOptionalString(mappings);
         out.writeCollection(aliases);
         out.writeOptionalVInt(version);
     }

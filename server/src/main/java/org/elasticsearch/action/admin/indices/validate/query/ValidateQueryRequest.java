@@ -49,14 +49,6 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
     public ValidateQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            int typesSize = in.readVInt();
-            if (typesSize > 0) {
-                for (int i = 0; i < typesSize; i++) {
-                    in.readString();
-                }
-            }
-        }
         explain = in.readBoolean();
         rewrite = in.readBoolean();
         allShards = in.readBoolean();
@@ -138,9 +130,6 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeVInt(0);   // no types to filter
-        }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
         out.writeBoolean(allShards);

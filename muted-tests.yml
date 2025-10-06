@@ -645,6 +645,9 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettingsMappingsMerging
   issue: https://github.com/elastic/elasticsearch/issues/135884
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryInlineStats
+  issue: https://github.com/elastic/elasticsearch/issues/135032
 
 # Examples:
 #

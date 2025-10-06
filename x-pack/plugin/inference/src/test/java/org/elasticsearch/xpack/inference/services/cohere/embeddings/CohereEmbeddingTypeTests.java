@@ -19,8 +19,6 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
     private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
         "cohere_bit_embedding_type_support_added"
     );
-    private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_PATCH = COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED
-        .nextPatchVersion();
 
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingByte() {
         assertThat(
@@ -66,7 +64,7 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
 
     public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAdditionPatch_WhenSpecifyingBit() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_PATCH),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
             is(CohereEmbeddingType.BIT)
         );
     }

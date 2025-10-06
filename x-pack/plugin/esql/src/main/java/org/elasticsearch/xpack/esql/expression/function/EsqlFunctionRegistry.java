@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -154,7 +155,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
@@ -395,6 +395,7 @@ public class EsqlFunctionRegistry {
                 def(Atan2.class, Atan2::new, "atan2"),
                 def(Cbrt.class, Cbrt::new, "cbrt"),
                 def(Ceil.class, Ceil::new, "ceil"),
+                def(ConfidenceInterval.class, ConfidenceInterval::new, "confidence_interval"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(E.class, E::new, "e"),
@@ -541,8 +542,7 @@ public class EsqlFunctionRegistry {
                 def(MvUnion.class, MvUnion::new, "mv_union"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split"),
-                def(ConfidenceInterval.class, ConfidenceInterval::new, "confidence_interval") },
+                def(Split.class, Split::new, "split") },
             // search functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),

@@ -2,11 +2,7 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/remote-clusters-settings.html
 applies_to:
-  deployment:
-    self: ga
-    ess: ga
-    eck: ga
-    ece: ga
+  stack: ga
   serverless: unavailable
 products:
   - id: elasticsearch

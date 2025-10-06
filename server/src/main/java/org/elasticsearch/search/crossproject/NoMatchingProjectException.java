@@ -20,7 +20,7 @@ import java.io.IOException;
 public final class NoMatchingProjectException extends ResourceNotFoundException {
 
     public NoMatchingProjectException(String projectName) {
-        super("No such project: [" + projectName + "]");
+        super("no such project [" + projectName + "]");
     }
 
     public NoMatchingProjectException(StreamInput in) throws IOException {

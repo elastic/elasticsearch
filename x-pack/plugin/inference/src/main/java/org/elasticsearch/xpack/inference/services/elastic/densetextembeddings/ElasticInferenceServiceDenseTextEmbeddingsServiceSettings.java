@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,6 +43,9 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     public static final String NAME = "elastic_inference_service_dense_embeddings_service_settings";
 
+    private static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = TransportVersion.fromName(
+        "ml_inference_elastic_dense_text_embeddings_added"
+    );
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"
     );
@@ -177,13 +179,12 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED;
+        return ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19);
+        return version.supports(ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED);
     }
 
     @Override

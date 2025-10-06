@@ -46,6 +46,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public final class Case extends EsqlScalarFunction {
@@ -68,6 +69,7 @@ public final class Case extends EsqlScalarFunction {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "dense_vector",
             "double",
             "geo_point",
             "geo_shape",
@@ -111,6 +113,7 @@ public final class Case extends EsqlScalarFunction {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -202,12 +205,19 @@ public final class Case extends EsqlScalarFunction {
 
     private TypeResolution resolveValueType(Expression value, int position) {
         if (dataType == null || dataType == NULL) {
+            boolean originalWasNull = dataType == NULL;
             dataType = value.dataType().noText();
-            return TypeResolution.TYPE_RESOLVED;
+            return TypeResolutions.isType(
+                value,
+                t -> t != AGGREGATE_METRIC_DOUBLE,
+                sourceText(),
+                TypeResolutions.ParamOrdinal.fromIndex(position),
+                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double"
+            );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType,
+            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

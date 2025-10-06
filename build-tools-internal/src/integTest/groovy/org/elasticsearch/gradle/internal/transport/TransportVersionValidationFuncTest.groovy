@@ -294,4 +294,21 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         then:
         result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
     }
+
+    def "only current upper bound validated on release branch"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.0'
+            }
+        """
+        referableAndReferencedTransportVersion("some_tv", "8124000,8012004")
+        transportVersionUpperBound("9.1", "some_tv", "8012004")
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources").build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
 }

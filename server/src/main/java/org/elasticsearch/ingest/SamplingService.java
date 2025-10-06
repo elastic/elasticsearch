@@ -13,14 +13,11 @@ import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
@@ -62,7 +58,6 @@ public class SamplingService implements ClusterStateListener {
     private final ProjectResolver projectResolver;
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
-    private final AtomicBoolean firstCall = new AtomicBoolean(true);
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -245,28 +240,6 @@ public class SamplingService implements ClusterStateListener {
 
     public boolean atLeastOneSampleConfigured() {
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
-            if (firstCall.get()) {
-                clusterService.submitUnbatchedStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(
-                            currentState.metadata().getProject(ProjectId.DEFAULT)
-                        );
-                        SamplingMetadata samplingMetadata = new SamplingMetadata(
-                            Map.of("test", new SamplingConfiguration(1.0d, 50, null, null, null))
-                        );
-                        projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, samplingMetadata);
-                        ClusterState newState = new ClusterState.Builder(currentState).putProjectMetadata(projectMetadataBuilder).build();
-                        return newState;
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : e.getMessage();
-                    }
-                });
-                firstCall.set(false);
-            }
             SamplingMetadata samplingMetadata = clusterService.state()
                 .projectState(projectResolver.getProjectId())
                 .metadata()

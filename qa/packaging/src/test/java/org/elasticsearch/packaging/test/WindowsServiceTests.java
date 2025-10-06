@@ -212,6 +212,7 @@ public class WindowsServiceTests extends PackagingTestCase {
             sh.getEnv().remove("ES_JAVA_HOME");
             assertCommand(serviceScript + " start");
             assertStartedAndStop();
+            assertCommand(serviceScript + " remove");
         } finally {
             FileUtils.rm(alternateJdk);
         }

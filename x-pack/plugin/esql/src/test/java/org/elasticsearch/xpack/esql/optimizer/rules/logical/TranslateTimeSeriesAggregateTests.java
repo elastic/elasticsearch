@@ -187,9 +187,9 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
 
         TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
         assertEquals(2, innerStats.groupings().size());
-        assertEquals(timeBucketGroup, innerStats.groupings().get(1));
         Attribute tsidGroup = as(innerStats.groupings().get(0), Attribute.class);
         assertEquals("_tsid", tsidGroup.name());
+        assertEquals(timeBucketGroup, innerStats.groupings().get(1));
 
         assertEquals(2, innerStats.aggregates().size());
         Alias innerAggFunction = as(innerStats.aggregates().get(0), Alias.class);

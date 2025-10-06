@@ -560,14 +560,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * This function is meant to deal with the implicit timestamp fields that some TS functions use.
          */
         private TimeSeriesAggregate resolveTimeSeriesAggregate(TimeSeriesAggregate timeSeriesAggregate, List<Attribute> childrenOutput) {
-            if (childrenOutput.stream().noneMatch(attr -> attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
-                // We only need to do something if there isn't a timestamp field in our output
+            Attribute tsAtter = null;
+            for (int i = 0; i < childrenOutput.size(); i++) {
+                if (childrenOutput.get(i).name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                    tsAtter = childrenOutput.get(i);
+                    break;
+                }
+            }
+            if (tsAtter == null) {
+                // if we didn't find a timestamp in the children output, time to do more work
                 Holder<String> tsAttributeName = new Holder<>(MetadataAttribute.TIMESTAMP_FIELD);
+                Holder<Attribute> tsAttribute = new Holder<>();
                 timeSeriesAggregate.forEachExpressionUp(Alias.class, a -> {
                     if (a.child() instanceof Attribute c) {
                         // will this ever not be true?
                         if (c.name().equals(tsAttributeName.get())) {
                             tsAttributeName.set(a.name());
+                            tsAttribute.set(a.toAttribute());
                         }
                     }
                 });
@@ -575,6 +584,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Now we know what timestamp is going to be called, replace our UnresolvedAttributes referencing timestamp with that name
                 List<Expression> newGroupings = new ArrayList<>(timeSeriesAggregate.groupings().size());
                 List<NamedExpression> newAggregates = new ArrayList<>(timeSeriesAggregate.aggregates().size());
+                // TODO: Can we just resolve these here? we have the attribute
                 for (int i = 0; i < timeSeriesAggregate.groupings().size(); i++) {
                     newGroupings.add(timeSeriesAggregate.groupings().get(i).transformUp(UnresolvedAttribute.class, ua -> {
                         if (ua.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
@@ -594,7 +604,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         })
                     );
                 }
-                timeSeriesAggregate = (TimeSeriesAggregate) timeSeriesAggregate.with(newGroupings, newAggregates);
+                timeSeriesAggregate = timeSeriesAggregate.with(newGroupings, newAggregates, tsAttribute.get());
+            } else {
+                timeSeriesAggregate = timeSeriesAggregate.with(timeSeriesAggregate.groupings(), timeSeriesAggregate.aggregates(), tsAtter);
             }
 
             // After correcting the timestamps, we still need to resolve the node as normal, so delegate to resolveAggregate

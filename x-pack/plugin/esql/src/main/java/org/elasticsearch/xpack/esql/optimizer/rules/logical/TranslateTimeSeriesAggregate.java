@@ -165,15 +165,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
                     tsid.set(attr);
                 }
-                if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                    timestamp.set(attr);
-                }
             }
         });
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
         }
-        if (timestamp.get() == null) {
+        if (aggregate.timestamp() == null) {
             throw new IllegalArgumentException("_tsid or @timestamp field are missing from the time-series source");
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
@@ -216,7 +213,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 } else {
                     // TODO: reject over_time_aggregation only
                     final Expression aggField = af.field();
-                    var tsAgg = new LastOverTime(af.source(), aggField, timestamp.get());
+                    var tsAgg = new LastOverTime(af.source(), aggField, aggregate.timestamp());
                     final AggregateFunction firstStageFn;
                     if (inlineFilter != null) {
                         firstStageFn = tsAgg.perTimeSeriesAggregation().withFilter(inlineFilter);
@@ -247,12 +244,12 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
-                if (child instanceof Bucket bucket && bucket.field().equals(timestamp.get())) {
+                if (child instanceof Bucket bucket && bucket.field().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
                     timeBucketRef.set(e);
-                } else if (child instanceof TBucket tbucket && tbucket.field().equals(timestamp.get())) {
+                } else if (child instanceof TBucket tbucket && tbucket.field().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tbucket");
                     }
@@ -296,7 +293,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            (Bucket) Alias.unwrap(timeBucket)
+            (Bucket) Alias.unwrap(timeBucket),
+            aggregate.timestamp()
         );
         return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));
     }

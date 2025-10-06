@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -41,21 +42,30 @@ public class TimeSeriesAggregate extends Aggregate {
     );
 
     private final Bucket timeBucket;
+    /**
+     * this field is used by {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} to help with
+     * resolving the timestamp field, but should not be needed after the initial logical planning on the coordinating node.  As such,
+     * it is not serialized.
+     */
+    private final Attribute timestamp;
 
     public TimeSeriesAggregate(
         Source source,
         LogicalPlan child,
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates,
-        Bucket timeBucket
+        Bucket timeBucket,
+        Attribute timestamp
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.timestamp = timestamp;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        this.timestamp = null;
     }
 
     @Override
@@ -71,17 +81,21 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
+    }
+
+    public TimeSeriesAggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates, Attribute newTimestamp) {
+        return new TimeSeriesAggregate(source(), child(), newGroupings, newAggregates, timeBucket, newTimestamp);
     }
 
     @Override
@@ -92,6 +106,10 @@ public class TimeSeriesAggregate extends Aggregate {
     @Nullable
     public Bucket timeBucket() {
         return timeBucket;
+    }
+
+    public Attribute timestamp() {
+        return timestamp;
     }
 
     @Override

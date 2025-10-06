@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -176,7 +175,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     private void rollover(String alias, @Nullable String newIndexName, ActionListener<String> listener) {
-            MlAnomaliesIndexUtils.rollover(client, new RolloverRequest(alias, newIndexName), listener);
+        MlAnomaliesIndexUtils.rollover(client, new RolloverRequest(alias, newIndexName), listener);
     }
 
     private void createAliasForRollover(String indexName, String aliasName, ActionListener<IndicesAliasesResponse> listener) {

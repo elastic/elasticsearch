@@ -22,7 +22,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,7 +29,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
-import org.elasticsearch.xpack.core.ml.utils.MlAnomaliesIndexUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -1327,8 +1325,8 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             ClusterState state,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-//            setCreateTime(createTime);
-//            setJobVersion(MlConfigVersion.CURRENT);
+            // setCreateTime(createTime);
+            // setJobVersion(MlConfigVersion.CURRENT);
             setClusterState(state);
             setIndexNameExpressionResolver(indexNameExpressionResolver);
             return build(createTime);

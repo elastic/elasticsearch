@@ -25,18 +25,15 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 public class MlAnomaliesIndexUtils {
     public static void rollover(Client client, RolloverRequest rolloverRequest, ActionListener<String> listener) {
         client.admin()
-                .indices()
-                .rolloverIndex(
-                    rolloverRequest,
-                        ActionListener.wrap(response -> listener.onResponse(response.getNewIndex()), e -> {
-                            if (e instanceof ResourceAlreadyExistsException alreadyExistsException) {
-                                // The destination index already exists possibly because it has been rolled over already.
-                                listener.onResponse(alreadyExistsException.getIndex().getName());
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        })
-                );
+            .indices()
+            .rolloverIndex(rolloverRequest, ActionListener.wrap(response -> listener.onResponse(response.getNewIndex()), e -> {
+                if (e instanceof ResourceAlreadyExistsException alreadyExistsException) {
+                    // The destination index already exists possibly because it has been rolled over already.
+                    listener.onResponse(alreadyExistsException.getIndex().getName());
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
     }
 
     public static void createAliasForRollover(
@@ -49,10 +46,7 @@ public class MlAnomaliesIndexUtils {
         logger.warn("creating rollover [{}] alias for [{}]", aliasName, indexName);
         client.admin()
             .indices()
-            .prepareAliases(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS
-            )
+            .prepareAliases(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName).isHidden(true))
             .execute(listener);
     }
@@ -112,6 +106,5 @@ public class MlAnomaliesIndexUtils {
         // which is not a valid job id.
         return MlStrings.isValidId(jobIdPart);
     }
-
 
 }

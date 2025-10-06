@@ -6,13 +6,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
-import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.logging.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
@@ -21,16 +14,21 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
@@ -38,6 +36,8 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.Scheduler;
@@ -91,7 +91,6 @@ public class MlDailyMaintenanceService implements Releasable {
     private final Supplier<TimeValue> schedulerProvider;
 
     private final IndexNameExpressionResolver expressionResolver;
-
 
     private final boolean isAnomalyDetectionEnabled;
     private final boolean isDataFrameAnalyticsEnabled;
@@ -164,14 +163,14 @@ public class MlDailyMaintenanceService implements Releasable {
      * @param clusterName the cluster name is used to seed the random offset
      * @return the delay to the next time the maintenance should be triggered
      */
-//    private static TimeValue delayToNextTime(ClusterName clusterName) {
-//        Random random = new Random(clusterName.hashCode());
-//        int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
-//
-//        ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
-//        ZonedDateTime next = now.plusDays(1).toLocalDate().atStartOfDay(now.getZone()).plusMinutes(30).plusMinutes(minutesOffset);
-//        return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
-//    }
+    // private static TimeValue delayToNextTime(ClusterName clusterName) {
+    // Random random = new Random(clusterName.hashCode());
+    // int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
+    //
+    // ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
+    // ZonedDateTime next = now.plusDays(1).toLocalDate().atStartOfDay(now.getZone()).plusMinutes(30).plusMinutes(minutesOffset);
+    // return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
+    // }
 
     private static TimeValue delayToNextTime(ClusterName clusterName) {
         Random random = new Random(clusterName.hashCode());
@@ -179,7 +178,7 @@ public class MlDailyMaintenanceService implements Releasable {
 
         ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
         ZonedDateTime next = now.plusMinutes(minutesOffset);
-        var ret =  TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
+        var ret = TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
         logger.warn("Delay until next time [{}] is [{}]", next, ret);
         return ret;
     }
@@ -246,57 +245,48 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void triggerAnomalyDetectionMaintenance() {
         // Step 5: Log any error that could have happened
-        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
-            response -> {
-                if (response.isAcknowledged() == false) {
-                    logger.warn("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask failed");
-                } else {
-                    logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask succeeded");
-                }
-            },
-            e -> logger.warn("An error occurred during [ML] maintenance tasks execution ", e)        );
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(response -> {
+            if (response.isAcknowledged() == false) {
+                logger.warn("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask failed");
+            } else {
+                logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask succeeded");
+            }
+        }, e -> logger.warn("An error occurred during [ML] maintenance tasks execution ", e));
 
         // Step 4: Roll over results indices if necessary
-        ActionListener<AcknowledgedResponse> rollResultsIndicesIfNecessaryListener = ActionListener.wrap(
-            unused -> {
-                logger.warn("1. About to call [triggerRollResultsIndicesIfNecessaryTask]");
+        ActionListener<AcknowledgedResponse> rollResultsIndicesIfNecessaryListener = ActionListener.wrap(unused -> {
+            logger.warn("1. About to call [triggerRollResultsIndicesIfNecessaryTask]");
 
-                triggerRollResultsIndicesIfNecessaryTask(finalListener);},
-            e -> {
-                logger.warn("[ML] maintenance task: triggerDeleteExpiredDataTask failed ", e);
-                logger.warn("2. About to call [triggerRollResultsIndicesIfNecessaryTask]");
+            triggerRollResultsIndicesIfNecessaryTask(finalListener);
+        }, e -> {
+            logger.warn("[ML] maintenance task: triggerDeleteExpiredDataTask failed ", e);
+            logger.warn("2. About to call [triggerRollResultsIndicesIfNecessaryTask]");
 
-
-                // Note: Steps 1-4 are independent, so continue upon errors.
-                triggerRollResultsIndicesIfNecessaryTask(finalListener);
-            }
-        );
+            // Note: Steps 1-4 are independent, so continue upon errors.
+            triggerRollResultsIndicesIfNecessaryTask(finalListener);
+        });
 
         // Step 3: Delete expired data
-        ActionListener<AcknowledgedResponse> deleteJobsListener = ActionListener.wrap(
-            unused -> {
-                logger.warn("About to call [triggerDeleteExpiredDataTask]");
-                triggerDeleteExpiredDataTask(rollResultsIndicesIfNecessaryListener);},
-            e -> {
-                logger.warn("[ML] maintenance task: triggerResetJobsInStateResetWithoutResetTask failed", e);
-                logger.warn("About to call [triggerDeleteExpiredDataTask]");
-                // Note: Steps 1-4 are independent, so continue upon errors.
-                triggerDeleteExpiredDataTask(rollResultsIndicesIfNecessaryListener);
-            }
-        );
+        ActionListener<AcknowledgedResponse> deleteJobsListener = ActionListener.wrap(unused -> {
+            logger.warn("About to call [triggerDeleteExpiredDataTask]");
+            triggerDeleteExpiredDataTask(rollResultsIndicesIfNecessaryListener);
+        }, e -> {
+            logger.warn("[ML] maintenance task: triggerResetJobsInStateResetWithoutResetTask failed", e);
+            logger.warn("About to call [triggerDeleteExpiredDataTask]");
+            // Note: Steps 1-4 are independent, so continue upon errors.
+            triggerDeleteExpiredDataTask(rollResultsIndicesIfNecessaryListener);
+        });
 
         // Step 2: Reset jobs that are in resetting state without task
-        ActionListener<AcknowledgedResponse> resetJobsListener = ActionListener.wrap(
-            unused -> {
-                logger.warn("About to call [triggerResetJobsInStateResetWithoutResetTask]");
-                triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener);},
-            e -> {
-                logger.warn("[ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask failed", e);
-                logger.warn("About to call [triggerResetJobsInStateResetWithoutResetTask]");
-                // Note: Steps 1-4 are independent, so continue upon errors.
-                triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener);
-            }
-        );
+        ActionListener<AcknowledgedResponse> resetJobsListener = ActionListener.wrap(unused -> {
+            logger.warn("About to call [triggerResetJobsInStateResetWithoutResetTask]");
+            triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener);
+        }, e -> {
+            logger.warn("[ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask failed", e);
+            logger.warn("About to call [triggerResetJobsInStateResetWithoutResetTask]");
+            // Note: Steps 1-4 are independent, so continue upon errors.
+            triggerResetJobsInStateResetWithoutResetTask(deleteJobsListener);
+        });
 
         // Step 1: Delete jobs that are in deleting state without task
         logger.warn("About to call [triggerDeleteJobsInStateDeletingWithoutDeletionTask]");
@@ -353,11 +343,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 // We must still clean up the temporary alias from the original index.
                 // The index name is either the original one provided or the original with a suffix appended.
                 var indexName = MlIndexAndAlias.has6DigitSuffix(index) ? index : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
-                logger.warn(
-                    "[ML] Removing dangling rollover alias [{}] from index [{}].",
-                    rolloverAlias,
-                    indexName
-                );
+                logger.warn("[ML] Removing dangling rollover alias [{}] from index [{}].", rolloverAlias, indexName);
 
                 // Make sure we use a fresh IndicesAliasesRequestBuilder, the original one may have changed internal state.
                 IndicesAliasesRequestBuilder localAliasRequestBuilder = client.admin()
@@ -415,13 +401,11 @@ public class MlDailyMaintenanceService implements Releasable {
                     .setNewIndexName(newIndexName)
                     // .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(50,
                     // ByteSizeUnit.GB)).build()) // TODO Make these settings?
-                    .setConditions(
-                        RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(2, ByteSizeUnit.MB)).build()
-                    ) // TODO
-                      // Make
-                      // these
-                      // changeable
-                      // settings?
+                    .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(2, ByteSizeUnit.MB)).build()) // TODO
+                                                                                                                                           // Make
+                                                                                                                                           // these
+                                                                                                                                           // changeable
+                                                                                                                                           // settings?
                     .request(),
                 rolloverListener
             );
@@ -451,7 +435,6 @@ public class MlDailyMaintenanceService implements Releasable {
 
         logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask");
         logger.warn("AD results indices [{}]", (Object) indices);
-
 
         for (String index : indices) {
             logger.warn("Processing index [{}]", index);

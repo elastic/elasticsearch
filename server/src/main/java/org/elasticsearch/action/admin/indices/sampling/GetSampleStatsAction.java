@@ -155,13 +155,7 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
 
         public SamplingService.SampleStats getSampleStats() {
             SamplingService.SampleStats rawStats = getRawSampleStats();
-            if (rawStats.getSamples() > maxSize) {
-                SamplingService.SampleStats filteredStats = new SamplingService.SampleStats().combine(rawStats);
-                filteredStats.adjustForMaxSize(maxSize);
-                return filteredStats;
-            } else {
-                return rawStats;
-            }
+            return rawStats.adjustForMaxSize(maxSize);
         }
 
         private SamplingService.SampleStats getRawSampleStats() {

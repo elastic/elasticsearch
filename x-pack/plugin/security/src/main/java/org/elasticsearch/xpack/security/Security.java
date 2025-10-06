@@ -210,6 +210,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1160,7 +1161,8 @@ public class Security extends Plugin
             restrictedIndices,
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
-            projectResolver
+            projectResolver,
+            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1343,6 +1345,27 @@ public class Security extends Plugin
             }
             return customAuthenticators;
         }
+    }
+
+    private AuthorizedProjectsResolver getCustomAuthorizedProjectsResolverOrDefault(
+        SecurityExtension.SecurityComponents extensionComponents
+    ) {
+        final AuthorizedProjectsResolver customAuthorizedProjectsResolver = findValueFromExtensions(
+            "authorized projects resolver",
+            extension -> {
+                final AuthorizedProjectsResolver authorizedProjectsResolver = extension.getAuthorizedProjectsResolver(extensionComponents);
+                if (authorizedProjectsResolver != null && isInternalExtension(extension) == false) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.getClass().getName()
+                            + "] extension tried to install a custom AuthorizedProjectsResolver. This functionality is not available to "
+                            + "external extensions."
+                    );
+                }
+                return authorizedProjectsResolver;
+            }
+        );
+        return customAuthorizedProjectsResolver == null ? new AuthorizedProjectsResolver.Default() : customAuthorizedProjectsResolver;
     }
 
     private ServiceAccountService createServiceAccountService(

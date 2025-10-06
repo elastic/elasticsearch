@@ -290,7 +290,7 @@ class KnnIndexer {
             } catch (IOException ioe) {
                 throw new UncheckedIOException(ioe);
             }
-            logger.info("Index thread times: [{}] read, [{}] add doc", readTime, docAddTime);
+            logger.debug("Index thread times: [{}s] read, [{}s] add doc", readTime / 1e-9, docAddTime / 1e-9);
         }
 
         private void _run() throws IOException {

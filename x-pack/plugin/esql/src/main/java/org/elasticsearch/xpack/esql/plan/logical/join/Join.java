@@ -180,7 +180,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput(left().output(), right().output());
+            lazyOutput = Expressions.asAttributes(computeOutputExpressions(left().output(), right().output()));
         }
         return lazyOutput;
     }
@@ -209,10 +209,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
 
         return rightOutputFields;
-    }
-
-    List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
-        return Expressions.asAttributes(computeOutputExpressions(left, right, config));
     }
 
     public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {

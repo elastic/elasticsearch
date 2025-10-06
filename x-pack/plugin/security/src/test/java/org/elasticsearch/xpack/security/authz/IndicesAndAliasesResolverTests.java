@@ -112,6 +112,7 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -119,6 +120,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -809,6 +811,29 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 resolvedIndexExpression("foofoo*", Set.of("foofoobar", "foofoo", "foofoo-closed"), SUCCESS)
             )
         );
+    }
+
+    public void testResolveMultipleTimesDoesNotOverwriteExpressions() {
+        SearchRequest request = new SearchRequest("barbaz", "foofoo*");
+        request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+        String[] replacedIndices = new String[] { "barbaz", "foofoobar", "foofoo" };
+        assertThat(indices, hasSize(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+        assertThat(actual, is(notNullValue()));
+        assertThat(
+            actual.expressions(),
+            contains(
+                resolvedIndexExpression("barbaz", Set.of("barbaz"), CONCRETE_RESOURCE_UNAUTHORIZED),
+                resolvedIndexExpression("foofoo*", Set.of("foofoobar", "foofoo"), SUCCESS)
+            )
+        );
+        request.indices(NO_INDICES_OR_ALIASES_ARRAY);
+        resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
+        assertThat(actual, sameInstance(request.getResolvedIndexExpressions()));
     }
 
     public void testResolveWildcardsExpandOpenAndClosedIgnoreUnavailable() {
@@ -1812,7 +1837,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.aliases("bar*");
         request.indices("*bar");
         resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME));
-        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.aliases(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     public void testResolveAliasesExclusionWildcardsGetAliasesRequest() {
@@ -1869,7 +1894,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME));
         assertThat(resolvedIndices.getLocal(), contains("non_existing"));
         assertThat(Arrays.asList(request.indices()), contains("non_existing"));
-        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.aliases(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     /**

@@ -461,9 +461,7 @@ public final class MlIndexAndAlias {
      * True if the index name ends with a 6 digit suffix, e.g. 000001
      */
     public static boolean indexNameHasSixDigitSuffix(String indexName) {
-        boolean ret = HAS_SIX_DIGIT_SUFFIX.test(indexName);
-        logger.warn("indexNameHasSixDigitSuffix [{}] returning [{}]", indexName, ret);
-        return ret;
+        return HAS_SIX_DIGIT_SUFFIX.test(indexName);
     }
 
     /**

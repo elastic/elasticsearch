@@ -247,7 +247,6 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                         break;
                     case REMOVE:
                         for (String alias : concreteAliases(action, projectMetadata, index.getName())) {
-                            logger.warn("Adding alias [{}] for index [{}] to remove list", alias, index.getName());
                             finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
                             numAliasesRemoved++;
                         }

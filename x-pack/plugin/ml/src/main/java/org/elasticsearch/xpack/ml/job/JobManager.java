@@ -204,32 +204,23 @@ public class JobManager {
         AnalysisRegistry analysisRegistry,
         MlConfigVersion minNodeVersion
     ) throws IOException {
-        LogManager.getLogger(JobManager.class).warn("XXX: 1. Validating categorization analyzer");
         AnalysisConfig analysisConfig = jobBuilder.getAnalysisConfig();
-        LogManager.getLogger(JobManager.class).warn("XXX: 1a. Validating categorization analyzer");
-
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
-        LogManager.getLogger(JobManager.class).warn("XXX: 1b. Validating categorization analyzer");
-
         if (categorizationAnalyzerConfig != null) {
-            LogManager.getLogger(JobManager.class).warn("XXX: 2. Validating categorization analyzer");
             CategorizationAnalyzer.verifyConfigBuilder(
                 new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig),
                 analysisRegistry
             );
         } else if (analysisConfig.getCategorizationFieldName() != null
             && minNodeVersion.onOrAfter(MIN_ML_CONFIG_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
-                LogManager.getLogger(JobManager.class).warn("XXX: 3. Setting standard categorization analyzer");
                 // Any supplied categorization filters are transferred into the new categorization analyzer.
                 // The user supplied categorization filters will already have been validated when the put job
                 // request was built, so we know they're valid.
                 AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(analysisConfig).setCategorizationAnalyzerConfig(
                     CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(analysisConfig.getCategorizationFilters())
                 ).setCategorizationFilters(null);
-                LogManager.getLogger(JobManager.class).warn("XXX: 4. Validating categorization analyzer");
                 jobBuilder.setAnalysisConfig(analysisConfigBuilder);
             }
-        LogManager.getLogger(JobManager.class).warn("XXX: 5. Done validating categorization analyzer");
     }
 
     /**
@@ -244,19 +235,11 @@ public class JobManager {
 
         MlConfigVersion minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.getNodes());
         Job.Builder jobBuilder = request.getJobBuilder();
-        logger.warn("[ML]: 1. Putting job [{}]", jobBuilder.getId());
-
         jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());
-        logger.warn("[ML]: 2. Putting job [{}]", jobBuilder.getId());
-
         jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
-        logger.warn("[ML]: 3. Putting job [{}]", jobBuilder.getId());
-
         validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, minNodeVersion);
 
-        logger.warn("[ML]: Building job [{}]", jobBuilder.getId());
         Job job = jobBuilder.build(new Date(), state, indexNameExpressionResolver);
-        logger.warn("[ML]: Created job [{}]", jobBuilder.getId());
 
         ActionListener<Boolean> putJobListener = new ActionListener<>() {
             @Override

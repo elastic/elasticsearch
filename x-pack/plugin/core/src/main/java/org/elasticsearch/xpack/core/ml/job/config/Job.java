@@ -1325,8 +1325,6 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             ClusterState state,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-            // setCreateTime(createTime);
-            // setJobVersion(MlConfigVersion.CURRENT);
             setClusterState(state);
             setIndexNameExpressionResolver(indexNameExpressionResolver);
             return build(createTime);
@@ -1370,27 +1368,19 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             // Creation time is NOT required in user input, hence validated only on build
             ExceptionsHelper.requireNonNull(createTime, CREATE_TIME.getPreferredName());
 
-            LogManager.getLogger(Job.class).warn("resultsIndexName: [{}]: ", resultsIndexName);
-
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-                LogManager.getLogger(Job.class).warn("Using default resultsIndexName: [{}]: ", resultsIndexName);
-
             } else if (resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT) == false) {
                 // User-defined names are prepended with "custom" and end with a 6 digit suffix
                 // Conditional guards against multiple prepending due to updates instead of first creation
                 resultsIndexName = resultsIndexName.startsWith("custom-") ? resultsIndexName : "custom-" + resultsIndexName;
             }
 
-            LogManager.getLogger(Job.class).warn("Before: [{}]: ", resultsIndexName);
-
             resultsIndexName = MlIndexAndAlias.indexNameHasSixDigitSuffix(resultsIndexName)
                 ? resultsIndexName
                 : resultsIndexName + "-000001";
 
             if (indexNameExpressionResolver.get() != null && clusterState.get() != null) {
-                LogManager.getLogger(Job.class).warn("Getting latest index matching base name: [{}]: ", resultsIndexName);
-
                 String tmpResultsIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(
                     AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + resultsIndexName,
                     indexNameExpressionResolver.get(),
@@ -1398,11 +1388,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
                 );
 
                 resultsIndexName = tmpResultsIndexName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
-
-                LogManager.getLogger(Job.class).warn("OBTAINED latest index matching base name: [{}]: ", resultsIndexName);
             }
-
-            LogManager.getLogger(Job.class).warn("After: [{}]: ", resultsIndexName);
 
             if (datafeedConfig != null) {
                 if (datafeedConfig.getId() == null) {

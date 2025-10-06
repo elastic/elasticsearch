@@ -323,6 +323,7 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.CustomActionAuthorizationStep;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
 import org.elasticsearch.xpack.security.authz.FileRoleValidator;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
@@ -644,6 +645,7 @@ public class Security extends Plugin
     private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
     private final SetOnce<RemoteClusterSecurityExtension> remoteClusterSecurityExtension = new SetOnce<>();
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
+    private final SetOnce<CustomActionAuthorizationStep.Factory> esqlAuthorizationStep = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -1144,6 +1146,9 @@ public class Security extends Plugin
         if (authorizationDenialMessages.get() == null) {
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
+        if (esqlAuthorizationStep.get() == null) {
+            esqlAuthorizationStep.set(new CustomActionAuthorizationStep.Factory.Default());
+        }
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1162,7 +1167,8 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents)
+            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents),
+            esqlAuthorizationStep.get().create(settings, linkedProjectConfigService)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -2549,6 +2555,7 @@ public class Security extends Plugin
             RemoteClusterSecurityExtension.Provider.class,
             CrossClusterAccessSecurityExtension.Provider::new
         );
+        loadSingletonExtensionAndSetOnce(loader, esqlAuthorizationStep, CustomActionAuthorizationStep.Factory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

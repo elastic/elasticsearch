@@ -153,17 +153,20 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final CustomActionAuthorizationStep esqlStep;
 
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
         FieldPermissionsCache fieldPermissionsCache,
-        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory,
+        CustomActionAuthorizationStep esqlStep
     ) {
         this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = fieldPermissionsCache;
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
+        this.esqlStep = esqlStep;
     }
 
     @Override
@@ -333,6 +336,9 @@ public class RBACEngine implements AuthorizationEngine {
             role = ensureRBAC(authorizationInfo).getRole();
         } catch (Exception e) {
             return SubscribableListener.newFailed(e);
+        }
+        if (esqlStep.authorize(requestInfo)) {
+            return SubscribableListener.newSucceeded(IndexAuthorizationResult.EMPTY);
         }
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still

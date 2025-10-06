@@ -343,7 +343,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
     }
 
@@ -1778,7 +1779,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1830,7 +1832,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3370,7 +3373,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3528,7 +3532,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

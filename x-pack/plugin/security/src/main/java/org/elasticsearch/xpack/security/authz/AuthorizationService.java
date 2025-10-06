@@ -172,7 +172,8 @@ public class AuthorizationService {
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
-        AuthorizedProjectsResolver authorizedProjectsResolver
+        AuthorizedProjectsResolver authorizedProjectsResolver,
+        CustomActionAuthorizationStep esqlAuthorizationStep
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -193,7 +194,8 @@ public class AuthorizationService {
             settings,
             rolesStore,
             fieldPermissionsCache,
-            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings()),
+            esqlAuthorizationStep
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;

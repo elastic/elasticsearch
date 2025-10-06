@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkDirectionUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
@@ -159,5 +158,17 @@ public class NetworkDirection extends EsqlScalarFunction {
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;
+    }
+
+    public Expression sourceIpField() {
+        return sourceIpField;
+    }
+
+    public Expression destinationIpField() {
+        return destinationIpField;
+    }
+
+    public Expression internalNetworks() {
+        return internalNetworks;
     }
 }

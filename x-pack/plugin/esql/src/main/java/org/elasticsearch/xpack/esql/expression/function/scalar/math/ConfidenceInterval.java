@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
+package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.stat.descriptive.moment.Mean;
@@ -29,6 +29,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.ConfidenceIntervalDoubleEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.ConfidenceIntervalIntEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.ConfidenceIntervalLongEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 

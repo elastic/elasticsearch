@@ -40,14 +40,19 @@ public final class TranslogHeaderWriter {
         int uidVIntLen = RecyclerBytesStreamOutput.vIntLength(uidLen);
         BytesRef page = buffer.tryGetPageForWrite(FIXED_INDEX_HEADER_SIZE + uidLen + uidVIntLen);
         if (page != null) {
-            writeFastIndexHeader(buffer, index, page, uidVIntLen);
+            writeFastIndexHeader(buffer, index, page, uidLen, uidVIntLen);
         } else {
             writeSlowIndexHeader(buffer, index);
         }
     }
 
-    private static void writeFastIndexHeader(RecyclerBytesStreamOutput buffer, Translog.Index index, BytesRef page, int uidVIntLen)
-        throws IOException {
+    private static void writeFastIndexHeader(
+        RecyclerBytesStreamOutput buffer,
+        Translog.Index index,
+        BytesRef page,
+        int uidLen,
+        int uidVIntLen
+    ) throws IOException {
         BytesRef uid = index.uid();
         String routing = index.routing();
 
@@ -62,7 +67,7 @@ public final class TranslogHeaderWriter {
         ByteUtils.writeLongBE(index.primaryTerm(), bytes, off + 30);
         StreamOutput.putVInt(bytes, uid.length, off + 38);
         System.arraycopy(uid.bytes, uid.offset, bytes, off + 38 + uidVIntLen, uid.length);
-        bytes[off + 38 + uidVIntLen + uid.length] = index.routing() == null ? (byte) 0 : (byte) 1;
+        bytes[off + 38 + uidVIntLen + uidLen] = index.routing() == null ? (byte) 0 : (byte) 1;
 
         long variableLengthStart = buffer.position();
         // Write variable length items in header
@@ -95,19 +100,15 @@ public final class TranslogHeaderWriter {
     }
 
     public static void writeDeleteHeader(RecyclerBytesStreamOutput buffer, Translog.Delete delete) throws IOException {
-        int uidLen = delete.uid().length;
-        int uidVIntLen = RecyclerBytesStreamOutput.vIntLength(uidLen);
-        BytesRef page = buffer.tryGetPageForWrite(FIXED_DELETE_HEADER_SIZE + uidLen + uidVIntLen);
+        BytesRef page = buffer.tryGetPageForWrite(FIXED_DELETE_HEADER_SIZE);
         if (page != null) {
-            writeFastDeleteHeader(delete, page, uidVIntLen);
+            writeFastDeleteHeader(buffer, delete, page);
         } else {
             writeSlowDeleteHeader(buffer, delete);
         }
     }
 
-    private static void writeFastDeleteHeader(Translog.Delete delete, BytesRef page, int uidVIntLen) throws IOException {
-        BytesRef uid = delete.uid();
-
+    private static void writeFastDeleteHeader(RecyclerBytesStreamOutput buffer, Translog.Delete delete, BytesRef page) throws IOException {
         int off = page.offset;
         byte[] bytes = page.bytes;
         bytes[off + 4] = Translog.Operation.Type.DELETE.id();
@@ -116,11 +117,13 @@ public final class TranslogHeaderWriter {
         ByteUtils.writeLongBE(delete.version(), bytes, off + 6);
         ByteUtils.writeLongBE(delete.seqNo(), bytes, off + 14);
         ByteUtils.writeLongBE(delete.primaryTerm(), bytes, off + 22);
-        StreamOutput.putVInt(bytes, uid.length, off + 30);
-        System.arraycopy(uid.bytes, uid.offset, bytes, off + 30 + uidVIntLen, uid.length);
 
+        long variableLengthStart = buffer.position();
+        // Write variable length items in header
+        buffer.writeBytesRef(delete.uid());
+        int variableLengthSize = (int) (buffer.position() - variableLengthStart);
         // The total operation size is the header size + 4 bytes for checksum
-        int sizeOfOperation = FIXED_DELETE_HEADER_SIZE - Integer.BYTES + uidVIntLen + uid.length + Integer.BYTES;
+        int sizeOfOperation = FIXED_DELETE_HEADER_SIZE - Integer.BYTES + variableLengthSize + Integer.BYTES;
         ByteUtils.writeIntBE(sizeOfOperation, bytes, off);
     }
 

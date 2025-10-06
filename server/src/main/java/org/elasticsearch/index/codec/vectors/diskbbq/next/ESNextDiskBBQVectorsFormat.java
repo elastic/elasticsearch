@@ -54,7 +54,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final String CLUSTER_EXTENSION = "clivf";
     static final String IVF_META_EXTENSION = "mivf";
 
-    public static final int VERSION_START = 0;
+    public static final int VERSION_START = 1;
     public static final int VERSION_CURRENT = VERSION_START;
 
     private static final DirectIOCapableFlatVectorsFormat rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(

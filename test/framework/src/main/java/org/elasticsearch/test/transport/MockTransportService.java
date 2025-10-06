@@ -196,7 +196,7 @@ public class MockTransportService extends TransportService {
         String nodeId = UUIDs.randomBase64UUID();
         return new MockTransportService(
             settings,
-            new StubbableTransport(transport),
+            transport,
             threadPool,
             interceptor,
             boundAddress -> DiscoveryNodeUtils.builder(nodeId)

@@ -52,6 +52,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
     private final ThreadLocal<Hasher> threadLocalHasher;
     private final byte[] salt;
     private final boolean ignoreMissing;
+    private final Encoder encoder;
 
     FingerprintProcessor(
         String tag,
@@ -60,7 +61,8 @@ public final class FingerprintProcessor extends AbstractProcessor {
         String targetField,
         byte[] salt,
         ThreadLocal<Hasher> threadLocalHasher,
-        boolean ignoreMissing
+        boolean ignoreMissing,
+        Encoder encoder
     ) {
         super(tag, description);
         this.fields = new ArrayList<>(fields);
@@ -69,6 +71,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
         this.threadLocalHasher = threadLocalHasher;
         this.salt = salt;
         this.ignoreMissing = ignoreMissing;
+        this.encoder = encoder;
     }
 
     @Override
@@ -129,7 +132,10 @@ public final class FingerprintProcessor extends AbstractProcessor {
                 }
             }
 
-            ingestDocument.setFieldValue(targetField, Base64.getEncoder().encodeToString(hasher.digest()));
+            byte[] hashBytes = hasher.digest();
+            String finalFingerprint = encoder.encode(hashBytes);
+
+            ingestDocument.setFieldValue(targetField, finalFingerprint);
         }
 
         return ingestDocument;
@@ -222,6 +228,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
         static final String DEFAULT_TARGET = "fingerprint";
         static final String DEFAULT_SALT = "";
         static final String DEFAULT_METHOD = "SHA-1";
+        static final String DEFAULT_ENCODING = "base64";
 
         @Override
         public FingerprintProcessor create(
@@ -240,6 +247,19 @@ public final class FingerprintProcessor extends AbstractProcessor {
             String salt = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt", DEFAULT_SALT);
             byte[] saltBytes = Strings.hasText(salt) ? toBytes(salt) : new byte[0];
             String method = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "method", DEFAULT_METHOD);
+            String encodingName = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "encoding", DEFAULT_ENCODING);
+            Encoder encoder;
+
+            if ("base64".equals(encodingName)) {
+                encoder = new Base64Encoder();
+            } else if ("hex".equals(encodingName)) {
+                encoder = new HexEncoder();
+            } else if ("base64url".equals(encodingName)) {
+                encoder = new Base64UrlEncoder();
+            } else {
+                throw newConfigurationException(TYPE, processorTag, "encoding", "encoding needs to be one of [base64, hex, base64url]");
+            }
+
             if (Arrays.asList(SUPPORTED_DIGESTS).contains(method) == false) {
                 throw newConfigurationException(
                     TYPE,
@@ -262,7 +282,16 @@ public final class FingerprintProcessor extends AbstractProcessor {
             });
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
-            return new FingerprintProcessor(processorTag, description, fields, targetField, saltBytes, threadLocalHasher, ignoreMissing);
+            return new FingerprintProcessor(
+                processorTag,
+                description,
+                fields,
+                targetField,
+                saltBytes,
+                threadLocalHasher,
+                ignoreMissing,
+                encoder
+            );
         }
     }
 
@@ -350,6 +379,43 @@ public final class FingerprintProcessor extends AbstractProcessor {
         @Override
         public String getAlgorithm() {
             return Murmur3Hasher.getAlgorithm();
+        }
+    }
+
+    public interface Encoder {
+        String encode(byte[] input);
+    }
+
+    public static final class Base64Encoder implements Encoder {
+        @Override
+        public String encode(byte[] input) {
+            return Base64.getEncoder().encodeToString(input);
+        }
+    }
+
+    public static final class Base64UrlEncoder implements Encoder {
+        @Override
+        public String encode(byte[] input) {
+            return Base64.getUrlEncoder().encodeToString(input);
+        }
+    }
+
+    public static class HexEncoder implements Encoder {
+        private static final char[] HEX_ARRAY = "0123456789abcdef".toCharArray();
+
+        public static String bytesToHex(byte[] bytes) {
+            char[] hexChars = new char[bytes.length * 2];
+            for (int j = 0; j < bytes.length; j++) {
+                int v = bytes[j] & 0xFF;
+                hexChars[j * 2] = HEX_ARRAY[v >>> 4];
+                hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
+            }
+            return new String(hexChars);
+        }
+
+        @Override
+        public String encode(byte[] input) {
+            return bytesToHex(input);
         }
     }
 

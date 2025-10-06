@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
@@ -377,6 +378,71 @@ public class FingerprintProcessorTests extends ESTestCase {
         doTestObjectTraversal(inputMap, fields, expectedValues);
     }
 
+    public void testAllEncodings() throws Exception {
+        String inputContent = "hello world???"; // chosen to create unsafe base64 chars
+        MessageDigest md = MessageDigest.getInstance("SHA-1");
+        md.update(FingerprintProcessor.DELIMITER);
+        md.update(inputContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] hashBytes = md.digest();
+
+        var supportedEncodings = List.of("base64", "hex", "base64url");
+
+        var expectedFingerprints = List.of(
+            Base64.getEncoder().encodeToString(hashBytes),
+            FingerprintProcessor.HexEncoder.bytesToHex(hashBytes),
+            Base64.getUrlEncoder().encodeToString(hashBytes)
+        );
+
+        var factory = new FingerprintProcessor.Factory();
+        var inputMap = new HashMap<String, Object>();
+        inputMap.put("foo", inputContent);
+
+        for (int i = 0; i < supportedEncodings.size(); i++) {
+            String encodingName = supportedEncodings.get(i);
+            String expectedFingerprint = expectedFingerprints.get(i);
+
+            var config = new HashMap<String, Object>();
+            config.put("fields", List.of("foo"));
+            config.put("method", "SHA-1");
+            config.put("encoding", encodingName);
+
+            FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config, null);
+
+            var outputDoc = fp.execute(TestIngestDocument.withDefaultVersion(inputMap));
+            String actualFingerprint = outputDoc.getFieldValue("fingerprint", String.class);
+
+            assertThat("failed for encoding [" + encodingName + "]", actualFingerprint, equalTo(expectedFingerprint));
+        }
+    }
+
+    public void testDefaultEncodingIsBase64() throws Exception {
+        var inputMap = new HashMap<String, Object>();
+        inputMap.put("foo", "bar");
+
+        var factory = new FingerprintProcessor.Factory();
+        var config = new HashMap<String, Object>();
+        config.put("fields", List.of("foo"));
+        config.put("method", "SHA-1");
+
+        FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config, null);
+        var outputDoc = fp.execute(TestIngestDocument.withDefaultVersion(inputMap));
+        String actualFingerprint = outputDoc.getFieldValue("fingerprint", String.class);
+
+        String expectedBase64Fingerprint = "AOPlILUBonkyUaQ0RymqWJE/2O8=";
+        assertThat(actualFingerprint, equalTo(expectedBase64Fingerprint));
+    }
+
+    public void testInvalidEncodingThrowsException() {
+        var factory = new FingerprintProcessor.Factory();
+        var config = new HashMap<String, Object>();
+        config.put("fields", List.of("foo"));
+        config.put("encoding", "unsupported_value");
+
+        var e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, randomAlphaOfLength(10), null, config, null));
+
+        assertThat(e.getMessage(), containsString("encoding needs to be one of [base64, hex, base64url]"));
+    }
+
     private void doTestObjectTraversal(Map<String, Object> inputMap, List<String> fields, List<Object> expectedValues) throws Exception {
         ThreadLocal<FingerprintProcessor.Hasher> threadLocalHasher = ThreadLocal.withInitial(TestHasher::new);
         FingerprintProcessor fp = new FingerprintProcessor(
@@ -386,7 +452,8 @@ public class FingerprintProcessorTests extends ESTestCase {
             "fingerprint",
             new byte[0],
             threadLocalHasher,
-            false
+            false,
+            new FingerprintProcessor.Base64Encoder()
         );
 
         byte[] expectedBytes = new byte[0];

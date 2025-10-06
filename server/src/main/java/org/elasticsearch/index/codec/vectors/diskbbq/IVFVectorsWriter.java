@@ -53,16 +53,22 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
-    private final boolean useDirectIOReads;
+    private final Boolean useDirectIOReads;
     private final FlatVectorsWriter rawVectorDelegate;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        boolean useDirectIOReads,
-        FlatVectorsWriter rawVectorDelegate
+        Boolean useDirectIOReads,
+        FlatVectorsWriter rawVectorDelegate,
+        int writeVersion
     ) throws IOException {
+        // if version >= VERSION_DIRECT_IO, useDirectIOReads should have a value
+        if ((writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO) == (useDirectIOReads == null)) throw new IllegalArgumentException(
+            "Write version " + writeVersion + " does not match direct IO value " + useDirectIOReads
+        );
+
         this.rawVectorFormatName = rawVectorFormatName;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
@@ -88,7 +94,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             CodecUtil.writeIndexHeader(
                 ivfMeta,
                 ES920DiskBBQVectorsFormat.NAME,
-                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                writeVersion,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -96,7 +102,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             CodecUtil.writeIndexHeader(
                 ivfCentroids,
                 ES920DiskBBQVectorsFormat.NAME,
-                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                writeVersion,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -104,7 +110,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             CodecUtil.writeIndexHeader(
                 ivfClusters,
                 ES920DiskBBQVectorsFormat.NAME,
-                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                writeVersion,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -503,7 +509,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException {
         ivfMeta.writeInt(field.number);
         ivfMeta.writeString(rawVectorFormatName);
-        ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        if (useDirectIOReads != null) {
+            ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
         ivfMeta.writeInt(numCentroids);

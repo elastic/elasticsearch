@@ -67,7 +67,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int vectorPerCluster,
         int centroidsPerParentCluster
     ) throws IOException {
-        super(state, rawVectorFormatName, useDirectIOReads, rawVectorDelegate);
+        super(state, rawVectorFormatName, useDirectIOReads, rawVectorDelegate, ESNextDiskBBQVectorsFormat.VERSION_CURRENT);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
     }

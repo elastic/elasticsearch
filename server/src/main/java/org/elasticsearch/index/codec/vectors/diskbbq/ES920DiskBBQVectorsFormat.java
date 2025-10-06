@@ -128,6 +128,19 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         );
     }
 
+    // for testing
+    KnnVectorsWriter version0FieldsWriter(SegmentWriteState state) throws IOException {
+        return new ES920DiskBBQVectorsWriter(
+            state,
+            rawVectorFormat.getName(),
+            null,
+            rawVectorFormat.fieldsWriter(state),
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            VERSION_START
+        );
+    }
+
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES920DiskBBQVectorsReader(state, (f, dio) -> {

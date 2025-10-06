@@ -141,7 +141,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    protected static int vIntLength(int value) {
+    public static int vIntLength(int value) {
         int leadingZeros = Integer.numberOfLeadingZeros(value);
         if (leadingZeros >= 25) {
             return 1;

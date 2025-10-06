@@ -54,8 +54,6 @@ public class DynamicInstrumentationTests extends ESTestCase {
                 () -> descriptors.stream().filter(d -> d.methodDescriptor != null).map(Descriptor::toLine).iterator(),
                 StandardCharsets.UTF_8
             );
-        } else {
-            throw new RuntimeException();
         }
 
         assertThat(

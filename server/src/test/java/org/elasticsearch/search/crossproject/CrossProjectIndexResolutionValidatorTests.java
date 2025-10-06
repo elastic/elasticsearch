@@ -24,11 +24,11 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ResponseValidatorTests extends ESTestCase {
+public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testLenientIndicesOptions() {
         // with lenient IndicesOptions we early terminate without error
-        assertNull(ResponseValidator.validate(getLenientIndicesOptions(), null, null));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getLenientIndicesOptions(), null, null));
     }
 
     public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
@@ -47,7 +47,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched resource locally thus no error
-        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, null));
     }
 
     public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
@@ -83,7 +83,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, remote));
     }
 
     public void testMissingFlatExpressionWithStrictIgnoreUnavailable() {
@@ -117,7 +117,7 @@ public class ResponseValidatorTests extends ESTestCase {
                 )
             )
         );
-        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [logs]"));
@@ -155,7 +155,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(e.getMessage(), containsString("user cannot access [logs]"));
@@ -177,7 +177,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched locally thus no error
-        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, null));
     }
 
     public void testQualifiedOriginExpressionWithStrictIgnoreUnavailableNotMatching() {
@@ -195,7 +195,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, null);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, null);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [_origin:logs]"));
@@ -224,7 +224,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        assertNull(ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, remote));
     }
 
     public void testMissingQualifiedExpressionWithStrictIgnoreUnavailable() {
@@ -259,7 +259,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
@@ -287,7 +287,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictIgnoreUnavailable(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(e.getMessage(), containsString("user cannot access [P1:logs]"));
@@ -309,7 +309,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched resource locally thus no error
-        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, null));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, null));
     }
 
     public void testAllowNoIndicesFoundEmptyResultsOnOriginAndLinked() {
@@ -344,7 +344,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        ElasticsearchException ex = ResponseValidator.validate(getIndicesOptions(false, false), local, remote);
+        ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(getIndicesOptions(false, false), local, remote);
         assertNotNull(ex);
         assertThat(ex, instanceOf(IndexNotFoundException.class));
     }
@@ -382,7 +382,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, remote));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, remote));
     }
 
     public void testMissingFlatExpressionWithStrictAllowNoIndices() {
@@ -417,7 +417,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [logs*]"));
@@ -455,7 +455,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [logs*]"));
@@ -477,7 +477,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched locally thus no error
-        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, null));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, null));
     }
 
     public void testQualifiedOriginExpressionWithStrictAllowNoIndicesNotMatching() {
@@ -494,7 +494,7 @@ public class ResponseValidatorTests extends ESTestCase {
                 )
             )
         );
-        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, null);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, null);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [_origin:logs*]"));
@@ -515,7 +515,7 @@ public class ResponseValidatorTests extends ESTestCase {
                     )
                 )
             );
-            assertNull(ResponseValidator.validate(getIndicesOptions(randomBoolean(), randomBoolean()), local, Map.of()));
+            assertNull(CrossProjectIndexResolutionValidator.validate(getIndicesOptions(randomBoolean(), randomBoolean()), local, Map.of()));
         }
     }
 
@@ -542,7 +542,7 @@ public class ResponseValidatorTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        assertNull(ResponseValidator.validate(getStrictAllowNoIndices(), local, remote));
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, remote));
     }
 
     public void testMissingQualifiedExpressionWithStrictAllowNoIndices() {
@@ -577,7 +577,7 @@ public class ResponseValidatorTests extends ESTestCase {
             )
         );
 
-        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
@@ -614,7 +614,7 @@ public class ResponseValidatorTests extends ESTestCase {
                 )
             )
         );
-        var e = ResponseValidator.validate(getStrictAllowNoIndices(), local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));

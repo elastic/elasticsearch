@@ -308,6 +308,11 @@ public class EsqlCapabilities {
         AGG_TOP_STRING_SUPPORT,
 
         /**
+         * Make optional the order field in the TOP agg command, and default it to "ASC".
+         */
+        AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,

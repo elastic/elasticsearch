@@ -172,7 +172,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
      */
     protected abstract ActionResponse createResponse(float[] array, T builder);
 
-    protected static float[] randomVector(int dim) {
+    public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();

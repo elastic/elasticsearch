@@ -168,17 +168,13 @@ public final class RemoteClusterService extends RemoteClusterAware
         return groupIndices(remoteClusterNames, indicesOptions, indices, true);
     }
 
+    @Override
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
         return groupIndices(getRegisteredRemoteClusterNames(), indicesOptions, indices, returnLocalAll);
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
         return groupIndices(getRegisteredRemoteClusterNames(), indicesOptions, indices, true);
-    }
-
-    @Override
-    public Set<String> getConfiguredClusters() {
-        return getRegisteredRemoteClusterNames();
     }
 
     /**

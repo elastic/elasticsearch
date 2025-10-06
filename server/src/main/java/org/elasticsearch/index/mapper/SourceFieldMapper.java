@@ -339,7 +339,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final boolean enabled;
 
         private SourceFieldType(boolean enabled) {
-            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, enabled, false, Collections.emptyMap());
             this.enabled = enabled;
         }
 

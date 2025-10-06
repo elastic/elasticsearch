@@ -42,6 +42,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -90,7 +91,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -373,5 +374,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
+    }
+
+    @Override
+    public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return ExpressionWritables.getGenericNamedWriteables();
     }
 }

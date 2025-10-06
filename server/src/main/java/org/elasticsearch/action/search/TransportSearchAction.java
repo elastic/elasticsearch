@@ -196,7 +196,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(transportService, searchService, namedWriteableRegistry);
         SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
             searchTransportService,
             searchService,
@@ -2099,7 +2099,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
-                searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, searchRequestAttributes);
 
                 if (collectCCSTelemetry) {
                     extractCCSTelemetry(searchResponse);
@@ -2115,7 +2115,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         @Override
         public void onFailure(Exception e) {
-            searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+            searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE, searchRequestAttributes);
             if (collectCCSTelemetry) {
                 usageBuilder.setFailure(e);
                 recordTelemetry();

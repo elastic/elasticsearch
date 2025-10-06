@@ -285,7 +285,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexed, isStored, hasDocValues, meta);
             this.nullValueFormatted = nullValueFormatted;
             this.isDimension = isDimension;
             this.metricType = metricType;
@@ -300,6 +300,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override

@@ -141,7 +141,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         List<DataType> NUMERICS = Arrays.stream(DataType.values()).filter(DataType::isNumeric).toList();
         List<DataType> DOUBLES = Arrays.stream(DataType.values()).filter(DataType::isRationalNumber).toList();
         for (DataType dataType : DataType.values()) {
-            if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize().equals(numericType.estimatedSize()))) {
+            if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize() == numericType.estimatedSize())) {
                 assertEquals(numericType, commonType(dataType, numericType));
             } else if (lowerTypes.contains(dataType)) {
                 assertEqualsCommonType(numericType, dataType, numericType);

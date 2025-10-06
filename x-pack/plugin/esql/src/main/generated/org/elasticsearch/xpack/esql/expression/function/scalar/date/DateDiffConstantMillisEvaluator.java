@@ -100,8 +100,10 @@ public final class DateDiffConstantMillisEvaluator implements EvalOperator.Expre
           result.appendNull();
           continue position;
         }
+        long startTimestamp = startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p));
+        long endTimestamp = endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestamp, endTimestamp));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -115,8 +117,10 @@ public final class DateDiffConstantMillisEvaluator implements EvalOperator.Expre
       LongVector endTimestampVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long startTimestamp = startTimestampVector.getLong(p);
+        long endTimestamp = endTimestampVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.processMillis(this.datePartFieldUnit, startTimestamp, endTimestamp));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

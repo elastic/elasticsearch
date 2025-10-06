@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb.patterntext;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.xpack.logsdb.DataStreamLicenseChangeTestCase;
 import org.junit.Before;
 
@@ -21,8 +20,7 @@ import static org.hamcrest.Matchers.not;
 public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCase {
     @Before
     public void checkClusterFeature() {
-        assumeTrue("[pattern_text] must be available", clusterHasFeature("mapper.patterned_text"));
-        assumeTrue("[pattern_text] is only available in snapshot builds", Build.current().isSnapshot());
+        assumeTrue("[patterned_text] must be available", clusterHasFeature("mapper.patterned_text"));
     }
 
     private static final String patternTextMapping = """
@@ -48,7 +46,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
 
         String backingIndex0 = getDataStreamBackingIndex(client(), dataStreamName, 0);
         {
-            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.patterned_text.disable_templating"));
+            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "pattern_field"
@@ -60,7 +58,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         rolloverDataStream(client(), dataStreamName);
 
         {
-            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.patterned_text.disable_templating"));
+            assertEquals("false", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "pattern_field"
@@ -70,7 +68,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
 
         String backingIndex1 = getDataStreamBackingIndex(client(), dataStreamName, 1);
         {
-            assertEquals("true", getSetting(client(), backingIndex1, "index.mapping.patterned_text.disable_templating"));
+            assertEquals("true", getSetting(client(), backingIndex1, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "pattern_field"

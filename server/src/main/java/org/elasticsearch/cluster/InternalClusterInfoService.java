@@ -100,13 +100,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
-    private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
-    private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
-    private volatile Map<String, ByteSizeValue> maxHeapPerNode;
-    private volatile Map<String, Long> estimatedHeapUsagePerNode;
-    private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
-    private volatile IndicesStatsSummary indicesStatsSummary;
-
     private final ThreadPool threadPool;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
@@ -131,12 +124,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         EstimatedHeapUsageCollector estimatedHeapUsageCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector
     ) {
-        this.leastAvailableSpaceUsages = Map.of();
-        this.mostAvailableSpaceUsages = Map.of();
-        this.maxHeapPerNode = Map.of();
-        this.estimatedHeapUsagePerNode = Map.of();
-        this.nodeThreadPoolUsageStatsPerNode = Map.of();
-        this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
         this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
@@ -209,6 +196,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     private class AsyncRefresh {
+
+        private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
+        private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
+        private volatile Map<String, ByteSizeValue> maxHeapPerNode;
+        private volatile Map<String, Long> estimatedHeapUsagePerNode;
+        private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
+        private volatile IndicesStatsSummary indicesStatsSummary;
 
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
@@ -475,6 +469,30 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 onRefreshComplete(this);
             }
         }
+
+        private ClusterInfo updateAndGetCurrentClusterInfo() {
+            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+            maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
+                final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
+                if (estimatedHeapUsage != null) {
+                    estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
+                }
+            });
+            final var newClusterInfo = new ClusterInfo(
+                leastAvailableSpaceUsages,
+                mostAvailableSpaceUsages,
+                indicesStatsSummary.shardSizes,
+                indicesStatsSummary.shardDataSetSizes,
+                indicesStatsSummary.dataPath,
+                indicesStatsSummary.reservedSpace,
+                estimatedHeapUsages,
+                nodeThreadPoolUsageStatsPerNode,
+                indicesStatsSummary.shardWriteLoads(),
+                maxHeapPerNode
+            );
+            currentClusterInfo = newClusterInfo;
+            return newClusterInfo;
+        }
     }
 
     private void onRefreshComplete(AsyncRefresh completedRefresh) {
@@ -540,39 +558,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     @Override
     public ClusterInfo getClusterInfo() {
         return currentClusterInfo;
-    }
-
-    /**
-     * Compute and return a new ClusterInfo from the most recently fetched stats and update {@link #currentClusterInfo} to it.
-     * Note the method is called when a {@link AsyncRefresh} has received all the stats it requested. Since there can only be
-     * a single AsyncRefresh at a time, the various stats used to compose the final results are guaranteed to be from a single
-     * refresh cycle for consistency. Note that users of this class must call {@link #getClusterInfo()} to get the latest
-     * computed and cached ClusterInfo and avoid accessing individual stats directly.
-     */
-    private ClusterInfo updateAndGetCurrentClusterInfo() {
-        final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
-        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
-        final var currentMaxHeapPerNode = this.maxHeapPerNode; // Make sure we use a consistent view
-        currentMaxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
-            final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
-            if (estimatedHeapUsage != null) {
-                estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
-            }
-        });
-        final var newClusterInfo = new ClusterInfo(
-            leastAvailableSpaceUsages,
-            mostAvailableSpaceUsages,
-            indicesStatsSummary.shardSizes,
-            indicesStatsSummary.shardDataSetSizes,
-            indicesStatsSummary.dataPath,
-            indicesStatsSummary.reservedSpace,
-            estimatedHeapUsages,
-            nodeThreadPoolUsageStatsPerNode,
-            indicesStatsSummary.shardWriteLoads(),
-            currentMaxHeapPerNode
-        );
-        currentClusterInfo = newClusterInfo;
-        return newClusterInfo;
     }
 
     // allow tests to adjust the node stats on receipt

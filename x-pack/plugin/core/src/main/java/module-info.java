@@ -155,6 +155,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.action.token;
     exports org.elasticsearch.xpack.core.security.action.user;
     exports org.elasticsearch.xpack.core.security.action.settings;
+    exports org.elasticsearch.xpack.core.security.action.stats;
     exports org.elasticsearch.xpack.core.security.action;
     exports org.elasticsearch.xpack.core.security.authc.esnative;
     exports org.elasticsearch.xpack.core.security.authc.file;
@@ -190,6 +191,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.sql;
     exports org.elasticsearch.xpack.core.ssl.action;
     exports org.elasticsearch.xpack.core.ssl.cert;
+    exports org.elasticsearch.xpack.core.ssl.extension;
     exports org.elasticsearch.xpack.core.ssl.rest;
     exports org.elasticsearch.xpack.core.ssl;
     exports org.elasticsearch.xpack.core.template;

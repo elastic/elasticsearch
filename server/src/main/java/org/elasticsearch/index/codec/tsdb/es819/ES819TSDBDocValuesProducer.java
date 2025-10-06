@@ -304,6 +304,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             doc = target;
             return true;
         }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return maxDoc;
+        }
     }
 
     private abstract static class SparseBinaryDocValues extends BinaryDocValues {
@@ -337,6 +342,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public boolean advanceExact(int target) throws IOException {
             return disi.advanceExact(target);
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return disi.docIDRunEnd();
         }
     }
 
@@ -382,6 +392,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             @Override
             public long cost() {
                 return ords.cost();
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return ords.docIDRunEnd();
             }
 
             @Override
@@ -926,6 +941,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             public long cost() {
                 return ords.cost();
             }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return ords.docIDRunEnd();
+            }
         };
     }
 
@@ -1232,8 +1252,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.termsIndexAddressesLength = meta.readLong();
     }
 
-    private abstract static class NumericValues {
-        abstract long advance(long index) throws IOException;
+    @FunctionalInterface
+    private interface NumericValues {
+        long advance(long index) throws IOException;
     }
 
     static final class SortedOrdinalReader {
@@ -1297,6 +1318,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
+                    public int docIDRunEnd() {
+                        return maxDoc;
+                    }
+
+                    @Override
                     long lookAheadValueAt(int targetDoc) throws IOException {
                         return 0L;  // Only one ordinal!
                     }
@@ -1314,6 +1340,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public long longValue() throws IOException {
                         return 0L;  // Only one ordinal!
+                    }
+
+                    @Override
+                    public int docIDRunEnd() throws IOException {
+                        return disi.docIDRunEnd();
                     }
                 };
             }
@@ -1339,6 +1370,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
+
+                @Override
+                public int docIDRunEnd() {
+                    return maxDoc;
+                }
 
                 @Override
                 public long longValue() throws IOException {
@@ -1469,6 +1505,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
                 @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
+                }
+
+                @Override
                 public long longValue() throws IOException {
                     final int index = disi.index();
                     final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
@@ -1577,6 +1618,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public long longValue() {
                     return ordinalsReader.readValueAndAdvance(doc);
                 }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return maxDoc;
+                }
             };
         } else {
             final var disi = new IndexedDISI(
@@ -1592,6 +1638,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public long longValue() {
                     return ordinalsReader.readValueAndAdvance(disi.docID());
                 }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
+                }
             };
         }
     }
@@ -1603,30 +1654,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-        return new NumericValues() {
 
-            private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-            private long currentBlockIndex = -1;
-            private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-
-            @Override
-            long advance(long index) throws IOException {
-                final long blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                final int blockInIndex = (int) (index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
-                if (blockIndex != currentBlockIndex) {
-                    // no need to seek if the loading block is the next block
-                    if (currentBlockIndex + 1 != blockIndex) {
-                        valuesData.seek(indexReader.get(blockIndex));
-                    }
-                    currentBlockIndex = blockIndex;
-                    if (bitsPerOrd == -1) {
-                        decoder.decode(valuesData, currentBlock);
-                    } else {
-                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
-                    }
+        final long[] currentBlockIndex = { -1 };
+        final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+        return index -> {
+            final long blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+            final int blockInIndex = (int) (index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
+            if (blockIndex != currentBlockIndex[0]) {
+                // no need to seek if the loading block is the next block
+                if (currentBlockIndex[0] + 1 != blockIndex) {
+                    valuesData.seek(indexReader.get(blockIndex));
                 }
-                return currentBlock[blockInIndex];
+                currentBlockIndex[0] = blockIndex;
+                if (bitsPerOrd == -1) {
+                    decoder.decode(valuesData, currentBlock);
+                } else {
+                    decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                }
             }
+            return currentBlock[blockInIndex];
         };
     }
 
@@ -1700,6 +1747,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public int docValueCount() {
                     return count;
                 }
+
+                @Override
+                public int docIDRunEnd() {
+                    return maxDoc;
+                }
             };
         } else {
             // sparse
@@ -1755,6 +1807,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 public int docValueCount() {
                     set();
                     return count;
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return disi.docIDRunEnd();
                 }
 
                 private void set() {

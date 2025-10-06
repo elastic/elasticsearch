@@ -98,7 +98,9 @@ public final class GreaterThanOrEqualKeywordsEvaluator implements EvalOperator.E
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(GreaterThanOrEqual.processKeywords(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch)));
+        BytesRef lhs = lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch);
+        BytesRef rhs = rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch);
+        result.appendBoolean(GreaterThanOrEqual.processKeywords(lhs, rhs));
       }
       return result.build();
     }
@@ -109,7 +111,9 @@ public final class GreaterThanOrEqualKeywordsEvaluator implements EvalOperator.E
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, GreaterThanOrEqual.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        BytesRef lhs = lhsVector.getBytesRef(p, lhsScratch);
+        BytesRef rhs = rhsVector.getBytesRef(p, rhsScratch);
+        result.appendBoolean(p, GreaterThanOrEqual.processKeywords(lhs, rhs));
       }
       return result.build();
     }

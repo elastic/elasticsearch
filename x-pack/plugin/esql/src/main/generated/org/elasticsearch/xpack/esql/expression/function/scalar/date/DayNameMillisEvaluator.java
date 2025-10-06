@@ -82,7 +82,8 @@ public final class DayNameMillisEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(DayName.processMillis(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.zoneId, this.locale));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendBytesRef(DayName.processMillis(val, this.zoneId, this.locale));
       }
       return result.build();
     }
@@ -91,7 +92,8 @@ public final class DayNameMillisEvaluator implements EvalOperator.ExpressionEval
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DayName.processMillis(valVector.getLong(p), this.zoneId, this.locale));
+        long val = valVector.getLong(p);
+        result.appendBytesRef(DayName.processMillis(val, this.zoneId, this.locale));
       }
       return result.build();
     }

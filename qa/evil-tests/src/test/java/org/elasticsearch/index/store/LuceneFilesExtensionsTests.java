@@ -51,7 +51,7 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
         assertFalse(LuceneFilesExtensions.isLuceneExtension("bcde"));
         String randomStringWithLuceneExtension = randomAlphanumericOfLength(10)
             + "."
-            + LuceneFilesExtensions.values()[randomInt(LuceneFilesExtensions.values().length) - 1].getExtension();
+            + LuceneFilesExtensions.values()[randomInt(LuceneFilesExtensions.values().length - 1)].getExtension();
         String extension = IndexFileNames.getExtension(randomStringWithLuceneExtension);
         assertTrue(extension + " should be considered a Lucene extension", LuceneFilesExtensions.isLuceneExtension(extension));
         String upperCaseExtension = extension.toUpperCase(Locale.ROOT);

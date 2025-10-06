@@ -190,9 +190,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
 
+        private static final TransportVersion JOIN_ON_ALIASES = TransportVersion.fromName("join_on_aliases");
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
             "esql_lookup_join_on_many_fields"
         );
+        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
@@ -224,8 +226,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ShardId shardId = new ShardId(in);
 
             String indexPattern;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (in.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 indexPattern = in.readString();
             } else {
                 indexPattern = shardId.getIndexName();
@@ -263,7 +264,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
             }
             Expression joinOnConditions = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
             TransportRequest result = new TransportRequest(
@@ -296,8 +297,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(sessionId);
             out.writeWriteable(shardId);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (out.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
                 throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
@@ -328,7 +328,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
                 planOut.writeOptionalNamedWriteable(joinOnConditions);
             } else {
                 if (joinOnConditions != null) {

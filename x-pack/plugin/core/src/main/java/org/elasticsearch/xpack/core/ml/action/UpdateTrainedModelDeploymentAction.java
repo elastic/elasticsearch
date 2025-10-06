@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.INFERENCE_UPDATE_ML;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.ADAPTIVE_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
@@ -51,6 +51,8 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
+
+        private static final TransportVersion INFERENCE_UPDATE_ML = TransportVersion.fromName("inference_update_ml");
 
         static {
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
@@ -100,12 +102,12 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             } else {
                 numberOfAllocations = in.readOptionalVInt();
                 adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-                if (in.getTransportVersion().before(INFERENCE_UPDATE_ML)) {
+                if (in.getTransportVersion().supports(INFERENCE_UPDATE_ML)) {
+                    source = in.readEnum(Source.class);
+                } else {
                     // we changed over from a boolean to an enum
                     // when it was a boolean, true came from adaptive allocations and false came from the rest api
                     source = in.readBoolean() ? Source.ADAPTIVE_ALLOCATIONS : Source.API;
-                } else {
-                    source = in.readEnum(Source.class);
                 }
             }
         }
@@ -155,13 +157,13 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
-                if (out.getTransportVersion().before(INFERENCE_UPDATE_ML)) {
+                if (out.getTransportVersion().supports(INFERENCE_UPDATE_ML)) {
+                    out.writeEnum(source);
+                } else {
                     // we changed over from a boolean to an enum
                     // when it was a boolean, true came from adaptive allocations and false came from the rest api
                     // treat "inference" as if it came from the api
                     out.writeBoolean(isInternal());
-                } else {
-                    out.writeEnum(source);
                 }
             }
         }

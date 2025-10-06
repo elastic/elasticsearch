@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.time.Instant;
@@ -33,7 +34,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -219,7 +219,7 @@ public class DataTier {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public void provideAdditionalMetadata(
+        public void provideAdditionalSettings(
             String indexName,
             @Nullable String dataStreamName,
             IndexMode templateIndexMode,
@@ -227,8 +227,8 @@ public class DataTier {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            Settings.Builder additionalSettings,
-            BiConsumer<String, Map<String, String>> additionalCustomMetadata
+            IndexVersion indexVersion,
+            Settings.Builder additionalSettings
         ) {
             Set<String> settings = indexTemplateAndCreateRequestSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {

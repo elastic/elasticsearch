@@ -41,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -302,6 +303,11 @@ public class VerifierTests extends ESTestCase {
                 )
             );
         }
+
+        assertEquals(
+            "1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.",
+            error("from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE", analyzer)
+        );
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -1127,7 +1133,7 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM tests | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:20: argument of [count(network.bytes_out)] must be [any type except counter types],"
+                "1:20: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1298,9 +1304,7 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
-        }
+        checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
@@ -1425,16 +1429,13 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
         }
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
-        }
-
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
@@ -1480,14 +1481,12 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("qstr(\"title: Meditation\")");
         checkWithFullTextFunctionsDisjunctions("kql(\"title: Meditation\")");
         checkWithFullTextFunctionsDisjunctions("match_phrase(title, \"Meditation\")");
+        checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
         }
     }
 
@@ -1545,14 +1544,12 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"title: Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         }
     }
 
@@ -1616,14 +1613,12 @@ public class VerifierTests extends ESTestCase {
         testFullTextFunctionTargetsExistingField("match(title, \"Meditation\")");
         testFullTextFunctionTargetsExistingField("title : \"Meditation\"");
         testFullTextFunctionTargetsExistingField("match_phrase(title, \"Meditation\")");
+        testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("multi_match(\"Meditation\", title)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
         }
     }
 
@@ -2233,8 +2228,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinDataTypeMismatch() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
         assertEquals(
@@ -2244,7 +2237,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinExpressionAmbiguousRight() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -2262,7 +2254,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinExpressionAmbiguousLeft() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -2280,7 +2271,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinExpressionAmbiguousBoth() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -2301,11 +2291,9 @@ public class VerifierTests extends ESTestCase {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
         checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
+        checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
         }
     }
 
@@ -2389,6 +2377,8 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionNullArgs("kql(null)", "");
         checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
+        checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
+        checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
             checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
@@ -2396,10 +2386,6 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
             checkFullTextFunctionNullArgs("term(title, null)", "second");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
-            checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         }
     }
 
@@ -2425,11 +2411,9 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsInStats("qstr(\"title: Meditation\")");
         checkFullTextFunctionsInStats("kql(\"title: Meditation\")");
         checkFullTextFunctionsInStats("match_phrase(title, \"Meditation\")");
+        checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
         }
     }
 
@@ -2509,7 +2493,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsWithSemanticText() {
-        assumeTrue("requires knn function", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         checkFullTextFunctionsWithSemanticText("knn(semantic, [0, 1, 2])");
         checkFullTextFunctionsWithSemanticText("match(semantic, \"hello world\")");
         checkFullTextFunctionsWithSemanticText("semantic:\"hello world\"");
@@ -2568,8 +2551,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
-
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
         query(queryPrefix + " | fuse");
@@ -2585,6 +2566,14 @@ public class VerifierTests extends ESTestCase {
         query(queryPrefix + " | fuse linear");
         query(queryPrefix + " | fuse linear with { \"normalizer\": \"minmax\" } ");
         query(queryPrefix + " | fuse linear with { \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse linear score by _score with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_score = _score + 1 | fuse linear score by new_score with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear group by _fork with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_fork = to_upper(_fork) | fuse linear group by new_fork with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear key by _id,_index with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_id = concat(_id, _index) | fuse linear key by new_id with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear score by _score key by _id, _index group by _fork with { \"normalizer\": \"minmax\" } ");
 
         assertThat(error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
@@ -2651,6 +2640,53 @@ public class VerifierTests extends ESTestCase {
             error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
             containsString("[\"foo\"] is not a valid normalizer")
         );
+
+        assertThat(error(queryPrefix + " | fuse linear SCORE BY foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(error(queryPrefix + " | fuse linear GROUP BY foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(error(queryPrefix + " | fuse linear KEY BY _id, foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(
+            error(queryPrefix + " | fuse linear SCORE BY first_name"),
+            containsString("expected SCORE BY column [first_name] to be DOUBLE, not KEYWORD")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse linear GROUP BY _score"),
+            containsString("expected GROUP BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse linear KEY BY _score"),
+            containsString("expected KEY BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
+        );
+
+        assertThat(
+            error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
+            containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
+        );
+    }
+
+    public void testNoMetricInStatsByClause() {
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)", tsdb),
+            equalTo(
+                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in", tsdb),
+            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)", tsdb),
+            equalTo(
+                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
     }
 
     public void testSortInTimeSeries() {
@@ -2673,6 +2709,42 @@ public class VerifierTests extends ESTestCase {
             before the first aggregation [STATS avg(network.connections)] is not allowed; filter data with a WHERE command instead
             line 1:11: sorting [SORT host] between the time-series source \
             and the first aggregation [STATS avg(network.connections)] is not allowed"""));
+    }
+
+    public void testTextEmbeddingFunctionInvalidQuery() {
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(null, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(42, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [TEXT_EMBEDDING(42, ?)] must be [string], found value [42] type [integer]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(last_name, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [TEXT_EMBEDDING(last_name, ?)] must be a constant, received [last_name]")
+        );
+    }
+
+    public void testTextEmbeddingFunctionInvalidInferenceId() {
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(?, 42)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, 42)] must be [string], found value [42] type [integer]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]")
+        );
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

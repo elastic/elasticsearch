@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -40,13 +41,16 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -58,9 +62,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     public static final NodeFeature SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = new NodeFeature("semantic_query.multiple_inference_ids");
     public static final NodeFeature SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX = new NodeFeature("semantic_query.filter_field_caps_fix");
 
-    private static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV = TransportVersion.fromName(
+    static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV = TransportVersion.fromName(
         "semantic_query_multiple_inference_ids"
     );
+    static final TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = TransportVersion.fromName(
+        "inference_results_map_with_cluster_alias"
+    );
+    public static final TransportVersion SEMANTIC_SEARCH_CCS_SUPPORT = TransportVersion.fromName("semantic_search_ccs_support");
 
     // Use a placeholder inference ID that will never overlap with a real inference endpoint (user-created or internal)
     private static final String PLACEHOLDER_INFERENCE_ID = "$PLACEHOLDER";
@@ -84,18 +92,40 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private final String fieldName;
     private final String query;
-    private final Map<String, InferenceResults> inferenceResultsMap;
+    private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     private final Boolean lenient;
+
+    // ccsRequest is only used on the local cluster coordinator node to detect when:
+    // - The request references a remote index
+    // - The remote cluster is too old to support semantic search CCS
+    // It doesn't technically need to be serialized since it is only used for this purpose, but we do so to keep its behavior in line with
+    // standard query member variables.
+    private final boolean ccsRequest;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         this(fieldName, query, null);
     }
 
     public SemanticQueryBuilder(String fieldName, String query, Boolean lenient) {
-        this(fieldName, query, lenient, null);
+        this(fieldName, query, lenient, null, false);
     }
 
-    protected SemanticQueryBuilder(String fieldName, String query, Boolean lenient, Map<String, InferenceResults> inferenceResultsMap) {
+    protected SemanticQueryBuilder(
+        String fieldName,
+        String query,
+        Boolean lenient,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+    ) {
+        this(fieldName, query, lenient, inferenceResultsMap, false);
+    }
+
+    protected SemanticQueryBuilder(
+        String fieldName,
+        String query,
+        Boolean lenient,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
+    ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
@@ -106,17 +136,24 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = query;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
         this.lenient = lenient;
+        this.ccsRequest = ccsRequest;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
-        if (in.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
-            this.inferenceResultsMap = in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)));
+        if (in.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            this.inferenceResultsMap = in.readOptional(
+                i1 -> i1.readImmutableMap(FullyQualifiedInferenceId::new, i2 -> i2.readNamedWriteable(InferenceResults.class))
+            );
+        } else if (in.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
+            this.inferenceResultsMap = convertFromBwcInferenceResultsMap(
+                in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)))
+            );
         } else {
             InferenceResults inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
-            this.inferenceResultsMap = inferenceResults != null ? buildBwcInferenceResultsMap(inferenceResults) : null;
+            this.inferenceResultsMap = inferenceResults != null ? buildSingleResultInferenceResultsMap(inferenceResults) : null;
             in.readBoolean(); // Discard noInferenceResults, it is no longer necessary
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
@@ -124,14 +161,29 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         } else {
             this.lenient = null;
         }
+        if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            this.ccsRequest = in.readBoolean();
+        } else {
+            this.ccsRequest = false;
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeString(query);
-        if (out.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
-            out.writeOptional((o, v) -> o.writeMap(v, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            out.writeOptional(
+                (o, v) -> o.writeMap(v, StreamOutput::writeWriteable, StreamOutput::writeNamedWriteable),
+                inferenceResultsMap
+            );
+        } else if (out.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
+            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, id) -> {
+                if (id.clusterAlias().equals(LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    throw new IllegalArgumentException("Cannot serialize remote cluster inference results in a mixed-version cluster");
+                }
+                o2.writeString(id.inferenceId());
+            }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
         } else {
             InferenceResults inferenceResults = null;
             if (inferenceResultsMap != null) {
@@ -148,9 +200,24 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
             out.writeOptionalBoolean(lenient);
         }
+        if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            out.writeBoolean(ccsRequest);
+        } else if (ccsRequest) {
+            throw new IllegalArgumentException(
+                "One or more nodes does not support "
+                    + NAME
+                    + " query cross-cluster search. Please update all nodes to at least Elasticsearch "
+                    + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
+                    + "."
+            );
+        }
     }
 
-    private SemanticQueryBuilder(SemanticQueryBuilder other, Map<String, InferenceResults> inferenceResultsMap) {
+    private SemanticQueryBuilder(
+        SemanticQueryBuilder other,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
+    ) {
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.boost = other.boost;
@@ -158,6 +225,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         // No need to copy the map here since this is only called internally. We can safely assume that the caller will not modify the map.
         this.inferenceResultsMap = inferenceResultsMap;
         this.lenient = other.lenient;
+        this.ccsRequest = ccsRequest;
     }
 
     @Override
@@ -182,9 +250,69 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return PARSER.apply(parser, null);
     }
 
-    public static void registerInferenceAsyncAction(
+    /**
+     * <p>
+     * Get inference results for the provided query using the provided fully qualified inference IDs.
+     * </p>
+     * <p>
+     * This method will return an inference results map that will be asynchronously populated with inference results. If the provided
+     * inference results map already contains all required inference results, the same map instance will be returned. Otherwise, a new map
+     * instance will be returned. It is guaranteed that a non-null map instance will be returned.
+     * </p>
+     *
+     * @param queryRewriteContext The query rewrite context
+     * @param fullyQualifiedInferenceIds The fully qualified inference IDs to use to generate inference results
+     * @param inferenceResultsMap The initial inference results map
+     * @param query The query to generate inference results for
+     * @return An inference results map
+     */
+    static Map<FullyQualifiedInferenceId, InferenceResults> getInferenceResults(
         QueryRewriteContext queryRewriteContext,
-        Map<String, InferenceResults> inferenceResultsMap,
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        @Nullable String query
+    ) {
+        boolean modifiedInferenceResultsMap = false;
+        Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap = inferenceResultsMap != null
+            ? inferenceResultsMap
+            : Map.of();
+
+        if (query != null) {
+            for (FullyQualifiedInferenceId fullyQualifiedInferenceId : fullyQualifiedInferenceIds) {
+                if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
+                    if (fullyQualifiedInferenceId.clusterAlias().equals(queryRewriteContext.getLocalClusterAlias()) == false) {
+                        // Catch if we are missing inference results that should have been generated on another cluster
+                        throw new IllegalStateException(
+                            "Cannot get inference results for inference endpoint ["
+                                + fullyQualifiedInferenceId
+                                + "] on cluster ["
+                                + queryRewriteContext.getLocalClusterAlias()
+                                + "]"
+                        );
+                    }
+
+                    if (modifiedInferenceResultsMap == false) {
+                        // Copy the inference results map to ensure it is mutable and thread safe
+                        currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
+                        modifiedInferenceResultsMap = true;
+                    }
+
+                    registerInferenceAsyncAction(
+                        queryRewriteContext,
+                        ((ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults>) currentInferenceResultsMap),
+                        query,
+                        fullyQualifiedInferenceId.inferenceId()
+                    );
+                }
+            }
+        }
+
+        return currentInferenceResultsMap;
+    }
+
+    static void registerInferenceAsyncAction(
+        QueryRewriteContext queryRewriteContext,
+        ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         String query,
         String inferenceId
     ) {
@@ -208,11 +336,28 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 InferenceAction.INSTANCE,
                 inferenceRequest,
                 listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                    inferenceResultsMap.put(inferenceId, validateAndConvertInferenceResults(inferenceResponse.getResults(), inferenceId));
+                    inferenceResultsMap.put(
+                        new FullyQualifiedInferenceId(queryRewriteContext.getLocalClusterAlias(), inferenceId),
+                        validateAndConvertInferenceResults(inferenceResponse.getResults(), inferenceId)
+                    );
                     l.onResponse(null);
                 })
             )
         );
+    }
+
+    static Map<FullyQualifiedInferenceId, InferenceResults> convertFromBwcInferenceResultsMap(
+        Map<String, InferenceResults> inferenceResultsMap
+    ) {
+        Map<FullyQualifiedInferenceId, InferenceResults> converted = null;
+        if (inferenceResultsMap != null) {
+            converted = Collections.unmodifiableMap(
+                inferenceResultsMap.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, e.getKey()), Map.Entry::getValue))
+            );
+        }
+        return converted;
     }
 
     /**
@@ -221,8 +366,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param inferenceResults The inference result
      * @return An inference results map
      */
-    protected static Map<String, InferenceResults> buildBwcInferenceResultsMap(InferenceResults inferenceResults) {
-        return Map.of(PLACEHOLDER_INFERENCE_ID, inferenceResults);
+    static Map<FullyQualifiedInferenceId, InferenceResults> buildSingleResultInferenceResultsMap(InferenceResults inferenceResults) {
+        return Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID), inferenceResults);
     }
 
     /**
@@ -232,8 +377,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param inferenceResultsMap The inference results map
      * @return The inference result
      */
-    private static InferenceResults getBwcInferenceResults(Map<String, InferenceResults> inferenceResultsMap) {
-        return inferenceResultsMap.get(PLACEHOLDER_INFERENCE_ID);
+    private static InferenceResults getSingleInferenceResult(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+        return inferenceResultsMap.get(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID));
     }
 
     @Override
@@ -255,7 +400,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return doRewriteBuildSemanticQuery(searchExecutionContext);
         }
 
-        return doRewriteGetInferenceResults(queryRewriteContext);
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        if (resolvedIndices != null) {
+            return doRewriteGetInferenceResults(queryRewriteContext);
+        }
+
+        return this;
     }
 
     private QueryBuilder doRewriteBuildSemanticQuery(SearchExecutionContext searchExecutionContext) {
@@ -271,9 +421,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             }
 
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
-            InferenceResults inferenceResults = getBwcInferenceResults(inferenceResultsMap);
+            InferenceResults inferenceResults = getSingleInferenceResult(inferenceResultsMap);
             if (inferenceResults == null) {
-                inferenceResults = inferenceResultsMap.get(inferenceId);
+                inferenceResults = inferenceResultsMap.get(
+                    new FullyQualifiedInferenceId(searchExecutionContext.getLocalClusterAlias(), inferenceId)
+                );
             }
 
             if (inferenceResults == null) {
@@ -299,27 +451,37 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (inferenceResultsMap != null) {
-            inferenceResultsErrorCheck();
-            return this;
-        }
-
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        if (resolvedIndices == null) {
-            throw new IllegalStateException(
-                "Rewriting on the coordinator node requires a query rewrite context with non-null resolved indices"
+        boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
+            throw new IllegalArgumentException(
+                NAME + " query does not support cross-cluster search when [ccs_minimize_roundtrips] is false"
             );
-        } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
-            throw new IllegalArgumentException(NAME + " query does not support cross-cluster search");
         }
 
-        Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
-        Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
-        for (String inferenceId : inferenceIds) {
-            registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
+        SemanticQueryBuilder rewritten = this;
+        if (queryRewriteContext.hasAsyncActions() == false) {
+            Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = getInferenceIdsForField(
+                resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+                queryRewriteContext.getLocalClusterAlias(),
+                fieldName
+            );
+            Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = getInferenceResults(
+                queryRewriteContext,
+                fullyQualifiedInferenceIds,
+                inferenceResultsMap,
+                query
+            );
+
+            if (modifiedInferenceResultsMap == inferenceResultsMap) {
+                // The inference results map is fully populated, so we can perform error checking
+                inferenceResultsErrorCheck(modifiedInferenceResultsMap);
+            } else {
+                rewritten = new SemanticQueryBuilder(this, modifiedInferenceResultsMap, ccsRequest);
+            }
         }
 
-        return new SemanticQueryBuilder(this, inferenceResultsMap);
+        return rewritten;
     }
 
     private static InferenceResults validateAndConvertInferenceResults(
@@ -364,9 +526,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResults;
     }
 
-    private void inferenceResultsErrorCheck() {
+    private void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         for (var entry : inferenceResultsMap.entrySet()) {
-            String inferenceId = entry.getKey();
+            String inferenceId = entry.getKey().inferenceId();
             InferenceResults inferenceResults = entry.getValue();
 
             if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {
@@ -393,28 +555,33 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         throw new IllegalStateException(NAME + " should have been rewritten to another query type");
     }
 
-    private static Set<String> getInferenceIdsForForField(Collection<IndexMetadata> indexMetadataCollection, String fieldName) {
-        Set<String> inferenceIds = new HashSet<>();
+    private static Set<FullyQualifiedInferenceId> getInferenceIdsForField(
+        Collection<IndexMetadata> indexMetadataCollection,
+        String clusterAlias,
+        String fieldName
+    ) {
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = new HashSet<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
             String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getSearchInferenceId() : null;
             if (indexInferenceId != null) {
-                inferenceIds.add(indexInferenceId);
+                fullyQualifiedInferenceIds.add(new FullyQualifiedInferenceId(clusterAlias, indexInferenceId));
             }
         }
 
-        return inferenceIds;
+        return fullyQualifiedInferenceIds;
     }
 
     @Override
     protected boolean doEquals(SemanticQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
-            && Objects.equals(inferenceResultsMap, other.inferenceResultsMap);
+            && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
+            && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsMap);
+        return Objects.hash(fieldName, query, inferenceResultsMap, ccsRequest);
     }
 }

@@ -11,12 +11,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
-import org.elasticsearch.common.regex.Regex;
+import org.apache.lucene.analysis.util.CharTokenizer;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-
-import java.util.regex.Pattern;
 
 /**
  * An analyzer that tokenizes text by a pre-defined list of delimiters that work well for log messages.
@@ -26,15 +23,11 @@ public final class DelimiterAnalyzer extends Analyzer {
 
     static final NamedAnalyzer INSTANCE = new NamedAnalyzer("delimiter", AnalyzerScope.GLOBAL, new DelimiterAnalyzer());
 
-    private final Pattern pattern;
-
-    private DelimiterAnalyzer() {
-        this.pattern = Regex.compile("[\\s\\=\\?\\:\\[\\]\\{\\}\\\"\\\\\\']", null);
-    }
+    private DelimiterAnalyzer() {}
 
     @Override
     protected TokenStreamComponents createComponents(String s) {
-        final Tokenizer tokenizer = new PatternTokenizer(pattern, -1);
+        final Tokenizer tokenizer = new DelimiterTokenizer();
         TokenStream stream = new LowerCaseFilter(tokenizer);
         return new TokenStreamComponents(tokenizer, stream);
     }
@@ -44,5 +37,31 @@ public final class DelimiterAnalyzer extends Analyzer {
         TokenStream stream = in;
         stream = new LowerCaseFilter(stream);
         return stream;
+    }
+
+    static final class DelimiterTokenizer extends CharTokenizer {
+
+        DelimiterTokenizer() {
+            super(TokenStream.DEFAULT_TOKEN_ATTRIBUTE_FACTORY);
+        }
+
+        @Override
+        protected boolean isTokenChar(int c) {
+            if (Character.isWhitespace(c)
+                || c == '='
+                || c == '?'
+                || c == ':'
+                || c == '['
+                || c == ']'
+                || c == '{'
+                || c == '}'
+                || c == '"'
+                || c == '\\'
+                || c == '\'') {
+                return false;
+            } else {
+                return true;
+            }
+        }
     }
 }

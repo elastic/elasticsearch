@@ -101,8 +101,10 @@ public final class DateExtractNanosEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
+        long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
+        BytesRef chronoField = chronoFieldBlock.getBytesRef(chronoFieldBlock.getFirstValueIndex(p), chronoFieldScratch);
         try {
-          result.appendLong(DateExtract.processNanos(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoFieldBlock.getBytesRef(chronoFieldBlock.getFirstValueIndex(p), chronoFieldScratch), this.zone));
+          result.appendLong(DateExtract.processNanos(value, chronoField, this.zone));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -117,8 +119,10 @@ public final class DateExtractNanosEvaluator implements EvalOperator.ExpressionE
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        long value = valueVector.getLong(p);
+        BytesRef chronoField = chronoFieldVector.getBytesRef(p, chronoFieldScratch);
         try {
-          result.appendLong(DateExtract.processNanos(valueVector.getLong(p), chronoFieldVector.getBytesRef(p, chronoFieldScratch), this.zone));
+          result.appendLong(DateExtract.processNanos(value, chronoField, this.zone));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

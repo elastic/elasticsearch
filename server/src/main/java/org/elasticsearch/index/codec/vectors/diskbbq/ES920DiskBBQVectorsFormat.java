@@ -20,6 +20,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Codec format for Inverted File Vector indexes. This index expects to break the dimensional space
@@ -56,9 +57,10 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+    private static final Lucene99FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
+    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(rawVectorFormat.getName(), rawVectorFormat);
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
@@ -106,12 +108,22 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES920DiskBBQVectorsWriter(state, rawVectorFormat.fieldsWriter(state), vectorPerCluster, centroidsPerParentCluster);
+        return new ES920DiskBBQVectorsWriter(
+            rawVectorFormat.getName(),
+            state,
+            rawVectorFormat.fieldsWriter(state),
+            vectorPerCluster,
+            centroidsPerParentCluster
+        );
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES920DiskBBQVectorsReader(state, rawVectorFormat.fieldsReader(state));
+        return new ES920DiskBBQVectorsReader(state, f -> {
+            var format = supportedFormats.get(f);
+            if (format == null) return null;
+            return format.fieldsReader(state);
+        });
     }
 
     @Override

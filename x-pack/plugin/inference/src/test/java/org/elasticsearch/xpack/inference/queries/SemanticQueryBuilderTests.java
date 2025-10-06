@@ -33,10 +33,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -94,7 +91,11 @@ import java.util.function.Supplier;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -107,10 +108,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 16; // Must be a multiple of 8 to be a valid bit embedding
     private static final String INFERENCE_ID = "test_service";
     private static final String SEARCH_INFERENCE_ID = "search_test_service";
-
-    private static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = TransportVersion.fromName(
-        "semantic_query_multiple_inference_ids"
-    );
 
     private static InferenceResultType inferenceResultType;
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
@@ -375,6 +372,36 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         }
     }
 
+    public void testSerializationRemoteClusterInferenceResults() throws IOException {
+        InferenceResults inferenceResults1 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("foo", 1.0f)),
+            false
+        );
+        InferenceResults inferenceResults2 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("bar", 2.0f)),
+            false
+        );
+
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = Map.of(
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults1,
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults2
+        );
+
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            null,
+            inferenceResultsMap
+        );
+
+        QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(originalQuery));
+    }
+
     public void testSerializationBwc() throws IOException {
         InferenceResults inferenceResults1 = new TextExpansionResults(
             DEFAULT_RESULTS_FIELD,
@@ -396,26 +423,18 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 fieldName,
                 query,
                 null,
-                Map.of(randomAlphaOfLength(5), inferenceResults)
+                Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults)
             );
             SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(
                 fieldName,
                 query,
                 null,
-                SemanticQueryBuilder.buildBwcInferenceResultsMap(inferenceResults)
+                SemanticQueryBuilder.buildSingleResultInferenceResultsMap(inferenceResults)
             );
 
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                output.setTransportVersion(version);
-                output.writeNamedWriteable(originalQuery);
-                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
-                    in.setTransportVersion(version);
-                    QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
-
-                    SemanticQueryBuilder expectedQuery = version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS) ? originalQuery : bwcQuery;
-                    assertThat(deserializedQuery, equalTo(expectedQuery));
-                }
-            }
+            QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);
+            SemanticQueryBuilder expectedQuery = version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV) ? originalQuery : bwcQuery;
+            assertThat(deserializedQuery, equalTo(expectedQuery));
         };
 
         for (int i = 0; i < 100; i++) {
@@ -431,8 +450,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         CheckedBiConsumer<List<InferenceResults>, TransportVersion, IOException> assertMultipleInferenceResults = (
             inferenceResultsList,
             version) -> {
-            Map<String, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceResultsList.size());
-            inferenceResultsList.forEach(result -> inferenceResultsMap.put(randomAlphaOfLength(5), result));
+            boolean remoteCluster = randomBoolean();
+            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceResultsList.size());
+            inferenceResultsList.forEach(
+                result -> inferenceResultsMap.put(
+                    new FullyQualifiedInferenceId(remoteCluster ? randomAlphaOfLength(5) : LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)),
+                    result
+                )
+            );
             SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
@@ -440,23 +465,26 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 inferenceResultsMap
             );
 
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                output.setTransportVersion(version);
+            String expectedErrorMessage;
+            if (version.supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+                expectedErrorMessage = null;
+            } else if (version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
+                expectedErrorMessage = remoteCluster
+                    ? "Cannot serialize remote cluster inference results in a mixed-version cluster"
+                    : null;
+            } else {
+                expectedErrorMessage = "Cannot query multiple inference IDs in a mixed-version cluster";
+            }
 
-                if (version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
-                    output.writeNamedWriteable(originalQuery);
-                    try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
-                        in.setTransportVersion(version);
-                        QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
-                        assertThat(deserializedQuery, equalTo(originalQuery));
-                    }
-                } else {
-                    IllegalArgumentException e = assertThrows(
-                        IllegalArgumentException.class,
-                        () -> output.writeNamedWriteable(originalQuery)
-                    );
-                    assertThat(e.getMessage(), containsString("Cannot query multiple inference IDs in a mixed-version cluster"));
-                }
+            if (expectedErrorMessage != null) {
+                IllegalArgumentException e = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version)
+                );
+                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
+            } else {
+                QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);
+                assertThat(deserializedQuery, equalTo(originalQuery));
             }
         };
 
@@ -467,6 +495,40 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 TransportVersion.current()
             );
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
+        }
+    }
+
+    public void testSerializationCcs() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+        QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(originalQuery));
+    }
+
+    public void testSerializationCcsBwc() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+
+        for (int i = 0; i < 100; i++) {
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                originalQuery.getMinimalSupportedVersion(),
+                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+            );
+
+            if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+                QueryBuilder deserializedQuery = copyNamedWriteable(
+                    originalQuery,
+                    namedWriteableRegistry(),
+                    QueryBuilder.class,
+                    transportVersion
+                );
+                assertThat(deserializedQuery, equalTo(originalQuery));
+            } else {
+                IllegalArgumentException e = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, transportVersion)
+                );
+                assertThat(e.getMessage(), containsString("One or more nodes does not support semantic query cross-cluster search"));
+            }
         }
     }
 

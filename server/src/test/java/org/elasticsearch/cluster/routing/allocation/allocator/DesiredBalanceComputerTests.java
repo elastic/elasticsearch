@@ -717,7 +717,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             DesiredBalance.BECOME_MASTER_INITIAL,
             input,
             queue(),
-            ignored -> iteration.incrementAndGet() < 1000
+            ignored -> iteration.incrementAndGet() < 2000
         );
 
         var desiredDiskUsage = Maps.<String, Long>newMapWithExpectedSize(nodes);

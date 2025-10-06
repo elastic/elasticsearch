@@ -96,8 +96,10 @@ public final class ScalbIntEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
+        double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
+        int scaleFactor = scaleFactorBlock.getInt(scaleFactorBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Scalb.process(dBlock.getDouble(dBlock.getFirstValueIndex(p)), scaleFactorBlock.getInt(scaleFactorBlock.getFirstValueIndex(p))));
+          result.appendDouble(Scalb.process(d, scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -110,8 +112,10 @@ public final class ScalbIntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, DoubleVector dVector, IntVector scaleFactorVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double d = dVector.getDouble(p);
+        int scaleFactor = scaleFactorVector.getInt(p);
         try {
-          result.appendDouble(Scalb.process(dVector.getDouble(p), scaleFactorVector.getInt(p)));
+          result.appendDouble(Scalb.process(d, scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

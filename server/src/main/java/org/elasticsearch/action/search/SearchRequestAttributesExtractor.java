@@ -12,6 +12,8 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -42,19 +45,43 @@ public final class SearchRequestAttributesExtractor {
 
     /**
      * Introspects the provided search request and extracts metadata from it about some of its characteristics.
-     *
      */
     public static Map<String, Object> extractAttributes(SearchRequest searchRequest, String[] localIndices) {
+        return extractAttributes(searchRequest.source(), searchRequest.scroll(), null, -1, localIndices);
+    }
+
+    /**
+     * Introspects the provided shard search request and extracts metadata from it about some of its characteristics.
+     */
+    public static Map<String, Object> extractAttributes(ShardSearchRequest shardSearchRequest, Long rangeTimestampFrom, long nowInMillis) {
+        Map<String, Object> attributes = extractAttributes(
+            shardSearchRequest.source(),
+            shardSearchRequest.scroll(),
+            rangeTimestampFrom,
+            nowInMillis,
+            shardSearchRequest.shardId().getIndexName()
+        );
+        boolean isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
+        attributes.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
+        return attributes;
+    }
+
+    private static Map<String, Object> extractAttributes(
+        SearchSourceBuilder searchSourceBuilder,
+        TimeValue scroll,
+        Long rangeTimestampFrom,
+        long nowInMillis,
+        String... localIndices
+    ) {
         String target = extractIndices(localIndices);
 
         String pitOrScroll = null;
-        if (searchRequest.scroll() != null) {
+        if (scroll != null) {
             pitOrScroll = SCROLL;
         }
 
-        SearchSourceBuilder searchSourceBuilder = searchRequest.source();
         if (searchSourceBuilder == null) {
-            return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, false, false, pitOrScroll);
+            return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, false, false, pitOrScroll, null);
         }
 
         if (searchSourceBuilder.pointInTimeBuilder() != null) {
@@ -80,6 +107,10 @@ public final class SearchRequestAttributesExtractor {
         }
 
         final boolean hasKnn = searchSourceBuilder.knnSearch().isEmpty() == false || queryMetadataBuilder.knnQuery;
+        String timestampRangeFilter = null;
+        if (rangeTimestampFrom != null) {
+            timestampRangeFilter = introspectTimeRange(rangeTimestampFrom, nowInMillis);
+        }
         return buildAttributesMap(
             target,
             primarySort,
@@ -87,7 +118,8 @@ public final class SearchRequestAttributesExtractor {
             hasKnn,
             queryMetadataBuilder.rangeOnTimestamp,
             queryMetadataBuilder.rangeOnEventIngested,
-            pitOrScroll
+            pitOrScroll,
+            timestampRangeFilter
         );
     }
 
@@ -98,7 +130,8 @@ public final class SearchRequestAttributesExtractor {
         boolean knn,
         boolean rangeOnTimestamp,
         boolean rangeOnEventIngested,
-        String pitOrScroll
+        String pitOrScroll,
+        String timestampRangeFilter
     ) {
         Map<String, Object> attributes = new HashMap<>(5, 1.0f);
         attributes.put(TARGET_ATTRIBUTE, target);
@@ -116,6 +149,9 @@ public final class SearchRequestAttributesExtractor {
         if (rangeOnEventIngested) {
             attributes.put(RANGE_EVENT_INGESTED_ATTRIBUTE, rangeOnEventIngested);
         }
+        if (timestampRangeFilter != null) {
+            attributes.put(TIMESTAMP_RANGE_FILTER_ATTRIBUTE, timestampRangeFilter);
+        }
         return attributes;
     }
 
@@ -132,6 +168,7 @@ public final class SearchRequestAttributesExtractor {
     static final String KNN_ATTRIBUTE = "knn";
     static final String RANGE_TIMESTAMP_ATTRIBUTE = "range_timestamp";
     static final String RANGE_EVENT_INGESTED_ATTRIBUTE = "range_event_ingested";
+    static final String TIMESTAMP_RANGE_FILTER_ATTRIBUTE = "timestamp_range_filter";
 
     private static final String TARGET_KIBANA = ".kibana";
     private static final String TARGET_ML = ".ml";
@@ -144,7 +181,7 @@ public final class SearchRequestAttributesExtractor {
     private static final String TARGET_USER = "user";
     private static final String ERROR = "error";
 
-    static String extractIndices(String[] indices) {
+    static String extractIndices(String... indices) {
         try {
             // Note that indices are expected to be resolved, meaning wildcards are not handled on purpose
             // If indices resolve to data streams, the name of the data stream is returned as opposed to its backing indices
@@ -213,6 +250,7 @@ public final class SearchRequestAttributesExtractor {
     private static final String PIT = "pit";
     private static final String SCROLL = "scroll";
 
+    public static final String SYSTEM_THREAD_ATTRIBUTE_NAME = "system_thread";
     public static final Map<String, Object> SEARCH_SCROLL_ATTRIBUTES = Map.of(QUERY_TYPE_ATTRIBUTE, SCROLL);
 
     static String extractQueryType(SearchSourceBuilder searchSourceBuilder) {
@@ -266,8 +304,18 @@ public final class SearchRequestAttributesExtractor {
                 break;
             case RangeQueryBuilder range:
                 switch (range.fieldName()) {
-                    case TIMESTAMP -> queryMetadataBuilder.rangeOnTimestamp = true;
-                    case EVENT_INGESTED -> queryMetadataBuilder.rangeOnEventIngested = true;
+                    // don't track unbounded ranges, they translate to either match_none if the field does not exist
+                    // or match_all if the field is mapped
+                    case TIMESTAMP -> {
+                        if (range.to() != null || range.from() != null) {
+                            queryMetadataBuilder.rangeOnTimestamp = true;
+                        }
+                    }
+                    case EVENT_INGESTED -> {
+                        if (range.to() != null || range.from() != null) {
+                            queryMetadataBuilder.rangeOnEventIngested = true;
+                        }
+                    }
                 }
                 break;
             case KnnVectorQueryBuilder knn:
@@ -275,5 +323,32 @@ public final class SearchRequestAttributesExtractor {
                 break;
             default:
         }
+    }
+
+    private enum TimeRangeBucket {
+        FifteenMinutes(TimeValue.timeValueMinutes(15).getMillis(), "15_minutes"),
+        OneHour(TimeValue.timeValueHours(1).getMillis(), "1_hour"),
+        TwelveHours(TimeValue.timeValueHours(12).getMillis(), "12_hours"),
+        OneDay(TimeValue.timeValueDays(1).getMillis(), "1_day"),
+        ThreeDays(TimeValue.timeValueDays(3).getMillis(), "3_days"),
+        SevenDays(TimeValue.timeValueDays(7).getMillis(), "7_days"),
+        FourteenDays(TimeValue.timeValueDays(14).getMillis(), "14_days");
+
+        private final long millis;
+        private final String bucketName;
+
+        TimeRangeBucket(long millis, String bucketName) {
+            this.millis = millis;
+            this.bucketName = bucketName;
+        }
+    }
+
+    static String introspectTimeRange(long timeRangeFrom, long nowInMillis) {
+        for (TimeRangeBucket value : TimeRangeBucket.values()) {
+            if (timeRangeFrom >= nowInMillis - value.millis) {
+                return value.bucketName;
+            }
+        }
+        return "older_than_14_days";
     }
 }

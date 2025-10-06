@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -394,11 +395,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodes() throws Exception {
-        VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
-        );
+        final VersionInformation oldVersion = randomOldVersionInformation();
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
@@ -459,11 +456,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs() {
-        VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
-        );
+        final var oldVersion = randomOldVersionInformation();
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
@@ -532,11 +525,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionNewShardsExistButWithInvalidAttributes() throws Exception {
-        VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
-        );
+        final VersionInformation oldVersion = randomOldVersionInformation();
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
@@ -602,6 +591,18 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetadata, oldNodeIds, oldNodeIds);
 
         assertNodeSelected(indexMetadata, indexMetadata.getIndex(), oldNodeIds, discoveryNodes, indexRoutingTable.build());
+    }
+
+    private VersionInformation randomOldVersionInformation() {
+        final var previousVersion = VersionUtils.getPreviousVersion();
+        final var version = VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
+        return new VersionInformation(
+            BuildVersion.fromVersionId(version.id()),
+            version,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
+        );
     }
 
     private Collection<Map.Entry<String, String>> generateRandomValidAttributes(int numAttrs) {

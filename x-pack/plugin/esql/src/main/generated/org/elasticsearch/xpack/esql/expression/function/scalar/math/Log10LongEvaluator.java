@@ -74,8 +74,9 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log10.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Log10.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,8 +89,9 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleBlock eval(int positionCount, LongVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long val = valVector.getLong(p);
         try {
-          result.appendDouble(Log10.process(valVector.getLong(p)));
+          result.appendDouble(Log10.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

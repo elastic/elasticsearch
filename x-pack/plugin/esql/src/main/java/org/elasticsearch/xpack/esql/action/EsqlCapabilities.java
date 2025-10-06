@@ -12,16 +12,12 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -269,12 +265,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS(),
 
         /**
          * Support for the expressions in grouping in {@code INLINESTATS} syntax.
          */
-        INLINESTATS_V2(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS_V2(),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -310,6 +306,11 @@ public class EsqlCapabilities {
          * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
          */
         AGG_TOP_STRING_SUPPORT,
+
+        /**
+         * Make optional the order field in the TOP agg command, and default it to "ASC".
+         */
+        AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
          * {@code CASE} properly handling multivalue conditions.
@@ -670,6 +671,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -929,48 +935,68 @@ public class EsqlCapabilities {
         /**
          * Support for aggregate_metric_double type
          */
-        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE,
 
         /**
          * Support for partial subset of metrics in aggregate_metric_double type
          */
-        AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS,
 
         /**
          * Support for rendering aggregate_metric_double type
          */
-        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_RENDERING,
 
         /**
          * Support for to_aggregate_metric_double function
          */
-        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO,
 
         /**
          * Support for sorting when aggregate_metric_doubles are present
          */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_SORTING,
 
         /**
          * Support avg with aggregate metric doubles
          */
-        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_AVG,
 
         /**
          * Support for implicit casting of aggregate metric double when run in aggregations
          */
-        AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS,
 
         /**
          * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
          * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
          */
-        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED,
 
         /**
          * Stop erroring out when trying to apply MV_EXPAND on aggregate metric double.
          */
-        AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_MV_EXPAND,
+
+        /**
+         * Registering AggregateMetricDoubleLiteral as a NamedWritable.
+         */
+        @Deprecated
+        AGGREGATE_METRIC_DOUBLE_LITERAL_REGISTERED,
+
+        /**
+         * Enable aggregate_metric_double in non-snapshot builds
+         */
+        AGGREGATE_METRIC_DOUBLE_V0,
 
         /**
          * Support change point detection "CHANGE_POINT".
@@ -988,12 +1014,12 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINESTATS_V11,
 
         /**
          * Renamed `INLINESTATS` to `INLINE STATS`.
          */
-        INLINE_STATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+        INLINE_STATS,
 
         /**
          * Support partial_results
@@ -1201,6 +1227,12 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support for INCREASE, DELTA timeseries aggregations.
+         */
+        INCREASE,
+        DELTA_TS_AGG,
+
+        /**
          * Extra field types in the k8s.csv dataset
          */
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
@@ -1271,7 +1303,7 @@ public class EsqlCapabilities {
         /**
          * Dense vector field type support
          */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_RELEASED,
 
         /**
          * Enable support for index aliases in lookup joins
@@ -1307,7 +1339,12 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V5(Build.current().isSnapshot()),
+        KNN_FUNCTION_V5,
+
+        /**
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
+         */
+        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.
@@ -1352,7 +1389,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V3(Build.current().isSnapshot()),
+        FUSE_V6,
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1423,12 +1460,12 @@ public class EsqlCapabilities {
         /**
          * Byte elements dense vector field type support.
          */
-        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS,
 
         /**
          * Bit elements dense vector field type support.
          */
-        DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS,
 
         /**
          * Support null elements on vector similarity functions
@@ -1453,17 +1490,22 @@ public class EsqlCapabilities {
         /**
          * URL encoding function.
          */
-        URL_ENCODE(Build.current().isSnapshot()),
+        URL_ENCODE(),
+
+        /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(),
 
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot()),
+        URL_DECODE(),
 
         /**
          * Allow lookup join on boolean expressions
          */
-        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
 
         /**
          * FORK with remote indices
@@ -1491,7 +1533,7 @@ public class EsqlCapabilities {
         /**
          * TO_DENSE_VECTOR function.
          */
-        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+        TO_DENSE_VECTOR_FUNCTION,
 
         /**
          * Support present_over_time aggregation that gets evaluated per time-series
@@ -1518,12 +1560,50 @@ public class EsqlCapabilities {
         /** INLINE STATS supports remote indices */
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
 
+        INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled),
+
         /**
          * Support TS command in non-snapshot builds
          */
         TS_COMMAND_V0(),
 
-        ;
+        /**
+         * Add support for counter doubles, ints, and longs in first_ and last_over_time
+         */
+        FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
+
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
+
+        /**
+         * INLINE STATS fix incorrect prunning of null filtering
+         * https://github.com/elastic/elasticsearch/pull/135011
+         */
+        INLINE_STATS_FIX_PRUNING_NULL_FILTER(INLINESTATS_V11.enabled),
+
+        INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
+        /**
+         * FUSE L2_NORM score normalization support
+         */
+        FUSE_L2_NORM(Build.current().isSnapshot()),
+
+        /**
+         * Support for requesting the "_tsid" metadata field.
+         */
+        METADATA_TSID_FIELD,
+
+        /**
+         * Fix management of plans with no columns
+         * https://github.com/elastic/elasticsearch/issues/120272
+         */
+        FIX_NO_COLUMNS,
+
+        /**
+         * Support for dots in FUSE attributes
+         */
+        DOTS_IN_FUSE;
 
         private final boolean enabled;
 

@@ -207,7 +207,8 @@ public class MockTransportService extends TransportService {
                 .version(version)
                 .build(),
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId)
+            taskHeaders,
+            nodeId
         );
     }
 
@@ -227,12 +228,13 @@ public class MockTransportService extends TransportService {
         String nodeId = UUIDs.randomBase64UUID();
         return new MockTransportService(
             Settings.EMPTY,
-            new StubbableTransport(transport),
+            transport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             (boundAddress) -> DiscoveryNodeUtils.builder(nodeId).address(boundAddress.publishAddress()).build(),
             null, // clusterSettings
-            createTaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP, nodeId)
+            Set.of(),
+            nodeId
         );
     }
 
@@ -260,27 +262,7 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId)
-        );
-    }
-
-    public MockTransportService(
-        Settings settings,
-        StubbableTransport transport,
-        ThreadPool threadPool,
-        TransportInterceptor interceptor,
-        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        @Nullable ClusterSettings clusterSettings,
-        TaskManager taskManager
-    ) {
-        this(
-            settings,
-            transport,
-            threadPool,
-            interceptor,
-            localNodeFactory,
-            clusterSettings,
-            taskManager,
+            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
             DefaultProjectResolver.INSTANCE
         );

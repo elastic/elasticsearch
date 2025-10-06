@@ -53,7 +53,11 @@ public final class SearchRequestAttributesExtractor {
     /**
      * Introspects the provided shard search request and extracts metadata from it about some of its characteristics.
      */
-    public static Map<String, Object> extractAttributes(ShardSearchRequest shardSearchRequest, Long rangeTimestampFromMillis, long nowInMillis) {
+    public static Map<String, Object> extractAttributes(
+        ShardSearchRequest shardSearchRequest,
+        Long rangeTimestampFromMillis,
+        long nowInMillis
+    ) {
         Map<String, Object> attributes = extractAttributes(
             shardSearchRequest.source(),
             shardSearchRequest.scroll(),

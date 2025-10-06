@@ -533,7 +533,8 @@ public final class SearchPhaseController {
             }
             assert rangeTimestampFromMillis == null
                 || result.getRangeTimestampFromMillis() == null
-                || rangeTimestampFromMillis.equals(result.getRangeTimestampFromMillis()) : rangeTimestampFromMillis + " != " + result.getRangeTimestampFromMillis();
+                || rangeTimestampFromMillis.equals(result.getRangeTimestampFromMillis())
+                : rangeTimestampFromMillis + " != " + result.getRangeTimestampFromMillis();
 
             if (hasSuggest) {
                 assert result.suggest() != null;

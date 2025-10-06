@@ -43,13 +43,9 @@ public class InstrumentedSecurityActionListener {
     }
 
     /**
-     * A simpler variant that re-uses the Authentication Result as the context. This can be handy in situations when the attributes that are
-     * of interest are only available after the authentication is completed and not before.
+     * A simpler variant that re-uses the Authentication Result as the context. This can be handy in situations where the attributes that
+     * are of interest are available only after the authentication is completed and not before.
      * As a natural consequence, there will be no context available at the point of recording start time and in cases of exceptional failure
-     * @param metrics
-     * @param listener
-     * @param <R>
-     * @return
      */
     public static <R> ActionListener<AuthenticationResult<R>> wrapForAuthc(
         final SecurityMetrics<AuthenticationResult<R>> metrics,

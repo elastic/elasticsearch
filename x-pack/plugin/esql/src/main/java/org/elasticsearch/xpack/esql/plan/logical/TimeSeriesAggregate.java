@@ -203,18 +203,20 @@ public class TimeSeriesAggregate extends Aggregate {
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
                 }
-                if (outer.field() instanceof FieldAttribute fa && fa.isDimension()) {
-                    failures.add(
-                        fail(
-                            this,
-                            "cannot use dimension field [{}] in a time-series aggregation function [{}]. "
-                                + "Dimension fields can only be used for grouping in a BY clause. To aggregate "
-                                + "dimension fields, use the FROM command instead of the TS command.",
-                            fa.sourceText(),
-                            outer.sourceText()
-                        )
-                    );
-                }
+                outer.forEachDown(FieldAttribute.class, fa -> {
+                    if (fa.isDimension()) {
+                        failures.add(
+                            fail(
+                                this,
+                                "cannot use dimension field [{}] in a time-series aggregation function [{}]. "
+                                    + "Dimension fields can only be used for grouping in a BY clause. To aggregate "
+                                    + "dimension fields, use the FROM command instead of the TS command.",
+                                fa.sourceText(),
+                                outer.sourceText()
+                            )
+                        );
+                    }
+                });
                 if (outer instanceof TimeSeriesAggregateFunction ts) {
                     outer.field()
                         .forEachDown(

@@ -219,8 +219,6 @@ public class Main {
 
         if (System.getProperty("es.entitlements.dump") != null) {
             loadInstrumentedMethods(Path.of(System.getProperty("es.entitlements.dump")));
-        } else {
-            throw new RuntimeException();
         }
         parseCsv(csvFilePath, (method, module, access) -> identifyTopLevelEntryPoints(method, module, access, bubbleUpFromPublic));
     }

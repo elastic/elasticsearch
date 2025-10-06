@@ -161,11 +161,6 @@ public class TransportVersions {
     public static final TransportVersion DEAD_BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
     public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
     public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
-    public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
-    public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
-    public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
-    public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_0_00);
-    public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_070_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -112,7 +112,7 @@ public class SearchContextStats implements SearchStats {
                     mixedFieldType = true;
                 }
                 exists |= true;
-                indexed &= IndexType.isIndexed(fieldType.indexType());
+                indexed &= IndexType.isIndexed(type.indexType());
                 hasDocValues &= type.hasDocValues();
                 hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {

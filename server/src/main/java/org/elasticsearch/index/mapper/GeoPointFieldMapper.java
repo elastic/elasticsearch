@@ -292,6 +292,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
+        final boolean indexed = IndexType.hasPoints(fieldType().indexType);
         final boolean hasDocValues = fieldType().hasDocValues();
         final boolean store = fieldType().isStored();
         if (indexed && hasDocValues) {

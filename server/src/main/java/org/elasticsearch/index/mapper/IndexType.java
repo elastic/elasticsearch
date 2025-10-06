@@ -35,7 +35,7 @@ public enum IndexType {
     POINTS_WITHOUT_DOC_VALUES,
 
     /**
-     * BKD metadata, but no actual tree
+     * Archive indexes: BKD metadata reconstructed from doc values, but no actual BKD tree
      */
     POINTS_METADATA,
 
@@ -84,7 +84,7 @@ public enum IndexType {
      * @return {@code true} if this IndexType has doc values
      */
     public static boolean hasDocValues(IndexType type) {
-        return type == POINTS || type == TERMS || type == SPARSE || type == DOC_VALUES_ONLY;
+        return type == POINTS || type == POINTS_METADATA || type == TERMS || type == SPARSE || type == DOC_VALUES_ONLY;
     }
 
     /**

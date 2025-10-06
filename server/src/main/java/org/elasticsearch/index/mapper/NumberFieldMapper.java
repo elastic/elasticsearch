@@ -648,7 +648,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     FloatDocValuesField::new,
-                    ft.indexType() == IndexType.POINTS
+                    IndexType.hasPoints(ft.indexType())
                 );
             }
 
@@ -2061,7 +2061,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce, blContext);
             }
 
-            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || indexType() == IndexType.POINTS)
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || IndexType.hasPoints(indexType))
                 // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();

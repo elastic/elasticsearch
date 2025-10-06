@@ -1033,6 +1033,17 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false);
+                if (block != null) {
+                    return block;
+                }
+            }
+            return super.read(factory, docs, offset, nullsFiltered);
+        }
+
+        @Override
         void read(int doc, BytesRefBuilder builder) throws IOException {
             if (false == docValues.advanceExact(doc)) {
                 builder.appendNull();

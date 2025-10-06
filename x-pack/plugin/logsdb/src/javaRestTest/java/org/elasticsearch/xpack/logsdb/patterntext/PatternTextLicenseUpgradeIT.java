@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb.patterntext;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.xpack.logsdb.DataStreamLicenseChangeTestCase;
 import org.junit.Before;
 
@@ -22,7 +21,6 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
     @Before
     public void checkClusterFeature() {
         assumeTrue("[patterned_text] must be available", clusterHasFeature("mapper.patterned_text"));
-        assumeTrue("[patterned_text] is only available in snapshot builds", Build.current().isSnapshot());
     }
 
     private static final String patternTextMapping = """

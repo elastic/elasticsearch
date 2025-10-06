@@ -686,4 +686,21 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertEquals("Did not filter nulls on counter type", 50, resp.documentsFound());
         }
     }
+
+    public void testTSIDMetadataAttribute() {
+        List<ColumnInfoImpl> columns = List.of(
+            new ColumnInfoImpl("_tsid", DataType.TSID_DATA_TYPE, null),
+            new ColumnInfoImpl("cluster", DataType.KEYWORD, null)
+        );
+
+        try (EsqlQueryResponse resp = run(" TS hosts METADATA _tsid | KEEP _tsid, cluster | LIMIT 1")) {
+            assertThat(resp.columns(), equalTo(columns));
+
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.getFirst().get(0), Matchers.notNullValue());
+            assertThat(values.getFirst().get(1), Matchers.notNullValue());
+        }
+    }
+
 }

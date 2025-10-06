@@ -22,6 +22,12 @@ tasks.named("dependencyLicenses").configure {
 tasks.named('forbiddenApisMain').configure {
   enabled = false
 }
+repositories {
+  mavenLocal()
+  maven {
+    url = uri("https://storage.googleapis.com/elasticsearch-cuvs-snapshots")
+  }
+}
 
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -31,6 +37,7 @@ dependencies {
   implementation project(':libs:native')
   implementation project(':libs:logging')
   implementation project(':server')
+  implementation project(':x-pack:plugin:gpu')
 }
 /**
  * Task to run the KnnIndexTester with the provided parameters.

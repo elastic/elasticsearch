@@ -26,6 +26,8 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+
 public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInferenceServiceRequest {
 
     private final URI uri;
@@ -55,7 +57,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
     @Override
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(uri);
-        var usageContext = inputTypeToUsageContext(inputType);
+        var usageContext = ElasticInferenceServiceUsageContext.fromInputType(inputType);
         var requestEntity = Strings.toString(
             new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
                 truncationResult.input(),
@@ -69,6 +71,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
 
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        httpPost.setHeader(new BasicHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, usageContext.productUseCaseHeaderValue()));
 
         return httpPost;
     }
@@ -103,20 +106,5 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
-    }
-
-    // visible for testing
-    static ElasticInferenceServiceUsageContext inputTypeToUsageContext(InputType inputType) {
-        switch (inputType) {
-            case SEARCH, INTERNAL_SEARCH -> {
-                return ElasticInferenceServiceUsageContext.SEARCH;
-            }
-            case INGEST, INTERNAL_INGEST -> {
-                return ElasticInferenceServiceUsageContext.INGEST;
-            }
-            default -> {
-                return ElasticInferenceServiceUsageContext.UNSPECIFIED;
-            }
-        }
     }
 }

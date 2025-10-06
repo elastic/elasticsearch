@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | double |
 | double | double |
 | integer | long |
 | long | long |

@@ -1,16 +1,20 @@
 delta_of_double_no_grouping
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
+// tag::delta[]
 TS k8s
 | STATS cost_change=sum(delta(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
+// end::delta[]
 | SORT cost_change DESC, time_bucket DESC | LIMIT 10;
 
+// tag::delta-result[]
 cost_change:double | time_bucket:datetime
 null               | 2024-05-10T00:01:00.000Z
 22.5701486013986   | 2024-05-10T00:20:00.000Z
 13.259615384615385 | 2024-05-10T00:13:00.000Z
 11.486895161290322 | 2024-05-10T00:12:00.000Z
 11.066666666666666 | 2024-05-10T00:21:00.000Z
+// end::delta-result[]
 11.0625            | 2024-05-10T00:22:00.000Z
 9.222489316239315  | 2024-05-10T00:09:00.000Z
 6.991071428571427  | 2024-05-10T00:15:00.000Z
@@ -62,13 +66,20 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 delta_with_filtering
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-TS k8s | WHERE pod == "one" | STATS tx = sum(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+// tag::delta[]
+TS k8s
+| WHERE pod == "one" 
+| STATS tx = sum(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+// end::delta[]
+| SORT time_bucket, cluster | LIMIT 10;
 
+// tag::delta-result[]
 tx:double | cluster:keyword | time_bucket:datetime
 -351.0    | prod            | 2024-05-10T00:00:00.000Z
 552.0     | qa              | 2024-05-10T00:00:00.000Z
 127.0     | staging         | 2024-05-10T00:00:00.000Z
 280.0     | prod            | 2024-05-10T00:10:00.000Z
+// end::delta-result[]
 73.0      | qa              | 2024-05-10T00:10:00.000Z
 -600.0    | staging         | 2024-05-10T00:10:00.000Z
 -22.0     | prod            | 2024-05-10T00:20:00.000Z
@@ -79,7 +90,9 @@ tx:double | cluster:keyword | time_bucket:datetime
 delta_with_inline_filtering
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-TS k8s | STATS tx = sum(delta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s
+| STATS tx = sum(delta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, cluster | LIMIT 10;
 
 tx:double | cluster:keyword | time_bucket:datetime
 -351.0    | prod            | 2024-05-10T00:00:00.000Z

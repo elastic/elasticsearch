@@ -308,6 +308,11 @@ public class EsqlCapabilities {
         AGG_TOP_STRING_SUPPORT,
 
         /**
+         * Make optional the order field in the TOP agg command, and default it to "ASC".
+         */
+        AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -1593,7 +1598,12 @@ public class EsqlCapabilities {
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
-        FIX_NO_COLUMNS;
+        FIX_NO_COLUMNS,
+
+        /**
+         * Support for dots in FUSE attributes
+         */
+        DOTS_IN_FUSE;
 
         private final boolean enabled;
 

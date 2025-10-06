@@ -61,6 +61,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
@@ -159,6 +161,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ).put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399)).build();
 
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+        CrossProjectModeDecider crossProjectModeDecider = mock(CrossProjectModeDecider.class);
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
 
         DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
         Instant now = Instant.now(Clock.systemUTC());
@@ -432,7 +437,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             settings,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver),
             indexNameExpressionResolver,
-            true
+            crossProjectModeDecider
         );
     }
 
@@ -2906,7 +2911,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(String action, TransportRequest request, AuthorizedIndices authorizedIndices) {
-        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices);
+        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices, TargetProjects.NOT_CROSS_PROJECT);
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {

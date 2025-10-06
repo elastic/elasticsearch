@@ -53,12 +53,16 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.BinaryDocValuesStringFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -956,7 +960,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        private SortedSetOrdinalsIndexFieldData.Builder fieldDataFromDocValues() {
+        private IndexFieldData.Builder fieldDataFromDocValues() {
+            if (useBinaryDocValues) {
+                return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            }
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
@@ -1041,7 +1048,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 return new StringScriptFieldWildcardQuery(
                     new Script(""),
-                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    ctx -> useBinaryDocValues
+                        ? new BinaryDocValuesStringFieldScript(name(), context.lookup(), ctx)
+                        : new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
                     name(),
                     value,
                     caseInsensitive

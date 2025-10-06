@@ -24,6 +24,7 @@ import java.util.Objects;
  */
 public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
     static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName(
         "inference_request_adaptive_rate_limiting_removed"
     );
@@ -42,8 +43,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
             in.readBoolean();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             this.context = new InferenceContext(in);
         } else {
             this.context = InferenceContext.EMPTY_INSTANCE;
@@ -68,8 +68,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
             out.writeBoolean(true);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             context.writeTo(out);
         }
     }

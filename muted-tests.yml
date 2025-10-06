@@ -579,9 +579,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testUsesFileBasedRecoveryIfOperationsBasedRecoveryWouldBeUnreasonable
   issue: https://github.com/elastic/elasticsearch/issues/135737
-- class: org.elasticsearch.datastreams.TSDBIndexingIT
-  method: testTsdbTemplatesNoKeywordFieldType
-  issue: https://github.com/elastic/elasticsearch/issues/135746
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
   method: testGroupingAggregate {TestCase=<small positive doubles>}
   issue: https://github.com/elastic/elasticsearch/issues/135752

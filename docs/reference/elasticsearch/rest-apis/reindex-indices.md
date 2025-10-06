@@ -624,7 +624,7 @@ The `host` parameter must contain a scheme, host, port (for example, `https://<O
 ### Using basic auth [reindex-basic-auth]
 
 To authenticate with the remote cluster using basic auth, set the `username` and `password` parameters, as in the example above.
-Be sure to use `https` when using basic auth, or the password will be sent in plain text. There are a range of settings available to configure the behaviour of the `https` connection.
+Be sure to use `https` when using basic auth, or the password will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
 
 ### Using an API key [reindex-api-key]
 
@@ -691,7 +691,7 @@ POST _reindex
 ::::
 
 
-Be sure to use `https` when using an API key, or it will be sent in plain text. There are a range of settings available to configure the behaviour of the `https` connection.
+Be sure to use `https` when using an API key, or it will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
 
 ### Whitelisting remote hosts [reindex-remote-whitelist]
 

@@ -38,6 +38,10 @@ FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:client
 To avoid this error, reorder your query, for example by moving ENRICH earlier in the pipeline.
 ::::
 
+::::{dropdown} Security advisory
+The 9.1.5 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
+
 ### Features and enhancements [elasticsearch-9.1.5-features-enhancements]
 
 Audit:
@@ -98,6 +102,12 @@ Transform:
 ```{applies_to}
 stack: ga 9.0.8
 ```
+
+### Highlights [elasticsearch-9.0.8-highlights]
+
+::::{dropdown} Security advisory
+The 9.0.8 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
 
 ### Features and enhancements [elasticsearch-9.0.8-features-enhancements]
 

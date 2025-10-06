@@ -53,7 +53,8 @@ record CmdLineArgs(
     VectorEncoding vectorEncoding,
     int dimensions,
     boolean earlyTermination,
-    KnnIndexTester.MergePolicyType mergePolicy
+    KnnIndexTester.MergePolicyType mergePolicy,
+    double writerBufferSizeInMb
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -82,6 +83,9 @@ record CmdLineArgs(
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
+    static final ParseField WRITER_BUFFER_FIELD = new ParseField("writer_buffer_mb");
+
+    static final double DEFAULT_WRITER_BUFFER_MB = 128;
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -117,6 +121,7 @@ record CmdLineArgs(
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
+        PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_FIELD);
     }
 
     @Override
@@ -186,6 +191,7 @@ record CmdLineArgs(
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
         private KnnIndexTester.MergePolicyType mergePolicy = null;
+        private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -316,6 +322,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setWriterBufferMb(double writerBufferSizeInMb) {
+            this.writerBufferSizeInMb = writerBufferSizeInMb;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -350,7 +361,8 @@ record CmdLineArgs(
                 vectorEncoding,
                 dimensions,
                 earlyTermination,
-                mergePolicy
+                mergePolicy,
+                writerBufferSizeInMb
             );
         }
     }

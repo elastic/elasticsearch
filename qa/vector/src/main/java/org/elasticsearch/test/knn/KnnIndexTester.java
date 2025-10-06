@@ -240,7 +240,8 @@ public class KnnIndexTester {
                     cmdLineArgs.dimensions(),
                     cmdLineArgs.vectorSpace(),
                     cmdLineArgs.numDocs(),
-                    mergePolicy
+                    mergePolicy,
+                    cmdLineArgs.writerBufferSizeInMb()
                 );
                 if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);

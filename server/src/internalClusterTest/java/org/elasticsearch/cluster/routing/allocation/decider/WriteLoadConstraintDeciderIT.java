@@ -699,7 +699,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         float maximumShardWriteLoad,
         String assignedShardNodeId
     ) {
-        // Randomly distribute shards' write-loads we can see that they're being prioritized correctly
+        // Randomly distribute shards' write-loads so that we can check later that shard movements are prioritized correctly
         final double writeLoadThreshold = maximumShardWriteLoad
             * BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
         final List<Double> shardPeakWriteLoads = new ArrayList<>();

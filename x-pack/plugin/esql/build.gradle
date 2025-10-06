@@ -37,6 +37,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
+  compileOnly "org.locationtech.jts:jts-core:${versions.jts}"
   implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')

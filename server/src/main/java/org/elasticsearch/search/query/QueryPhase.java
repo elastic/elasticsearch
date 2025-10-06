@@ -153,11 +153,11 @@ public class QueryPhase {
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void addCollectorsAndSearch(SearchContext searchContext, Long rangeTimestampFrom) throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
-        queryResult.setTimeRangeFilterFromMillis(rangeTimestampFrom);
+        queryResult.setTimeRangeFilterFromMillis(timeRangeFilterFromMillis);
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());

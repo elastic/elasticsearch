@@ -9,20 +9,16 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingRoundSummary.NodesWeightsChanges;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancingRoundSummary.NodesWeightsChanges;
-
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
-import java.util.function.ToLongFunction;
 
 /**
  * A telemetry metrics sender for {@link BalancingRoundSummary.CombinedBalancingRoundSummary}
@@ -70,12 +66,7 @@ public class AllocationBalancingRoundMetrics {
             this::getShardMoves
         );
 
-        meterRegistry.registerLongsGauge(
-            NUMBER_OF_SHARDS_METRIC_NAME,
-            "Current number of shards",
-            "unit",
-            this::getShardCount
-        );
+        meterRegistry.registerLongsGauge(NUMBER_OF_SHARDS_METRIC_NAME, "Current number of shards", "unit", this::getShardCount);
         meterRegistry.registerLongsGauge(
             NUMBER_OF_SHARDS_DELTA_METRIC_NAME,
             "Current number of shard moves",
@@ -83,12 +74,7 @@ public class AllocationBalancingRoundMetrics {
             this::getShardCountDelta
         );
 
-        meterRegistry.registerDoublesGauge(
-            DISK_USAGE_BYTES_METRIC_NAME,
-            "Disk usage in bytes",
-            "unit",
-            this::getDiskUsage
-        );
+        meterRegistry.registerDoublesGauge(DISK_USAGE_BYTES_METRIC_NAME, "Disk usage in bytes", "unit", this::getDiskUsage);
         meterRegistry.registerDoublesGauge(
             DISK_USAGE_BYTES_DELTA_METRIC_NAME,
             "Disk usage delta in bytes",
@@ -96,31 +82,11 @@ public class AllocationBalancingRoundMetrics {
             this::getDiskUsageDelta
         );
 
-        meterRegistry.registerDoublesGauge(
-            WRITE_LOAD_METRIC_NAME,
-            "Write load",
-            "1.0",
-            this::getWriteLoad
-        );
-        meterRegistry.registerDoublesGauge(
-            WRITE_LOAD_DELTA_METRIC_NAME,
-            "Write load",
-            "1.0",
-            this::getWriteLoadDelta
-        );
+        meterRegistry.registerDoublesGauge(WRITE_LOAD_METRIC_NAME, "Write load", "1.0", this::getWriteLoad);
+        meterRegistry.registerDoublesGauge(WRITE_LOAD_DELTA_METRIC_NAME, "Write load", "1.0", this::getWriteLoadDelta);
 
-        meterRegistry.registerDoublesGauge(
-            TOTAL_WEIGHT_METRIC_NAME,
-            "Total weight",
-            "1.0",
-            this::getTotalWeight
-        );
-        meterRegistry.registerDoublesGauge(
-            TOTAL_WEIGHT_DELTA_METRIC_NAME,
-            "Total weight delta",
-            "1.0",
-            this::getTotalWeightDelta
-        );
+        meterRegistry.registerDoublesGauge(TOTAL_WEIGHT_METRIC_NAME, "Total weight", "1.0", this::getTotalWeight);
+        meterRegistry.registerDoublesGauge(TOTAL_WEIGHT_DELTA_METRIC_NAME, "Total weight delta", "1.0", this::getTotalWeightDelta);
     }
 
     public void updateRoundMetrics(BalancingRoundSummary.CombinedBalancingRoundSummary summary) {
@@ -176,7 +142,9 @@ public class AllocationBalancingRoundMetrics {
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<LongWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
-            metrics.add(new LongWithAttributes(nodeWeights.getValue().weightsDiff().shardCountDiff(), getNodeAttributes(nodeWeights.getKey())));
+            metrics.add(
+                new LongWithAttributes(nodeWeights.getValue().weightsDiff().shardCountDiff(), getNodeAttributes(nodeWeights.getKey()))
+            );
         }
         return metrics;
     }
@@ -190,7 +158,9 @@ public class AllocationBalancingRoundMetrics {
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
-            metrics.add(new DoubleWithAttributes(nodeWeights.getValue().baseWeights().diskUsageInBytes(), getNodeAttributes(nodeWeights.getKey())));
+            metrics.add(
+                new DoubleWithAttributes(nodeWeights.getValue().baseWeights().diskUsageInBytes(), getNodeAttributes(nodeWeights.getKey()))
+            );
         }
         return metrics;
     }
@@ -204,7 +174,12 @@ public class AllocationBalancingRoundMetrics {
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
-            metrics.add(new DoubleWithAttributes(nodeWeights.getValue().weightsDiff().diskUsageInBytesDiff(), getNodeAttributes(nodeWeights.getKey())));
+            metrics.add(
+                new DoubleWithAttributes(
+                    nodeWeights.getValue().weightsDiff().diskUsageInBytesDiff(),
+                    getNodeAttributes(nodeWeights.getKey())
+                )
+            );
         }
         return metrics;
     }
@@ -218,7 +193,9 @@ public class AllocationBalancingRoundMetrics {
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
-            metrics.add(new DoubleWithAttributes(nodeWeights.getValue().baseWeights().writeLoad(), getNodeAttributes(nodeWeights.getKey())));
+            metrics.add(
+                new DoubleWithAttributes(nodeWeights.getValue().baseWeights().writeLoad(), getNodeAttributes(nodeWeights.getKey()))
+            );
         }
         return metrics;
     }
@@ -232,7 +209,9 @@ public class AllocationBalancingRoundMetrics {
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
-            metrics.add(new DoubleWithAttributes(nodeWeights.getValue().weightsDiff().writeLoadDiff(), getNodeAttributes(nodeWeights.getKey())));
+            metrics.add(
+                new DoubleWithAttributes(nodeWeights.getValue().weightsDiff().writeLoadDiff(), getNodeAttributes(nodeWeights.getKey()))
+            );
         }
         return metrics;
     }
@@ -246,7 +225,9 @@ public class AllocationBalancingRoundMetrics {
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
-            metrics.add(new DoubleWithAttributes(nodeWeights.getValue().baseWeights().nodeWeight(), getNodeAttributes(nodeWeights.getKey())));
+            metrics.add(
+                new DoubleWithAttributes(nodeWeights.getValue().baseWeights().nodeWeight(), getNodeAttributes(nodeWeights.getKey()))
+            );
         }
         return metrics;
     }
@@ -260,7 +241,9 @@ public class AllocationBalancingRoundMetrics {
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
-            metrics.add(new DoubleWithAttributes(nodeWeights.getValue().weightsDiff().totalWeightDiff(), getNodeAttributes(nodeWeights.getKey())));
+            metrics.add(
+                new DoubleWithAttributes(nodeWeights.getValue().weightsDiff().totalWeightDiff(), getNodeAttributes(nodeWeights.getKey()))
+            );
         }
         return metrics;
     }

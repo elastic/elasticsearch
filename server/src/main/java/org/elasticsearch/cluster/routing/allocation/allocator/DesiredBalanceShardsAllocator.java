@@ -150,8 +150,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceMetrics = desiredBalanceMetrics;
         this.balancingRoundMetrics = balancingRoundMetrics;
         this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
-        this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(threadPool, clusterService.getClusterSettings(),
-            balancingRoundMetrics);
+        this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(
+            threadPool,
+            clusterService.getClusterSettings(),
+            balancingRoundMetrics
+        );
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;

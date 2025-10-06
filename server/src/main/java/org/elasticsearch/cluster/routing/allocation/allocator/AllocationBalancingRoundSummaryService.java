@@ -73,8 +73,11 @@ public class AllocationBalancingRoundSummaryService {
         this(threadPool, clusterSettings, AllocationBalancingRoundMetrics.NOOP);
     }
 
-    public AllocationBalancingRoundSummaryService(ThreadPool threadPool, ClusterSettings clusterSettings,
-        AllocationBalancingRoundMetrics balancingRoundMetrics) {
+    public AllocationBalancingRoundSummaryService(
+        ThreadPool threadPool,
+        ClusterSettings clusterSettings,
+        AllocationBalancingRoundMetrics balancingRoundMetrics
+    ) {
         this.threadPool = threadPool;
         // Initialize the local setting values to avoid a null access when ClusterSettings#initializeAndWatch is called on each setting:
         // updating enableBalancerRoundSummaries accesses summaryReportInterval.

@@ -937,6 +937,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final int numMissing = between(0, 50);
         final int totalShards = numAtMax + numBetweenThresholdAndMax + numBelowThreshold + numMissing;
 
+        // We create single-shard indices for simplicity's sake and to make it clear the shards are independent of each other
         final var indices = new ArrayList<IndexMetadata.Builder>();
         for (int i = 0; i < totalShards; i++) {
             indices.add(anIndex("index-" + i).numberOfShards(1).numberOfReplicas(0));

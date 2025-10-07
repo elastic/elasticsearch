@@ -630,7 +630,7 @@ Refer to examples of kNN queries on `semantic_text` fields.
 Refer to examples of sparse vector queries on `semantic_text` fields.
 -->
 
-- [Semantic query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md) - A legacy option that was introduced earlier and is no longer recommended, but it remains supported for existing implementations. 
+- [Semantic query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md): We don't recommend this legacy query type for _new_ projects, because the alternatives in this list enable more flexibility and customization. The `semantic` query remains available to support existing implementations.
 <!-- 
 Refer to examples of semantic queries on `semantic_text` fields.
 -->

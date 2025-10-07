@@ -628,7 +628,7 @@ Be sure to use `https` when using basic auth, or the password will be sent in pl
 
 ### Using an API key [reindex-api-key]
 
-When using {{ecloud}}, it is also possible (and encouraged) to authenticate with the remote cluster through the use of a valid API key:
+It is also possible (and encouraged) to authenticate with the remote cluster through the use of a valid API key:
 
 ::::{applies-switch}
 
@@ -702,7 +702,7 @@ Scheme is ignored, only the host and port are used. For example:
 ```yaml
 reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
 ```
-The list of allowed hosts must be configured on any nodes that will coordinate the reindex.
+The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
 ### Compatibility [reindex-remote-compatibility]
 

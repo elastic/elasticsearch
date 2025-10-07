@@ -133,6 +133,7 @@ toc:
               - file: esql/functions-operators/search-functions.md
               - file: esql/functions-operators/spatial-functions.md
               - file: esql/functions-operators/string-functions.md
+              - file: esql/functions-operators/dense-vector-functions.md
               - file: esql/functions-operators/type-conversion-functions.md
               - file: esql/functions-operators/mv-functions.md
               - file: esql/functions-operators/operators.md

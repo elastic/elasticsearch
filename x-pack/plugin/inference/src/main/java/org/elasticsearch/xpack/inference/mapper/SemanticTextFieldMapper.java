@@ -889,6 +889,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
+            // If this field has never seen inference results (no model settings), there are no values yet
+            if (modelSettings == null) {
+                return new MatchNoDocsQuery();
+            }
             if (getEmbeddingsField() == null) {
                 return new MatchNoDocsQuery();
             }

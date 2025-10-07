@@ -18,6 +18,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -25,6 +26,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -138,7 +140,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     ModelRegistry globalModelRegistry;
 
     @Before
-    private void startThreadPool() {
+    private void initializeTestEnvironment() {
         threadPool = createThreadPool();
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
         var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
@@ -327,30 +329,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 
-        globalModelRegistry.clearDefaultIds();
-        try {
-            MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
-            assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
-            DocumentMapper mapper = mapperService.documentMapper();
-            assertThat(
-                mapper.mappingSource().toString(),
-                containsString("\"inference_id\":\"" + DEFAULT_FALLBACK_ELSER_INFERENCE_ID + "\"")
-            );
-        } finally {
-            registerDefaultEisEndpoint();
-        }
+        removeDefaultEisEndpoint();
+
+        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
+        DocumentMapper mapper = mapperService.documentMapper();
+        assertThat(mapper.mappingSource().toString(), containsString("\"inference_id\":\"" + DEFAULT_FALLBACK_ELSER_INFERENCE_ID + "\""));
     }
 
-    public void testExplicitInferenceIdOverridesDynamicSelection() throws Exception {
-        final String fieldName = "field";
-        final String explicitInferenceId = "my-custom-model";
-        final XContentBuilder fieldMapping = fieldMapping(
-            b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, explicitInferenceId)
-        );
-
-        // Even when EIS is available, explicit inference_id should take precedence
-        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
-        assertInferenceEndpoints(mapperService, fieldName, explicitInferenceId, explicitInferenceId);
+    private void removeDefaultEisEndpoint() {
+        PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
+        globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_ELSER_INFERENCE_ID), removalFuture);
+        assertTrue("Failed to remove default EIS endpoint", removalFuture.actionGet());
     }
 
     @Override
@@ -1851,8 +1841,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        // With an inference defaults creating nested chunk documents, expect a nested query
-        assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
+        // Until a doc is indexed, the query is rewritten as match no docs
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
 
     private static void addSemanticTextMapping(

@@ -240,14 +240,15 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
+        String currentFieldName = parser.currentName();
+        fieldName = currentFieldName;
+        FieldNameValidator.ensureSyntaxSafe(fieldName, parser);
+
         XContentParser.Token token = parser.nextToken();;
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token + "]");
         }
 
-        String currentFieldName = parser.currentName();
-        fieldName = currentFieldName;
-        FieldNameValidator.ensureQualified(fieldName, parser);
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -329,6 +330,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        FieldNameValidator.ensureShorthandSafe(fieldName,context);
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }

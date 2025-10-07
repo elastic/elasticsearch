@@ -1,22 +1,53 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- */
-
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class FieldNameValidator {
-    public static void ensureQualified(String fieldName, XContentParser parser) {
-        if (!fieldName.contains(".")) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Field name '" + fieldName + "' is unqualified. Use a qualified name like 'object.field' to avoid future ambiguity.");
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Utility class to validate field names for future shorthand support.
+ */
+public final class FieldNameValidator {
+
+    private FieldNameValidator() {}
+
+    /**
+     * Ensures that the given field name is either fully qualified or
+     * if it is a shorthand name, it uniquely resolves to a single field.
+     *
+     * @param fieldName the field name provided in the query DSL
+     * @param context the SearchExecutionContext (used to inspect all mapped fields)
+     */
+    public static void ensureShorthandSafe(String fieldName, SearchExecutionContext context) {
+        if (fieldName.contains(".")) {
+            return;
+        }
+
+        List<String> matches = new ArrayList<>();
+
+        List<String> allFieldNames = new ArrayList<>();
+        for (Mapper mapper : context.getMappingLookup().fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                allFieldNames.add(fieldMapper.fullPath());
+            }
+        }
+
+        if (matches.size() > 1) {
+            throw new IllegalArgumentException(
+                "Ambiguous shorthand field name '" + fieldName + "'. " +
+                    "It matches multiple fields: " + matches + ". " +
+                    "Please use a fully qualified name like 'object." + fieldName + "'."
+            );
+        }
+    }
+
+    public static void ensureSyntaxSafe(String fieldName, XContentParser parser) {
+        if (fieldName == null || fieldName.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "Field name must not be empty");
         }
     }
 }

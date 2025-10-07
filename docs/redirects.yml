@@ -105,3 +105,8 @@ redirects:
   'reference/query-languages/esql/kibana/docs/functions/st_geohash_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geotile_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
   'reference/query-languages/esql/kibana/docs/functions/st_geohex_to_long.md': 'reference/query-languages/esql/esql-functions-operators.md'
+
+  'reference/elasticsearch/mapping-reference/text.md':
+    anchors:
+      'match-only-text-field-type': 'reference/elasticsearch/mapping-reference/match-only-text.md#match-only-text-field-type'
+      'match-only-text-params': 'reference/elasticsearch/mapping-reference/match-only-text.md#match-only-text-params'

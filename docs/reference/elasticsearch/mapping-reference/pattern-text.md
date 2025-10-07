@@ -13,7 +13,7 @@ stack: preview 9.2
 This feature requires a [subscription](https://www.elastic.co/subscriptions).
 :::
 
-The `pattern_text` field type is a variant of [`text`](#text-field-type) with improved space efficiency for log data.
+The `pattern_text` field type is a variant of [`text`](/reference/elasticsearch/mapping-reference/text.md) with improved space efficiency for log data.
 Internally, it decomposes values into static parts that are likely to be shared among many values, and dynamic parts that tend to vary.
 The static parts usually come from the explanatory text of a log message, while the dynamic parts are the variables that were interpolated into the logs.
 This decomposition allows for improved compression on log-like data.

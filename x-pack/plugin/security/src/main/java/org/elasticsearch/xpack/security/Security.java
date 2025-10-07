@@ -1390,7 +1390,6 @@ public class Security extends Plugin
                 return actionAuthorizationStep;
             }
         );
-        System.out.println("defg5678 " + customActionAuthorizationStep);
         return customActionAuthorizationStep == null ? new CustomActionAuthorizationStep.Default() : customActionAuthorizationStep;
     }
 

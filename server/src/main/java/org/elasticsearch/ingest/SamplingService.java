@@ -151,8 +151,17 @@ public class SamplingService implements ClusterStateListener {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
                 return;
             }
+            if (sampleInfo.hasExceededMaxBytesSize()) {
+                stats.samplesRejectedForSize.increment();
+                return;
+            }
             if (Math.random() >= samplingConfig.rate()) {
                 stats.samplesRejectedForRate.increment();
+                return;
+            }
+            if (samplingConfig.maxSize().getBytes() < sampleInfo.getSizeInBytes()) {
+                stats.samplesRejectedForSize.increment();
+                sampleInfo.hasExceededMaxBytesSize = true;
                 return;
             }
             String condition = samplingConfig.condition();
@@ -306,6 +315,10 @@ public class SamplingService implements ClusterStateListener {
             XContentHelper.writeTo(out, contentType);
         }
 
+        public long getSizeInBytes() {
+            return indexName.length() + source.length;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -346,6 +359,7 @@ public class SamplingService implements ClusterStateListener {
         final LongAdder samplesRejectedForCondition = new LongAdder();
         final LongAdder samplesRejectedForRate = new LongAdder();
         final LongAdder samplesRejectedForException = new LongAdder();
+        final LongAdder samplesRejectedForSize = new LongAdder();
         final LongAdder timeSamplingInNanos = new LongAdder();
         final LongAdder timeEvaluatingConditionInNanos = new LongAdder();
         final LongAdder timeCompilingConditionInNanos = new LongAdder();
@@ -390,6 +404,7 @@ public class SamplingService implements ClusterStateListener {
             samplesRejectedForCondition.add(in.readLong());
             samplesRejectedForRate.add(in.readLong());
             samplesRejectedForException.add(in.readLong());
+            samplesRejectedForSize.add(in.readLong());
             samples.add(in.readLong());
             timeSamplingInNanos.add(in.readLong());
             timeEvaluatingConditionInNanos.add(in.readLong());
@@ -423,6 +438,10 @@ public class SamplingService implements ClusterStateListener {
 
         public long getSamplesRejectedForException() {
             return samplesRejectedForException.longValue();
+        }
+
+        public long getSamplesRejectedForSize() {
+            return samplesRejectedForSize.longValue();
         }
 
         public TimeValue getTimeSampling() {
@@ -475,6 +494,7 @@ public class SamplingService implements ClusterStateListener {
             dest.samplesRejectedForCondition.add(source.samplesRejectedForCondition.longValue());
             dest.samplesRejectedForRate.add(source.samplesRejectedForRate.longValue());
             dest.samplesRejectedForException.add(source.samplesRejectedForException.longValue());
+            dest.samplesRejectedForSize.add(source.samplesRejectedForSize.longValue());
             dest.samples.add(source.samples.longValue());
             dest.timeSamplingInNanos.add(source.timeSamplingInNanos.longValue());
             dest.timeEvaluatingConditionInNanos.add(source.timeEvaluatingConditionInNanos.longValue());
@@ -492,6 +512,7 @@ public class SamplingService implements ClusterStateListener {
             builder.field("samples_rejected_for_condition", samplesRejectedForCondition.longValue());
             builder.field("samples_rejected_for_rate", samplesRejectedForRate.longValue());
             builder.field("samples_rejected_for_exception", samplesRejectedForException.longValue());
+            builder.field("samples_rejected_for_size", samplesRejectedForSize.longValue());
             builder.field("samples_accepted", samples.longValue());
             builder.humanReadableField("time_sampling_millis", "time_sampling", TimeValue.timeValueNanos(timeSamplingInNanos.longValue()));
             builder.humanReadableField(
@@ -515,6 +536,7 @@ public class SamplingService implements ClusterStateListener {
             out.writeLong(samplesRejectedForCondition.longValue());
             out.writeLong(samplesRejectedForRate.longValue());
             out.writeLong(samplesRejectedForException.longValue());
+            out.writeLong(samplesRejectedForSize.longValue());
             out.writeLong(samples.longValue());
             out.writeLong(timeSamplingInNanos.longValue());
             out.writeLong(timeEvaluatingConditionInNanos.longValue());
@@ -558,6 +580,9 @@ public class SamplingService implements ClusterStateListener {
             if (samplesRejectedForException.longValue() != that.samplesRejectedForException.longValue()) {
                 return false;
             }
+            if (samplesRejectedForSize.longValue() != that.samplesRejectedForSize.longValue()) {
+                return false;
+            }
             if (timeSamplingInNanos.longValue() != that.timeSamplingInNanos.longValue()) {
                 return false;
             }
@@ -598,6 +623,7 @@ public class SamplingService implements ClusterStateListener {
                 samplesRejectedForCondition.longValue(),
                 samplesRejectedForRate.longValue(),
                 samplesRejectedForException.longValue(),
+                samplesRejectedForSize.longValue(),
                 timeSamplingInNanos.longValue(),
                 timeEvaluatingConditionInNanos.longValue(),
                 timeCompilingConditionInNanos.longValue()
@@ -644,6 +670,7 @@ public class SamplingService implements ClusterStateListener {
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
+        private volatile boolean hasExceededMaxBytesSize = false;
         private final AtomicInteger arrayIndex = new AtomicInteger(0);
 
         SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
@@ -657,12 +684,31 @@ public class SamplingService implements ClusterStateListener {
             return isFull == false;
         }
 
+        public boolean hasExceededMaxBytesSize() {
+            return hasExceededMaxBytesSize;
+        }
+
         /*
          * This returns the array of raw documents. It's size will be the maximum number of raw documents allowed in this sample. Some (or
          * all) elements could be null.
          */
         public RawDocument[] getRawDocuments() {
             return rawDocuments;
+        }
+
+        /*
+         * This gets an approximate size in bytes for ths sample. In only takes the size of the raw documents into account, since that is
+         * the only part of the sample that is not a fixed size.
+         */
+        public long getSizeInBytes() {
+            long size = 0;
+            for (int i = 0; i < arrayIndex.get(); i++) {
+                RawDocument rawDocument = rawDocuments[i];
+                if (rawDocument != null) {
+                    size += rawDocuments[i].getSizeInBytes();
+                }
+            }
+            return size;
         }
 
         /*

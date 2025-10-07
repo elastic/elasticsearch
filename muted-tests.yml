@@ -735,6 +735,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBranchWithInlineStats}
   issue: https://github.com/elastic/elasticsearch/issues/136091
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:date.EvalDateTruncQuarterlyIntervalWithGTInRange}
+  issue: https://github.com/elastic/elasticsearch/issues/136102
 
 # Examples:
 #

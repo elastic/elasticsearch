@@ -2,5 +2,5 @@
 
 **Description**
 
-Generates dense vector embeddings for text using a specified inference endpoint.
+Generates dense vector embeddings from a text using a specified inference endpoint.
 

@@ -30,7 +30,7 @@ public class TruncatedOutputStream extends FilterOutputStream {
         this.maxSize = maxSize;
     }
 
-    private boolean hasCapacity() {
+    public boolean hasCapacity() {
         if (hasCapacity) {
             hasCapacity = currentSizeSupplier.getAsInt() < maxSize;
         }

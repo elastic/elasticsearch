@@ -433,6 +433,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    // Defines the max size of the shard_delete_results stream as a percentage of available heap memory
+    public static final Setting<ByteSizeValue> MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING = Setting.memorySizeSetting(
+        "repositories.blobstore.max_shard_delete_results_size",
+        "25%",
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Repository settings that can be updated dynamically without having to create a new repository.
      */
@@ -1671,7 +1679,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
 
-        private final int shardDeleteResultsMaxSize;
         /**
          * <p>
          *     Shard-level results, i.e. a sequence of {@link ShardSnapshotMetaDeleteResult} objects, except serialized, concatenated, and
@@ -1685,35 +1692,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * </p>
          */
         private final BytesStreamOutput shardDeleteResults;
-
-        private int resultCount = 0;
-
+        private final TruncatedOutputStream truncatedShardDeleteResultsOutputStream;
         private final StreamOutput compressed;
 
+        private final int shardDeleteResultsMaxSize;
+        private int successfullyWrittenBlobsCount = 0;
+        private int leakedBlobsCount = 0;
         private final ArrayList<Closeable> resources = new ArrayList<>();
-
         private final ShardGenerations.Builder shardGenerationsBuilder = ShardGenerations.builder();
-
-        // Gets 25% of the heap size to be allocated to the shard_delete_results stream
-        public final Setting<ByteSizeValue> MAX_SHARD_DELETE_RESULTS_SIZE_SETTING = Setting.memorySizeSetting(
-            "repositories.blobstore.max_shard_delete_results_size",
-            "25%",
-            Setting.Property.NodeScope
-        );
 
         ShardBlobsToDelete(Settings settings) {
             this.shardDeleteResultsMaxSize = calculateMaximumShardDeleteResultsSize(settings);
             this.shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays);
-            this.compressed = new OutputStreamStreamOutput(
-                new TruncatedOutputStream(
-                    new BufferedOutputStream(
-                        new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
-                        DeflateCompressor.BUFFER_SIZE
-                    ),
-                    shardDeleteResults::size,
-                    this.shardDeleteResultsMaxSize
-                )
+            this.truncatedShardDeleteResultsOutputStream = new TruncatedOutputStream(
+                new BufferedOutputStream(
+                    new DeflaterOutputStream(Streams.flushOnCloseStream(shardDeleteResults)),
+                    DeflateCompressor.BUFFER_SIZE
+                ),
+                shardDeleteResults::size,
+                this.shardDeleteResultsMaxSize
             );
+            this.compressed = new OutputStreamStreamOutput(this.truncatedShardDeleteResultsOutputStream);
             resources.add(compressed);
             resources.add(LeakTracker.wrap((Releasable) shardDeleteResults));
         }
@@ -1726,13 +1725,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @return The maximum number of bytes the shardDeleteResults BytesStreamOutput can consume in the heap
          */
         int calculateMaximumShardDeleteResultsSize(Settings settings) {
-            long maxHeapSizeInBytes = MAX_SHARD_DELETE_RESULTS_SIZE_SETTING.get(settings).getBytes();
+            long maxHeapSizeInBytes = MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING.get(settings).getBytes();
             int oneMBBuffer = 1024 * 1024;
             int maxShardDeleteResultsSize = Integer.MAX_VALUE - oneMBBuffer;
-            if (maxHeapSizeInBytes > maxShardDeleteResultsSize) {
-                return maxShardDeleteResultsSize;
-            }
-            return (int) maxHeapSizeInBytes;
+            return Math.toIntExact(Math.min(maxHeapSizeInBytes, maxShardDeleteResultsSize));
         }
 
         synchronized void addShardDeleteResult(
@@ -1743,21 +1739,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ) {
             try {
                 shardGenerationsBuilder.put(indexId, shardId, newGeneration);
-                // Only write if we have capacity
-                if (shardDeleteResults.size() < this.shardDeleteResultsMaxSize) {
+                // There is a minimum of 1 byte available for writing
+                if (this.truncatedShardDeleteResultsOutputStream.hasCapacity()) {
                     new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
                     // We only want to read this shard delete result if we were able to write the entire object.
                     // Otherwise, for partial writes, an EOFException will be thrown upon reading
-                    if (shardDeleteResults.size() < this.shardDeleteResultsMaxSize) {
-                        resultCount += 1;
+                    if (this.truncatedShardDeleteResultsOutputStream.hasCapacity()) {
+                        successfullyWrittenBlobsCount += 1;
+                    } else {
+                        leakedBlobsCount += 1;
                     }
                 } else {
-                    logger.warn(
-                        "Failure to clean up the following dangling blobs, {}, for index {} and shard {}",
+                    logger.debug(
+                        "Unable to clean up the following dangling blobs, {}, for index {} and shard {} " +
+                            "due to insufficient heap space on the master node.",
                         blobsToDelete,
                         indexId,
                         shardId
                     );
+                    leakedBlobsCount += 1;
                 }
             } catch (IOException e) {
                 assert false : e; // no IO actually happens here
@@ -1785,20 +1785,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new UncheckedIOException(e);
             }
 
-            List<String> blobPaths = new ArrayList<>();
-            for (int i = 0; i < resultCount; i++) {
-                ShardSnapshotMetaDeleteResult shardResult;
+            if (leakedBlobsCount > 0) {
+                logger.warn(
+                    "Skipped cleanup of {} dangling snapshot blobs due to memory constraints on the master node. " +
+                        "These blobs will be cleaned up automatically by future snapshot deletions. " +
+                        "If you routinely delete large snapshots, consider increasing the master node's heap size " +
+                        "to allow for more efficient cleanup.",
+                    leakedBlobsCount
+                );
+            }
+
+            return Iterators.flatMap(Iterators.forRange(0, successfullyWrittenBlobsCount, i -> {
                 try {
-                    shardResult = new ShardSnapshotMetaDeleteResult(input);
+                    return new ShardSnapshotMetaDeleteResult(input);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-                String shardPath = shardPath(new IndexId("_na_", shardResult.indexId), shardResult.shardId).buildAsString();
-                for (String blob : shardResult.blobsToDelete) {
-                    blobPaths.add(shardPath + blob);
-                }
-            }
-            return blobPaths.iterator();
+            }), shardResult -> {
+                final var shardPath = shardPath(new IndexId("_na_", shardResult.indexId), shardResult.shardId).buildAsString();
+                return Iterators.map(shardResult.blobsToDelete.iterator(), blob -> shardPath + blob);
+            });
         }
 
         @Override

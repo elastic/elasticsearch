@@ -921,8 +921,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
     public void testHideFromConfigurationApi_ThrowsUnsupported_WithNoAvailableModels() throws Exception {
         try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
-            ensureAuthorizationCallFinished(service);
-
             expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }
     }
@@ -942,137 +940,104 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 )
             )
         ) {
-            ensureAuthorizationCallFinished(service);
-
             expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }
     }
 
     public void testCreateConfiguration() throws Exception {
-        try (
-            var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                "model-1",
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.TEXT_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            )
-        ) {
-            ensureAuthorizationCallFinished(service);
-
-            String content = XContentHelper.stripWhitespace("""
-                {
-                       "service": "elastic",
-                       "name": "Elastic",
-                       "task_types": ["sparse_embedding", "chat_completion", "text_embedding"],
-                       "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
-                           "model_id": {
-                               "description": "The name of the model to use for the inference task.",
-                               "label": "Model ID",
-                               "required": true,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
-                           "max_input_tokens": {
-                               "description": "Allows you to specify the maximum number of tokens per input.",
-                               "label": "Maximum Input Tokens",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding"]
-                           }
+        String content = XContentHelper.stripWhitespace("""
+            {
+                   "service": "elastic",
+                   "name": "Elastic",
+                   "task_types": ["sparse_embedding", "chat_completion", "text_embedding"],
+                   "configurations": {
+                       "rate_limit.requests_per_minute": {
+                           "description": "Minimize the number of rate limit errors.",
+                           "label": "Rate Limit",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "int",
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
+                       },
+                       "model_id": {
+                           "description": "The name of the model to use for the inference task.",
+                           "label": "Model ID",
+                           "required": true,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
+                       },
+                       "max_input_tokens": {
+                           "description": "Allows you to specify the maximum number of tokens per input.",
+                           "label": "Maximum Input Tokens",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "int",
+                           "supported_task_types": ["text_embedding", "sparse_embedding"]
                        }
                    }
-                """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
-                new BytesArray(content),
-                XContentType.JSON
-            );
-            boolean humanReadable = true;
-            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(
-                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.TEXT_EMBEDDING)
-            );
-            assertToXContentEquivalent(
-                originalBytes,
-                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
-                XContentType.JSON
-            );
-        }
+               }
+            """);
+        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            new BytesArray(content),
+            XContentType.JSON
+        );
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(
+            EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.TEXT_EMBEDDING)
+        );
+        assertToXContentEquivalent(originalBytes, toXContent(serviceConfiguration, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
     public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
-            ensureAuthorizationCallFinished(service);
-
-            String content = XContentHelper.stripWhitespace("""
-                {
-                       "service": "elastic",
-                       "name": "Elastic",
-                       "task_types": [],
-                       "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
-                           "model_id": {
-                               "description": "The name of the model to use for the inference task.",
-                               "label": "Model ID",
-                               "required": true,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "str",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
-                           "max_input_tokens": {
-                               "description": "Allows you to specify the maximum number of tokens per input.",
-                               "label": "Maximum Input Tokens",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding"]
-                           }
+        String content = XContentHelper.stripWhitespace("""
+            {
+                   "service": "elastic",
+                   "name": "Elastic",
+                   "task_types": [],
+                   "configurations": {
+                       "rate_limit.requests_per_minute": {
+                           "description": "Minimize the number of rate limit errors.",
+                           "label": "Rate Limit",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "int",
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
+                       },
+                       "model_id": {
+                           "description": "The name of the model to use for the inference task.",
+                           "label": "Model ID",
+                           "required": true,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "str",
+                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
+                       },
+                       "max_input_tokens": {
+                           "description": "Allows you to specify the maximum number of tokens per input.",
+                           "label": "Maximum Input Tokens",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": false,
+                           "type": "int",
+                           "supported_task_types": ["text_embedding", "sparse_embedding"]
                        }
                    }
-                """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
-                new BytesArray(content),
-                XContentType.JSON
-            );
-            boolean humanReadable = true;
-            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(
-                EnumSet.noneOf(TaskType.class)
-            );
-            assertToXContentEquivalent(
-                originalBytes,
-                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
-                XContentType.JSON
-            );
-        }
+               }
+            """);
+        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            new BytesArray(content),
+            XContentType.JSON
+        );
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(EnumSet.noneOf(TaskType.class));
+        assertToXContentEquivalent(originalBytes, toXContent(serviceConfiguration, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
     public void testGetConfiguration_ThrowsUnsupported() throws Exception {
@@ -1091,8 +1056,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 )
             )
         ) {
-            ensureAuthorizationCallFinished(service);
-
             expectThrows(UnsupportedOperationException.class, service::getConfiguration);
         }
     }
@@ -1113,8 +1076,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            ensureAuthorizationCallFinished(service);
-
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
             assertTrue(service.defaultConfigIds().isEmpty());
@@ -1145,8 +1106,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            ensureAuthorizationCallFinished(service);
-
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
         }
     }
@@ -1171,8 +1130,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            ensureAuthorizationCallFinished(service);
-
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
         }
     }
@@ -1193,8 +1150,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            ensureAuthorizationCallFinished(service);
-
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertTrue(service.defaultConfigIds().isEmpty());
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
@@ -1221,7 +1176,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            ensureAuthorizationCallFinished(service);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertThat(
                 service.defaultConfigIds(),
@@ -1271,7 +1225,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            ensureAuthorizationCallFinished(service);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
             assertThat(
@@ -1408,11 +1361,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
-    }
-
-    private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
-        service.onNodeStarted();
-        service.waitForFirstAuthorizationToComplete(TIMEOUT);
     }
 
     private ElasticInferenceService createServiceWithMockSender() {

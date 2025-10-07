@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
+// TODO remove this class
 public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
     private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationHandler.class);
 
@@ -246,8 +247,9 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
             new AuthorizedContent(authorizedTaskTypesAndModels, authorizedDefaultConfigIds, authorizedDefaultModelObjects)
         );
 
-        // TODO remove adding it to the registry, I think we can still revoke for now though
-        // authorizedContent.get().configIds().forEach(modelRegistry::putDefaultIdIfAbsent);
+        // We are no longer added the authorized preconfigured endpoints to the model registry. The model registry will reach out to
+        // the EIS gateway directly to get the model information. For now, I'm leaving the revoking logic in place but it will be removed
+        // when the authorization polling logic is moved to the master node.
         handleRevokedDefaultConfigs(authorizedDefaultModelIds);
     }
 

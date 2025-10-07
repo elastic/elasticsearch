@@ -242,6 +242,12 @@ public class ModelRegistry implements ClusterStateListener {
                 throw new IllegalStateException("initial cluster state not set yet");
             }
         }
+
+        var eisConfig = ElasticInferenceServiceMinimalSettings.getWithInferenceId(inferenceEntityId);
+        if (eisConfig != null) {
+            return eisConfig.minimalSettings();
+        }
+
         var config = defaultConfigIds.get(inferenceEntityId);
         if (config != null) {
             return config.settings();
@@ -307,57 +313,81 @@ public class ModelRegistry implements ClusterStateListener {
         // If we know it's an EIS preconfigured endpoint, skip looking in the index because it could have an outdated version of the
         // endpoint and go directly to EIS to retrieve it
         if (ElasticInferenceServiceMinimalSettings.isEisPreconfiguredEndpoint(inferenceEntityId)) {
-            retrievePreconfiguredEndpointFromEisElseNotAuthorized(listener, inferenceEntityId);
+            retrievePreconfiguredEndpointFromEisElseEisError(listener, inferenceEntityId);
             return;
         }
 
-        SubscribableListener.<SearchResponse>newForked(searchResponseListener -> client.search(modelSearch, searchResponseListener))
-            .<UnparsedModel>andThen((unparsedModelListener, searchResponse) -> {
-                // We likely found the configuration, so parse it and return it
-                if (searchResponse.getHits().getHits().length != 0) {
-                    unparsedModelListener.onResponse(unparsedModelCreator.apply(searchResponse));
-                    return;
-                }
+        var failureListener = listener.delegateResponse((delegate, e) -> {
+            // If the inference endpoint does not exist, we've already created a well-defined exception, so just return it
+            if (e instanceof ElasticsearchException) {
+                delegate.onFailure(e);
+                return;
+            }
 
-                // we didn't find the configuration in the inference index, so check if it is a pre-configured endpoint
-                var maybeDefault = defaultConfigIds.get(inferenceEntityId);
-                if (maybeDefault != null) {
-                    getDefaultConfig(true, maybeDefault, unparsedModelListener);
-                    return;
-                }
+            logger.warn(format("Failed to load inference endpoint [%s]", inferenceEntityId), e);
 
-                retrievePreconfiguredEndpointFromEisElseNotFound(unparsedModelListener, inferenceEntityId);
-            })
-            .addListener(listener.delegateResponse((failureListener, e) -> {
-                logger.warn(format("Failed to load inference endpoint [%s]", inferenceEntityId), e);
-                failureListener.onFailure(
-                    new ElasticsearchException(
-                        format("Failed to load inference endpoint [%s], error: [%s]", inferenceEntityId, e.getMessage()),
-                        e
-                    )
-                );
-            }));
+            delegate.onFailure(
+                new ElasticsearchException(
+                    format("Failed to load inference endpoint [%s], error: [%s]", inferenceEntityId, e.getMessage()),
+                    e
+                )
+            );
+        });
+
+        ActionListener<SearchResponse> searchResponseListener = failureListener.delegateFailureAndWrap(
+            (delegate, searchResponse) -> searchForEndpointInDefaultAndEis(
+                inferenceEntityId,
+                searchResponse,
+                unparsedModelCreator,
+                delegate
+            )
+        );
+
+        client.search(modelSearch, searchResponseListener);
     }
 
-    private void retrievePreconfiguredEndpointFromEisElseNotAuthorized(ActionListener<UnparsedModel> listener, String inferenceEntityId) {
+    private void searchForEndpointInDefaultAndEis(
+        String inferenceEntityId,
+        SearchResponse searchResponse,
+        Function<SearchResponse, UnparsedModel> unparsedModelCreator,
+        ActionListener<UnparsedModel> listener
+    ) {
+        // We likely found the configuration, so parse it and return it
+        if (searchResponse.getHits().getHits().length != 0) {
+            listener.onResponse(unparsedModelCreator.apply(searchResponse));
+            return;
+        }
+
+        // we didn't find the configuration in the inference index, so check if it is a pre-configured endpoint
+        var maybeDefault = defaultConfigIds.get(inferenceEntityId);
+        if (maybeDefault != null) {
+            getDefaultConfig(true, maybeDefault, listener);
+            return;
+        }
+
+        retrievePreconfiguredEndpointFromEisElseNotFound(listener, inferenceEntityId);
+    }
+
+    private void retrievePreconfiguredEndpointFromEisElseEisError(ActionListener<UnparsedModel> listener, String inferenceEntityId) {
         var eisFailureListener = listener.delegateResponse(
-            (delegate, e) -> { delegate.onFailure(eisNotAuthorizedException(inferenceEntityId)); }
+            (delegate, e) -> delegate.onFailure(eisBadRequestException(inferenceEntityId, e))
         );
 
         retrieveEisPreconfiguredEndpoint(eisFailureListener, inferenceEntityId);
     }
 
-    private ElasticsearchStatusException eisNotAuthorizedException(String inferenceEntityId) {
+    private ElasticsearchStatusException eisBadRequestException(String inferenceEntityId, Exception exception) {
         return new ElasticsearchStatusException(
-            "Unauthorized to access inference endpoint [{}]",
-            RestStatus.UNAUTHORIZED,
+            "Unable to retrieve the preconfigured inference endpoint [{}] from the Elastic Inference Service",
+            RestStatus.BAD_REQUEST,
+            exception,
             inferenceEntityId
         );
     }
 
     private void retrievePreconfiguredEndpointFromEisElseNotFound(ActionListener<UnparsedModel> listener, String inferenceEntityId) {
         var eisFailureListener = listener.delegateResponse(
-            (delegate, e) -> { delegate.onFailure(inferenceNotFoundException(inferenceEntityId)); }
+            (delegate, e) -> delegate.onFailure(inferenceNotFoundException(inferenceEntityId))
         );
 
         retrieveEisPreconfiguredEndpoint(eisFailureListener, inferenceEntityId);
@@ -391,28 +421,43 @@ public class ModelRegistry implements ClusterStateListener {
         );
     }
 
-    public void getModelsHelper(
+    private void getModelsHelper(
         BoolQueryBuilder boolQueryBuilder,
         Supplier<List<InferenceService.DefaultConfigId>> defaultConfigIdsSupplier,
         boolean persistDefaultEndpoints,
         ActionListener<List<UnparsedModel>> listener
     ) {
-        SubscribableListener.<SearchResponse>newForked(searchResponseListener -> {
-            var eisEndpointIds = EIS_PRECONFIGURED_ENDPOINTS.stream().map(Model::documentId).toArray(String[]::new);
+        ActionListener<SearchResponse> searchResponseListener = listener.delegateFailureAndWrap(
+            (delegate, searchResponse) -> includeDefaultAndEisEndpoints(
+                searchResponse,
+                defaultConfigIdsSupplier,
+                persistDefaultEndpoints,
+                delegate
+            )
+        );
 
-            // exclude the EIS preconfigured endpoints so we can query EIS directly for them
-            var queryBuilder = boolQueryBuilder.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.idsQuery().addIds(eisEndpointIds)));
+        var eisEndpointIds = EIS_PRECONFIGURED_ENDPOINTS.stream().map(Model::documentId).toArray(String[]::new);
 
-            var modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
-                .setQuery(queryBuilder)
-                // .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.existsQuery(TASK_TYPE_FIELD)))
-                .setSize(10_000)
-                .setTrackTotalHits(false)
-                .addSort(MODEL_ID_FIELD, SortOrder.ASC)
-                .request();
+        // exclude the EIS preconfigured endpoints so we can query EIS directly for them
+        var queryBuilder = boolQueryBuilder.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.idsQuery().addIds(eisEndpointIds)));
 
-            client.search(modelSearch, searchResponseListener);
-        }).<List<UnparsedModel>>andThen((missingDefaultConfigsAddedListener, searchResponse) -> {
+        var modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
+            .setQuery(queryBuilder)
+            .setSize(10_000)
+            .setTrackTotalHits(false)
+            .addSort(MODEL_ID_FIELD, SortOrder.ASC)
+            .request();
+
+        client.search(modelSearch, searchResponseListener);
+    }
+
+    private void includeDefaultAndEisEndpoints(
+        SearchResponse searchResponse,
+        Supplier<List<InferenceService.DefaultConfigId>> defaultConfigIdsSupplier,
+        boolean persistDefaultEndpoints,
+        ActionListener<List<UnparsedModel>> listener
+    ) {
+        SubscribableListener.<List<UnparsedModel>>newForked(missingDefaultConfigsAddedListener -> {
             var modelConfigs = parseHitsAsModelsWithoutSecrets(searchResponse.getHits()).stream()
                 .map(ModelRegistry::unparsedModelFromMap)
                 .toList();

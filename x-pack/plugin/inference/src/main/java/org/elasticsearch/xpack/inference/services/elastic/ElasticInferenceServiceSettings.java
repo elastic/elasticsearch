@@ -28,7 +28,8 @@ public class ElasticInferenceServiceSettings {
     @Deprecated
     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
 
-    static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
+    // public so tests can access it
+    public static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
         "xpack.inference.elastic.url",
         Setting.Property.NodeScope
     );

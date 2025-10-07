@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmptySecretSettings;
@@ -52,6 +53,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+// TODO remove this class
 public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNodeTestCase {
     private DeterministicTaskQueue taskQueue;
     private ModelRegistry modelRegistry;
@@ -59,6 +61,12 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(LocalStateInferencePlugin.class);
+    }
+
+    // TODO add the EIS url here
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
     }
 
     @Before

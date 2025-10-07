@@ -25,6 +25,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -235,6 +237,20 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
                     + "service [service-b]. The inference Id is already use by [service-a] service."
             )
         );
+    }
+
+    public void testGetMinimalServiceSettings_ThrowsResourceNotFound_WhenInferenceIdDoesNotExist() {
+        var exception = expectThrows(ResourceNotFoundException.class, () -> registry.getMinimalServiceSettings("non_existent_id"));
+        assertThat(exception.getMessage(), containsString("non_existent_id does not exist in this cluster."));
+    }
+
+    public void testGetMinimalServiceSettings_ReturnsEisPreconfiguredEndpoint() {
+        var minimalSettings = registry.getMinimalServiceSettings(
+            ElasticInferenceServiceMinimalSettings.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1
+        );
+
+        assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
+        assertThat(minimalSettings.taskType(), is(TaskType.CHAT_COMPLETION));
     }
 
     public static void assertStoreModel(ModelRegistry registry, Model model) {

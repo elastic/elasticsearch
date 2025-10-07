@@ -20,8 +20,8 @@ import static java.util.stream.Collectors.toMap;
 public class ElasticInferenceServiceMinimalSettings {
 
     // rainbow-sprinkles
-    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
-    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+    public static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
+    public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
     // elser-2
     static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";

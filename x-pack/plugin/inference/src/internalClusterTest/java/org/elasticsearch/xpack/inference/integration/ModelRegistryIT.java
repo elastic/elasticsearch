@@ -36,6 +36,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,11 +46,14 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryTests;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettingsTests;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,6 +70,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -81,6 +88,17 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private ModelRegistry modelRegistry;
+    private static final MockWebServer webServer = new MockWebServer();
+
+    @BeforeClass
+    public static void init() throws Exception {
+        webServer.start();
+    }
+
+    @AfterClass
+    public static void shutdown() {
+        webServer.close();
+    }
 
     @Before
     public void createComponents() {
@@ -93,13 +111,18 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
-    public void testStoreModel() throws Exception {
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(ELASTIC_INFERENCE_SERVICE_URL.getKey(), getUrl(webServer)).build();
+    }
+
+    public void testStoreModel() {
         String inferenceEntityId = "test-store-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         ModelRegistryTests.assertStoreModel(modelRegistry, model);
     }
 
-    public void testStoreModelWithUnknownFields() throws Exception {
+    public void testStoreModelWithUnknownFields() {
         String inferenceEntityId = "test-store-model-unknown-field";
         Model model = buildModelWithUnknownField(inferenceEntityId);
         ElasticsearchStatusException statusException = expectThrows(
@@ -145,7 +168,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertEquals(model, roundTripModel);
     }
 
-    public void testStoreModelFailsWhenModelExists() throws Exception {
+    public void testStoreModelFailsWhenModelExists() {
         String inferenceEntityId = "test-put-trained-model-config-exists";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         ModelRegistryTests.assertStoreModel(modelRegistry, model);
@@ -175,7 +198,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint not found [model1]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint [model1] not found"));
     }
 
     public void testNonExistentDeleteModel_DoesNotThrowAnException() {
@@ -575,6 +598,27 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(modelHolder.get(), hasSize(1));
         assertEquals("default-chat", modelHolder.get().get(0).inferenceEntityId());
         assertReturnModelIsModifiable(modelHolder.get().get(0));
+    }
+
+    public void testGetModel_RetrievesAnEisPreconfiguredEndpoint() {
+        var responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["chat"]
+                    }
+                ]
+            }
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        PlainActionFuture<UnparsedModel> listener = new PlainActionFuture<>();
+        modelRegistry.getModel(ElasticInferenceServiceMinimalSettings.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1, listener);
+
+        var model = listener.actionGet(TIMEOUT);
+        assertThat(model.inferenceEntityId(), is(ElasticInferenceServiceMinimalSettings.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
+        assertThat(model.taskType(), is(TaskType.CHAT_COMPLETION));
     }
 
     private void assertInferenceIndexExists() {

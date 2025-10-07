@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
@@ -133,7 +132,6 @@ public class ElasticInferenceService extends SenderService {
     }
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
-    private final ElasticInferenceServiceAuthorizationHandler authorizationHandler;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
@@ -164,16 +162,6 @@ public class ElasticInferenceService extends SenderService {
         super(factory, serviceComponents, clusterService);
         this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
-        );
-        authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
-            serviceComponents,
-            modelRegistry,
-            authorizationRequestHandler,
-            initDefaultEndpoints(elasticInferenceServiceComponents),
-            IMPLEMENTED_TASK_TYPES,
-            this,
-            getSender(),
-            elasticInferenceServiceSettings
         );
     }
 
@@ -244,11 +232,6 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
-    public void onNodeStarted() {
-        authorizationHandler.init();
-    }
-
-    @Override
     protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {
         if (returnDocuments != null) {
             validationException.addValidationError(
@@ -260,30 +243,9 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
-    /**
-     * Only use this in tests.
-     *
-     * Waits the specified amount of time for the authorization call to complete. This is mainly to make testing easier.
-     * @param waitTime the max time to wait
-     * @throws IllegalStateException if the wait time is exceeded or the call receives an {@link InterruptedException}
-     */
-    public void waitForFirstAuthorizationToComplete(TimeValue waitTime) {
-        authorizationHandler.waitForAuthorizationToComplete(waitTime);
-    }
-
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.CHAT_COMPLETION);
-    }
-
-    @Override
-    public List<DefaultConfigId> defaultConfigIds() {
-        return authorizationHandler.defaultConfigIds();
-    }
-
-    @Override
-    public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-        authorizationHandler.defaultConfigs(defaultsListener);
     }
 
     @Override
@@ -462,7 +424,9 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return authorizationHandler.supportedTaskTypes();
+        throw new UnsupportedOperationException(
+            "The EIS supported task types change depending on authorization, requests should be made directly to EIS instead"
+        );
     }
 
     @Override

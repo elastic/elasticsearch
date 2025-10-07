@@ -33,7 +33,6 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
@@ -71,12 +70,9 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService {
 
-    private static final boolean ONLINE_PREWARMING_FEATURE_FLAG = new FeatureFlag("online_prewarming_enabled").isEnabled();
-
     public static final Setting<Boolean> STATELESS_ONLINE_PREWARMING_ENABLED = Setting.boolSetting(
         "stateless.online.prewarming.enabled",
-        // we default to true in snapshot builds, but false in release builds
-        ONLINE_PREWARMING_FEATURE_FLAG,
+        false,
         Setting.Property.NodeScope
     );
 

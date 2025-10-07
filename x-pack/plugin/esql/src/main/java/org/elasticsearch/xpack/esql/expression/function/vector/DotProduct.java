@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -21,8 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
-
 public class DotProduct extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -30,7 +29,7 @@ public class DotProduct extends VectorSimilarityFunction {
         "DotProduct",
         DotProduct::new
     );
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = DOT_PRODUCT::compare;
+    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = DotProduct::calculateSimilarity;
 
     @FunctionInfo(
         returnType = "double",
@@ -57,6 +56,10 @@ public class DotProduct extends VectorSimilarityFunction {
 
     private DotProduct(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public static float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+        return VectorUtil.dotProduct(leftScratch, rightScratch);
     }
 
     @Override

@@ -684,6 +684,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:bucket.BucketByWeekInString}
   issue: https://github.com/elastic/elasticsearch/issues/136136
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:text-embedding.Text_embedding with knn (inline) on semantic_text_dense_field}
+  issue: https://github.com/elastic/elasticsearch/issues/136142
 
 # Examples:
 #

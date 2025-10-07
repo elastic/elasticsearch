@@ -30,7 +30,7 @@ This analyzer applies a lowercase filter and then splits on whitespace and the f
 Unlike most mapping types, `pattern_text` does not support multiple values for a given field per document.
 If a document is created with multiple values for a pattern_text field, an error will be returned.
 
-[span queries](/reference/query-languages/query-dsl/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
+[span queries](/reference/query-languages/query-dsl/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead, or the [`text`](/reference/elasticsearch/mapping-reference/text.md) field type if you absolutely need span queries.
 
 Like `text`, `pattern_text` does not support sorting and has only limited support for aggregations.
 

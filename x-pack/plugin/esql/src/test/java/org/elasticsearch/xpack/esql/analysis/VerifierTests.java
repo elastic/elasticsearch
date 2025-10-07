@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
@@ -2295,6 +2296,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
         }
+        if (EsqlCapabilities.Cap.KQL_FUNCTION_OPTIONS.isEnabled()) {
+            checkOptionDataTypes(Kql.ALLOWED_OPTIONS, "FROM test | WHERE KQL(\"title: Jean\", {\"%s\": %s})");
+        }
     }
 
     /**
@@ -2685,6 +2689,25 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
                     + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+    }
+
+    public void testNoDimensionsInAggsOnlyInByClause() {
+        assertThat(
+            error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
+            equalTo(
+                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(host)]. "
+                    + "Dimension fields can only be used for grouping in a BY clause. "
+                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
+            )
+        );
+        assertThat(
+            error("TS test | STATS count(count_over_time(host)) BY bucket(@timestamp, 1 minute)", tsdb),
+            equalTo(
+                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(count_over_time(host))]. "
+                    + "Dimension fields can only be used for grouping in a BY clause. "
+                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
             )
         );
     }

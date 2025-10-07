@@ -411,8 +411,9 @@ PUT logs
 The following mapping parameters are accepted:
 
 [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md)
-:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for the `pattern_text` field, both at index-time and at search-time (unless overridden by the  [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to a custom delimiter-based analyzer.
-This analyzer applies a lowercase filter and then splits on whitespace and the following delimiters: `=`, `?`, `:`, `[`, `]`, `{`, `}`, `"`, `\`, `'`.
+:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for the `pattern_text` field, both at index-time and at search-time (unless overridden by the  [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)).
+Supports a delimiter-based analyzer and the standard analyzer, as is used in `match_only_text` mappings.
+Defaults to the delimiter-based analyzer, which applies a lowercase filter and then splits on whitespace and the following delimiters: `=`, `?`, `:`, `[`, `]`, `{`, `}`, `"`, `\`, `'`.
 
 [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
 :   What information should be stored in the index, for search and highlighting purposes. Valid values are `docs` and `positions`. Defaults to `docs`.

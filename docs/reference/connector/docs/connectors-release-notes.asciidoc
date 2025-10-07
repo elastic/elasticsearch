@@ -10,6 +10,20 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-5]]
+=== 8.19.5
+
+[discrete]
+[[es-connectors-release-notes-8-19-5-enhancements]]
+==== Enhancements
+
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones.
+See https://github.com/elastic/connectors/pull/3719[*PR 3719*].
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API.
+See https://github.com/elastic/connectors/pull/3710[*PR 3710*].
+
+[discrete]
 [[es-connectors-release-notes-8-19-4]]
 === 8.19.4
 

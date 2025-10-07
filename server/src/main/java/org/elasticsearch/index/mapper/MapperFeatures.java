@@ -51,6 +51,8 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
     static final NodeFeature IGNORED_SOURCE_FIELDS_PER_ENTRY = new NodeFeature("mapper.ignored_source_fields_per_entry");
     public static final NodeFeature MULTI_FIELD_UNICODE_OPTIMISATION_FIX = new NodeFeature("mapper.multi_field.unicode_optimisation_fix");
+    static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text_rename");
+    public static final NodeFeature DISKBBQ_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.diskbbq_on_disk_rescoring");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -87,7 +89,9 @@ public class MapperFeatures implements FeatureSpecification {
             PATTERN_TEXT,
             IGNORED_SOURCE_FIELDS_PER_ENTRY,
             MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
-            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX
+            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
+            PATTERN_TEXT_RENAME,
+            DISKBBQ_ON_DISK_RESCORING
         );
     }
 }

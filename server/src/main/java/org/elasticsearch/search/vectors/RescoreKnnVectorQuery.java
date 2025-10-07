@@ -319,7 +319,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         ) throws IOException {
             BulkScorableVectorValues.BulkVectorScorer vectorReScorer = rescorableVectorValues.bulkRescorer(floatTarget);
             var iterator = vectorReScorer.iterator();
-            BulkScorableVectorValues.BulkVectorScorer.Bulk bulkScorer = vectorReScorer.bulk(filterIterator);
+            BulkScorableVectorValues.BulkVectorScorer.BulkScorer bulkScorer = vectorReScorer.bulkScore(filterIterator);
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             while (iterator.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                 // iterator already takes live docs into account

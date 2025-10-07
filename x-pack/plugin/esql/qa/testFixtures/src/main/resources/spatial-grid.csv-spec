@@ -123,7 +123,7 @@ POINT (12.6493508684508 55.6285017221528) | 13686180      | 427683        | 1336
 
 geohashLiteralMv
 required_capability: spatial_grid_types
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohash4 = ST_GEOHASH(location, 4),
@@ -580,7 +580,7 @@ POINT (12.6493508684508 55.6285017221528) | 1152921508901814277 | 86469113060261
 
 geotileLiteralMv
 required_capability: spatial_grid_types
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geotile4 = ST_GEOTILE(location, 4),
@@ -996,7 +996,7 @@ POINT (12.6493508684508 55.6285017221528) | 595020895127339007 | 590517321269772
 
 geohexLiteralMv
 required_capability: spatial_grid_types
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
 | EVAL geohex4 = ST_GEOHEX(location, 4),

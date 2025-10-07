@@ -9,18 +9,17 @@
 
 package org.elasticsearch.search.diversification.mmr;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,34 +39,49 @@ public class MMRResultDiversificationTests extends ESTestCase {
         DenseVectorFieldMapper fieldMapper = builder.build(context);
 
         var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
+        Map<Integer, VectorData> fieldVectors = Map.of(
+            1,
+            new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
+            2,
+            new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
+            3,
+            new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
+            4,
+            new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+            5,
+            new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+            6,
+            new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
+        );
         var diversificationContext = new MMRResultDiversificationContext(
             "dense_vector_field",
             0.3f,
             3,
             queryVectorData,
             fieldMapper,
-            IndexVersion.current()
+            IndexVersion.current(),
+            fieldVectors
         );
 
-        SearchHit[] hits = new SearchHit[] {
-            generateSearchHit(1, 2.0f, 1, new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
-            generateSearchHit(2, 1.8f, 2, new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
-            generateSearchHit(3, 1.6f, 3, new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
-            generateSearchHit(4, 1.0f, 4, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-            generateSearchHit(5, 0.8f, 5, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-            generateSearchHit(6, 0.8f, 6, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
+        ScoreDoc[] scoreDocs = new ScoreDoc[] {
+            new ScoreDoc(1, 2.0f),
+            new ScoreDoc(2, 1.8f),
+            new ScoreDoc(3, 1.8f),
+            new ScoreDoc(4, 1.0f),
+            new ScoreDoc(5, 0.8f),
+            new ScoreDoc(6, 0.8f) };
 
         TotalHits totalHits = new TotalHits(6L, TotalHits.Relation.EQUAL_TO);
-        SearchHits searchHits = new SearchHits(hits, totalHits, 2.0f);
+        TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification();
-        SearchHits diversifiedHits = resultDiversification.diversify(searchHits, diversificationContext);
-        assertNotSame(searchHits, diversifiedHits);
+        TopDocs diversifiedTopDocs = resultDiversification.diversify(topDocs, diversificationContext);
+        assertNotSame(topDocs, diversifiedTopDocs);
 
-        assertEquals(3, diversifiedHits.getHits().length);
-        assertEquals(1, diversifiedHits.getHits()[0].docId());
-        assertEquals(6, diversifiedHits.getHits()[1].docId());
-        assertEquals(3, diversifiedHits.getHits()[2].docId());
+        assertEquals(3, diversifiedTopDocs.scoreDocs.length);
+        assertEquals(1, diversifiedTopDocs.scoreDocs[0].doc);
+        assertEquals(6, diversifiedTopDocs.scoreDocs[1].doc);
+        assertEquals(3, diversifiedTopDocs.scoreDocs[2].doc);
     }
 
     public void testMMRDiversificationIfNoSearchHits() throws IOException {
@@ -90,40 +104,14 @@ public class MMRResultDiversificationTests extends ESTestCase {
             10,
             queryVectorData,
             fieldMapper,
-            IndexVersion.current()
+            IndexVersion.current(),
+            new HashMap<>()
         );
-        SearchHits emptyHits = SearchHits.EMPTY_WITH_TOTAL_HITS;
+        TopDocs emptyTopDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {});
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification();
 
-        assertSame(emptyHits, resultDiversification.diversify(emptyHits, diversificationContext));
+        assertSame(emptyTopDocs, resultDiversification.diversify(emptyTopDocs, diversificationContext));
         assertNull(resultDiversification.diversify(null, diversificationContext));
-    }
-
-    private SearchHit generateSearchHit(int docId, float score, int rank, float[] vector) {
-        DocumentField docField = new DocumentField("dense_vector_field", List.of(vector));
-
-        return new SearchHit(
-            docId,
-            score,
-            rank,
-            new Text("_" + docId),
-            null,
-            0L,
-            0L,
-            0L,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "index",
-            "alias",
-            null,
-            Map.of("dense_vector_field", docField),
-            Map.of(),
-            null
-        );
     }
 }

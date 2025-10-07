@@ -10,8 +10,8 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
@@ -23,24 +23,24 @@ import java.util.Map;
  */
 public abstract class ResultDiversification {
 
-    public abstract SearchHits diversify(SearchHits hits, ResultDiversificationContext diversificationContext) throws IOException;
+    public abstract TopDocs diversify(TopDocs hits, ResultDiversificationContext diversificationContext) throws IOException;
 
     protected Map<Integer, VectorData> getFieldVectorsForHits(
-        SearchHit[] searchHits,
+        ScoreDoc[] docs,
         ResultDiversificationContext context,
         Map<Integer, Integer> docIdIndexMapping
     ) {
         Map<Integer, VectorData> fieldVectors = new HashMap<>();
-        for (int i = 0; i < searchHits.length; i++) {
-            SearchHit hit = searchHits[i];
-            int docId = hit.docId();
+        for (int i = 0; i < docs.length; i++) {
+            ScoreDoc hit = docs[i];
+            int docId = hit.doc;
             docIdIndexMapping.put(docId, i);
-            Object collapseValue = hit.field(context.getField()).getValue();
-            if (collapseValue instanceof float[] vecData) {
-                fieldVectors.put(docId, new VectorData(vecData));
-            } else if (collapseValue instanceof byte[] byteVecData) {
-                fieldVectors.put(docId, new VectorData(byteVecData));
-            }
+            // hit.Object collapseValue = hit.field(context.getField()).getValue();
+            // if (collapseValue instanceof float[] vecData) {
+            // fieldVectors.put(docId, new VectorData(vecData));
+            // } else if (collapseValue instanceof byte[] byteVecData) {
+            // fieldVectors.put(docId, new VectorData(byteVecData));
+            // }
         }
         return fieldVectors;
     }

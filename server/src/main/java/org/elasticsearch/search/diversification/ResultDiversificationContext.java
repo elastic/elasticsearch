@@ -13,12 +13,16 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.VectorData;
 
+import java.util.Map;
+import java.util.Set;
+
 public abstract class ResultDiversificationContext {
     private final String field;
     private final int numCandidates;
     private final DenseVectorFieldMapper fieldMapper;
     private final IndexVersion indexVersion;
     private final VectorData queryVector;
+    private final Map<Integer, VectorData> fieldVectors;
 
     // Field _must_ be a dense_vector type
     protected ResultDiversificationContext(
@@ -26,13 +30,15 @@ public abstract class ResultDiversificationContext {
         int numCandidates,
         VectorData queryVector,
         DenseVectorFieldMapper fieldMapper,
-        IndexVersion indexVersion
+        IndexVersion indexVersion,
+        Map<Integer, VectorData> fieldVectors
     ) {
         this.field = field;
         this.numCandidates = numCandidates;
         this.fieldMapper = fieldMapper;
         this.indexVersion = indexVersion;
         this.queryVector = queryVector;
+        this.fieldVectors = fieldVectors;
     }
 
     public String getField() {
@@ -57,5 +63,13 @@ public abstract class ResultDiversificationContext {
 
     public VectorData getQueryVector() {
         return queryVector;
+    }
+
+    public VectorData getFieldVector(int docId) {
+        return fieldVectors.getOrDefault(docId, null);
+    }
+
+    public Set<Map.Entry<Integer, VectorData>> getFieldVectorsEntrySet() {
+        return fieldVectors.entrySet();
     }
 }

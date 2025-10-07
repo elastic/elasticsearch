@@ -10,9 +10,9 @@
 package org.elasticsearch.search.diversification.mmr;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.diversification.ResultDiversification;
 import org.elasticsearch.search.diversification.ResultDiversificationContext;
 import org.elasticsearch.search.vectors.VectorData;
@@ -26,20 +26,21 @@ import java.util.Map;
 public class MMRResultDiversification extends ResultDiversification {
 
     @Override
-    public SearchHits diversify(SearchHits hits, ResultDiversificationContext diversificationContext) throws IOException {
-        if (hits == null || ((diversificationContext instanceof MMRResultDiversificationContext) == false)) {
-            return hits;
+    public TopDocs diversify(TopDocs topDocs, ResultDiversificationContext diversificationContext) throws IOException {
+        if (topDocs == null || ((diversificationContext instanceof MMRResultDiversificationContext) == false)) {
+            return topDocs;
         }
 
         MMRResultDiversificationContext context = (MMRResultDiversificationContext) diversificationContext;
-        SearchHit[] searchHits = hits.getHits();  // NOTE: by reference, not new array
 
-        if (searchHits.length == 0) {
-            return hits;
+        if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
+            return topDocs;
         }
 
         Map<Integer, Integer> docIdIndexMapping = new HashMap<>();
-        Map<Integer, VectorData> fieldVectors = getFieldVectorsForHits(searchHits, context, docIdIndexMapping);
+        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+            docIdIndexMapping.put(topDocs.scoreDocs[i].doc, i);
+        }
 
         VectorSimilarityFunction similarityFunction = DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT.vectorSimilarityFunction(
             context.getIndexVersion(),
@@ -52,40 +53,47 @@ public class MMRResultDiversification extends ResultDiversification {
         // always add the highest scoring doc to the list
         int highestScoreDocId = -1;
         float highestScore = Float.MIN_VALUE;
-        for (SearchHit hit : searchHits) {
-            if (hit.getScore() > highestScore) {
-                highestScoreDocId = hit.docId();
-                highestScore = hit.getScore();
+        for (ScoreDoc doc : topDocs.scoreDocs) {
+            if (doc.score > highestScore) {
+                highestScoreDocId = doc.doc;
+                highestScore = doc.score;
             }
         }
         selectedDocIds.add(highestScoreDocId);
 
         // test the vector to see if we are using floats or bytes
-        VectorData firstVec = fieldVectors.get(highestScoreDocId);
+        VectorData firstVec = context.getFieldVector(highestScoreDocId);
         boolean useFloat = firstVec.isFloat();
 
         // cache the similarity scores for the query vector vs. searchHits
-        Map<Integer, Float> querySimilarity = getQuerySimilarityForDocs(searchHits, fieldVectors, similarityFunction, useFloat, context);
+        Map<Integer, Float> querySimilarity = getQuerySimilarityForDocs(topDocs.scoreDocs, similarityFunction, useFloat, context);
 
         Map<Integer, Map<Integer, Float>> cachedSimilarities = new HashMap<>();
         int numCandidates = context.getNumCandidates();
 
-        for (int x = 0; x < numCandidates && selectedDocIds.size() < numCandidates && selectedDocIds.size() < searchHits.length; x++) {
+        for (int x = 0; x < numCandidates
+            && selectedDocIds.size() < numCandidates
+            && selectedDocIds.size() < topDocs.scoreDocs.length; x++) {
             int thisMaxMMRDocId = -1;
             float thisMaxMMRScore = Float.NEGATIVE_INFINITY;
-            for (SearchHit thisHit : searchHits) {
-                int docId = thisHit.docId();
+            for (ScoreDoc doc : topDocs.scoreDocs) {
+                int docId = doc.doc;
 
                 if (selectedDocIds.contains(docId)) {
                     continue;
                 }
 
-                var thisDocVector = fieldVectors.get(docId);
+                var thisDocVector = context.getFieldVector(docId);
+                if (thisDocVector == null) {
+                    continue;
+                }
+
                 var cachedScoresForDoc = cachedSimilarities.getOrDefault(docId, new HashMap<>());
 
                 // compute MMR scores for remaining searchHits
                 float highestMMRScore = getHighestScoreForSelectedVectors(
-                    fieldVectors,
+                    docId,
+                    context,
                     similarityFunction,
                     useFloat,
                     thisDocVector,
@@ -93,7 +101,7 @@ public class MMRResultDiversification extends ResultDiversification {
                 );
 
                 // compute MMR
-                float querySimilarityScore = querySimilarity.getOrDefault(thisHit.docId(), 0.0f);
+                float querySimilarityScore = querySimilarity.getOrDefault(doc.doc, 0.0f);
                 float mmr = (context.getLambda() * querySimilarityScore) - ((1 - context.getLambda()) * highestMMRScore);
                 if (mmr > thisMaxMMRScore) {
                     thisMaxMMRScore = mmr;
@@ -110,34 +118,29 @@ public class MMRResultDiversification extends ResultDiversification {
         }
 
         // our return should be only those searchHits that are selected
-        SearchHit[] ret = new SearchHit[selectedDocIds.size()];
+        ScoreDoc[] ret = new ScoreDoc[selectedDocIds.size()];
         for (int i = 0; i < selectedDocIds.size(); i++) {
             int scoredDocIndex = docIdIndexMapping.get(selectedDocIds.get(i));
-            ret[i] = searchHits[scoredDocIndex];
+            ret[i] = topDocs.scoreDocs[scoredDocIndex];
         }
 
-        // cleanup for GC
-        searchHits = null;
-
-        return new SearchHits(
-            ret,
-            hits.getTotalHits(),
-            hits.getMaxScore(),
-            hits.getSortFields(),
-            hits.getCollapseField(),
-            hits.getCollapseValues()
-        );
+        return new TopDocs(topDocs.totalHits, ret);
     }
 
     private float getHighestScoreForSelectedVectors(
-        Map<Integer, VectorData> selectedVectors,
+        int docId,
+        MMRResultDiversificationContext context,
         VectorSimilarityFunction similarityFunction,
         boolean useFloat,
         VectorData thisDocVector,
         Map<Integer, Float> cachedScoresForDoc
     ) {
         float highestScore = Float.MIN_VALUE;
-        for (var vec : selectedVectors.entrySet()) {
+        for (var vec : context.getFieldVectorsEntrySet()) {
+            if (vec.getKey().equals(docId)) {
+                continue;
+            }
+
             if (cachedScoresForDoc.containsKey(vec.getKey())) {
                 float score = cachedScoresForDoc.get(vec.getKey());
                 if (score > highestScore) {
@@ -156,19 +159,17 @@ public class MMRResultDiversification extends ResultDiversification {
     }
 
     protected Map<Integer, Float> getQuerySimilarityForDocs(
-        SearchHit[] searchHits,
-        Map<Integer, VectorData> fieldVectors,
+        ScoreDoc[] docs,
         VectorSimilarityFunction similarityFunction,
         boolean useFloat,
         ResultDiversificationContext context
     ) {
         Map<Integer, Float> querySimilarity = new HashMap<>();
-        for (SearchHit searchHit : searchHits) {
-            int docId = searchHit.docId();
-            VectorData vectorData = fieldVectors.get(docId);
+        for (ScoreDoc doc : docs) {
+            VectorData vectorData = context.getFieldVector(doc.doc);
             if (vectorData != null) {
                 float querySimilarityScore = getVectorComparisonScore(similarityFunction, useFloat, vectorData, context.getQueryVector());
-                querySimilarity.put(docId, querySimilarityScore);
+                querySimilarity.put(doc.doc, querySimilarityScore);
             }
         }
         return querySimilarity;

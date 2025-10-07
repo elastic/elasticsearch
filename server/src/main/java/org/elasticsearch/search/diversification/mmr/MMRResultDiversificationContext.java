@@ -14,6 +14,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.diversification.ResultDiversificationContext;
 import org.elasticsearch.search.vectors.VectorData;
 
+import java.util.Map;
+
 public class MMRResultDiversificationContext extends ResultDiversificationContext {
 
     private final float lambda;
@@ -24,9 +26,10 @@ public class MMRResultDiversificationContext extends ResultDiversificationContex
         int numCandidates,
         VectorData queryVector,
         DenseVectorFieldMapper fieldMapper,
-        IndexVersion indexVersion
+        IndexVersion indexVersion,
+        Map<Integer, VectorData> fieldVectors
     ) {
-        super(field, numCandidates, queryVector, fieldMapper, indexVersion);
+        super(field, numCandidates, queryVector, fieldMapper, indexVersion, fieldVectors);
         this.lambda = lambda;
     }
 

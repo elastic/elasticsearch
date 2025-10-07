@@ -347,7 +347,7 @@ public final class MappingLookup {
         }
     }
 
-    private void checkFieldNameLengthLimit(long limit) {
+    void checkFieldNameLengthLimit(long limit) {
         validateMapperNameIn(objectMappers.values(), limit);
         validateMapperNameIn(fieldMappers.values(), limit);
     }

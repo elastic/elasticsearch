@@ -28,7 +28,7 @@ import org.elasticsearch.core.TimeValue;
  */
 public class SearchCommitPrefetcherDynamicSettings {
 
-    private static final TimeValue DEFAULT_SEARCH_IDLE_TIME = TimeValue.timeValueMinutes(5);
+    private static final TimeValue DEFAULT_SEARCH_IDLE_TIME = TimeValue.timeValueDays(3);
     public static final Setting<Boolean> PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.search.prefetch_commits.enabled",
         true,

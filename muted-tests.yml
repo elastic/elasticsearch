@@ -669,6 +669,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testHistoryUUIDIsAdded {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135957
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135933
 
 # Examples:
 #

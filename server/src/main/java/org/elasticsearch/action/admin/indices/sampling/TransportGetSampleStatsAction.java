@@ -13,7 +13,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,41 +26,38 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.action.admin.indices.sampling.GetSampleAction.NodeRequest;
-import static org.elasticsearch.action.admin.indices.sampling.GetSampleAction.NodeResponse;
-import static org.elasticsearch.action.admin.indices.sampling.GetSampleAction.Request;
-import static org.elasticsearch.action.admin.indices.sampling.GetSampleAction.Response;
+import static org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction.NodeRequest;
+import static org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction.NodeResponse;
+import static org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction.Request;
+import static org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction.Response;
 
-public class TransportGetSampleAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+public class TransportGetSampleStatsAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
     private final SamplingService samplingService;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public TransportGetSampleAction(
+    public TransportGetSampleStatsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SamplingService samplingService,
         ProjectResolver projectResolver
     ) {
         super(
-            GetSampleAction.NAME,
+            GetSampleStatsAction.NAME,
             clusterService,
             transportService,
             actionFilters,
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.samplingService = samplingService;
         this.projectResolver = projectResolver;
     }
 
     @Override
-    protected Void createActionContext(Task task, Request request) {
+    protected Void createActionContext(Task task, GetSampleStatsAction.Request request) {
         String indexName = request.indices()[0];
         SamplingConfiguration samplingConfiguration = samplingService.getSamplingConfiguration(
             projectResolver.getProjectMetadata(clusterService.state()),
@@ -75,15 +71,11 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
 
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-        indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request);
-        SamplingMetadata samplingMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(SamplingMetadata.TYPE);
-        final int maxSamples;
-        if (samplingMetadata == null) {
-            maxSamples = 0;
-        } else {
-            SamplingConfiguration samplingConfiguration = samplingMetadata.getIndexToSamplingConfigMap().get(request.indices()[0]);
-            maxSamples = samplingConfiguration == null ? 0 : samplingConfiguration.maxSamples();
-        }
+        SamplingConfiguration samplingConfiguration = samplingService.getSamplingConfiguration(
+            projectResolver.getProjectMetadata(clusterService.state()),
+            request.indices()[0]
+        );
+        int maxSamples = samplingConfiguration == null ? 0 : samplingConfiguration.maxSamples();
         return new Response(clusterService.getClusterName(), nodeResponses, failures, maxSamples);
     }
 
@@ -99,8 +91,10 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        String index = request.indices()[0];
-        List<SamplingService.RawDocument> sample = samplingService.getLocalSample(projectResolver.getProjectId(), index);
-        return new NodeResponse(transportService.getLocalNode(), sample == null ? List.of() : sample);
+        SamplingService.SampleStats sampleStats = samplingService.getLocalSampleStats(
+            projectResolver.getProjectId(),
+            request.getIndexName()
+        );
+        return new NodeResponse(transportService.getLocalNode(), sampleStats);
     }
 }

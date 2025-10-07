@@ -28,9 +28,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
 public class ExponentialHistogramStateTests extends ESTestCase {
 
@@ -67,7 +65,13 @@ public class ExponentialHistogramStateTests extends ESTestCase {
         ExponentialHistogram histogram = ExponentialHistogram.create(
             4,
             ExponentialHistogramCircuitBreaker.noop(),
-            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0
         );
 
         ExponentialHistogramState state = ExponentialHistogramState.create(breaker());
@@ -79,10 +83,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
         BytesReference bytes = out.bytes();
         BytesReference invalidBytes = bytes.slice(0, bytes.length() - 1);
 
-        expectThrows(
-            EOFException.class,
-            () -> ExponentialHistogramState.read(breaker(), invalidBytes.streamInput())
-        );
+        expectThrows(EOFException.class, () -> ExponentialHistogramState.read(breaker(), invalidBytes.streamInput()));
     }
 
     public void testAdd() throws IOException {

@@ -60,8 +60,16 @@ public class ExponentialHistogramState implements Releasable, Accountable {
 
     // Visible for testing
     static ExponentialHistogramState create(CircuitBreaker circuitBreaker, ReleasableExponentialHistogram deserializedHistogram) {
-        circuitBreaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "exponential-histogram-state");
-        return new ExponentialHistogramState(circuitBreaker, deserializedHistogram);
+        boolean success = false;
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "exponential-histogram-state");
+            success = true;
+            return new ExponentialHistogramState(circuitBreaker, deserializedHistogram);
+        } finally {
+            if (success == false) {
+                Releasables.close(deserializedHistogram);
+            }
+        }
     }
 
     private ExponentialHistogramState(CircuitBreaker circuitBreaker, ReleasableExponentialHistogram deserializedHistogram) {
@@ -140,11 +148,11 @@ public class ExponentialHistogramState implements Releasable, Accountable {
     }
 
     private static void writeBuckets(StreamOutput out, ExponentialHistogram.Buckets buckets) throws IOException {
-        // We write the buckets with delta-encoding of the indexes, where a delta of 1 is implicit.
+        // We write the buckets with delta-encoding of the indices, where a delta of 1 is implicit.
         // This allows for a good and yet fast compression using vlongs.
-        // We write the indices as negative values (except for the first index) to distinguish them from the counts
+        // We write the index deltas as negative values (except for the first index) to distinguish them from the counts
         // So for example, the following buckets:
-        // Index:  3    4    5    7    8
+        // Index: _3 | _4 | _5 | _7 | _8
         // Count: 10 | 20 | 30 | 40 | 50
         // Would be written as:
         // 3, 10, 20, 30, -2, 40, 50

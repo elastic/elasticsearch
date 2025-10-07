@@ -340,7 +340,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public BlockLoader.Block tryRead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered, BlockDocValuesReader.ToDouble toDouble, boolean toInt) throws IOException {
+                public BlockLoader.Block tryRead(
+                    BlockLoader.BlockFactory factory,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    boolean nullsFiltered,
+                    BlockDocValuesReader.ToDouble toDouble,
+                    boolean toInt
+                ) throws IOException {
                     return null;
                 }
             };
@@ -450,6 +457,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return uncompressedBytesRef;
         }
     }
+
     // END: Copied fom LUCENE-9211
     private abstract static class DenseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 

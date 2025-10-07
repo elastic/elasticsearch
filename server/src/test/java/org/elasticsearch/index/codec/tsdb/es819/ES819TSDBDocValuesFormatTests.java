@@ -43,7 +43,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
-import org.elasticsearch.index.codec.tsdb.DocValuesCodecDuelTests;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseSortedDocValues;

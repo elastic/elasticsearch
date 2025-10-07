@@ -125,15 +125,30 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT, BinaryDVCompressionMode.COMPRESSED_WITH_LZ4);
+        this(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            BinaryDVCompressionMode.COMPRESSED_WITH_LZ4
+        );
     }
 
     public ES819TSDBDocValuesFormat(BinaryDVCompressionMode binaryDVCompressionMode) {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT, binaryDVCompressionMode);
+        this(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            binaryDVCompressionMode
+        );
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge, BinaryDVCompressionMode binaryDVCompressionMode) {
+    public ES819TSDBDocValuesFormat(
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode
+    ) {
         super(CODEC_NAME);
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         if (skipIndexIntervalSize < 2) {

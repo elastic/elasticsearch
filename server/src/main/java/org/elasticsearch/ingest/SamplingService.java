@@ -252,6 +252,12 @@ public class SamplingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (RANDOM_SAMPLING_FEATURE_FLAG == false) {
+            return;
+        }
+        if (samples.isEmpty()) {
+            return;
+        }
         // We want to remove any samples if their sampling configuration has been deleted or modified.
         if (event.metadataChanged()) {
             /*

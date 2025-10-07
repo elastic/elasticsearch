@@ -29,7 +29,7 @@ public final class IndexType {
     private final boolean hasDocValues;
     private final boolean hasDocValuesSkipper;
 
-    private IndexType(
+    IndexType(
         boolean hasTerms,
         boolean hasPoints,
         boolean hasPointsMetadata,

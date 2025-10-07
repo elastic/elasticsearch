@@ -36,19 +36,15 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             default -> throw new IllegalStateException("Unexpected null_value format");
         };
 
-        if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues(fieldMapping, true)) {
-            if (values instanceof List<?> == false) {
-                var point = convert(values, nullValue, testContext.isMultifield());
-                return point != null ? point.getEncoded() : null;
+        // DOC_VALUES preference
+        boolean preferToLoadFromDocValues = params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES;
+        boolean noPreference = params.preference() == MappedFieldType.FieldExtractPreference.NONE;
+        if (hasDocValues(fieldMapping, true)) {
+            if (preferToLoadFromDocValues) {
+                return longValues(values, nullValue, testContext.isMultifield());
+            } else if (noPreference || params.syntheticSource()) {
+                return bytesRefValues(values, nullValue, false);
             }
-
-            var resultList = ((List<Object>) values).stream()
-                .map(v -> convert(v, nullValue, testContext.isMultifield()))
-                .filter(Objects::nonNull)
-                .map(GeoPoint::getEncoded)
-                .sorted()
-                .toList();
-            return maybeFoldList(resultList);
         }
 
         // stored source is used
@@ -72,23 +68,39 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             return exactValuesFromSource(values, nullValue, false);
         }
 
-        // synthetic source and doc_values are present
-        if (hasDocValues(fieldMapping, true)) {
-            if (values instanceof List<?> == false) {
-                return toWKB(normalize(convert(values, nullValue, false)));
-            }
+        // synthetic source is enabled, but no doc_values are present, so fallback to ignored source
+        return exactValuesFromSource(values, nullValue, false);
+    }
 
-            var resultList = ((List<Object>) values).stream()
-                .map(v -> convert(v, nullValue, false))
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparingLong(GeoPoint::getEncoded))
-                .map(p -> toWKB(normalize(p)))
-                .toList();
-            return maybeFoldList(resultList);
+    @SuppressWarnings("unchecked")
+    private Object longValues(Object values, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
+        if (values instanceof List<?> == false) {
+            var point = convert(values, nullValue, needsMultifieldAdjustment);
+            return point != null ? point.getEncoded() : null;
         }
 
-        // synthetic source but no doc_values so using fallback synthetic source
-        return exactValuesFromSource(values, nullValue, false);
+        var resultList = ((List<Object>) values).stream()
+            .map(v -> convert(v, nullValue, needsMultifieldAdjustment))
+            .filter(Objects::nonNull)
+            .map(GeoPoint::getEncoded)
+            .sorted()
+            .toList();
+        return maybeFoldList(resultList);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object bytesRefValues(Object values, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
+        if (values instanceof List<?> == false) {
+            return toWKB(normalize(convert(values, nullValue, needsMultifieldAdjustment)));
+        }
+
+        var resultList = ((List<Object>) values).stream()
+            .map(v -> convert(v, nullValue, needsMultifieldAdjustment))
+            .filter(Objects::nonNull)
+            .sorted(Comparator.comparingLong(GeoPoint::getEncoded))
+            .map(p -> toWKB(normalize(p)))
+            .toList();
+        return maybeFoldList(resultList);
     }
 
     @SuppressWarnings("unchecked")

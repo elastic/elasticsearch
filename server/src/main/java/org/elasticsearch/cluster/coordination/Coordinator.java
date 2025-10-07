@@ -1642,7 +1642,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         } catch (FailedToCommitClusterStateException | NotMasterException e) {
             publishListener.onFailure(e);
         } catch (Exception e) {
-            assert false : e; // all exceptions should already be caught and wrapped in a FailedToCommitClusterStateException |
+            assert false : e; // all exceptions should already be caught and wrapped in a FailedToCommitClusterStateException
             logger.error(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing unexpectedly failed", e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing unexpectedly failed", e));
         }

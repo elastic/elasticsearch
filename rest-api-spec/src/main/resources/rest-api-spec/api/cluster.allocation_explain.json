@@ -28,6 +28,7 @@
     "params": {
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for connection to master node"
       },
       "include_yes_decisions": {

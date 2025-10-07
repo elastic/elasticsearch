@@ -81,8 +81,6 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
-        assertThat(queryMeasurements, hasSize(1));
         assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC));
     }
 

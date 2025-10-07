@@ -17,8 +17,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Booleans;
@@ -783,20 +783,20 @@ public class EsqlDataTypeConverter {
         }
     }
 
-    public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
+    public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleLiteral aggMetric) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            if (aggMetric.min() != null) {
-                builder.field(Metric.MIN.getLabel(), aggMetric.min());
+            if (aggMetric.isMinAvailable()) {
+                builder.field(Metric.MIN.getLabel(), aggMetric.getMin());
             }
-            if (aggMetric.max() != null) {
-                builder.field(Metric.MAX.getLabel(), aggMetric.max());
+            if (aggMetric.isMaxAvailable()) {
+                builder.field(Metric.MAX.getLabel(), aggMetric.getMax());
             }
-            if (aggMetric.sum() != null) {
-                builder.field(Metric.SUM.getLabel(), aggMetric.sum());
+            if (aggMetric.isSumAvailable()) {
+                builder.field(Metric.SUM.getLabel(), aggMetric.getSum());
             }
-            if (aggMetric.count() != null) {
-                builder.field(Metric.COUNT.getLabel(), aggMetric.count());
+            if (aggMetric.isCountAvailable()) {
+                builder.field(Metric.COUNT.getLabel(), aggMetric.getCount());
             }
             builder.endObject();
             return Strings.toString(builder);
@@ -805,11 +805,15 @@ public class EsqlDataTypeConverter {
         }
     }
 
-    public static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral stringToAggregateMetricDoubleLiteral(String s) {
-        Double min = null;
-        Double max = null;
-        Double sum = null;
-        Integer count = null;
+    public static AggregateMetricDoubleLiteral stringToAggregateMetricDoubleLiteral(String s) {
+        double min = 0.0;
+        boolean minAvailable = false;
+        double max = 0.0;
+        boolean maxAvailable = false;
+        double sum = 0.0;
+        boolean sumAvailable = false;
+        int count = 0;
+        boolean countAvailable = false;
 
         s = s.replace("\\,", ",");
         String[] values = s.substring(1, s.length() - 1).split(",");
@@ -820,15 +824,19 @@ public class EsqlDataTypeConverter {
             switch (type) {
                 case "min", "\"min\"":
                     min = Double.parseDouble(number);
+                    minAvailable = true;
                     break;
                 case "max", "\"max\"":
                     max = Double.parseDouble(number);
+                    maxAvailable = true;
                     break;
                 case "sum", "\"sum\"":
                     sum = Double.parseDouble(number);
+                    sumAvailable = true;
                     break;
                 case "value_count", "\"value_count\"":
                     count = Integer.parseInt(number);
+                    countAvailable = true;
                     break;
                 default:
                     throw new IllegalArgumentException(
@@ -836,7 +844,7 @@ public class EsqlDataTypeConverter {
                     );
             }
         }
-        return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count);
+        return new AggregateMetricDoubleLiteral(min, max, sum, count, minAvailable, maxAvailable, sumAvailable, countAvailable);
     }
 
     public enum EsqlConverter implements Converter {

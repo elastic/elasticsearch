@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -73,8 +73,8 @@ public class AvgTests extends AbstractAggregationTestCase {
             if (fieldData.size() == 1) {
                 // For single elements, we directly return them to avoid precision issues
                 if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
-                    var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) fieldData.get(0);
-                    expected = aggMetric.sum() / (aggMetric.count().doubleValue());
+                    var aggMetric = (AggregateMetricDoubleLiteral) fieldData.get(0);
+                    expected = aggMetric.getCount() == 0 ? null : aggMetric.getSum() / aggMetric.getCount();
                 } else {
                     expected = ((Number) fieldData.get(0)).doubleValue();
                 }
@@ -90,12 +90,8 @@ public class AvgTests extends AbstractAggregationTestCase {
                         .collect(Collectors.summarizingDouble(Double::doubleValue))
                         .getAverage();
                     case AGGREGATE_METRIC_DOUBLE -> {
-                        double sum = fieldData.stream()
-                            .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
-                            .sum();
-                        double count = fieldData.stream()
-                            .mapToInt(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
-                            .sum();
+                        double sum = fieldData.stream().mapToDouble(v -> ((AggregateMetricDoubleLiteral) v).getSum()).sum();
+                        double count = fieldData.stream().mapToInt(v -> ((AggregateMetricDoubleLiteral) v).getCount()).sum();
                         yield count == 0 ? null : sum / count;
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());

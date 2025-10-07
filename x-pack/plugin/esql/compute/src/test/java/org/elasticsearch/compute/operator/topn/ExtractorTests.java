@@ -13,7 +13,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -246,14 +246,15 @@ public class ExtractorTests extends ESTestCase {
     }
 
     public static AggregateMetricDoubleLiteral randomAggregateMetricDouble(boolean allMetrics) {
-        if (allMetrics) {
-            return new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt());
-        }
         return new AggregateMetricDoubleLiteral(
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomInt() : null
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomInt(),
+            allMetrics || randomBoolean(),
+            allMetrics || randomBoolean(),
+            allMetrics || randomBoolean(),
+            allMetrics || randomBoolean()
         );
     }
 }

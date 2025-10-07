@@ -347,7 +347,6 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             }
             // tests on non-downsampled index
             // TODO: combine with above when support for aggregate_metric_double + implicit casting is added
-            // TODO: add to counter tests below when support for counters is added
             for (String innerCommand : List.of("first_over_time", "last_over_time")) {
                 String command = outerCommand + " (" + innerCommand + "(cpu))";
                 try (var resp = esqlCommand("TS " + secondIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
@@ -368,7 +367,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             }
 
             // tests on counter types
-            for (String innerCommand : List.of("rate")) {
+            for (String innerCommand : List.of("rate", "first_over_time", "last_over_time")) {
                 String command = outerCommand + " (" + innerCommand + "(request))";
                 String esqlQuery = "TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)";
                 try (

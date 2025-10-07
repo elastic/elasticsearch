@@ -41,10 +41,7 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newAggregateMetricDoubleBlockBuilder(0).build(),
             blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build().filter(),
             partialMetricBuilder.build().filter(),
-            blockFactory.newConstantAggregateMetricDoubleBlock(
-                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, 0),
-                0
-            ).filter(),
+            blockFactory.newConstantAggregateMetricDoubleBlock(new AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, 0), 0).filter(),
             (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
 
@@ -72,11 +69,17 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
         appendValues(builder3, 582.1, 10942, 209301.4, 25);
         appendValues(builder3, 8952.564, 30921.23, 18592950.14, 1000);
         builder3.appendNull();
+        AggregateMetricDoubleBlockBuilder builder4 = blockFactory.newAggregateMetricDoubleBlockBuilder(4);
+        builder4.appendLiteral(new AggregateMetricDoubleLiteral(1.23, 68392.1, 99999.1, 5));
+        builder4.appendLiteral(new AggregateMetricDoubleLiteral(1, 1, 1, 1, false, false, true, true));
+        builder4.appendLiteral(new AggregateMetricDoubleLiteral(582.1, 10942, 209301.4, 25));
+        builder4.appendLiteral(new AggregateMetricDoubleLiteral(8952.564, 30921.23, 18592950.14, 1000, true, true, true, true));
 
         List<AggregateMetricDoubleBlock> blocks = List.of(
             builder1.build(),
             builder2.build().filter(0, 2, 5),
-            builder3.build().filter(2, 3, 4)
+            builder3.build().filter(2, 3, 4),
+            builder4.build().filter(0, 2, 3)
         );
         assertAllEquals(blocks);
     }
@@ -122,14 +125,8 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
             builder2.build().filter(0, 2),
             AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock1),
             AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock2).filter(2, 3),
-            blockFactory.newConstantAggregateMetricDoubleBlock(
-                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
-                4
-            ).filter(1, 3),
-            blockFactory.newConstantAggregateMetricDoubleBlock(
-                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
-                2
-            )
+            blockFactory.newConstantAggregateMetricDoubleBlock(new AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6), 4).filter(1, 3),
+            blockFactory.newConstantAggregateMetricDoubleBlock(new AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6), 2)
         );
         assertAllEquals(moreBlocks);
     }
@@ -215,14 +212,8 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
             builder5.build(),
             builder6.build(),
             builder7.build(),
-            blockFactory.newConstantAggregateMetricDoubleBlock(
-                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(1.1, 6.1, 7.2, 2),
-                1
-            ),
-            blockFactory.newConstantAggregateMetricDoubleBlock(
-                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(1.1, 6.1, 7.2, 2),
-                3
-            )
+            blockFactory.newConstantAggregateMetricDoubleBlock(new AggregateMetricDoubleLiteral(1.1, 6.1, 7.2, 2), 1),
+            blockFactory.newConstantAggregateMetricDoubleBlock(new AggregateMetricDoubleLiteral(1.1, 6.1, 7.2, 2), 3)
         );
         assertAllNotEquals(notEqualBlocks);
     }

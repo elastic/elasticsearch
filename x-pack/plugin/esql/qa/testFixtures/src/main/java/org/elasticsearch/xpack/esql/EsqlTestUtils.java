@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -891,12 +891,7 @@ public final class EsqlTestUtils {
                 randomIntBetween(0, GeoTileUtils.MAX_ZOOM)
             );
             case GEOHEX -> StGeohex.unboundedGrid.calculateGridId(GeometryTestUtils.randomPoint(), randomIntBetween(0, H3.MAX_H3_RES));
-            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                randomDouble(),
-                randomDouble(),
-                randomDouble(),
-                randomInt()
-            );
+            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt());
             case NULL -> null;
             case SOURCE -> {
                 try {

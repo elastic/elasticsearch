@@ -163,12 +163,7 @@ public class BasicPageTests extends SerializationTestCase {
                     positions
                 );
                 case 9 -> blockFactory.newConstantAggregateMetricDoubleBlock(
-                    new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomInt()
-                    ),
+                    new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt()),
                     positions
                 );
 
@@ -237,12 +232,7 @@ public class BasicPageTests extends SerializationTestCase {
             blockFactory.newConstantDoubleBlockWith(randomDouble(), 10),
             blockFactory.newConstantBytesRefBlockWith(new BytesRef(Integer.toHexString(randomInt())), 10),
             blockFactory.newConstantAggregateMetricDoubleBlock(
-                new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                    randomDouble(),
-                    randomDouble(),
-                    randomDouble(),
-                    randomInt()
-                ),
+                new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt()),
                 10
             ),
             toFilter.filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
@@ -291,12 +281,7 @@ public class BasicPageTests extends SerializationTestCase {
                 blockFactory.newLongArrayVector(randomLongs(positions).toArray(), positions).asBlock(),
                 blockFactory.newConstantDoubleBlockWith(randomInt(), positions),
                 blockFactory.newConstantAggregateMetricDoubleBlock(
-                    new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomInt()
-                    ),
+                    new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt()),
                     positions
                 )
             ),

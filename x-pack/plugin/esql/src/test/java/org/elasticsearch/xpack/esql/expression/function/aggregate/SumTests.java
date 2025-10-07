@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -78,17 +78,12 @@ public class SumTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
-                    var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomNonNegativeInt()
-                    );
+                    var value = new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomNonNegativeInt());
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
                         standardAggregatorName("Sum", DataType.AGGREGATE_METRIC_DOUBLE),
                         DataType.DOUBLE,
-                        equalTo(value.sum())
+                        equalTo(value.getSum())
                     );
 
                 })

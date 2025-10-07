@@ -358,13 +358,13 @@ We call the static portion of the value the `template`.
 Although the template cannot be accessed directly, a separate field called `<field_name>.template_id` is accessible.
 This field is a hash of the template and can be used to group similar values.
 
+Analysis is configurable but defaults to a delimiter-based analyzer.
+This analyzer applies a lowercase filter and then splits on whitespace and the following delimiters: `=`, `?`, `:`, `[`, `]`, `{`, `}`, `"`, `\`, `'`.
+
 ### Limitations
 
 Unlike most mapping types, `pattern_text` does not support multiple values for a given field per document.
 If a document is created with multiple values for a pattern_text field, an error will be returned.
-
-Analysis is configurable but defaults to a delimiter-based analyzer.
-This analyzer applies a lowercase filter and then splits on whitespace and the following delimiters: `=`, `?`, `:`, `[`, `]`, `{`, `}`, `"`, `\`, `'`.
 
 [span queries](/reference/query-languages/query-dsl/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
 

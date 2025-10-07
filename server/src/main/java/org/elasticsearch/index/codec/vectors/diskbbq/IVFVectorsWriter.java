@@ -53,6 +53,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
+    private final int writeVersion;
     private final Boolean useDirectIOReads;
     private final FlatVectorsWriter rawVectorDelegate;
 
@@ -70,6 +71,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         );
 
         this.rawVectorFormatName = rawVectorFormatName;
+        this.writeVersion = writeVersion;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
         final String metaFileName = IndexFileNames.segmentFileName(
@@ -509,7 +511,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException {
         ivfMeta.writeInt(field.number);
         ivfMeta.writeString(rawVectorFormatName);
-        if (useDirectIOReads != null) {
+        if (writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO) {
             ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
         }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());

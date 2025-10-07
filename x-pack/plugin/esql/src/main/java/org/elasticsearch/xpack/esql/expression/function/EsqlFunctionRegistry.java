@@ -510,7 +510,7 @@ public class EsqlFunctionRegistry {
             // fulltext functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
-                def(Kql.class, uni(Kql::new), "kql"),
+                def(Kql.class, bi(Kql::new), "kql"),
                 def(Knn.class, tri(Knn::new), "knn"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),

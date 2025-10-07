@@ -99,9 +99,6 @@ Transform:
 * Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint [#134955](https://github.com/elastic/elasticsearch/pull/134955) (issue: [#134925](https://github.com/elastic/elasticsearch/issues/134925))
 
 ## 9.0.8 [elasticsearch-9.0.8-release-notes]
-```{applies_to}
-stack: ga 9.0.8
-```
 
 ### Highlights [elasticsearch-9.0.8-highlights]
 

@@ -181,7 +181,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize()),
+                    context.pageSize(aggregateExec, aggregateExec.estimatedRowSize()),
                     analysisRegistry
                 );
             }

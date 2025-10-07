@@ -449,33 +449,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134902
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testEmptyShard {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135951
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSearch {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135927
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testPersianAnalyzerBWC {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135930
-- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
-  method: testRollupIndex {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135906
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSystemIndexMetadataIsUpgraded {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135923
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testNewReplicas {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135956
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testPeerRecoveryRetentionLeases {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135929
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testTurnOffTranslogRetentionAfterUpgraded {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135958
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testOperationBasedRecovery {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135944
 
 # Examples:
 #

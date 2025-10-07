@@ -49,7 +49,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see SamplingConfiguration
  * @see GetSamplingConfigurationsAction
- * @see PutSamplingConfigurationAction
+ * @see PutSampleConfigurationAction
  */
 public class GetSamplingConfigurationAction extends ActionType<GetSamplingConfigurationAction.Response> {
 

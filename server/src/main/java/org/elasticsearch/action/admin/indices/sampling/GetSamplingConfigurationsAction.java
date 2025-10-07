@@ -29,7 +29,7 @@ import java.util.Objects;
  * </p>
  *
  * @see SamplingConfiguration
- * @see PutSamplingConfigurationAction
+ * @see PutSampleConfigurationAction
  */
 public class GetSamplingConfigurationsAction extends ActionType<GetSamplingConfigurationsAction.Response> {
 

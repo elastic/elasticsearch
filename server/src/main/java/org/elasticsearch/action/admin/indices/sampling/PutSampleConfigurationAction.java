@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -37,25 +36,25 @@ import java.util.Objects;
  * settings, and conditional sampling criteria.
  * </p>
  * <p>
- * The action name is "indices:admin/sampling/config/update" and it returns an {@link AcknowledgedResponse}
+ * The action name is "indices:admin/sample/config/update" and it returns an {@link AcknowledgedResponse}
  * to indicate whether the configuration was successfully applied.
  * </p>
  */
-public class PutSamplingConfigurationAction extends ActionType<AcknowledgedResponse> {
+public class PutSampleConfigurationAction extends ActionType<AcknowledgedResponse> {
     /**
      * The action name used to identify this action in the transport layer.
      */
-    public static final String NAME = "indices:admin/sampling/config/update";
+    public static final String NAME = "indices:admin/sample/config/update";
 
     /**
      * Singleton instance of this action type.
      */
-    public static final PutSamplingConfigurationAction INSTANCE = new PutSamplingConfigurationAction();
+    public static final PutSampleConfigurationAction INSTANCE = new PutSampleConfigurationAction();
 
     /**
-     * Constructs a new PutSamplingConfigurationAction with the predefined action name.
+     * Constructs a new PutSampleConfigurationAction with the predefined action name.
      */
-    public PutSamplingConfigurationAction() {
+    public PutSampleConfigurationAction() {
         super(NAME);
     }
 
@@ -67,32 +66,24 @@ public class PutSamplingConfigurationAction extends ActionType<AcknowledgedRespo
      * {@link IndicesRequest.Replaceable} to support index name resolution and expansion.
      * </p>
      */
-    public static class Request extends AcknowledgedRequest<PutSamplingConfigurationAction.Request> implements IndicesRequest.Replaceable {
+    public static class Request extends AcknowledgedRequest<PutSampleConfigurationAction.Request> implements IndicesRequest.Replaceable {
         private final SamplingConfiguration samplingConfiguration;
         private String[] indices = Strings.EMPTY_ARRAY;
 
         /**
          * Constructs a new request with the specified sampling configuration parameters.
          *
-         * @param rate the sampling rate as a double between 0.0 and 1.0
-         * @param maxSamples the maximum number of samples to collect, or null for the default
-         * @param maxSize the maximum size of samples to collect, or null for the default
-         * @param timeToLive the time-to-live for sampling data, or null for the default
-         * @param condition the conditional expression for sampling, or null for unconditional sampling
+         * @param samplingConfiguration the sampling configuration to apply
          * @param masterNodeTimeout the timeout for master node operations, or null for default
          * @param ackTimeout the timeout for acknowledgment, or null for default
          */
         public Request(
-            double rate,
-            @Nullable Integer maxSamples,
-            @Nullable ByteSizeValue maxSize,
-            @Nullable TimeValue timeToLive,
-            @Nullable String condition,
+            @Nullable SamplingConfiguration samplingConfiguration,
             @Nullable TimeValue masterNodeTimeout,
             @Nullable TimeValue ackTimeout
         ) {
             super(masterNodeTimeout, ackTimeout);
-            this.samplingConfiguration = new SamplingConfiguration(rate, maxSamples, maxSize, timeToLive, condition);
+            this.samplingConfiguration = samplingConfiguration;
         }
 
         /**
@@ -159,7 +150,7 @@ public class PutSamplingConfigurationAction extends ActionType<AcknowledgedRespo
          */
         @Override
         public IndicesOptions indicesOptions() {
-            return IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED;
+            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
         }
 
         /**

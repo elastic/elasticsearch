@@ -82,7 +82,7 @@ mapped_pages:
 
 ::::{dropdown} Vector functions
 :open:
-:::{include} _snippets/lists/vector-functions.md
+:::{include} _snippets/lists/dense-vector-functions.md
 :::
 ::::
 

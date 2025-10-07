@@ -284,9 +284,7 @@ public class Approximate {
             } else {
                 // Multiple STATS commands are not supported.
                 if (plan instanceof Aggregate) {
-                    throw new VerificationException(
-                        List.of(Failure.fail(plan, "query with multiple [STATS] cannot be approximated"))
-                    );
+                    throw new VerificationException(List.of(Failure.fail(plan, "query with multiple [STATS] cannot be approximated")));
                 }
             }
             return plan;

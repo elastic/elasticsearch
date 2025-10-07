@@ -29,9 +29,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.ConfidenceIntervalDoubleEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.ConfidenceIntervalIntEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.ConfidenceIntervalLongEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 

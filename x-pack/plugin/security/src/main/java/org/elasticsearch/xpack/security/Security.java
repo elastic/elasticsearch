@@ -1375,21 +1375,18 @@ public class Security extends Plugin
     private CustomActionAuthorizationStep getCustomActionAuthorizationStepOrDefault(
         SecurityExtension.SecurityComponents extensionComponents
     ) {
-        var customActionAuthorizationStep = findValueFromExtensions(
-            "action authorization step",
-            extension -> {
-                var actionAuthorizationStep = extension.getCustomActionAuthorizationStep(extensionComponents);
-                if (actionAuthorizationStep != null && isInternalExtension(extension) == false) {
-                    throw new IllegalStateException(
-                        "The ["
+        var customActionAuthorizationStep = findValueFromExtensions("action authorization step", extension -> {
+            var actionAuthorizationStep = extension.getCustomActionAuthorizationStep(extensionComponents);
+            if (actionAuthorizationStep != null && isInternalExtension(extension) == false) {
+                throw new IllegalStateException(
+                    "The ["
                         + extension.getClass().getName()
                         + "] extension tried to install a CustomActionAuthorizationStep. This functionality is not available to "
                         + "external extensions."
-                    );
-                }
-                return actionAuthorizationStep;
+                );
             }
-        );
+            return actionAuthorizationStep;
+        });
         return customActionAuthorizationStep == null ? new CustomActionAuthorizationStep.Default() : customActionAuthorizationStep;
     }
 

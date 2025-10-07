@@ -139,10 +139,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
                     .build()
             )
         );
-        assertThat(
-            exception.getMessage(),
-            equalTo("setting [" + skipUnavailableSetting.getKey() + "] is unavailable when CPS is enabled")
-        );
+        assertThat(exception.getMessage(), equalTo("setting [" + skipUnavailableSetting.getKey() + "] is unavailable when CPS is enabled"));
 
         // Should not throw if the setting is not present, returning the expected default value of true.
         assertTrue(skipUnavailableSetting.get(Settings.builder().put(cpsEnabledSettings).put(proxyEnabledSettings).build()));

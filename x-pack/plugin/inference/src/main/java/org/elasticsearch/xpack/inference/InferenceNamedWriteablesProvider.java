@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatComp
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -185,6 +186,7 @@ public class InferenceNamedWriteablesProvider {
         addCustomNamedWriteables(namedWriteables);
         addLlamaNamedWriteables(namedWriteables);
         addAi21NamedWriteables(namedWriteables);
+        addNvidiaNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -314,6 +316,17 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         // no task settings for AI21
+    }
+
+    private static void addNvidiaNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                NvidiaChatCompletionServiceSettings.NAME,
+                NvidiaChatCompletionServiceSettings::new
+            )
+        );
+        // no task settings for Nvidia
     }
 
     private static void addAzureAiStudioNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

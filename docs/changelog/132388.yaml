@@ -1,0 +1,5 @@
+pr: 132388
+summary: Added NVIDIA support to Inference Plugin
+area: Machine Learning
+type: enhancement
+issues: []

@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | keyword |
 | boolean | keyword |
 | cartesian_point | keyword |
 | cartesian_shape | keyword |

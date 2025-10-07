@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -53,8 +54,10 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -848,6 +851,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryAggregateMetricDouble(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            aggregateMetricDoubleCases(),
+            expectedType,
+            v -> expectedValue.apply((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v),
+            warnings
+        );
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -1461,6 +1481,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100))
                     .toBytesRef(),
                 DataType.VERSION
+            )
+        );
+    }
+
+    /**
+     * Generate cases for {@link DataType#AGGREGATE_METRIC_DOUBLE}.
+     * <p>
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#aggregateMetricDoubleCases}.
+     * </p>
+     */
+    public static List<TypedDataSupplier> aggregateMetricDoubleCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<random aggregate metric double>",
+                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                    randomDouble(),
+                    randomDouble(),
+                    randomDouble(),
+                    randomNonNegativeInt()
+                ),
+                DataType.AGGREGATE_METRIC_DOUBLE
             )
         );
     }

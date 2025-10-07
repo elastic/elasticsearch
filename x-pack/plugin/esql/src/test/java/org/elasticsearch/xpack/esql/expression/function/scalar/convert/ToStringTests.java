@@ -162,6 +162,13 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
                 List.of()
             );
         }
+        TestCaseSupplier.forUnaryAggregateMetricDouble(
+            suppliers,
+            "ToStringFromAggregateMetricDoubleEvaluator[field=" + read + "]",
+            DataType.KEYWORD,
+            agg -> new BytesRef(EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString(agg)),
+            List.of()
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 

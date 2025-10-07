@@ -37,14 +37,14 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             return equalTo(
                 "first argument of ["
                     + sourceForSignature(signature)
-                    + "] must be [any type except counter types"
-                    + " or dense_vector], found value [] type [dense_vector]"
+                    + "] must be [any type except counter types, dense_vector,"
+                    + " or aggregate_metric_double], found value [] type [dense_vector]"
             );
         }
         if (signature.getFirst() == DataType.NULL && signature.get(1) == DataType.DENSE_VECTOR) {
             return containsString(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "integer"));
         }
-        if (signature.get(1).equals(DataType.NULL)) {
+        if (signature.get(1).equals(DataType.NULL) && signature.get(0).equals(DataType.AGGREGATE_METRIC_DOUBLE) == false) {
             return equalTo("second argument of [" + sourceForSignature(signature) + "] cannot be null, received []");
         }
         return equalTo(
@@ -52,7 +52,7 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 true,
                 validPerPosition,
                 signature,
-                (v, p) -> p == 1 ? "integer" : "boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types"
+                (v, p) -> p == 1 ? "integer" : "any type except counter types, dense_vector, or aggregate_metric_double"
             )
         );
     }

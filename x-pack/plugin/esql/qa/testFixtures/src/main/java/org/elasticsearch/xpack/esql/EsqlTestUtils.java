@@ -36,6 +36,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -259,7 +260,11 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD);
+        return relation(IndexMode.STANDARD);
+    }
+
+    public static EsRelation relation(IndexMode mode) {
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
     }
 
     /**
@@ -498,7 +503,11 @@ public final class EsqlTestUtils {
     }
 
     public static LogicalPlan localSource(BlockFactory blockFactory, List<Attribute> fields, List<Object> row) {
-        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(blockFactory, row)));
+        return new LocalRelation(
+            Source.EMPTY,
+            fields,
+            LocalSupplier.of(row.isEmpty() ? new Page(0) : new Page(BlockUtils.fromListRow(blockFactory, row)))
+        );
     }
 
     public static <T> T as(Object node, Class<T> type) {

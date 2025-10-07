@@ -511,7 +511,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         try {
             getTasksStarting();
             logger.info("unblocking script");
-            scriptPermits.release(pageSize());
+            scriptPermits.release(numberOfDocs() + pageSize());
             List<TaskInfo> tasks = getTasksRunning();
             String sortStatus = """
                 [{"pause_me":{"order":"asc","missing":"_last","unmapped_type":"long"}}]""";

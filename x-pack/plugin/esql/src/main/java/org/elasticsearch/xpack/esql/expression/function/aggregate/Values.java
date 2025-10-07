@@ -165,7 +165,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isRepresentableExceptCountersAndDenseVector(field(), sourceText(), DEFAULT);
+        return TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(field(), sourceText(), DEFAULT);
     }
 
     @Override

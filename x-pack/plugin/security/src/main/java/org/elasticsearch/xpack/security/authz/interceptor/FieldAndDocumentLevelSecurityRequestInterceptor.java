@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -74,7 +73,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             }
             if (false == accessControlByIndex.isEmpty()) {
                 disableFeatures(indicesRequest, accessControlByIndex, listener);
-                return ;
+                return;
             }
         }
         listener.onResponse(null);

@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -147,21 +149,17 @@ public class SamplingService implements ClusterStateListener {
         SampleStats stats = sampleInfo.stats;
         stats.potentialSamples.increment();
         try {
-            if (sampleInfo.hasCapacity() == false) {
+            if (sampleInfo.isFull) {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
                 return;
             }
-            if (sampleInfo.hasExceededMaxBytesSize()) {
+            if (sampleInfo.hasExceededMaxBytesSize || sampleInfo.getSizeInBytes() > samplingConfig.maxSize().getBytes()) {
                 stats.samplesRejectedForSize.increment();
+                sampleInfo.hasExceededMaxBytesSize = true;
                 return;
             }
             if (Math.random() >= samplingConfig.rate()) {
                 stats.samplesRejectedForRate.increment();
-                return;
-            }
-            if (samplingConfig.maxSize().getBytes() < sampleInfo.getSizeInBytes()) {
-                stats.samplesRejectedForSize.increment();
-                sampleInfo.hasExceededMaxBytesSize = true;
                 return;
             }
             String condition = samplingConfig.condition();
@@ -673,6 +671,7 @@ public class SamplingService implements ClusterStateListener {
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
         private volatile boolean hasExceededMaxBytesSize = false;
+        private final AtomicReference<Tuple<Integer, Long>> sizeInBytesAtIndex = new AtomicReference<>(Tuple.tuple(-1, 0L));
         private final AtomicInteger arrayIndex = new AtomicInteger(0);
 
         SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
@@ -680,14 +679,6 @@ public class SamplingService implements ClusterStateListener {
             this.rawDocuments = new RawDocument[maxSamples];
             this.stats = new SampleStats();
             this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).millis() : timeToLive.millis()) + relativeNowMillis;
-        }
-
-        public boolean hasCapacity() {
-            return isFull == false;
-        }
-
-        public boolean hasExceededMaxBytesSize() {
-            return hasExceededMaxBytesSize;
         }
 
         /*
@@ -703,12 +694,39 @@ public class SamplingService implements ClusterStateListener {
          * the only part of the sample that is not a fixed size.
          */
         public long getSizeInBytes() {
-            long size = 0;
-            for (int i = 0; i < arrayIndex.get(); i++) {
+            /*
+             * This method could get called very frequently during ingestion. Looping through every RawDocument every time would get
+             * expensive. Since the data in the rawDocuments array is immutable once it has been written, we store the index and value of
+             * the computed size if all raw documents up to that index are non-null (i.e. no documents were still in flight as we were
+             * counting). That way we don't have to re-compute the size for documents we've already looked at.
+             */
+            Tuple<Integer, Long> knownIndexAndSize = sizeInBytesAtIndex.get();
+            int knownIndex = knownIndexAndSize.v1();
+            long knownSize = knownIndexAndSize.v2();
+            int nextInsertionIndex = arrayIndex.get(); // The value in arrayIndex is always the _next_ insertion point
+            if (nextInsertionIndex - 1 == knownIndex) {
+                return knownSize;
+            }
+            long size = knownSize;
+            boolean anyNulls = false;
+            for (int i = knownIndex + 1; i < nextInsertionIndex; i++) {
                 RawDocument rawDocument = rawDocuments[i];
-                if (rawDocument != null) {
+                if (rawDocument == null) {
+                    /*
+                     * Some documents were in flight and haven't been stored in the array yet, so we'll move past this. The size will be a
+                     * little low on this method call. So we're going to set this flag so that we don't store this value for future use.
+                     */
+                    anyNulls = true;
+                } else {
                     size += rawDocuments[i].getSizeInBytes();
                 }
+            }
+            /*
+             * The most important thing is for this method to be fast. It is OK if we store the same value twice, or even if we store a
+             * slightly out-of-date copy, as long as we don't do any locking.
+             */
+            if (anyNulls == false && sizeInBytesAtIndex.get().v1() + 1 < nextInsertionIndex) {
+                sizeInBytesAtIndex.set(Tuple.tuple(nextInsertionIndex - 1, size));
             }
             return size;
         }

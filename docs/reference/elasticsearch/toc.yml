@@ -178,7 +178,7 @@ toc:
             children:
             - file: mapping-reference/text.md
             - file: mapping-reference/pattern-text.md
-            - file: mapping-reference/match-only-text-text.md
+            - file: mapping-reference/match-only-text.md
           - file: mapping-reference/token-count.md
           - file: mapping-reference/unsigned-long.md
           - file: mapping-reference/version.md

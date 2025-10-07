@@ -36,6 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -48,6 +49,8 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -110,6 +113,65 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                             fail("Rescored doc not found in real score docs");
                         }
                         assertThat("Real score is not the same as rescored score", rescoreDoc.score, equalTo(realScoreDocs[i].score));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testRescoreSingleAndBulkEquality() throws Exception {
+        int numDocs = randomIntBetween(10, 100);
+        int numDims = randomIntBetween(5, 100);
+        int k = randomIntBetween(1, numDocs - 1);
+
+        var queryVector = randomVector(numDims);
+
+        List<Query> innerQueries = new ArrayList<>();
+        innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
+        innerQueries.add(
+            new BooleanQuery.Builder().add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME), BooleanClause.Occur.SHOULD)
+                .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
+                .build()
+        );
+        innerQueries.add(new MatchAllDocsQuery());
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims);
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                for (var innerQuery : innerQueries) {
+                    RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                        FIELD_NAME,
+                        queryVector,
+                        VectorSimilarityFunction.COSINE,
+                        k,
+                        k,
+                        false,
+                        innerQuery
+                    );
+
+                    IndexSearcher searcher = newSearcher(reader, true, false);
+                    TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
+                    assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
+
+                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                        FIELD_NAME,
+                        queryVector,
+                        VectorSimilarityFunction.COSINE,
+                        k,
+                        k,
+                        true,
+                        innerQuery
+                    );
+                    TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
+                    assertThat(singleRescored.scoreDocs.length, equalTo(k));
+
+                    // Get real scores
+                    ScoreDoc[] singleRescoreDocs = singleRescored.scoreDocs;
+                    int i = 0;
+                    for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
+                        assertThat(rescoreDoc.doc, equalTo(singleRescoreDocs[i].doc));
+                        assertThat(rescoreDoc.score, equalTo(singleRescoreDocs[i].score));
+                        i++;
                     }
                 }
             }
@@ -216,6 +278,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig();
         // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
         KnnVectorsFormat format = randomFrom(
+            new ES920DiskBBQVectorsFormat(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, randomBoolean()),
             new ES818BinaryQuantizedVectorsFormat(),
             new ES818HnswBinaryQuantizedVectorsFormat(),
             new ES93HnswBinaryQuantizedVectorsFormat(),

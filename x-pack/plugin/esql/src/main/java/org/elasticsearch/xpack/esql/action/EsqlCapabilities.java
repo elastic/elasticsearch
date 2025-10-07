@@ -250,7 +250,7 @@ public class EsqlCapabilities {
          * support for MV_CONTAINS function
          * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
-        FN_MV_CONTAINS,
+        FN_MV_CONTAINS_V1,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -306,6 +306,11 @@ public class EsqlCapabilities {
          * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
          */
         AGG_TOP_STRING_SUPPORT,
+
+        /**
+         * Make optional the order field in the TOP agg command, and default it to "ASC".
+         */
+        AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
          * {@code CASE} properly handling multivalue conditions.
@@ -1593,7 +1598,12 @@ public class EsqlCapabilities {
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
-        FIX_NO_COLUMNS;
+        FIX_NO_COLUMNS,
+
+        /**
+         * Support for dots in FUSE attributes
+         */
+        DOTS_IN_FUSE;
 
         private final boolean enabled;
 

@@ -36,6 +36,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -99,11 +100,6 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public boolean supportsContentStream() {
         return incrementalEnabled.get();
-    }
-
-    @Override
-    public boolean mediaTypesValid(RestRequest request) {
-        return request.hasLengthPrefixedStreamingContent() || request.getXContentType() != null;
     }
 
     @Override
@@ -317,12 +313,13 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return true;
+    public Set<String> supportedCapabilities() {
+        return capabilities;
     }
 
     @Override
-    public Set<String> supportedCapabilities() {
-        return capabilities;
+    public boolean mediaTypesValid(RestRequest request) {
+        return (super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType()))
+            || request.hasLengthPrefixedStreamingContent();
     }
 }

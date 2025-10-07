@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -63,9 +62,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeString(realm);
-        }
+        out.writeString(realm);
         out.writeString(tokenString);
         out.writeString(refreshToken);
         out.writeTimeValue(expiresIn);

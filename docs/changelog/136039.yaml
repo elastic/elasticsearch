@@ -1,0 +1,12 @@
+pr: 136039
+summary: Disable cross-cluster functionality for `_fleet/_fleet_search`
+area: CCS
+type: breaking
+issues: []
+breaking:
+  title: Disable cross-cluster functionality for `_fleet/_fleet_search`
+  area: CCS
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

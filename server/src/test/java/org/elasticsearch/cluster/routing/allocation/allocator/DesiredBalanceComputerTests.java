@@ -663,36 +663,36 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         clusterState = rebuildRoutingTable(clusterState, routingNodes);
 
         final var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
-            final var desiredBalanceInput = new DesiredBalanceInput(
-                randomInt(),
-                new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
-                    @Override
-                    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        return Decision.NO;
-                    }
-                })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
-                List.of()
-            );
-            var desiredBalance = desiredBalanceComputer.compute(
-                DesiredBalance.BECOME_MASTER_INITIAL,
-                desiredBalanceInput,
-                queue(
-                    new MoveAllocationCommand(index.getName(), 0, randomFrom("node-0", "node-1"), "node-2"),
-                    new MoveAllocationCommand(index.getName(), 1, randomFrom("node-0", "node-1"), "node-2")
-                ),
-                input -> true
-            );
+        final var desiredBalanceInput = new DesiredBalanceInput(
+            randomInt(),
+            new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return Decision.NO;
+                }
+            })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
+            List.of()
+        );
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            desiredBalanceInput,
+            queue(
+                new MoveAllocationCommand(index.getName(), 0, randomFrom("node-0", "node-1"), "node-2"),
+                new MoveAllocationCommand(index.getName(), 1, randomFrom("node-0", "node-1"), "node-2")
+            ),
+            input -> true
+        );
 
-            final Set<String> expectedNodeIds = Set.of("node-0", "node-1");
-            assertDesiredAssignments(
-                desiredBalance,
-                Map.of(
-                    new ShardId(index, 0),
-                    new ShardAssignment(expectedNodeIds, 2, 0, 0),
-                    new ShardId(index, 1),
-                    new ShardAssignment(expectedNodeIds, 2, 0, 0)
-                )
-            );
+        final Set<String> expectedNodeIds = Set.of("node-0", "node-1");
+        assertDesiredAssignments(
+            desiredBalance,
+            Map.of(
+                new ShardId(index, 0),
+                new ShardAssignment(expectedNodeIds, 2, 0, 0),
+                new ShardId(index, 1),
+                new ShardAssignment(expectedNodeIds, 2, 0, 0)
+            )
+        );
     }
 
     public void testDesiredBalanceShouldConvergeInABigCluster() {

@@ -55,7 +55,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             ),
             @Example(
                 description = "To count the number of times an expression returns `TRUE` use "
-                    + "a <<esql-where>> command to remove rows that shouldn’t be included",
+                    + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
                 file = "stats",
                 tag = "count-where"
             ),
@@ -83,6 +83,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -141,7 +144,13 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types or dense_vector"
+        );
     }
 
     @Override
@@ -149,7 +158,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT));
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+                filter()
+            );
         }
 
         if (field.foldable()) {
@@ -166,7 +179,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
-                new Count(s, Literal.keyword(s, StringUtils.WILDCARD))
+                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter())
             );
         }
 

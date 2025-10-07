@@ -74,7 +74,7 @@ public class EsSourceExec extends LeafExec {
         }
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
-        var indexMode = EsRelation.readIndexMode(in);
+        var indexMode = IndexMode.fromString(in.readString());
         return new EsSourceExec(source, indexPattern, indexMode, indexNameWithModes, attributes, query);
     }
 
@@ -89,7 +89,7 @@ public class EsSourceExec extends LeafExec {
         }
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
-        EsRelation.writeIndexMode(out, indexMode());
+        out.writeString(indexMode().getName());
     }
 
     @Override

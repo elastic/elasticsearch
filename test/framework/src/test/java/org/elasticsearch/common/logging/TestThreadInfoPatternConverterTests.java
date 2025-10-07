@@ -9,7 +9,9 @@
 
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -29,7 +31,8 @@ public class TestThreadInfoPatternConverterTests extends ESTestCase {
         var nodeName = randomAlphaOfLength(5);
         var prefix = randomAlphaOfLength(20);
         var thread = "T#" + between(0, 1000);
-        var threadName = EsExecutors.threadName(nodeName, prefix) + "[" + thread + "]";
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+        var threadName = EsExecutors.threadName(settings, prefix) + "[" + thread + "]";
         assertThat(threadInfo(threadName), equalTo(nodeName + "][" + prefix + "][" + thread));
     }
 

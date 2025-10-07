@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NotEqualsBoolsEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
@@ -57,6 +60,14 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lhs.baseRamBytesUsed();
+    baseRamBytesUsed += rhs.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -82,7 +93,9 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
+        boolean lhs = lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p));
+        boolean rhs = rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(NotEquals.processBools(lhs, rhs));
       }
       return result.build();
     }
@@ -91,7 +104,9 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+        boolean lhs = lhsVector.getBoolean(p);
+        boolean rhs = rhsVector.getBoolean(p);
+        result.appendBoolean(p, NotEquals.processBools(lhs, rhs));
       }
       return result.build();
     }

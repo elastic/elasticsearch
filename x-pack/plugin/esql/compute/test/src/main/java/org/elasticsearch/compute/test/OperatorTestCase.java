@@ -97,7 +97,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * asserting both that this throws a {@link CircuitBreakingException} and releases
      * all pages.
      */
-    public final void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() {
         /*
          * Build the input before building `simple` to handle the rare
          * cases where `simple` need some state from the input - mostly
@@ -224,6 +224,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         var operator = simple().get(context);
         List<Page> results = drive(operator, input.iterator(), context);
         assertSimpleOutput(origInput, results);
+        assertOperatorStatus(operator, origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
 
         // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.

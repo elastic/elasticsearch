@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
@@ -86,13 +85,15 @@ import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getModelListenerForException;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
@@ -123,7 +124,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     public void init() throws Exception {
         webServer.start();
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -193,6 +194,28 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
+            );
+            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenRateLimitFieldExistsInServiceSettingsMap() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            Map<String, Object> serviceSettings = new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    ElserModels.ELSER_V2_MODEL,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+                )
+            );
+
+            var config = getRequestConfigMap(serviceSettings, Map.of(), Map.of());
+
+            var failureListener = getModelListenerForException(
+                ValidationException.class,
+                "Validation Failed: 1: [service_settings] rate limit settings are not permitted for "
+                    + "service [elastic] and task type [sparse_embedding];"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -298,6 +321,39 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenRateLimitFieldExistsInServiceSettings() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            Map<String, Object> serviceSettingsMap = new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    ElserModels.ELSER_V2_MODEL,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
+                )
+            );
+
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.SPARSE_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
+
+            var parsedModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
+            assertThat(parsedModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
+            assertThat(parsedModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+            assertThat(parsedModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
+            assertThat(
+                serviceSettingsMap,
+                is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+            );
+        }
+    }
+
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
             var taskSettings = Map.of("extra_key", (Object) "value");
@@ -351,7 +407,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotAValidModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -380,7 +436,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -389,30 +445,24 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
-        var sender = mock(Sender.class);
-
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
-
         try (var service = createServiceWithMockSender()) {
             var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), "my-rerank-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    "search query",
-                    Boolean.TRUE,
-                    10,
-                    List.of("doc1", "doc2", "doc3"),
-                    false,
-                    new HashMap<>(),
-                    InputType.SEARCH,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
+            service.infer(
+                model,
+                "search query",
+                Boolean.TRUE,
+                10,
+                List.of("doc1", "doc2", "doc3"),
+                false,
+                new HashMap<>(),
+                InputType.SEARCH,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(
                 thrownException.getMessage(),
@@ -422,7 +472,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid_ChatCompletion() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -456,7 +506,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -648,7 +698,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
                 // Check that the product use case header was set correctly
-                assertThat(request.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+                var productUseCaseHeaders = request.getHeaders().get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+                assertThat(productUseCaseHeaders, contains("internal_search", productUseCase));
 
                 // Verify request body
                 var requestMap = entityAsMap(request.getBody());
@@ -687,7 +738,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.CHAT_COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("my-model-id", new RateLimitSettings(100)),
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
@@ -777,7 +828,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             // Check that the product use case header was set correctly
-            assertThat(request.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+            var productUseCaseHeaders = request.getHeaders().get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
 
         } finally {
             // Clean up the thread context
@@ -867,15 +919,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
+    public void testHideFromConfigurationApi_ThrowsUnsupported_WithNoAvailableModels() throws Exception {
         try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
             ensureAuthorizationCallFinished(service);
 
-            assertTrue(service.hideFromConfigurationApi());
+            expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }
     }
 
-    public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
+    public void testHideFromConfigurationApi_ThrowsUnsupported_WithAvailableModels() throws Exception {
         try (
             var service = createServiceWithMockSender(
                 ElasticInferenceServiceAuthorizationModel.of(
@@ -892,11 +944,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         ) {
             ensureAuthorizationCallFinished(service);
 
-            assertFalse(service.hideFromConfigurationApi());
+            expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }
     }
 
-    public void testGetConfiguration() throws Exception {
+    public void testCreateConfiguration() throws Exception {
         try (
             var service = createServiceWithMockSender(
                 ElasticInferenceServiceAuthorizationModel.of(
@@ -955,7 +1007,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
             boolean humanReadable = true;
             BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.TEXT_EMBEDDING)
+            );
             assertToXContentEquivalent(
                 originalBytes,
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
@@ -1010,7 +1064,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
             boolean humanReadable = true;
             BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(
+                EnumSet.noneOf(TaskType.class)
+            );
             assertToXContentEquivalent(
                 originalBytes,
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
@@ -1019,7 +1075,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testGetConfiguration_WithoutSupportedTaskTypes_WhenModelsReturnTaskOutsideOfImplementation() throws Exception {
+    public void testGetConfiguration_ThrowsUnsupported() throws Exception {
         try (
             var service = createServiceWithMockSender(
                 // this service doesn't yet support text embedding so we should still have no task types
@@ -1037,54 +1093,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         ) {
             ensureAuthorizationCallFinished(service);
 
-            String content = XContentHelper.stripWhitespace("""
-                {
-                       "service": "elastic",
-                       "name": "Elastic",
-                       "task_types": ["text_embedding"],
-                       "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding" , "sparse_embedding", "rerank", "chat_completion"]
-                           },
-                           "model_id": {
-                               "description": "The name of the model to use for the inference task.",
-                               "label": "Model ID",
-                               "required": true,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "str",
-                               "supported_task_types": ["text_embedding" , "sparse_embedding", "rerank", "chat_completion"]
-                           },
-                           "max_input_tokens": {
-                               "description": "Allows you to specify the maximum number of tokens per input.",
-                               "label": "Maximum Input Tokens",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding"]
-                           }
-                       }
-                   }
-                """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
-                new BytesArray(content),
-                XContentType.JSON
-            );
-            boolean humanReadable = true;
-            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
-            assertToXContentEquivalent(
-                originalBytes,
-                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
-                XContentType.JSON
-            );
+            expectThrows(UnsupportedOperationException.class, service::getConfiguration);
         }
     }
 
@@ -1186,7 +1195,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
             ensureAuthorizationCallFinished(service);
 
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertTrue(service.defaultConfigIds().isEmpty());
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
 
@@ -1213,7 +1222,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
             ensureAuthorizationCallFinished(service);
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertThat(
                 service.defaultConfigIds(),
                 is(
@@ -1382,7 +1391,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
+                new ElasticInferenceServiceCompletionServiceSettings("model_id"),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
@@ -1418,7 +1427,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);

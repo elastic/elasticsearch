@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/service-tokens-command.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-service-tokens [service-tokens-command]

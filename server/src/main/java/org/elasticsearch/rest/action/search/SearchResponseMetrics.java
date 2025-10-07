@@ -9,10 +9,12 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -66,8 +68,14 @@ public class SearchResponseMetrics {
         this.responseCountTotalCounter = responseCountTotalCounter;
     }
 
-    public long recordTookTime(long tookTime) {
-        tookDurationTotalMillisHistogram.record(tookTime);
+    public long recordTookTimeForSearchScroll(long tookTime) {
+        tookDurationTotalMillisHistogram.record(tookTime, SearchRequestAttributesExtractor.SEARCH_SCROLL_ATTRIBUTES);
+        return tookTime;
+    }
+
+    public long recordTookTime(long tookTime, Long timeRangeFilterFromMillis, long nowInMillis, Map<String, Object> attributes) {
+        SearchRequestAttributesExtractor.addTimeRangeAttribute(timeRangeFilterFromMillis, nowInMillis, attributes);
+        tookDurationTotalMillisHistogram.record(tookTime, attributes);
         return tookTime;
     }
 
@@ -76,5 +84,11 @@ public class SearchResponseMetrics {
             1L,
             Map.of(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, responseCountTotalStatus.getDisplayName())
         );
+    }
+
+    public void incrementResponseCount(ResponseCountTotalStatus responseCountTotalStatus, Map<String, Object> attributes) {
+        Map<String, Object> attributesWithStatus = new HashMap<>(attributes);
+        attributesWithStatus.put(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, responseCountTotalStatus.getDisplayName());
+        responseCountTotalCounter.incrementBy(1L, attributesWithStatus);
     }
 }

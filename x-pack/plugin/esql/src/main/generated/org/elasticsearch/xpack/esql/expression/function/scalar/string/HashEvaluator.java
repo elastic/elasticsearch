@@ -10,6 +10,7 @@ import java.lang.String;
 import java.security.NoSuchAlgorithmException;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HashEvaluator.class);
+
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
@@ -65,6 +68,14 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += algorithm.baseRamBytesUsed();
+    baseRamBytesUsed += input.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock algorithmBlock,
       BytesRefBlock inputBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
@@ -93,8 +104,10 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        BytesRef algorithm = algorithmBlock.getBytesRef(algorithmBlock.getFirstValueIndex(p), algorithmScratch);
+        BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
         try {
-          result.appendBytesRef(Hash.process(this.scratch, algorithmBlock.getBytesRef(algorithmBlock.getFirstValueIndex(p), algorithmScratch), inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+          result.appendBytesRef(Hash.process(this.scratch, algorithm, input));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -110,8 +123,10 @@ public final class HashEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef algorithmScratch = new BytesRef();
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef algorithm = algorithmVector.getBytesRef(p, algorithmScratch);
+        BytesRef input = inputVector.getBytesRef(p, inputScratch);
         try {
-          result.appendBytesRef(Hash.process(this.scratch, algorithmVector.getBytesRef(p, algorithmScratch), inputVector.getBytesRef(p, inputScratch)));
+          result.appendBytesRef(Hash.process(this.scratch, algorithm, input));
         } catch (NoSuchAlgorithmException e) {
           warnings().registerException(e);
           result.appendNull();

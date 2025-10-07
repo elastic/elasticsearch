@@ -39,11 +39,6 @@ public class LearningToRankRescorer implements Rescorer {
     public static final LearningToRankRescorer INSTANCE = new LearningToRankRescorer();
     private static final Logger logger = LogManager.getLogger(LearningToRankRescorer.class);
 
-    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
-        int cmp = Float.compare(o2.score, o1.score);
-        return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
-    };
-
     private LearningToRankRescorer() {
 
     }
@@ -62,7 +57,7 @@ public class LearningToRankRescorer implements Rescorer {
 
         // Because scores of the first-pass query and the LTR model are not comparable, there is no way to combine the results.
         // We will truncate the {@link TopDocs} to the window size so rescoring will be done on the full topDocs.
-        topDocs = topN(topDocs, rescoreContext.getWindowSize());
+        topDocs = Rescorer.topN(topDocs, rescoreContext.getWindowSize());
 
         // Save doc IDs for which rescoring was applied to be used in score explanation
         Set<Integer> topDocIDs = Arrays.stream(topDocs.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
@@ -191,18 +186,5 @@ public class LearningToRankRescorer implements Rescorer {
             Explanation.match(sourceExplanation.getValue(), "first pass query score", sourceExplanation),
             Explanation.match(0f, "extracted features", featureExplanations)
         );
-    }
-
-    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
-     *  topN. */
-    private static TopDocs topN(TopDocs in, int topN) {
-        if (in.scoreDocs.length < topN) {
-            return in;
-        }
-
-        ScoreDoc[] subset = new ScoreDoc[topN];
-        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
-
-        return new TopDocs(in.totalHits, subset);
     }
 }

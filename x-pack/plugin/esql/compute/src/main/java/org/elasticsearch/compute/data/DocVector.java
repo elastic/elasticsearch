@@ -279,6 +279,25 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
+    public DocVector deepCopy(BlockFactory blockFactory) {
+        IntVector filteredShards = null;
+        IntVector filteredSegments = null;
+        IntVector filteredDocs = null;
+        DocVector result = null;
+        try {
+            filteredShards = shards.deepCopy(blockFactory);
+            filteredSegments = segments.deepCopy(blockFactory);
+            filteredDocs = docs.deepCopy(blockFactory);
+            result = new DocVector(shardRefCounters, filteredShards, filteredSegments, filteredDocs, null);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(filteredShards, filteredSegments, filteredDocs);
+            }
+        }
+    }
+
+    @Override
     public DocBlock keepMask(BooleanVector mask) {
         throw new UnsupportedOperationException("can't mask DocVector because it can't contain nulls");
     }

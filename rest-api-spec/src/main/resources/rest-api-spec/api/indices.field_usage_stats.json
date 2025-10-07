@@ -1,8 +1,8 @@
 {
   "indices.field_usage_stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/field-usage-stats.html",
-      "description": "Returns the field usage stats for each field of an index"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-field-usage-stats",
+      "description": "Get field usage stats"
     },
     "stability": "experimental",
     "visibility": "public",
@@ -28,9 +28,9 @@
       ]
     },
     "params": {
-      "fields":{
-        "type":"list",
-        "description":"A comma-separated list of fields to include in the stats if only a subset of fields should be returned (supports wildcards)"
+      "fields": {
+        "type": "list",
+        "description": "A comma-separated list of fields to include in the stats if only a subset of fields should be returned (supports wildcards)"
       },
       "ignore_unavailable": {
         "type": "boolean",

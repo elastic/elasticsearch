@@ -35,7 +35,7 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                 "36",
                 "bdc68b4b9cbc4ebcb30745c85038d91d"
             ),
-            OracleOpenJdkToolchainResolver.getBundledJdkBuild("24+36@1f9ff9062db4449d8ca828c504ffae90", "24"),
+            OracleOpenJdkToolchainResolver.getBundledJdkBuild("24.0.2+12@fdc5d0102fe0414db21410ad5834341f", "24"),
         ]
         toolChain
     }
@@ -52,16 +52,16 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
          [20, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-aarch64_bin.tar.gz"],
          [20, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"],
          // bundled jdk
-         [24, ORACLE, MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
-         [24, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
-         [24, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
-         [24, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
-         [24, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"],
-         [24, anyVendor(), MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
-         [24, anyVendor(), MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
-         [24, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
-         [24, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
-         [24, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"]
+         [24, ORACLE, MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-x64_bin.tar.gz"],
+         [24, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-aarch64_bin.tar.gz"],
+         [24, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-x64_bin.tar.gz"],
+         [24, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-aarch64_bin.tar.gz"],
+         [24, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_windows-x64_bin.zip"],
+         [24, anyVendor(), MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-x64_bin.tar.gz"],
+         [24, anyVendor(), MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-aarch64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-x64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-aarch64_bin.tar.gz"],
+         [24, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_windows-x64_bin.zip"]
         ]
     }
 

@@ -9,28 +9,27 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-record TransportVersionId(int complete, int major, int server, int subsidiary, int patch) implements Comparable<TransportVersionId> {
+record TransportVersionId(int complete, int base, int patch) implements Comparable<TransportVersionId> {
+
+    public static TransportVersionId fromInt(int complete) {
+        int patch = complete % 1000;
+        int base = complete - patch;
+
+        return new TransportVersionId(complete, base, patch);
+    }
 
     static TransportVersionId fromString(String s) {
-        int complete = Integer.parseInt(s);
-        int patch = complete % 100;
-        int subsidiary = (complete / 100) % 10;
-        int server = (complete / 1000) % 1000;
-        int major = complete / 1000000;
-        return new TransportVersionId(complete, major, server, subsidiary, patch);
+        return fromInt(Integer.parseInt(s));
     }
 
     @Override
     public int compareTo(TransportVersionId o) {
-        return Integer.compare(complete, o.complete);
+        // note: this is descending order so the arguments are reversed
+        return Integer.compare(o.complete, complete);
     }
 
     @Override
     public String toString() {
         return Integer.toString(complete);
-    }
-
-    public int base() {
-        return (complete / 1000) * 1000;
     }
 }

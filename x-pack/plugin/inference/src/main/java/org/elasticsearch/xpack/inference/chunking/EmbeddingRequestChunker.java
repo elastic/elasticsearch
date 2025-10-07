@@ -37,16 +37,16 @@ import java.util.stream.Collectors;
  * a single large input that has been chunked may spread over
  * multiple batches.
  *
- * The final aspect it to gather the responses from the batch
+ * The final aspect is to gather the responses from the batch
  * processing and map the results back to the original element
  * in the input list.
  */
 public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
-    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, List<ChunkInferenceInput> inputs) {
+    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, String input) {
         public String chunkText() {
-            return inputs.get(inputIndex).input().substring(chunk.start(), chunk.end());
+            return input.substring(chunk.start(), chunk.end());
         }
     }
 
@@ -60,7 +60,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     private static final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
 
-    // The maximum number of chunks that is stored for any input text.
+    // The maximum number of chunks that are stored for any input text.
     // If the configured chunker chunks the text into more chunks, each
     // chunk is sent to the inference service separately, but the results
     // are merged so that only this maximum number of chunks is stored.
@@ -112,7 +112,8 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                 chunkingSettings = defaultChunkingSettings;
             }
             Chunker chunker = chunkers.getOrDefault(chunkingSettings.getChunkingStrategy(), defaultChunker);
-            List<ChunkOffset> chunks = chunker.chunk(inputs.get(inputIndex).input(), chunkingSettings);
+            String inputString = inputs.get(inputIndex).input();
+            List<ChunkOffset> chunks = chunker.chunk(inputString, chunkingSettings);
             int resultCount = Math.min(chunks.size(), MAX_CHUNKS);
             resultEmbeddings.add(new AtomicReferenceArray<>(resultCount));
             resultOffsetStarts.add(new ArrayList<>(resultCount));
@@ -129,7 +130,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                 } else {
                     resultOffsetEnds.getLast().set(targetChunkIndex, chunks.get(chunkIndex).end());
                 }
-                allRequests.add(new Request(inputIndex, targetChunkIndex, chunks.get(chunkIndex), inputs));
+                allRequests.add(new Request(inputIndex, targetChunkIndex, chunks.get(chunkIndex), inputString));
             }
         }
 

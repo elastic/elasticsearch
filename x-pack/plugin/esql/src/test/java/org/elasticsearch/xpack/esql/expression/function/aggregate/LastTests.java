@@ -33,7 +33,7 @@ public class LastTests extends AbstractAggregationTestCase {
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType valueType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE)) {
+        for (DataType valueType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT)) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
                 for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {

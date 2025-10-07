@@ -50,6 +50,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -173,7 +174,9 @@ public class MockNode extends Node {
             ClusterSettings clusterSettings,
             TaskManager taskManager,
             Tracer tracer,
-            String nodeId
+            String nodeId,
+            LinkedProjectConfigService linkedProjectConfigService,
+            ProjectResolver projectResolver
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -191,7 +194,9 @@ public class MockNode extends Node {
                     clusterSettings,
                     taskManager,
                     tracer,
-                    nodeId
+                    nodeId,
+                    linkedProjectConfigService,
+                    projectResolver
                 );
             } else {
                 return new MockTransportService(

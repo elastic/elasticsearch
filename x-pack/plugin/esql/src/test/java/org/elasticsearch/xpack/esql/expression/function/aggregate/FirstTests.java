@@ -37,7 +37,7 @@ public class FirstTests extends AbstractAggregationTestCase {
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType valueType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE)) {
+        for (DataType valueType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT)) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
                 for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
@@ -81,7 +81,7 @@ public class FirstTests extends AbstractAggregationTestCase {
                 }
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    "unused",
+                    standardAggregatorName(first ? "First" : "Last", values.type()) + "ByTimestamp",
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );

@@ -2,7 +2,7 @@
 
 ## `KNN` [esql-knn]
 ```{applies_to}
-stack: development
+stack: preview
 serverless: preview
 ```
 

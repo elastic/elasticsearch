@@ -136,6 +136,22 @@ language_code:integer | language_name:keyword
 6                     |null
 ;
 
+selfShadowing
+required_capability: join_lookup_v12
+required_capability: fix_join_output_merging
+
+FROM languages_lookup_non_unique_key
+| EVAL language_code = null::integer
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| LIMIT 3
+;
+
+language_code:integer |country:text |country.keyword:keyword |language_name:keyword
+null                  |null         |null                    |null
+null                  |null         |null                    |null
+null                  |null         |null                    |null
+;
+
 nonUniqueLeftKeyOnTheDataNode
 required_capability: join_lookup_v12
 
@@ -240,7 +256,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
     10091      | 1                     | null                  | United Kingdom
     10091      | 1                     | English               | United States of America
     10091      | 1                     | English               | null
-    10092      | 2                     | German                | [Germany, Austria]
+    10092      | 2                     | German                | [Austria, Germany]
     10092      | 2                     | German                | Switzerland
     10092      | 2                     | German                | null
     10093      | 3                     | null                  | null
@@ -265,7 +281,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 10001          | 1                     | English               | null
 10001          | 1                     | null                  | United Kingdom
 10001          | 1                     | English               | United States of America
-10002          | 2                     | German                | [Germany, Austria]
+10002          | 2                     | German                | [Austria, Germany]
 10002          | 2                     | German                | Switzerland
 10002          | 2                     | German                | null
 10003          | 3                     | null                  | null
@@ -308,7 +324,7 @@ ROW language_code = 2
 
 ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
-2                     | [Germany, Austria] | German
+2                     | [Austria, Germany] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;
@@ -1673,11 +1689,7 @@ null      |1952-02-27T00:00:00.000Z
 enrichLookupStatsBug
 required_capability: join_lookup_v12
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
-
-// from * accidentally selects columns with dense_vector field type.
-// This is not properly handled when the query is planned by newer node and executed by an older one.
-// see https://github.com/elastic/elasticsearch/issues/135193
-required_capability: dense_vector_field_type
+required_capability: dense_vector_agg_metric_double_if_fns
 
 from *
 | enrich languages_policy on cluster
@@ -5291,6 +5303,21 @@ null           | null             | corge          | null           | null
 null           | null             | fred           | null           | null
 ;
 
+lookupAfterDropAllColumns
+required_capability: fix_no_columns
+required_capability: join_lookup_v12
+FROM languages
+| DROP language_code
+| EVAL language_code = 3
+| LOOKUP JOIN languages_lookup ON language_code
+| LIMIT 3
+;
+
+ language_code:integer | language_name:keyword 
+3                      |Spanish
+3                      |Spanish
+3                      |Spanish
+;
 
 lookupJoinWithPushableFilterOnRight
 required_capability: join_lookup_v12

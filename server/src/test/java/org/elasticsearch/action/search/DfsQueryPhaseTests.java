@@ -48,7 +48,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -354,8 +353,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
             .knnSearch(
                 List.of(
-                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null),
-                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, 10f, null, null),
+                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, 10f, null, null)
                 )
             )
             .rankBuilder(new TestRankBuilder(100));

@@ -49,7 +49,6 @@ max_cost: double
 
 maxRateAndBytes
 required_capability: ts_command_v0
-required_capability: implicit_last_over_time
 TS k8s | STATS max(60 * rate(network.total_bytes_in)), max(network.bytes_in);
 
 max(60 * rate(network.total_bytes_in)): double | max(network.bytes_in): long
@@ -239,7 +238,6 @@ null                                     | three       | 2024-05-10T00:01:00.000
 
 max_over_time
 required_capability: ts_command_v0
-required_capability: max_over_time
 // tag::max_over_time[]
 TS k8s 
 | STATS cost=sum(max_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
@@ -263,7 +261,6 @@ cost:double | cluster:keyword | time_bucket:datetime
 
 min_over_time
 required_capability: ts_command_v0
-required_capability: min_over_time
 // tag::min_over_time[]
 TS k8s 
 | STATS cost=sum(min_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
@@ -287,7 +284,6 @@ cost:double | cluster:keyword | time_bucket:datetime
 
 max_of_avg_over_time
 required_capability: ts_command_v0
-required_capability: avg_over_time
 // tag::avg_over_time[]
 TS k8s
 | STATS max_cost=max(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
@@ -311,7 +307,6 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 
 avg_of_avg_over_time
 required_capability: ts_command_v0
-required_capability: avg_over_time
 TS k8s | STATS avg_cost=avg(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT avg_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
 avg_cost:double    | cluster:keyword | time_bucket:datetime    
@@ -330,7 +325,6 @@ avg_cost:double    | cluster:keyword | time_bucket:datetime
 
 max_of_last_over_time
 required_capability: ts_command_v0
-required_capability: last_over_time
 // tag::last_over_time[]
 TS k8s 
 | STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
@@ -354,7 +348,6 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 
 max_of_first_over_time
 required_capability: ts_command_v0
-required_capability: first_over_time
 // tag::first_over_time[]
 TS k8s
 | STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
@@ -378,13 +371,19 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 
 sum_over_time
 required_capability: ts_command_v0
-required_capability: sum_over_time
 
-TS k8s | STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT sum_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::sum_over_time[]
+TS k8s 
+| STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+// end::sum_over_time[]
+| SORT sum_cost DESC, time_bucket DESC, cluster 
+| LIMIT 10;
 
+// tag::sum_over_time-result[]
 sum_cost:double | cluster:keyword | time_bucket:datetime
     67.625      | qa              | 2024-05-10T00:17:00.000Z
     65.75       | staging         | 2024-05-10T00:09:00.000Z
+// end::sum_over_time-result[]
     48.125      | qa              | 2024-05-10T00:09:00.000Z
     48.125      | qa              | 2024-05-10T00:06:00.000Z
     41.25       | qa              | 2024-05-10T00:11:00.000Z
@@ -398,7 +397,6 @@ sum_cost:double | cluster:keyword | time_bucket:datetime
 
 count_over_time
 required_capability: ts_command_v0
-required_capability: count_over_time
 
 // tag::count_over_time[]
 TS k8s 
@@ -425,7 +423,6 @@ count:long | cluster:keyword | time_bucket:datetime
 ;
 count_distinct_over_time
 required_capability: ts_command_v0
-required_capability: count_distinct_over_time
 
 // tag::count_distinct_over_time[]
 TS k8s
@@ -467,7 +464,6 @@ cost_per_mb:double | cluster:keyword | time_bucket:datetime
 
 present_over_time
 required_capability: ts_command_v0
-required_capability: present_over_time
 
 // tag::present_over_time[]
 TS k8s 
@@ -494,7 +490,6 @@ true                    | two         | 2024-05-10T00:22:00.000Z
 
 absent_over_time
 required_capability: ts_command_v0
-required_capability: absent_over_time
 
 // tag::absent_over_time[]
 TS k8s 
@@ -517,4 +512,38 @@ false                    | two         | 2024-05-10T00:16:00.000Z
 true                     | two         | 2024-05-10T00:18:00.000Z
 false                    | two         | 2024-05-10T00:20:00.000Z
 false                    | two         | 2024-05-10T00:22:00.000Z
+;
+
+tsidMetadataAttributeCount
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+
+TS k8s METADATA _tsid
+| STATS cnt = count_distinct(_tsid)
+;
+
+cnt:long
+9
+;
+
+tsidMetadataAttributeAggregation
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+
+TS k8s METADATA _tsid
+| STATS cnt = count_distinct(_tsid) BY cluster, pod
+| SORT cluster
+;
+ignoreOrder:true
+
+cnt:long | cluster:keyword | pod:keyword
+1        | staging         | one
+1        | staging         | two
+1        | staging         | three
+1        | qa              | one
+1        | qa              | two
+1        | qa              | three
+1        | prod            | one
+1        | prod            | two
+1        | prod            | three
 ;

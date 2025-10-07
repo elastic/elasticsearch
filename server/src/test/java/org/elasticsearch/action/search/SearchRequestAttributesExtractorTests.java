@@ -137,15 +137,17 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         } else {
             assertNull(attributes.get(SearchRequestAttributesExtractor.KNN_ATTRIBUTE));
         }
-        if (rangeOnTimestamp) {
-            assertEquals(rangeOnTimestamp, attributes.get(SearchRequestAttributesExtractor.RANGE_TIMESTAMP_ATTRIBUTE));
+        if (rangeOnTimestamp && rangeOnEventIngested) {
+            assertEquals(
+                "@timestamp_AND_event.ingested",
+                attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE)
+            );
+        } else if (rangeOnTimestamp) {
+            assertEquals("@timestamp", attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE));
+        } else if (rangeOnEventIngested) {
+            assertEquals("event.ingested", attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE));
         } else {
-            assertNull(attributes.get(SearchRequestAttributesExtractor.RANGE_TIMESTAMP_ATTRIBUTE));
-        }
-        if (rangeOnEventIngested) {
-            assertEquals(rangeOnEventIngested, attributes.get(SearchRequestAttributesExtractor.RANGE_EVENT_INGESTED_ATTRIBUTE));
-        } else {
-            assertNull(attributes.get(SearchRequestAttributesExtractor.RANGE_EVENT_INGESTED_ATTRIBUTE));
+            assertNull(attributes.get(SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FIELD_ATTRIBUTE));
         }
     }
 
@@ -360,5 +362,57 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             );
             assertAttributes(stringObjectMap, "user", "_score", "hits_only", false, false, false, null);
         }
+    }
+
+    public void testIntrospectTimeRange() {
+        long nowInMillis = System.currentTimeMillis();
+        assertEquals("15_minutes", SearchRequestAttributesExtractor.introspectTimeRange(nowInMillis, nowInMillis));
+
+        long fifteenMinutesAgo = nowInMillis - (15 * 60 * 1000);
+        assertEquals(
+            "15_minutes",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(fifteenMinutesAgo, nowInMillis), nowInMillis)
+        );
+
+        long oneHourAgo = nowInMillis - (60 * 60 * 1000);
+        assertEquals(
+            "1_hour",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(oneHourAgo, fifteenMinutesAgo), nowInMillis)
+        );
+
+        long twelveHoursAgo = nowInMillis - (12 * 60 * 60 * 1000);
+        assertEquals(
+            "12_hours",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(twelveHoursAgo, oneHourAgo), nowInMillis)
+        );
+
+        long oneDayAgo = nowInMillis - (24 * 60 * 60 * 1000);
+        assertEquals(
+            "1_day",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(oneDayAgo, twelveHoursAgo), nowInMillis)
+        );
+
+        long threeDaysAgo = nowInMillis - (3 * 24 * 60 * 60 * 1000);
+        assertEquals(
+            "3_days",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(threeDaysAgo, oneDayAgo), nowInMillis)
+        );
+
+        long sevenDaysAgo = nowInMillis - (7 * 24 * 60 * 60 * 1000);
+        assertEquals(
+            "7_days",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(sevenDaysAgo, threeDaysAgo), nowInMillis)
+        );
+
+        long fourteenDaysAgo = nowInMillis - (14 * 24 * 60 * 60 * 1000);
+        assertEquals(
+            "14_days",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(fourteenDaysAgo, sevenDaysAgo), nowInMillis)
+        );
+
+        assertEquals(
+            "older_than_14_days",
+            SearchRequestAttributesExtractor.introspectTimeRange(randomLongBetween(0, fourteenDaysAgo), nowInMillis)
+        );
     }
 }

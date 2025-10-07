@@ -154,7 +154,6 @@ setup:
         index: test
         body:
           _source:
-            exclude_vectors: false
             includes: nested.vector
           sort: ["name"]
 

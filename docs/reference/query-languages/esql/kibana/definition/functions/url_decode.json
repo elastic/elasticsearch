@@ -32,6 +32,6 @@
   "examples" : [
     "ROW u = \"https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz\"\n| EVAL u = URL_DECODE(u)"
   ],
-  "preview" : true,
-  "snapshot_only" : true
+  "preview" : false,
+  "snapshot_only" : false
 }

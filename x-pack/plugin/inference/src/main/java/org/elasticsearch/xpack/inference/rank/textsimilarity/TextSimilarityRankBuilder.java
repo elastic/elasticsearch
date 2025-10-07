@@ -50,6 +50,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         License.OperationMode.ENTERPRISE
     );
 
+    private static final TransportVersion RERANKER_FAILURES_ALLOWED = TransportVersion.fromName("reranker_failures_allowed");
     private static final TransportVersion RERANK_SNIPPETS = TransportVersion.fromName("rerank_snippets");
 
     private final String inferenceId;
@@ -84,8 +85,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.inferenceText = in.readString();
         this.field = in.readString();
         this.minScore = in.readOptionalFloat();
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
-            || in.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (in.getTransportVersion().supports(RERANKER_FAILURES_ALLOWED)) {
             this.failuresAllowed = in.readBoolean();
         } else {
             this.failuresAllowed = false;
@@ -114,8 +114,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         out.writeString(inferenceText);
         out.writeString(field);
         out.writeOptionalFloat(minScore);
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
-            || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (out.getTransportVersion().supports(RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
         if (out.getTransportVersion().supports(RERANK_SNIPPETS)) {

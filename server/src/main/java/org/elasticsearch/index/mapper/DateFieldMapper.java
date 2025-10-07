@@ -550,7 +550,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, isIndexed, isStored, hasDocValues, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
@@ -664,6 +664,11 @@ public final class DateFieldMapper extends FieldMapper {
             return hasDocValuesSkipper;
         }
 
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
+        }
+
         /**
          * Format to use to resolve {@link Number}s from the source. Its valid
          * to send the numbers with up to six digits after the decimal place
@@ -747,33 +752,34 @@ public final class DateFieldMapper extends FieldMapper {
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
-            DateMathParser parser;
-            if (forcedDateParser == null) {
-                if (lowerTerm instanceof Number || upperTerm instanceof Number) {
-                    // force epoch_millis
-                    parser = EPOCH_MILLIS_PARSER;
-                } else {
-                    parser = dateMathParser;
-                }
-            } else {
-                parser = forcedDateParser;
-            }
-            return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query;
-                if (isIndexed()) {
-                    query = LongPoint.newRangeQuery(name(), l, u);
-                    if (hasDocValues()) {
-                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                        query = new IndexOrDocValuesQuery(query, dvQuery);
+            DateMathParser parser = resolveDateMathParser(forcedDateParser, lowerTerm, upperTerm);
+            return dateRangeQuery(
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                timeZone,
+                parser,
+                context,
+                resolution,
+                name(),
+                (l, u) -> {
+                    Query query;
+                    if (isIndexed()) {
+                        query = LongPoint.newRangeQuery(name(), l, u);
+                        if (hasDocValues()) {
+                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                            query = new IndexOrDocValuesQuery(query, dvQuery);
+                        }
+                    } else {
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     }
-                } else {
-                    query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    if (hasDocValues() && context.indexSortedOnField(name())) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    }
+                    return query;
                 }
-                if (hasDocValues() && context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
-                }
-                return query;
-            });
+            );
         }
 
         public static Query dateRangeQuery(
@@ -785,6 +791,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser parser,
             SearchExecutionContext context,
             Resolution resolution,
+            String fieldName,
             BiFunction<Long, Long, Query> builder
         ) {
             return handleNow(context, nowSupplier -> {
@@ -796,6 +803,7 @@ public final class DateFieldMapper extends FieldMapper {
                     if (includeLower == false) {
                         ++l;
                     }
+                    context.setTimeRangeFilterFromMillis(fieldName, l, resolution);
                 }
                 if (upperTerm == null) {
                     u = Long.MAX_VALUE;
@@ -938,7 +946,7 @@ public final class DateFieldMapper extends FieldMapper {
                     minValue = Long.min(minValue, skipper.minValue());
                     maxValue = Long.max(maxValue, skipper.maxValue());
                 }
-                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }
             byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {
@@ -948,7 +956,18 @@ public final class DateFieldMapper extends FieldMapper {
             long minValue = LongPoint.decodeDimension(minPackedValue, 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
-            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
+        }
+
+        public DateMathParser resolveDateMathParser(DateMathParser dateParser, Object from, Object to) {
+            if (dateParser == null) {
+                if (from instanceof Number || to instanceof Number) {
+                    // force epoch_millis
+                    return EPOCH_MILLIS_PARSER;
+                }
+                return this.dateMathParser;
+            }
+            return dateParser;
         }
 
         public Relation isFieldWithinQuery(
@@ -960,16 +979,10 @@ public final class DateFieldMapper extends FieldMapper {
             boolean includeUpper,
             ZoneId timeZone,
             DateMathParser dateParser,
-            QueryRewriteContext context
+            QueryRewriteContext context,
+            String fieldName
         ) {
-            if (dateParser == null) {
-                if (from instanceof Number || to instanceof Number) {
-                    // force epoch_millis
-                    dateParser = EPOCH_MILLIS_PARSER;
-                } else {
-                    dateParser = this.dateMathParser;
-                }
-            }
+            dateParser = resolveDateMathParser(dateParser, from, to);
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
@@ -980,6 +993,9 @@ public final class DateFieldMapper extends FieldMapper {
                     }
                     ++fromInclusive;
                 }
+                // we set the time range filter from during rewrite, because this may be the only time we ever parse it,
+                // in case the shard if filtered out and does not run the query phase or all its docs are within the bounds.
+                context.setTimeRangeFilterFromMillis(fieldName, fromInclusive, resolution);
             }
 
             long toInclusive = Long.MAX_VALUE;

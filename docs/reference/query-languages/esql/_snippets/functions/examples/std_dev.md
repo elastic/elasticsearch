@@ -9,7 +9,7 @@ FROM employees
 
 | std_dev_height:double |
 | --- |
-| 0.2063704436 |
+| 0.2063704 |
 
 The expression can use inline functions. For example, to calculate the population standard deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, and then use `STD_DEV` on the result
 
@@ -20,6 +20,6 @@ FROM employees
 
 | stddev_salary_change:double |
 | --- |
-| 6.8758295929 |
+| 6.87583 |
 
 

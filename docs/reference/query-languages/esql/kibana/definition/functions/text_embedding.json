@@ -3,7 +3,26 @@
   "type" : "scalar",
   "name" : "text_embedding",
   "description" : "Generates dense vector embeddings for text using a specified inference endpoint.",
-  "signatures" : [ ],
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "text",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text to generate embeddings from"
+        },
+        {
+          "name" : "inference_id",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Identifier of the inference endpoint"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    }
+  ],
   "examples" : [
     "ROW input=\"Who is Victor Hugo?\"\n| EVAL embedding = TEXT_EMBEDDING(\"Who is Victor Hugo?\", \"test_dense_inference\")\n;"
   ],

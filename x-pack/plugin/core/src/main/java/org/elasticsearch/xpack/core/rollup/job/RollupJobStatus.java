@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -75,12 +74,6 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     public RollupJobStatus(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
         currentPosition = in.readOptional(CURRENT_POSITION_READER);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // 7.x nodes serialize `upgradedDocumentID` flag. We don't need it anymore, but
-            // we need to pull it off the stream
-            // This can go away completely in 9.0
-            in.readBoolean();
-        }
     }
 
     private static final Reader<TreeMap<String, Object>> CURRENT_POSITION_READER = in -> new TreeMap<>(in.readGenericMap());
@@ -121,12 +114,6 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     public void writeTo(StreamOutput out) throws IOException {
         state.writeTo(out);
         out.writeOptional(StreamOutput::writeGenericMap, currentPosition);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // 7.x nodes expect a boolean `upgradedDocumentID` flag. We don't have it anymore,
-            // but we need to tell them we are upgraded in case there is a mixed cluster
-            // This can go away completely in 9.0
-            out.writeBoolean(true);
-        }
     }
 
     @Override

@@ -16,16 +16,18 @@ our [hands-on tutorial](/reference/query-languages/esql/esql-search-tutorial.md)
 For a high-level overview of search functionalities in {{esql}}, and to learn about relevance scoring, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring).
 :::
 
-{{esql}} provides a set of functions for performing searching on text fields.
-
-Use these functions
-for [full-text search](docs-content://solutions/search/full-text.md)
 and [semantic search](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).
 
 Full text functions can be used to
 match [multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md).
 A multivalued field that contains a value that matches a full text query is
 considered to match the query.
+
+:::{tip}
+For information regarding dense vector search functions,
+including [KNN](dense-vector-functions.md#esql-knn), please refer to
+the [Dense vector functions](dense-vector-functions.md) documentation.
+:::
 
 Full text functions are significantly more performant for text search use cases
 on large data sets than using pattern matching or regular expressions with

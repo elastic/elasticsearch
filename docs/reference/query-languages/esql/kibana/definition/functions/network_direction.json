@@ -54,7 +54,7 @@
     }
   ],
   "examples" : [
-    "FROM hosts |\nWHERE mv_count(ip0) == 1 AND mv_count(ip1) == 1 |\nEVAL direction = network_direction(ip0, ip1, [\"loopback\"]) |\nKEEP ip0, ip1, direction"
+    "ROW ip0 = \"1.2.3.4\"::ip, ip1 = \"5.6.7.8\"::ip, networks = [\"loopback\", \"private\"]\n| EVAL direction = network_direction(ip0, ip1, networks)\n| DROP networks"
   ],
   "preview" : false,
   "snapshot_only" : false

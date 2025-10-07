@@ -3,20 +3,13 @@
 **Example**
 
 ```esql
-FROM hosts |
-WHERE mv_count(ip0) == 1 AND mv_count(ip1) == 1 |
-EVAL direction = network_direction(ip0, ip1, ["loopback"]) |
-KEEP ip0, ip1, direction
+ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
+| EVAL direction = network_direction(ip0, ip1, networks)
+| DROP networks
 ```
 
 | ip0:ip | ip1:ip | direction:keyword |
 | --- | --- | --- |
-| 127.0.0.1 | 127.0.0.1 | internal |
-| ::1 | ::1 | internal |
-| 127.0.0.1 | ::1 | internal |
-| 127.0.0.1 | 127.0.0.2 | internal |
-| 127.0.0.1 | 128.0.0.1 | outbound |
-| fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | external |
-| fe80::cae2:65ff:fece:feb9 | 127.0.0.3 | inbound |
+| 1.2.3.4 | 5.6.7.8 | external |
 
 

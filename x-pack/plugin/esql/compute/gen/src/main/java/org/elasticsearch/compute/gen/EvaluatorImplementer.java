@@ -96,7 +96,7 @@ public class EvaluatorImplementer {
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         var hasFixedProcessFunctionArgs = processFunction.args.stream().anyMatch(x -> x instanceof FixedArgument == false);
-        var usesWarnings = processFunction.warnExceptions.isEmpty() == false || hasFixedProcessFunctionArgs;
+        var usesWarnings = processFunction.warnExceptions.isEmpty() == false || allNullsIsNull;
 
         if (usesWarnings) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);

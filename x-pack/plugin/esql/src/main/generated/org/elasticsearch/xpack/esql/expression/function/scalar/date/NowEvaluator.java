@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -26,6 +27,8 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final long now;
 
   private final DriverContext driverContext;
+
+  private Warnings warnings;
 
   public NowEvaluator(Source source, long now, DriverContext driverContext) {
     this.source = source;
@@ -60,6 +63,18 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public void close() {
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

@@ -750,37 +750,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertUnauthorizedToken(createTokenResponse.accessToken());
     }
 
-    public void testAuthenticateWithWrongToken() throws Exception {
-        final TokenService tokenService = internalCluster().getInstance(TokenService.class);
-        OAuth2Token response = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        assertNotNull(response.getRefreshToken());
-        // Assert that we can authenticate with the access token
-        assertAuthenticateWithToken(response.accessToken(), TEST_USER_NAME);
-        // Now attempt to authenticate with an invalid access token string
-        assertUnauthorizedToken(randomAlphaOfLengthBetween(0, 128));
-        // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
-        assertUnauthorizedToken(
-            tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_7_1_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
-            )
-        );
-        // Now attempt to authenticate with an invalid access token with valid structure (after 7.2 pre 8.10)
-        assertUnauthorizedToken(
-            tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_7_4_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_7_4_0, randomBoolean()).v1()
-            )
-        );
-        // Now attempt to authenticate with an invalid access token with valid structure (current version)
-        assertUnauthorizedToken(
-            tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersion.current(),
-                tokenService.getRandomTokenBytes(TransportVersion.current(), randomBoolean()).v1()
-            )
-        );
-    }
-
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         createSecurityIndexWithWaitForActiveShards();

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +17,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -117,7 +117,13 @@ public class NvidiaChatCompletionServiceSettings extends FilteredXContentObject 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_NVIDIA_ADDED;
+        assert false : "should never be called when supportsVersion is used";
+        return NvidiaUtils.ML_INFERENCE_NVIDIA_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return NvidiaUtils.supportsNvidia(version);
     }
 
     @Override

@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -27,11 +26,9 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -60,7 +57,7 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -133,7 +130,6 @@ public class NvidiaService extends SenderService {
      * @param serviceSettings the settings for the inference service
      * @param chunkingSettings the settings for chunking, if applicable
      * @param secretSettings the secret settings for the model, such as API keys or tokens
-     * @param failureMessage the message to use in case of failure
      * @param context the context for parsing configuration settings
      * @return a new instance of NvidiaModel based on the provided parameters
      */
@@ -143,27 +139,14 @@ public class NvidiaService extends SenderService {
         Map<String, Object> serviceSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
         switch (taskType) {
             case CHAT_COMPLETION, COMPLETION:
                 return new NvidiaChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
             default:
-                throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+                throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
         }
-    }
-
-    @Override
-    protected void doChunkedInfer(
-        Model model,
-        EmbeddingsInput inputs,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<List<ChunkedInference>> listener
-    ) {
-        throw new UnsupportedOperationException("Nvidia service does not support chunked inference");
     }
 
     @Override
@@ -191,6 +174,18 @@ public class NvidiaService extends SenderService {
         var action = new SenderExecutableAction(getSender(), manager, errorMessage);
 
         action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    protected void doChunkedInfer(
+        Model model,
+        List<ChunkInferenceInput> inputs,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        TimeValue timeout,
+        ActionListener<List<ChunkedInference>> listener
+    ) {
+        throw new UnsupportedOperationException("Nvidia service does not support chunked inference");
     }
 
     @Override
@@ -237,7 +232,6 @@ public class NvidiaService extends SenderService {
                 serviceSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
             );
 
@@ -267,14 +261,7 @@ public class NvidiaService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            chunkingSettings,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
-        );
+        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, chunkingSettings, secretSettingsMap);
     }
 
     private NvidiaModel createModelFromPersistent(
@@ -282,8 +269,7 @@ public class NvidiaService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
-        String failureMessage
+        Map<String, Object> secretSettings
     ) {
         return createModel(
             inferenceEntityId,
@@ -291,7 +277,6 @@ public class NvidiaService extends SenderService {
             serviceSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -306,19 +291,12 @@ public class NvidiaService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            chunkingSettings,
-            null,
-            parsePersistedConfigErrorMsg(modelId, NAME)
-        );
+        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, chunkingSettings, null);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_NVIDIA_ADDED;
+        return NvidiaUtils.ML_INFERENCE_NVIDIA_ADDED;
     }
 
     @Override

@@ -1,11 +1,11 @@
 pr: 136039
 summary: Disable cross-cluster functionality for `_fleet/_fleet_search`
-area: CCS
+area: Search
 type: breaking
 issues: []
 breaking:
   title: Disable cross-cluster functionality for `_fleet/_fleet_search`
-  area: CCS
+  area: Search
   details: |-
     This endpoint is largely used for local searches only and is not compatible with true cross-cluster searches where
     arbitrary number of indices and remotes can be specified. Although it is meant to accept an index parameter that

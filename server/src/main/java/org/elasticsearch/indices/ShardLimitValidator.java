@@ -249,10 +249,94 @@ public class ShardLimitValidator {
     }
 
     public enum LimitGroup {
-        NORMAL(NORMAL_GROUP),
-        FROZEN(FROZEN_GROUP),
-        INDEX("index"),
-        SEARCH("search");
+        NORMAL(NORMAL_GROUP) {
+            @Override
+            public int numberOfNodes(DiscoveryNodes discoveryNodes) {
+                return nodeCount(discoveryNodes, ShardLimitValidator::hasNonFrozen);
+            }
+
+            @Override
+            public int countShards(IndexMetadata indexMetadata) {
+                return isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, LimitGroup.NORMAL.groupName())
+                    ? indexMetadata.getTotalNumberOfShards()
+                    : 0;
+            }
+
+            @Override
+            public int newShardsTotal(int shards, int replicas) {
+                return shards * (1 + replicas);
+            }
+
+            @Override
+            protected int newReplicaShards(boolean isFrozenIndex, int shards, int replicaIncrease) {
+                return isFrozenIndex ? 0 : shards * replicaIncrease;
+            }
+        },
+        FROZEN(FROZEN_GROUP) {
+            @Override
+            public int numberOfNodes(DiscoveryNodes discoveryNodes) {
+                return nodeCount(discoveryNodes, ShardLimitValidator::hasFrozen);
+            }
+
+            @Override
+            public int countShards(IndexMetadata indexMetadata) {
+                return isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, LimitGroup.FROZEN.groupName())
+                    ? indexMetadata.getTotalNumberOfShards()
+                    : 0;
+            }
+
+            @Override
+            public int newShardsTotal(int shards, int replicas) {
+                return shards * (1 + replicas);
+            }
+
+            @Override
+            protected int newReplicaShards(boolean isFrozenIndex, int shards, int replicaIncrease) {
+                return isFrozenIndex ? shards * replicaIncrease : 0;
+            }
+        },
+        INDEX("index") {
+            @Override
+            public int numberOfNodes(DiscoveryNodes discoveryNodes) {
+                return nodeCount(discoveryNodes, node -> node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()));
+            }
+
+            @Override
+            public int countShards(IndexMetadata indexMetadata) {
+                return isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() : 0;
+            }
+
+            @Override
+            public int newShardsTotal(int shards, int replicas) {
+                return shards;
+            }
+
+            @Override
+            protected int newReplicaShards(boolean isFrozenIndex, int shards, int replicaIncrease) {
+                return 0;
+            }
+        },
+        SEARCH("search") {
+            @Override
+            public int numberOfNodes(DiscoveryNodes discoveryNodes) {
+                return nodeCount(discoveryNodes, node -> node.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()));
+            }
+
+            @Override
+            public int countShards(IndexMetadata indexMetadata) {
+                return isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() * indexMetadata.getNumberOfReplicas() : 0;
+            }
+
+            @Override
+            public int newShardsTotal(int shards, int replicas) {
+                return shards * replicas;
+            }
+
+            @Override
+            protected int newReplicaShards(boolean isFrozenIndex, int shards, int replicaIncrease) {
+                return shards * replicaIncrease;
+            }
+        };
 
         private final String groupName;
 
@@ -269,27 +353,20 @@ public class ShardLimitValidator {
             return groupName;
         }
 
-        public int numberOfNodes(DiscoveryNodes discoveryNodes) {
-            return switch (this) {
-                case NORMAL -> nodeCount(discoveryNodes, ShardLimitValidator::hasNonFrozen);
-                case FROZEN -> nodeCount(discoveryNodes, ShardLimitValidator::hasFrozen);
-                case INDEX -> nodeCount(discoveryNodes, node -> node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()));
-                case SEARCH -> nodeCount(discoveryNodes, node -> node.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()));
-            };
-        }
+        public abstract int numberOfNodes(DiscoveryNodes discoveryNodes);
 
-        public int countShards(IndexMetadata indexMetadata) {
-            return switch (this) {
-                case NORMAL -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, LimitGroup.NORMAL.groupName())
-                    ? indexMetadata.getTotalNumberOfShards()
-                    : 0;
-                case FROZEN -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, LimitGroup.FROZEN.groupName())
-                    ? indexMetadata.getTotalNumberOfShards()
-                    : 0;
-                case INDEX -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() : 0;
-                case SEARCH -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() * indexMetadata.getNumberOfReplicas() : 0;
-            };
-        }
+        public abstract int countShards(IndexMetadata indexMetadata);
+
+        /**
+         * Compute the total number of new shards including both primaries and replicas that would be created for the given
+         * number of shards and replicas in this group.
+         * @param shards Number of primary shards
+         * @param replicas Number of replica shards per primary
+         * @return Number of total new shards to be created for the group.
+         */
+        public abstract int newShardsTotal(int shards, int replicas);
+
+        protected abstract int newReplicaShards(boolean isFrozenIndex, int shards, int replicaIncrease);
 
         /**
          * Compute the total number of new shards including both primaries and replicas that would be created for an index with the
@@ -298,9 +375,9 @@ public class ShardLimitValidator {
          * @return The total number of new shards to be created for this group.
          */
         public int newShardsTotal(Settings indexSettings) {
-            final boolean isFrozenLimitGroup = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
-            final int numberOfShards = (isFrozenLimitGroup == (this == FROZEN)) ? INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings) : 0;
-            final int numberOfReplicas = (isFrozenLimitGroup == (this == FROZEN))
+            final boolean isFrozenIndex = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
+            final int numberOfShards = (isFrozenIndex == (this == FROZEN)) ? INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings) : 0;
+            final int numberOfReplicas = (isFrozenIndex == (this == FROZEN))
                 ? IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings)
                 : 0;
             return newShardsTotal(numberOfShards, numberOfReplicas);
@@ -313,31 +390,11 @@ public class ShardLimitValidator {
          * @return The number of new replica shards to be created for this group.
          */
         public int newShardsTotal(Settings indexSettings, int updatedReplicas) {
-            final boolean isFrozenLimitGroup = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
+            final boolean isFrozenIndex = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
             final int shards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
             final int replicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings);
             final int replicaIncrease = updatedReplicas - replicas;
-            return switch (this) {
-                case NORMAL -> isFrozenLimitGroup ? 0 : shards * replicaIncrease;
-                case FROZEN -> isFrozenLimitGroup ? shards * replicaIncrease : 0;
-                case INDEX -> 0;
-                case SEARCH -> shards * replicaIncrease;
-            };
-        }
-
-        /**
-         * Compute the total number of new shards including both primaries and replicas that would be created for the given
-         * number of shards and replicas in this group.
-         * @param shards Number of primary shards
-         * @param replicas Number of replica shards per primary
-         * @return Number of total new shards to be created for the group.
-         */
-        public int newShardsTotal(int shards, int replicas) {
-            return switch (this) {
-                case NORMAL, FROZEN -> shards * (1 + replicas);
-                case INDEX -> shards;
-                case SEARCH -> shards * replicas;
-            };
+            return newReplicaShards(isFrozenIndex, shards, replicaIncrease);
         }
 
         /**

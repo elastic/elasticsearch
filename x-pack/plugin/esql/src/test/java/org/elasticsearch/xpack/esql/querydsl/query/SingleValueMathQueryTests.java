@@ -13,6 +13,8 @@ import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
@@ -20,6 +22,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
@@ -55,7 +59,9 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
             params.add(new Object[] { new SneakyTwo(fieldType) });
             for (boolean multivaluedField : new boolean[] { true, false }) {
                 for (boolean allowEmpty : new boolean[] { true, false }) {
-                    params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, allowEmpty, 100) });
+                    for (boolean docValuesOnly : new boolean[] { true, false }) {
+                        params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesOnly, allowEmpty, 100) });
+                    }
                 }
             }
         }
@@ -122,10 +128,16 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
         }
     }
 
-    private record StandardSetup(String fieldType, boolean multivaluedField, boolean empty, int count) implements Setup {
+    private record StandardSetup(String fieldType, boolean multivaluedField, boolean docValuesOnly, boolean empty, int count)
+        implements
+            Setup {
         @Override
         public XContentBuilder mapping(XContentBuilder builder) throws IOException {
-            return builder.startObject("foo").field("type", fieldType).endObject();
+            if (docValuesOnly) {
+                return builder.startObject("foo").field("type", fieldType).field("index", false).endObject();
+            } else {
+                return builder.startObject("foo").field("type", fieldType).endObject();
+            }
         }
 
         @Override
@@ -134,7 +146,7 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
             for (int i = 0; i < count; i++) {
                 List<Object> values = values(i);
                 docs.add(values);
-                iw.addDocument(docFor(values));
+                iw.addDocument(docFor(values, docValuesOnly));
             }
             return docs;
         }
@@ -187,8 +199,8 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
             Object second = randomValue(fieldType);
             List<Object> justFirst = List.of(first);
             List<Object> both = List.of(first, second);
-            iw.addDocument(docFor(justFirst));
-            iw.addDocument(docFor(both));
+            iw.addDocument(docFor(justFirst, false));
+            iw.addDocument(docFor(both, false));
             return List.of(justFirst, both);
         }
 
@@ -212,16 +224,26 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
         };
     }
 
-    private static List<IndexableField> docFor(Iterable<Object> values) {
+    private static List<IndexableField> docFor(Iterable<Object> values, boolean docValuesOnly) {
         List<IndexableField> fields = new ArrayList<>();
         for (Object v : values) {
-            fields.add(switch (v) {
-                case Double n -> new DoubleField("foo", n, Field.Store.NO);
-                case Float n -> new DoubleField("foo", n, Field.Store.NO);
-                case Number n -> new LongField("foo", n.longValue(), Field.Store.NO);
-                case String s -> new KeywordField("foo", s, Field.Store.NO);
-                default -> throw new UnsupportedOperationException();
-            });
+            if (docValuesOnly) {
+                fields.add(switch (v) {
+                    case Double n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
+                    case Float n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
+                    case Number n -> new SortedNumericDocValuesField("foo", n.longValue());
+                    case String s -> new SortedSetDocValuesField("foo", new BytesRef(s));
+                    default -> throw new UnsupportedOperationException();
+                });
+            } else {
+                fields.add(switch (v) {
+                    case Double n -> new DoubleField("foo", n, Field.Store.NO);
+                    case Float n -> new DoubleField("foo", n, Field.Store.NO);
+                    case Number n -> new LongField("foo", n.longValue(), Field.Store.NO);
+                    case String s -> new KeywordField("foo", s, Field.Store.NO);
+                    default -> throw new UnsupportedOperationException();
+                });
+            }
         }
         return fields;
     }

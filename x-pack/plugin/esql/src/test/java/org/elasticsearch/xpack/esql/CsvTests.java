@@ -589,7 +589,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx)),
+            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx, mock(InferenceService.class))),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,
@@ -724,6 +724,7 @@ public class CsvTests extends ESTestCase {
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
             "final",
             foldCtx,
+            TEST_PLANNER_SETTINGS,
             new OutputExec(coordinatorPlan, collectedPages::add)
         );
         drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
@@ -745,7 +746,12 @@ public class CsvTests extends ESTestCase {
                     throw new AssertionError("expected no failure", e);
                 })
             );
-            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan("data", foldCtx, csvDataNodePhysicalPlan);
+            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(
+                "data",
+                foldCtx,
+                EsqlTestUtils.TEST_PLANNER_SETTINGS,
+                csvDataNodePhysicalPlan
+            );
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));
             Randomness.shuffle(drivers);

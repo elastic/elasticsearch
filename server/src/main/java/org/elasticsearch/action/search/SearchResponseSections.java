@@ -32,7 +32,8 @@ public class SearchResponseSections implements Releasable {
         false,
         null,
         null,
-        1
+        1,
+        null
     );
     public static final SearchResponseSections EMPTY_WITHOUT_TOTAL_HITS = new SearchResponseSections(
         SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
@@ -41,7 +42,8 @@ public class SearchResponseSections implements Releasable {
         false,
         null,
         null,
-        1
+        1,
+        null
     );
     protected final SearchHits hits;
     protected final InternalAggregations aggregations;
@@ -50,6 +52,7 @@ public class SearchResponseSections implements Releasable {
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
+    protected final Long timeRangeFilterFromMillis;
 
     public SearchResponseSections(
         SearchHits hits,
@@ -58,7 +61,8 @@ public class SearchResponseSections implements Releasable {
         boolean timedOut,
         Boolean terminatedEarly,
         SearchProfileResults profileResults,
-        int numReducePhases
+        int numReducePhases,
+        Long timeRangeFilterFromMillis
     ) {
         this.hits = hits;
         this.aggregations = aggregations;
@@ -67,6 +71,7 @@ public class SearchResponseSections implements Releasable {
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
     }
 
     public final SearchHits hits() {

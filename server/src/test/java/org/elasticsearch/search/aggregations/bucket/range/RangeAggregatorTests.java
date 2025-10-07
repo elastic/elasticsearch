@@ -303,7 +303,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 new NumberFieldMapper.NumberFieldType(
                     NUMBER_FIELD_NAME,
                     NumberType.INTEGER,
-                    IndexType.points(true, randomBoolean()),
+                    IndexType.points(randomBoolean(), true),
                     randomBoolean(),
                     false,
                     null,
@@ -321,7 +321,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldMillisecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            IndexType.points(true, randomBoolean()),
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
@@ -684,7 +684,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
-            IndexType.points(true, randomBoolean()),
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
             false,
             null,

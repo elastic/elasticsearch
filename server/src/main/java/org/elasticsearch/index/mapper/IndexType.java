@@ -162,6 +162,6 @@ public class IndexType {
      * @return an IndexType with a vector index
      */
     public static IndexType vectors() {
-        return new IndexType(false, false, false, true, true, false);
+        return new IndexType(false, false, false, true, false, false);
     }
 }

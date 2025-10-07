@@ -659,7 +659,7 @@ public class Constants {
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate",
         "indices:admin/sample",
-        "indices:admin/sample/config/update"
+        "indices:admin/sample/config/update",
         "indices:admin/sample/stats"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

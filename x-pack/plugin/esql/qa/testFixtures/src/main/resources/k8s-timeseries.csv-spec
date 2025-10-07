@@ -596,6 +596,7 @@ max_of_max:integer | time_bucket:datetime
 
 Max of max with TBucket and Rename timestamp
 required_capability: ts_command_v0
+required_capability: fix_rename_timestamp_rate_bug
 
 TS k8s
 | RENAME `@timestamp` AS newTs

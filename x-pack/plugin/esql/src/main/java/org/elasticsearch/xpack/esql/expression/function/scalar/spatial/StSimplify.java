@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
@@ -87,13 +88,9 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        // Get evaluators for the child expressions
-        EvalOperator.ExpressionEvaluator.Factory geometryEval = toEvaluator.apply(geometry);
-        EvalOperator.ExpressionEvaluator.Factory toleranceEval = toEvaluator.apply(tolerance);
-
         return dvrCtx -> {
-            EvalOperator.ExpressionEvaluator geometryEvaluator = geometryEval.get(dvrCtx);
-            EvalOperator.ExpressionEvaluator toleranceEvaluator = toleranceEval.get(dvrCtx);
+            EvalOperator.ExpressionEvaluator geometryEvaluator = toEvaluator.apply(geometry).get(dvrCtx);
+            EvalOperator.ExpressionEvaluator toleranceEvaluator = toEvaluator.apply(tolerance).get(dvrCtx);
 
             return new EvalOperator.ExpressionEvaluator() {
                 @Override
@@ -106,37 +103,52 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
                     var isGeometryFoldable = geometry.foldable();
                     var isToleranceFoldable = tolerance.foldable();
                     var positionCount = page.getPositionCount();
+                    var validator = StandardValidator.instance(true);
+                    WKTReader reader = new WKTReader();
+                    WKTWriter writer = new WKTWriter();
 
-                    if (isGeometryFoldable) {
-                        var esGeometry = makeGeometryFromLiteral(toEvaluator.foldCtx(), geometry);
-                        String wkt = WellKnownText.toWKT(esGeometry);
-                        WKTReader reader = new WKTReader();
+                    // TODO We are not extracting non foldable geometries
+                    // TODO We are not using the tolerance
+                    try (var result = dvrCtx.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+                        if (isGeometryFoldable) {
+                            var esGeometry = makeGeometryFromLiteral(toEvaluator.foldCtx(), geometry);
+                            String wkt = WellKnownText.toWKT(esGeometry);
 
-                        try (var result = dvrCtx.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-                            for (int p = 0; p < positionCount; p++) {
-                                try {
-                                    org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
-                                    org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(
-                                        jtsGeometry,
-                                        0
-                                    );
-                                    WKTWriter writer = new WKTWriter();
-                                    String simplifiedWkt = writer.write(simplifiedGeometry);
-                                    Geometry esGeometryResult = WellKnownText.fromWKT(
-                                        StandardValidator.instance(true),
-                                        false,
-                                        simplifiedWkt
-                                    );
+                            try {
+                                org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
+                                org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, 0);
+                                String simplifiedWkt = writer.write(simplifiedGeometry);
+                                Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
+
+                                for (int p = 0; p < positionCount; p++) {
                                     result.appendBytesRef(new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN)));
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
                                 }
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
                             }
-                            return result.build().asBlock();
+                        } else {
+                            // Geometry is non foldable
+                            BytesRefVectorBlock block = (BytesRefVectorBlock) geometryEvaluator.eval(page);
+                            var bytesRefVector = block.asVector();
+
+                            try {
+                                for (int p = 0; p < positionCount; p++) {
+                                    var destRef = bytesRefVector.getBytesRef(p, new BytesRef());
+                                    var wkt = WellKnownText.fromWKB(destRef.bytes, destRef.offset, destRef.length);
+                                    org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
+                                    org.locationtech.jts.geom.Geometry simplifiedGeometry =
+                                        DouglasPeuckerSimplifier.simplify(jtsGeometry, 0);
+                                    String simplifiedWkt = writer.write(simplifiedGeometry);
+                                    Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
+                                    result.appendBytesRef(new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN)));
+                                }
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
                         }
+
+                        return result.build().asBlock();
                     }
-                    // identity
-                    return geometryEvaluator.eval(page);
                 }
 
                 @Override

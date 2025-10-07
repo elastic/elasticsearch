@@ -735,6 +735,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:text-embedding.Text_embedding with multiple knn queries in fork}
   issue: https://github.com/elastic/elasticsearch/issues/136090
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.ForkBranchWithInlineStats}
+  issue: https://github.com/elastic/elasticsearch/issues/136091
 
 # Examples:
 #

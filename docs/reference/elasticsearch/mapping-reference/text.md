@@ -347,7 +347,9 @@ The following mapping parameters are accepted:
 serverless: preview
 stack: preview 9.2
 ```
-
+:::{note}
+This feature requires a [subscription](https://www.elastic.co/subscriptions).
+:::
 
 The `pattern_text` field type is a variant of [`text`](#text-field-type) with improved space efficiency for log data.
 Internally, it decomposes values into static parts that are likely to be shared among many values, and dynamic parts that tend to vary.

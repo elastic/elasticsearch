@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -44,7 +45,9 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -100,6 +103,7 @@ import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
@@ -575,6 +579,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     allocation.routingNodes().getRelocatingShardCount(),
                     equalTo(0)
                 );
+                assertThat(allocation.routingNodes().node("node-2").started(), arrayWithSize(2));
             }
 
             @Override
@@ -595,9 +600,20 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         final var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
         for (var nodeId : List.of("node-0", "node-1")) {
+            final var desiredBalanceInput = new DesiredBalanceInput(
+                randomInt(),
+                new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
+                    @Override
+                    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                        // Move command works every decision except NO
+                        return randomFrom(Decision.YES, Decision.THROTTLE, Decision.THROTTLE);
+                    }
+                })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
+                List.of()
+            );
             var desiredBalance = desiredBalanceComputer.compute(
                 DesiredBalance.BECOME_MASTER_INITIAL,
-                createInput(clusterState),
+                desiredBalanceInput,
                 queue(
                     new MoveAllocationCommand(index.getName(), 0, nodeId, "node-2"),
                     new MoveAllocationCommand(index.getName(), 1, nodeId, "node-2")
@@ -616,6 +632,67 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 )
             );
         }
+    }
+
+    public void testCannotApplyMoveCommand() {
+        var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                assertThat(
+                    "unexpected relocating shards: " + allocation.routingNodes(),
+                    allocation.routingNodes().getRelocatingShardCount(),
+                    equalTo(0)
+                );
+                assertThat(allocation.routingNodes().node("node-2").isEmpty(), equalTo(true));
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        });
+        var clusterState = createInitialClusterState(3);
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
+
+        var changes = new RoutingChangesObserver.DelegatingRoutingChangesObserver();
+        var routingNodes = clusterState.mutableRoutingNodes();
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            var shardRouting = iterator.next();
+            routingNodes.startShard(iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes, 0L);
+        }
+        clusterState = rebuildRoutingTable(clusterState, routingNodes);
+
+        final var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
+            final var desiredBalanceInput = new DesiredBalanceInput(
+                randomInt(),
+                new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
+                    @Override
+                    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                        return Decision.NO;
+                    }
+                })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
+                List.of()
+            );
+            var desiredBalance = desiredBalanceComputer.compute(
+                DesiredBalance.BECOME_MASTER_INITIAL,
+                desiredBalanceInput,
+                queue(
+                    new MoveAllocationCommand(index.getName(), 0, randomFrom("node-0", "node-1"), "node-2"),
+                    new MoveAllocationCommand(index.getName(), 1, randomFrom("node-0", "node-1"), "node-2")
+                ),
+                input -> true
+            );
+
+            final Set<String> expectedNodeIds = Set.of("node-0", "node-1");
+            assertDesiredAssignments(
+                desiredBalance,
+                Map.of(
+                    new ShardId(index, 0),
+                    new ShardAssignment(expectedNodeIds, 2, 0, 0),
+                    new ShardId(index, 1),
+                    new ShardAssignment(expectedNodeIds, 2, 0, 0)
+                )
+            );
     }
 
     public void testDesiredBalanceShouldConvergeInABigCluster() {

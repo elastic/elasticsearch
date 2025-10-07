@@ -293,6 +293,7 @@ public class DesiredBalanceComputer {
             for (MoveAllocationCommand command : commands) {
                 try {
                     final var rerouteExplanation = command.execute(routingAllocation, false);
+                    assert rerouteExplanation.decisions().type() != Decision.Type.NO;
                     if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
                         final ShardRouting[] initializingShards = routingNodes.node(command.toNode()).initializing();
                         assert initializingShards.length == 1 && command.fromNode().equals(initializingShards[0].relocatingNodeId())

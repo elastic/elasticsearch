@@ -13,6 +13,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
  * Functional interface representing a function that takes an integer input
  * and produces a boolean output.
  */
-interface IntToBooleanFunction {
+public interface IntToBooleanFunction {
     boolean apply(int value);
 }

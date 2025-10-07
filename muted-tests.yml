@@ -633,9 +633,6 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSearch {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135927
-- class: org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilderTests
-  method: testBuildChunkingSettingsForElasticReranker_QueryTokenCountLessThanHalfOfTokenLimit
-  issue: https://github.com/elastic/elasticsearch/issues/135928
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testPeerRecoveryRetentionLeases {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135929
@@ -726,6 +723,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkWithFiltersOnConstantValues}
   issue: https://github.com/elastic/elasticsearch/issues/136031
+- class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
+  method: testConcurrentAuthentication
+  issue: https://github.com/elastic/elasticsearch/issues/135777
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:math.NegateIntLongDouble}
+  issue: https://github.com/elastic/elasticsearch/issues/136089
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.Text_embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/136090
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.ForkBranchWithInlineStats}
+  issue: https://github.com/elastic/elasticsearch/issues/136091
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:date.EvalDateTruncQuarterlyIntervalWithGTInRange}
+  issue: https://github.com/elastic/elasticsearch/issues/136102
 
 # Examples:
 #

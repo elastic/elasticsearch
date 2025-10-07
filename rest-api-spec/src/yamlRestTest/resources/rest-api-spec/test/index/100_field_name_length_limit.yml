@@ -1,3 +1,10 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.ignore_dynamic_field_names_beyond_limit"]
+      reason: "setting must be present to be tested"
+
+---
+
 "Test field name length limit":
   - do:
       indices.create:
@@ -111,3 +118,25 @@
   - match:
       _source:
         test_really_long_field_name_that_will_be_ignored: foo
+
+---
+
+"Test field name length limit with static mapping":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                field_name_length:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 45
+          mappings:
+            dynamic: false
+            properties:
+              test_really_long_field_name_that_will_be_ignored:
+                type: text
+
+  - match: {error.reason: "Field name [test_really_long_field_name_that_will_be_ignored] is longer than the limit of [45] characters"}

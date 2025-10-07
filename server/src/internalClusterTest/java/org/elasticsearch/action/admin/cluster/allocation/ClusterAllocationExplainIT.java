@@ -538,8 +538,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Move.NO, moveDecision.getExplanation());
-        assertFalse(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.canRemainYes());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNull(moveDecision.getClusterRebalanceDecision());
         assertNull(moveDecision.getTargetNode());
@@ -651,8 +651,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE, moveDecision.getExplanation());
-        assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertTrue(moveDecision.canRemainYes());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -757,8 +757,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
-        assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertTrue(moveDecision.canRemainYes());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -855,8 +855,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
-        assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertTrue(moveDecision.canRemainYes());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -963,8 +963,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE, moveDecision.getExplanation());
-        assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertTrue(moveDecision.canRemainYes());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());

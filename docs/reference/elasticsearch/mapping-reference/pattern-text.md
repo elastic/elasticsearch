@@ -4,7 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/pattern-text.html
 ---
 
-## Pattern text field type [pattern-text-field-type]
+# Pattern text field type [pattern-text-field-type]
 ```{applies_to}
 serverless: preview
 stack: preview 9.2

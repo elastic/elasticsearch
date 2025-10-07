@@ -4,7 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/match-only-text.html
 ---
 
-## Match-only text field type [match-only-text-field-type]
+# Match-only text field type [match-only-text-field-type]
 
 A variant of [`text`](#text-field-type) that trades scoring and efficiency of positional queries for space efficiency. This field effectively stores data the same way as a `text` field that only indexes documents (`index_options: docs`) and disables norms (`norms: false`). Term queries perform as fast if not faster as on `text` fields, however queries that need positions such as the [`match_phrase` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) perform slower as they need to look at the `_source` document to verify whether a phrase matches. All queries return constant scores that are equal to 1.0.
 

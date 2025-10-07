@@ -36,7 +36,7 @@ import java.util.List;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 
 /**
- * Returns whether a connection is inbound given a source IP address, destination IP address, and a list of internal networks.
+ * Returns the direction type (inbound, outbound, internal, external) given a source IP address, destination IP address, and a list of internal networks.
  */
 public class NetworkDirection extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -51,7 +51,7 @@ public class NetworkDirection extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns true if the direction of the source-to-destination-IPs is determined to be inbound, provided a list of internal networks.",
+        description = "Returns the direction type (inbound, outbound, internal, external) given a source IP address, destination IP address, and a list of internal networks.",
         examples = @Example(file = "ip", tag = "networkDirectionSimple")
     )
     public NetworkDirection(

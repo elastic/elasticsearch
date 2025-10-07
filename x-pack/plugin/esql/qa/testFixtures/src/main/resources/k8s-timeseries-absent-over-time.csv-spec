@@ -134,7 +134,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_keyword
 required_capability: ts_command_v0
-TS k8s | STATS is_present = max(absent_over_time(pod)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s | STATS is_present = max(absent_over_time(network.eth0.tx)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
 false              | prod            | 2024-05-10T00:00:00.000Z

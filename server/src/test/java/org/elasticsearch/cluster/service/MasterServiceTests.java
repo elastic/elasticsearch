@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -278,7 +277,9 @@ public class MasterServiceTests extends ESTestCase {
                             )
                         );
                     } else {
-                        randomExecutor(threadPool).execute(() -> publishListener.onFailure(randomClusterStateUpdateException()));
+                        randomExecutor(threadPool).execute(
+                            () -> publishListener.onFailure(new FailedToCommitClusterStateException("simulated publish failure"))
+                        );
                     }
                 }
             });
@@ -1069,16 +1070,13 @@ public class MasterServiceTests extends ESTestCase {
             assertNotNull(stateBeforeFailure);
 
             final var publicationFailedExceptionMessage = "simulated publication failure";
-            ElasticsearchException clusterStateUpdateException = randomBoolean()
-                ? new FailedToPublishClusterStateException(publicationFailedExceptionMessage)
-                : new FailedToCommitClusterStateException(publicationFailedExceptionMessage);
 
             masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
                 assertSame(stateBeforeFailure, clusterStatePublicationEvent.getOldState());
                 assertNotSame(stateBeforeFailure, clusterStatePublicationEvent.getNewState());
                 assertTrue(publishedState.compareAndSet(null, clusterStatePublicationEvent.getNewState()));
                 ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-                publishListener.onFailure(clusterStateUpdateException);
+                publishListener.onFailure(new FailedToCommitClusterStateException(publicationFailedExceptionMessage));
             });
 
             toSubmit = between(1, 10);
@@ -1094,11 +1092,7 @@ public class MasterServiceTests extends ESTestCase {
                     final var task = new Task(expectFailure, testResponseHeaderValue, assertNoSuccessListener(e -> {
                         assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
                         assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
-                        if (clusterStateUpdateException instanceof FailedToPublishClusterStateException) {
-                            assertThat(e, instanceOf(FailedToPublishClusterStateException.class));
-                        } else {
-                            assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
-                        }
+                        assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
                         assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
                         if (expectFailure) {
                             assertThat(e.getSuppressed().length, greaterThan(0));
@@ -1612,12 +1606,10 @@ public class MasterServiceTests extends ESTestCase {
             {
                 final CountDownLatch latch = new CountDownLatch(1);
 
-                String publicationFailedExceptionMessage = "mock exception";
-                ElasticsearchException clusterStateUpdateException = randomBoolean()
-                    ? new FailedToPublishClusterStateException(publicationFailedExceptionMessage)
-                    : new FailedToCommitClusterStateException(publicationFailedExceptionMessage);
                 publisherRef.set(
-                    (clusterChangedEvent, publishListener, ackListener) -> publishListener.onFailure(clusterStateUpdateException)
+                    (clusterChangedEvent, publishListener, ackListener) -> publishListener.onFailure(
+                        new FailedToCommitClusterStateException("mock exception")
+                    )
                 );
 
                 masterService.submitUnbatchedStateUpdateTask(
@@ -1641,12 +1633,7 @@ public class MasterServiceTests extends ESTestCase {
 
                         @Override
                         public void onFailure(Exception e) {
-                            if (clusterStateUpdateException instanceof FailedToPublishClusterStateException) {
-                                assertThat(e, instanceOf(FailedToPublishClusterStateException.class));
-                            } else {
-                                assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
-                            }
-                            assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
+                            assertEquals("mock exception", asInstanceOf(FailedToCommitClusterStateException.class, e).getMessage());
                             latch.countDown();
                         }
 
@@ -2195,7 +2182,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof NotMasterException
+                    if ((e instanceof FailedToCommitClusterStateException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);
@@ -2374,7 +2361,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof NotMasterException
+                    if ((e instanceof FailedToCommitClusterStateException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);

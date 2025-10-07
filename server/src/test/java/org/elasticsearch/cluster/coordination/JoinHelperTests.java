@@ -218,16 +218,6 @@ public class JoinHelperTests extends ESTestCase {
 
         assertThat(
             JoinHelper.FailedJoinAttempt.getLogLevel(
-                new RemoteTransportException(
-                    "caused by FailedToPublishClusterStateException",
-                    new FailedToPublishClusterStateException("test")
-                )
-            ),
-            is(Level.DEBUG)
-        );
-
-        assertThat(
-            JoinHelper.FailedJoinAttempt.getLogLevel(
                 new RemoteTransportException("caused by NotMasterException", new NotMasterException("test"))
             ),
             is(Level.DEBUG)

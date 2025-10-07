@@ -1568,7 +1568,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             clusterStatePublicationEvent.getSummary()
                         )
                     );
-                    throw new FailedToPublishClusterStateException("publication " + currentPublication.get() + " already in progress");
+                    throw new NotMasterException("publication " + currentPublication.get() + " already in progress");
                 }
 
                 assert assertPreviousStateConsistency(clusterStatePublicationEvent);
@@ -1587,7 +1587,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 } catch (Exception e) {
                     logger.debug(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing failed during context creation", e);
                     becomeCandidate("publication context creation");
-                    throw new FailedToPublishClusterStateException("publishing failed during context creation", e);
+                    throw new NotMasterException("publishing failed during context creation", e);
                 }
 
                 try (Releasable ignored = publicationContext::decRef) {
@@ -1608,7 +1608,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             e
                         );
                         becomeCandidate("publication creation");
-                        throw new FailedToPublishClusterStateException("publishing failed while starting", e);
+                        throw new NotMasterException("publishing failed while starting", e);
                     }
 
                     try {
@@ -1639,12 +1639,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     }
                 }
             }
-        } catch (FailedToPublishClusterStateException | FailedToCommitClusterStateException | NotMasterException e) {
+        } catch (FailedToCommitClusterStateException | NotMasterException e) {
             publishListener.onFailure(e);
         } catch (Exception e) {
-            assert false : e; // all exceptions should already be caught and wrapped in a FailedToPublishClusterStateException |
+            assert false : e; // all exceptions should already be caught and wrapped in a FailedToCommitClusterStateException |
             logger.error(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing unexpectedly failed", e);
-            publishListener.onFailure(new FailedToPublishClusterStateException("publishing unexpectedly failed", e));
+            publishListener.onFailure(new FailedToCommitClusterStateException("publishing unexpectedly failed", e));
         }
     }
 

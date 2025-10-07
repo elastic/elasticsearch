@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1311,12 +1310,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         RepositoryData repositoryData,
         UpdatedShardGenerations updatedShardGenerations
     ) {
-        if (ExceptionsHelper.unwrap(
-            e,
-            NotMasterException.class,
-            FailedToPublishClusterStateException.class,
-            FailedToCommitClusterStateException.class
-        ) != null) {
+        if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
             // will try ending this snapshot again
             logger.debug(() -> "[" + snapshot + "] failed to update cluster state during snapshot finalization", e);
@@ -1968,12 +1962,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         logger.debug("Failing all snapshot operation listeners because this node is not master any longer", e);
         final List<Runnable> readyToResolveListeners = new ArrayList<>();
         synchronized (currentlyFinalizing) {
-            if (ExceptionsHelper.unwrap(
-                e,
-                NotMasterException.class,
-                FailedToPublishClusterStateException.class,
-                FailedToCommitClusterStateException.class
-            ) != null) {
+            if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
                 for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
                     failSnapshotCompletionListeners(

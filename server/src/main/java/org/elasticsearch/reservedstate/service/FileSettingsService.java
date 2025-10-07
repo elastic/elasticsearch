@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -255,8 +254,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             } else if (cause instanceof NotMasterException) {
                 logger().error(Strings.format("Node is no longer master while processing file [%s]", file), e);
                 return;
-            } else if (cause instanceof FailedToPublishClusterStateException) {
-                logger().error(Strings.format("Unable to publish cluster state while processing file [%s]", file), e);
             }
         }
 

@@ -23,10 +23,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -627,7 +629,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                     clusterService,
                     ClusterState.builder(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes)).incrementVersion().build()
                 );
-                listener.onFailure(randomClusterStateUpdateException());
+                Exception failure = randomBoolean()
+                    ? new FailedToCommitClusterStateException("Fake error")
+                    : new NotMasterException("Fake error");
+                listener.onFailure(failure);
             }
         }, null, request, listener);
 

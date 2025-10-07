@@ -23,7 +23,7 @@ import java.io.IOException;
  * <i>ambiguity</i> whether a cluster state update has been committed.
  * <p>
  * For exceptions thrown prior to publication,
- * when the cluster update has <i>definitely</i> failed, use a {@link FailedToPublishClusterStateException}.
+ * when the cluster update has <i>definitely</i> failed, use a different exception.
  * <p>
  * If during a cluster state update the node is no longer master, use a {@link NotMasterException}
  * <p>

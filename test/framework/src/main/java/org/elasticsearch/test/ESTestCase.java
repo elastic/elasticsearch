@@ -59,10 +59,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -1488,21 +1485,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             return threadPool.generic();
         } else {
             return EsExecutors.DIRECT_EXECUTOR_SERVICE;
-        }
-    }
-
-    /**
-     * Randomly chooses between {@link NotMasterException}, {@link FailedToCommitClusterStateException}
-     * and {@link FailedToPublishClusterStateException}.
-     */
-    public static Exception randomClusterStateUpdateException() {
-        int choice = between(0, 2);
-        if (choice == 0) {
-            return new NotMasterException("Fake NotMasterException");
-        } else if (choice == 1) {
-            return new FailedToCommitClusterStateException("Fake FailedToCommitClusterStateException");
-        } else {
-            return new FailedToPublishClusterStateException(" Fake FailedToPublishClusterStateException");
         }
     }
 

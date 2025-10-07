@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -102,12 +101,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
     @Override
     protected void handleFailure(Exception e) {
         Level level;
-        if (ExceptionsHelper.unwrap(
-            e,
-            NotMasterException.class,
-            FailedToPublishClusterStateException.class,
-            FailedToCommitClusterStateException.class
-        ) != null) {
+        if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             level = Level.DEBUG;
         } else {
             level = Level.ERROR;

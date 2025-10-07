@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -236,11 +235,7 @@ public class ShardStateActionTests extends ESTestCase {
             if (randomBoolean()) {
                 transport.handleRemoteError(
                     requestId,
-                    randomFrom(
-                        new NotMasterException("simulated"),
-                        new FailedToPublishClusterStateException("simulated"),
-                        new FailedToCommitClusterStateException("simulated")
-                    )
+                    randomFrom(new NotMasterException("simulated"), new FailedToCommitClusterStateException("simulated"))
                 );
             } else {
                 if (randomBoolean()) {

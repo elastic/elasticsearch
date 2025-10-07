@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
@@ -162,7 +161,6 @@ public class TrainedModelAssignmentService {
     private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[] {
         NotMasterException.class,
         ConnectTransportException.class,
-        FailedToPublishClusterStateException.class,
         FailedToCommitClusterStateException.class };
 
     private static boolean isMasterChannelException(Exception exp) {

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.coordination.FailedToPublishClusterStateException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
@@ -221,7 +220,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     .setClusterStatePublisher(
                         randomBoolean()
                             ? ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService())
-                            : (event, publishListener, ackListener) -> publishListener.onFailure(randomClusterStateUpdateException())
+                            : (event, publishListener, ackListener) -> publishListener.onFailure(
+                                new FailedToCommitClusterStateException("simulated")
+                            )
                     );
             }
 
@@ -242,6 +243,11 @@ public class BatchedRerouteServiceTests extends ESTestCase {
     public void testExceptionFidelity() {
 
         try (var mockLog = MockLog.capture(BatchedRerouteService.class)) {
+
+            clusterService.getMasterService()
+                .setClusterStatePublisher(
+                    (event, publishListener, ackListener) -> publishListener.onFailure(new FailedToCommitClusterStateException("simulated"))
+                );
 
             // Case 1: an exception thrown from within the reroute itself
 
@@ -278,14 +284,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 new MockLog.UnseenEventExpectation("no info", BatchedRerouteService.class.getCanonicalName(), Level.INFO, "*")
             );
 
-            // Case 2: a FailedToPublishClusterStateException
+            // Case 2: a FailedToCommitClusterStateException (see the call to setClusterStatePublisher above)
 
-            clusterService.getMasterService()
-                .setClusterStatePublisher(
-                    (event, publishListener, ackListener) -> publishListener.onFailure(new FailedToPublishClusterStateException("test"))
-                );
-
-            BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
+            final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
                 l.onResponse(null);
                 return ClusterState.builder(s).build();
             });
@@ -303,37 +304,12 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             batchedRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), publishFailureFuture);
             expectThrows(
                 ExecutionException.class,
-                FailedToPublishClusterStateException.class,
+                FailedToCommitClusterStateException.class,
                 () -> publishFailureFuture.get(10, TimeUnit.SECONDS)
             );
             mockLog.assertAllExpectationsMatched();
 
-            // Case 3: a FailedToCommitClusterStateException
-
-            clusterService.getMasterService()
-                .setClusterStatePublisher(
-                    (event, publishListener, ackListener) -> publishListener.onFailure(new FailedToCommitClusterStateException("test"))
-                );
-
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "commit failure",
-                    BatchedRerouteService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "unexpected failure"
-                )
-            );
-
-            final var commitFailureFuture = new PlainActionFuture<Void>();
-            batchedRerouteService.reroute("commit failure", randomFrom(EnumSet.allOf(Priority.class)), commitFailureFuture);
-            expectThrows(
-                ExecutionException.class,
-                FailedToCommitClusterStateException.class,
-                () -> commitFailureFuture.get(10, TimeUnit.SECONDS)
-            );
-            mockLog.assertAllExpectationsMatched();
-
-            // Case 4: a NotMasterException
+            // Case 3: a NotMasterException
 
             safeAwait((ActionListener<Void> listener) -> clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
                 final var state = clusterService.state();

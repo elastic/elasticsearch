@@ -29,10 +29,10 @@ public final class FieldNameValidator {
 
         List<String> matches = new ArrayList<>();
 
-        List<String> allFieldNames = new ArrayList<>();
         for (Mapper mapper : context.getMappingLookup().fieldMappers()) {
-            if (mapper instanceof FieldMapper fieldMapper) {
-                allFieldNames.add(fieldMapper.fullPath());
+            String fullName = mapper.fullPath();
+            if (fullName.equals(fieldName) || fullName.endsWith("." + fieldName)) {
+                matches.add(fullName);
             }
         }
 

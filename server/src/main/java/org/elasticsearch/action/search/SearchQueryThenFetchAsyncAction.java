@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -81,6 +81,8 @@ import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSi
 public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
+
+    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
 
     private final SearchProgressListener progressListener;
 
@@ -476,7 +478,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             // must check both node and transport versions to correctly deal with BwC on proxy connections
-            if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
+            if (connection.getTransportVersion().supports(BATCHED_QUERY_PHASE_VERSION) == false
                 || connection.getNode().getVersionInformation().nodeVersion().before(Version.V_9_1_0)) {
                 executeWithoutBatching(routing, request);
                 return;

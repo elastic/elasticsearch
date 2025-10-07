@@ -21,7 +21,8 @@ FROM semantic_text METADATA _score
 Generate text embeddings inline within a KNN search.
 
 ```esql
-null
+FROM semantic_text METADATA _score
+| WHERE KNN(semantic_text_dense_field, TEXT_EMBEDDING("be excellent to each other", "test_dense_inference"))
 ```
 
 

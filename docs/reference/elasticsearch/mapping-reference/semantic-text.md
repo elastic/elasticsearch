@@ -613,7 +613,6 @@ PUT test-index
 
 ## Querying `semantic_text` fields [querying-semantic-text-fields]
 
-Querying `semantic_text` fields enables semantic search by matching on meaning rather than just keywords. It’s useful for natural language search, intent-aware retrieval, and cases where keyword matching alone isn’t sufficient.
 
 You can query `semantic_text` fields using the following query types:
 

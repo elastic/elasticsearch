@@ -90,11 +90,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     );
 
     private final ClusterService clusterService;
-    private final List<ShardLimitValidator.ResultGroup> shardLimitResultGroups;
+    private final List<ShardLimitValidator.LimitGroup> shardLimitGroups;
 
     public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.shardLimitResultGroups = ShardLimitValidator.applicableResultGroups(DiscoveryNode.isStateless(clusterService.getSettings()));
+        this.shardLimitGroups = ShardLimitValidator.applicableLimitGroups(DiscoveryNode.isStateless(clusterService.getSettings()));
     }
 
     @Override
@@ -111,13 +111,13 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         }
 
         var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
-        final List<StatusResult> statusResults = shardLimitResultGroups.stream()
+        final List<StatusResult> statusResults = shardLimitGroups.stream()
             .map(
-                resultGroup -> calculateFrom(
-                    ShardLimitValidator.getShardLimitPerNode(resultGroup, shardLimitsMetadata),
+                limitGroup -> calculateFrom(
+                    ShardLimitValidator.getShardLimitPerNode(limitGroup, shardLimitsMetadata),
                     state.nodes(),
                     state.metadata(),
-                    resultGroup::checkShardLimit
+                    limitGroup::checkShardLimit
                 )
             )
             .toList();
@@ -217,8 +217,8 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         );
     }
 
-    private static String nodeTypeFroResultGroup(ShardLimitValidator.ResultGroup resultGroup) {
-        return switch (resultGroup) {
+    private static String nodeTypeFroResultGroup(ShardLimitValidator.LimitGroup limitGroup) {
+        return switch (limitGroup) {
             case NORMAL -> "data";
             case FROZEN -> "frozen";
             case INDEX -> "index";
@@ -226,8 +226,8 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         };
     }
 
-    private static Diagnosis diagnosisForResultGroup(ShardLimitValidator.ResultGroup resultGroup) {
-        return switch (resultGroup) {
+    private static Diagnosis diagnosisForResultGroup(ShardLimitValidator.LimitGroup limitGroup) {
+        return switch (limitGroup) {
             case NORMAL, INDEX, SEARCH -> SHARDS_MAX_CAPACITY_REACHED_DATA_NODES;
             case FROZEN -> SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES;
         };

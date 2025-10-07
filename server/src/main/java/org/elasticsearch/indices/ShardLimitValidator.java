@@ -93,15 +93,15 @@ public class ShardLimitValidator {
         this.shardLimitPerNodeFrozen.set(newValue);
     }
 
-    private int getShardLimitPerNode(ResultGroup resultGroup) {
-        return switch (resultGroup) {
+    private int getShardLimitPerNode(LimitGroup limitGroup) {
+        return switch (limitGroup) {
             case NORMAL, INDEX, SEARCH -> shardLimitPerNode.get();
             case FROZEN -> shardLimitPerNodeFrozen.get();
         };
     }
 
-    public static int getShardLimitPerNode(ResultGroup resultGroup, HealthMetadata.ShardLimits shardLimits) {
-        return switch (resultGroup) {
+    public static int getShardLimitPerNode(LimitGroup limitGroup, HealthMetadata.ShardLimits shardLimits) {
+        return switch (limitGroup) {
             case NORMAL, INDEX, SEARCH -> shardLimits.maxShardsPerNode();
             case FROZEN -> shardLimits.maxShardsPerNodeFrozen();
         };
@@ -116,9 +116,9 @@ public class ShardLimitValidator {
      * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
      */
     public void validateShardLimit(final Settings settings, final DiscoveryNodes discoveryNodes, final Metadata metadata) {
-        final var resultGroups = applicableResultGroups(isStateless);
+        final var resultGroups = applicableLimitGroups(isStateless);
         final var shardsToCreatePerGroup = resultGroups.stream()
-            .collect(Collectors.toUnmodifiableMap(Function.identity(), resultGroup -> resultGroup.newShardsTotal(settings)));
+            .collect(Collectors.toUnmodifiableMap(Function.identity(), limitGroup -> limitGroup.newShardsTotal(settings)));
 
         final var result = checkShardLimitOnGroups(resultGroups, shardsToCreatePerGroup, discoveryNodes, metadata);
         if (result.canAddShards == false) {
@@ -138,15 +138,15 @@ public class ShardLimitValidator {
      * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
      */
     public void validateShardLimit(DiscoveryNodes discoveryNodes, Metadata metadata, Index[] indicesToOpen) {
-        final var resultGroups = applicableResultGroups(isStateless);
-        final Map<ResultGroup, Integer> shardsToCreatePerGroup = new HashMap<>();
+        final var resultGroups = applicableLimitGroups(isStateless);
+        final Map<LimitGroup, Integer> shardsToCreatePerGroup = new HashMap<>();
 
         // TODO: we can short circuit when indindicesToOpenices is empty
         for (Index index : indicesToOpen) {
             IndexMetadata imd = metadata.indexMetadata(index);
             if (imd.getState().equals(IndexMetadata.State.CLOSE)) {
                 resultGroups.forEach(
-                    resultGroup -> shardsToCreatePerGroup.merge(resultGroup, resultGroup.newShardsTotal(imd.getSettings()), Integer::sum)
+                    limitGroup -> shardsToCreatePerGroup.merge(limitGroup, limitGroup.newShardsTotal(imd.getSettings()), Integer::sum)
                 );
             }
         }
@@ -160,18 +160,14 @@ public class ShardLimitValidator {
     }
 
     public void validateShardLimitOnReplicaUpdate(DiscoveryNodes discoveryNodes, Metadata metadata, Index[] indices, int replicas) {
-        final var resultGroups = applicableResultGroups(isStateless);
-        final Map<ResultGroup, Integer> shardsToCreatePerGroup = new HashMap<>();
+        final var resultGroups = applicableLimitGroups(isStateless);
+        final Map<LimitGroup, Integer> shardsToCreatePerGroup = new HashMap<>();
 
         // TODO: we can short circuit when indices is empty
         for (Index index : indices) {
             IndexMetadata imd = metadata.indexMetadata(index);
             resultGroups.forEach(
-                resultGroup -> shardsToCreatePerGroup.merge(
-                    resultGroup,
-                    resultGroup.newShardsTotal(imd.getSettings(), replicas),
-                    Integer::sum
-                )
+                limitGroup -> shardsToCreatePerGroup.merge(limitGroup, limitGroup.newShardsTotal(imd.getSettings(), replicas), Integer::sum)
             );
         }
 
@@ -183,8 +179,8 @@ public class ShardLimitValidator {
         }
     }
 
-    public static List<ResultGroup> applicableResultGroups(boolean isStateless) {
-        return isStateless ? List.of(ResultGroup.INDEX, ResultGroup.SEARCH) : List.of(ResultGroup.NORMAL, ResultGroup.FROZEN);
+    public static List<LimitGroup> applicableLimitGroups(boolean isStateless) {
+        return isStateless ? List.of(LimitGroup.INDEX, LimitGroup.SEARCH) : List.of(LimitGroup.NORMAL, LimitGroup.FROZEN);
     }
 
     /**
@@ -194,24 +190,24 @@ public class ShardLimitValidator {
      * - If there's no room -> return the Result for _normal_ nodes (fail-fast)
      * - otherwise -> returns the Result of checking the limits for _frozen_ nodes
      *
-     * @param resultGroups The applicable result groups to check for shard limits
+     * @param limitGroups The applicable result groups to check for shard limits
      * @param shardsToCreatePerGroup The number of new shards to create per result group
      * @param discoveryNodes The nodes in the cluster
      * @param metadata       The cluster state metadata
      */
     private Result checkShardLimitOnGroups(
-        List<ResultGroup> resultGroups,
-        Map<ResultGroup, Integer> shardsToCreatePerGroup,
+        List<LimitGroup> limitGroups,
+        Map<LimitGroup, Integer> shardsToCreatePerGroup,
         DiscoveryNodes discoveryNodes,
         Metadata metadata
     ) {
-        assert resultGroups.containsAll(shardsToCreatePerGroup.keySet())
-            : "result groups " + resultGroups + " do not contain groups for shards creation " + shardsToCreatePerGroup.keySet();
+        assert limitGroups.containsAll(shardsToCreatePerGroup.keySet())
+            : "result groups " + limitGroups + " do not contain groups for shards creation " + shardsToCreatePerGroup.keySet();
         // we verify the two limits independently. This also means that if they have mixed frozen and other data-roles nodes, such a mixed
         // node can have both 1000 normal and 3000 frozen shards. This is the trade-off to keep the simplicity of the counts. We advocate
         // against such mixed nodes for production use anyway.
         Result result = null;
-        for (var resultGroup : resultGroups) {
+        for (var resultGroup : limitGroups) {
             result = resultGroup.checkShardLimit(
                 getShardLimitPerNode(resultGroup),
                 shardsToCreatePerGroup.getOrDefault(resultGroup, 0),
@@ -252,7 +248,7 @@ public class ShardLimitValidator {
             + ReferenceDocs.MAX_SHARDS_PER_NODE;
     }
 
-    public enum ResultGroup {
+    public enum LimitGroup {
         NORMAL(NORMAL_GROUP),
         FROZEN(FROZEN_GROUP),
         INDEX("index"),
@@ -260,7 +256,7 @@ public class ShardLimitValidator {
 
         private final String groupName;
 
-        ResultGroup(String groupName) {
+        LimitGroup(String groupName) {
             this.groupName = groupName;
         }
 
@@ -284,10 +280,10 @@ public class ShardLimitValidator {
 
         public int countShards(IndexMetadata indexMetadata) {
             return switch (this) {
-                case NORMAL -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, ResultGroup.NORMAL.groupName())
+                case NORMAL -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, LimitGroup.NORMAL.groupName())
                     ? indexMetadata.getTotalNumberOfShards()
                     : 0;
-                case FROZEN -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, ResultGroup.FROZEN.groupName())
+                case FROZEN -> isOpenIndex(indexMetadata) && matchesIndexSettingGroup(indexMetadata, LimitGroup.FROZEN.groupName())
                     ? indexMetadata.getTotalNumberOfShards()
                     : 0;
                 case INDEX -> isOpenIndex(indexMetadata) ? indexMetadata.getNumberOfShards() : 0;
@@ -409,7 +405,7 @@ public class ShardLimitValidator {
         Optional<Long> currentUsedShards,
         int totalShardsToAdd,
         int maxShardsInCluster,
-        ResultGroup group
+        LimitGroup group
     ) {}
 
 }

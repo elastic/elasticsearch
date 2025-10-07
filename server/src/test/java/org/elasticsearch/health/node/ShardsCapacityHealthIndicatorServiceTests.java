@@ -351,7 +351,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 Optional.empty(),
                 randomInt(),
                 randomInt(),
-                randomFrom(ShardLimitValidator.ResultGroup.values())
+                randomFrom(ShardLimitValidator.LimitGroup.values())
             );
         };
 

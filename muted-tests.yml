@@ -639,6 +639,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/135032
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettings
+  issue: https://github.com/elastic/elasticsearch/issues/135972
 
 # Examples:
 #

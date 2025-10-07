@@ -288,9 +288,9 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals(target, attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
-            assertEquals(true, attributes.get("range_timestamp"));
+            assertEquals("@timestamp", attributes.get("time_range_filter_field"));
             assertEquals(isSystem, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            assertEquals("older_than_14_days", attributes.get("timestamp_range_filter"));
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
         }
     }
 
@@ -307,13 +307,30 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         // the two docs are at most spread across two shards, other shards are empty and get filtered out
         assertThat(queryMeasurements.size(), Matchers.lessThanOrEqualTo(2));
-        // no range info stored because we had no bounds after rewrite, basically a match_all
-        assertAttributes(queryMeasurements, false, false);
+        for (Measurement measurement : queryMeasurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(5, attributes.size());
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            // the range query was rewritten to one without bounds: we do track the time range filter from value but we don't set
+            // the time range filter field because no range query is executed at the shard level.
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+        }
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         // in this case, each shard queried has results to be fetched
         assertEquals(queryMeasurements.size(), fetchMeasurements.size());
         // no range info stored because we had no bounds after rewrite, basically a match_all
-        assertAttributes(fetchMeasurements, false, false);
+        for (Measurement measurement : fetchMeasurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(4, attributes.size());
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            // no time range filter bucketing on the fetch phase, because the query was rewritten to one without bounds
+        }
     }
 
     private void resetMeter() {

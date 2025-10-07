@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.voyageai;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -108,6 +107,8 @@ public class VoyageAIService extends SenderService implements RerankingInference
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
+
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public VoyageAIService(
         HttpRequestSender.Factory factory,
@@ -364,7 +365,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override

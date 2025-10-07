@@ -25,7 +25,7 @@ public sealed class ShardIterator extends PlainShardsIterator implements Compara
         return new ShardIterator(shardIterator.shardId(), shardsThatCanHandleSearches(shardIterator));
     }
 
-    protected static List<ShardRouting> shardsThatCanHandleSearches(ShardIterator iterator) {
+    private static List<ShardRouting> shardsThatCanHandleSearches(ShardIterator iterator) {
         final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
         for (ShardRouting shardRouting : iterator) {
             if (shardRouting.isSearchable()) {

@@ -615,7 +615,9 @@ public class SamplingService implements ClusterStateListener {
         /*
          * If the sample stats report more raw documents than the maximum size allowed for this sample, then this method creates a new
          * cloned copy of the stats, but with the reported samples lowered to maxSize, and the reported rejected documents increased by the
-         * same amount. This avoids the confusing situation of the stats reporting more samples than the user has configured.
+         * same amount. This avoids the confusing situation of the stats reporting more samples than the user has configured. This can
+         * happen in a multi-node cluster when each node has collected fewer than maxSize raw documents but the total across all nodes is
+         * greater than maxSize.
          */
         public SampleStats adjustForMaxSize(int maxSize) {
             long actualSamples = samples.longValue();

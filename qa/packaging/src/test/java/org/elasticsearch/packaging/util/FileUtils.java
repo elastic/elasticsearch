@@ -75,16 +75,21 @@ public class FileUtils {
     }
 
     public static void rm(Path... paths) {
-        try {
-            IOUtils.rm(paths);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (Platforms.WINDOWS) {
+            rmWithRetries(paths);
+        } else {
+            try {
+                IOUtils.rm(paths);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 
-    public static void rmWithRetries(Path... paths) {
+    // windows needs leniency due to asinine releasing of file locking async from a process exiting
+    private static void rmWithRetries(Path... paths) {
         int tries = 10;
-        Exception exception = null;
+        IOException exception = null;
         while (tries-- > 0) {
             try {
                 IOUtils.rm(paths);
@@ -103,7 +108,7 @@ public class FileUtils {
                 return;
             }
         }
-        throw new RuntimeException(exception);
+        throw new UncheckedIOException(exception);
     }
 
     public static Path mktempDir(Path path) {

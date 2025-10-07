@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | long |
 | boolean | long |
 | cartesian_point | long |
 | cartesian_shape | long |

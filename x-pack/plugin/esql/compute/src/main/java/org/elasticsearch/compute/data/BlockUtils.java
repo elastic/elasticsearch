@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -35,19 +36,24 @@ public final class BlockUtils {
         public BuilderWrapper(Block.Builder builder, Consumer<Object> append) {
             this.builder = builder;
             this.append = o -> {
-                if (o == null) {
-                    builder.appendNull();
-                    return;
-                }
-                if (o instanceof List<?> l) {
-                    builder.beginPositionEntry();
-                    for (Object v : l) {
-                        append.accept(v);
+                try {
+                    if (o == null) {
+                        builder.appendNull();
+                        return;
                     }
-                    builder.endPositionEntry();
-                    return;
+                    if (o instanceof List<?> l) {
+                        builder.beginPositionEntry();
+                        for (Object v : l) {
+                            append.accept(v);
+                        }
+                        builder.endPositionEntry();
+                        return;
+                    }
+                    append.accept(o);
+                } catch (CircuitBreakingException e) {
+                    close();
+                    throw e;
                 }
-                append.accept(o);
             };
         }
 

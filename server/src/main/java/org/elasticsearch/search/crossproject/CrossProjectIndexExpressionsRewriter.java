@@ -12,14 +12,16 @@ package org.elasticsearch.search.crossproject;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,8 +36,7 @@ public class CrossProjectIndexExpressionsRewriter {
 
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
     private static final String ORIGIN_PROJECT_KEY = "_origin";
-    private static final String WILDCARD = "*";
-    private static final String[] MATCH_ALL = new String[] { WILDCARD };
+    private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
     private static final String DATE_MATH = "<";
 
@@ -50,7 +51,8 @@ public class CrossProjectIndexExpressionsRewriter {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
-    public static Map<String, List<String>> rewriteIndexExpressions(
+    // TODO remove me: only used in tests
+    public static Map<String, IndexRewriteResult> rewriteIndexExpressions(
         ProjectRoutingInfo originProject,
         List<ProjectRoutingInfo> linkedProjects,
         final String[] originalIndices
@@ -63,82 +65,109 @@ public class CrossProjectIndexExpressionsRewriter {
         }
         assert false == IndexNameExpressionResolver.isNoneExpression(indices)
             : "expression list is *,-* which effectively means a request that requests no indices";
-        assert originProject != null || linkedProjects.isEmpty() == false
-            : "either origin project or linked projects must be in project target set";
 
-        Set<String> linkedProjectNames = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
-        Map<String, List<String>> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
-        for (String resource : indices) {
-            if (canonicalExpressionsMap.containsKey(resource)) {
+        final Set<String> allProjectAliases = getAllProjectAliases(originProject, linkedProjects);
+        final String originProjectAlias = originProject != null ? originProject.projectAlias() : null;
+        final Map<String, IndexRewriteResult> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
+        for (String indexExpression : indices) {
+            if (canonicalExpressionsMap.containsKey(indexExpression)) {
                 continue;
             }
-            maybeThrowOnUnsupportedResource(resource);
-
-            boolean isQualified = RemoteClusterAware.isRemoteIndexName(resource);
-            if (isQualified) {
-                // handing of qualified expressions
-                String[] splitResource = RemoteClusterAware.splitIndexName(resource);
-                assert splitResource.length == 2
-                    : "Expected two strings (project and indexExpression) for a qualified resource ["
-                        + resource
-                        + "], but found ["
-                        + splitResource.length
-                        + "]";
-                String projectAlias = splitResource[0];
-                assert projectAlias != null : "Expected a project alias for a qualified resource but was null";
-                String indexExpression = splitResource[1];
-                maybeThrowOnUnsupportedResource(indexExpression);
-
-                List<String> canonicalExpressions = rewriteQualified(projectAlias, indexExpression, originProject, linkedProjectNames);
-
-                canonicalExpressionsMap.put(resource, canonicalExpressions);
-                logger.debug("Rewrote qualified expression [{}] to [{}]", resource, canonicalExpressions);
-            } else {
-                // un-qualified expression, i.e. flat-world
-                List<String> canonicalExpressions = rewriteUnqualified(resource, originProject, linkedProjects);
-                canonicalExpressionsMap.put(resource, canonicalExpressions);
-                logger.debug("Rewrote unqualified expression [{}] to [{}]", resource, canonicalExpressions);
-            }
+            canonicalExpressionsMap.put(indexExpression, rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases));
         }
         return canonicalExpressionsMap;
     }
 
-    private static List<String> rewriteUnqualified(
+    /**
+     * Rewrites an index expression for cross-project search requests.
+     * @param indexExpression the index expression to be rewritten to canonical CCS
+     * @param originProjectAlias the alias of the origin project (can be null if it was excluded by project routing). It's passed
+     *                           additionally to allProjectAliases because the origin project requires special handling:
+     *                           it can match on its actual alias and on the special alias "_origin". Any expression matched by the origin
+     *                           project also cannot be qualified with its actual alias in the final rewritten expression.
+     * @param allProjectAliases the list of all project aliases (linked and origin) consider for a request
+     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
+     * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
+     */
+    public static IndexRewriteResult rewriteIndexExpression(
         String indexExpression,
-        @Nullable ProjectRoutingInfo origin,
-        List<ProjectRoutingInfo> projects
-    ) {
-        List<String> canonicalExpressions = new ArrayList<>();
-        if (origin != null) {
-            canonicalExpressions.add(indexExpression); // adding the original indexExpression for the _origin cluster.
-        }
-        for (ProjectRoutingInfo targetProject : projects) {
-            canonicalExpressions.add(RemoteClusterAware.buildRemoteIndexName(targetProject.projectAlias(), indexExpression));
-        }
-        return canonicalExpressions;
-    }
-
-    private static List<String> rewriteQualified(
-        String requestedProjectAlias,
-        String indexExpression,
-        @Nullable ProjectRoutingInfo originProject,
+        @Nullable String originProjectAlias,
         Set<String> allProjectAliases
     ) {
-        if (originProject != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        assert originProjectAlias != null || allProjectAliases.isEmpty() == false
+            : "either origin project or linked projects must be in project target set";
+
+        maybeThrowOnUnsupportedResource(indexExpression);
+
+        final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
+        final IndexRewriteResult rewrittenExpression;
+        if (isQualified) {
+            rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
+            logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
+        } else {
+            rewrittenExpression = rewriteUnqualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
+            logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
+        }
+        return rewrittenExpression;
+    }
+
+    private static Set<String> getAllProjectAliases(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
+        assert originProject != null || linkedProjects.isEmpty() == false
+            : "either origin project or linked projects must be in project target set";
+
+        final Set<String> allProjectAliases = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
+        if (originProject != null) {
+            allProjectAliases.add(originProject.projectAlias());
+        }
+        return Collections.unmodifiableSet(allProjectAliases);
+    }
+
+    private static IndexRewriteResult rewriteUnqualifiedExpression(
+        String indexExpression,
+        @Nullable String originAlias,
+        Set<String> allProjectAliases
+    ) {
+        String localExpression = null;
+        final Set<String> rewrittenExpressions = new LinkedHashSet<>();
+        if (originAlias != null) {
+            localExpression = indexExpression; // adding the original indexExpression for the _origin cluster.
+        }
+        for (String targetProjectAlias : allProjectAliases) {
+            if (false == targetProjectAlias.equals(originAlias)) {
+                rewrittenExpressions.add(RemoteClusterAware.buildRemoteIndexName(targetProjectAlias, indexExpression));
+            }
+        }
+        return new IndexRewriteResult(localExpression, rewrittenExpressions);
+    }
+
+    private static IndexRewriteResult rewriteQualifiedExpression(
+        String resource,
+        @Nullable String originProjectAlias,
+        Set<String> allProjectAliases
+    ) {
+        String[] splitResource = RemoteClusterAware.splitIndexName(resource);
+        assert splitResource.length == 2
+            : "Expected two strings (project and indexExpression) for a qualified resource ["
+                + resource
+                + "], but found ["
+                + splitResource.length
+                + "]";
+        String requestedProjectAlias = splitResource[0];
+        assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
+        String indexExpression = splitResource[1];
+        maybeThrowOnUnsupportedResource(indexExpression);
+
+        if (originProjectAlias != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
-            return List.of(indexExpression);
+            return new IndexRewriteResult(indexExpression);
         }
 
-        if (originProject == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        if (originProjectAlias == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
             throw new NoMatchingProjectException(requestedProjectAlias);
         }
 
         try {
-            if (originProject != null) {
-                allProjectAliases.add(originProject.projectAlias());
-            }
-            List<String> resourcesMatchingAliases = new ArrayList<>();
             List<String> allProjectsMatchingAlias = ClusterNameExpressionResolver.resolveClusterNames(
                 allProjectAliases,
                 requestedProjectAlias
@@ -148,15 +177,17 @@ public class CrossProjectIndexExpressionsRewriter {
                 throw new NoMatchingProjectException(requestedProjectAlias);
             }
 
+            String localExpression = null;
+            final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
             for (String project : allProjectsMatchingAlias) {
-                if (originProject != null && project.equals(originProject.projectAlias())) {
-                    resourcesMatchingAliases.add(indexExpression);
+                if (project.equals(originProjectAlias)) {
+                    localExpression = indexExpression;
                 } else {
-                    resourcesMatchingAliases.add(RemoteClusterAware.buildRemoteIndexName(project, indexExpression));
+                    resourcesMatchingLinkedProjectAliases.add(RemoteClusterAware.buildRemoteIndexName(project, indexExpression));
                 }
             }
 
-            return resourcesMatchingAliases;
+            return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
         } catch (NoSuchRemoteClusterException ex) {
             logger.debug(ex.getMessage(), ex);
             throw new NoMatchingProjectException(requestedProjectAlias);
@@ -173,7 +204,15 @@ public class CrossProjectIndexExpressionsRewriter {
         }
         if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
             throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");
+        }
+    }
 
+    /**
+     * A container for a local expression and a list of remote expressions.
+     */
+    public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
+        public IndexRewriteResult(String localExpression) {
+            this(localExpression, Set.of());
         }
     }
 }

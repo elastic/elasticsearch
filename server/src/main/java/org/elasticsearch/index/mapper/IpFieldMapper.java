@@ -249,7 +249,7 @@ public class IpFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexed, stored, hasDocValues, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
@@ -276,6 +276,11 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public boolean isSearchable() {
             return isIndexed() || hasDocValues();
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override

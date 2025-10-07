@@ -43,7 +43,7 @@ public class SearchResponseMetrics {
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
-    public static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases_took_durations.query.histogram";
+    public static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.query.duration.histogram";
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;

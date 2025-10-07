@@ -2,24 +2,24 @@ clamp_of_double_no_grouping
 required_capability: ts_command_v0
 required_capability: clamp_functions
 // tag::clamp-min[]
-TS k8s
+FROM k8s
 | STATS full_clamped_cost=sum(clamp(network.cost, 1, 2)), clamped_cost=sum(clamp_max(network.cost, 1)), clamped_min_cost=sum(clamp_min(network.cost, 10)) BY time_bucket = bucket(@timestamp,1minute)
 // end::clamp-min[]
 | SORT full_clamped_cost DESC, time_bucket DESC | LIMIT 10;
 
 // tag::clamp-min-result[]
 full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_bucket:datetime
-18.0                     | 9.0                 | 94.875                  | 2024-05-10T00:09:00.000Z
-15.25                    | 8.0                 | 84.125                  | 2024-05-10T00:08:00.000Z
-15.0                     | 8.0                 | 83.5                    | 2024-05-10T00:15:00.000Z
-13.75                    | 7.0                 | 71.625                  | 2024-05-10T00:22:00.000Z
-13.125                   | 7.5                 | 90.5                    | 2024-05-10T00:18:00.000Z
+39.0                     | 20.0                | 206.25                  | 2024-05-10T00:09:00.000Z
+29.125                   | 15.5                | 173.0                   | 2024-05-10T00:18:00.000Z
+28.0                     | 14.125              | 155.625                 | 2024-05-10T00:17:00.000Z
+23.25                    | 12.0                | 124.875                 | 2024-05-10T00:08:00.000Z
 // end::clamp-min-result[]
-13.0                     | 6.5                 | 75.625                  | 2024-05-10T00:17:00.000Z
-12.0                     | 5.875               | 70.0                    | 2024-05-10T00:20:00.000Z
-12.0                     | 6.125               | 70.0                    | 2024-05-10T00:14:00.000Z
-12.0                     | 6.0                 | 61.25                   | 2024-05-10T00:13:00.000Z
-12.0                     | 6.0                 | 60.0                    | 2024-05-10T00:02:00.000Z
+20.625                   | 11.0                | 113.5                   | 2024-05-10T00:15:00.000Z
+19.0                     | 9.625               | 105.375                 | 2024-05-10T00:06:00.000Z
+17.75                    | 9.0                 | 91.625                  | 2024-05-10T00:22:00.000Z
+17.625                   | 9.0                 | 91.25                   | 2024-05-10T00:13:00.000Z
+16.375                   | 8.625               | 100.0                   | 2024-05-10T00:20:00.000Z
+16.0                     | 8.125               | 91.25                   | 2024-05-10T00:14:00.000Z
 
 ;
 

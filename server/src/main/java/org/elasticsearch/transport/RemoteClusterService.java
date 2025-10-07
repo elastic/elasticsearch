@@ -285,6 +285,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         return connection;
     }
 
+    @Override
     public void skipUnavailableChanged(
         ProjectId originProjectId,
         ProjectId linkedProjectId,

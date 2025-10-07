@@ -52,7 +52,7 @@ public record IndicesOptions(
     ConcreteTargetOptions concreteTargetOptions,
     WildcardOptions wildcardOptions,
     GatekeeperOptions gatekeeperOptions,
-    ResolutionModeOptions resolutionModeOptions
+    CrossProjectModeOptions crossProjectModeOptions
 ) implements ToXContentFragment {
 
     public static IndicesOptions.Builder builder() {
@@ -417,37 +417,37 @@ public record IndicesOptions(
     }
 
     /**
-     * The resolution mode options are internal-only options that apply on all indices that have been selected by the other Options. These
-     * options may contextually change over the lifetime of the request.
-     * @param crossProject determines that the index expression must be resolved for cross-project requests, defaults to false.
+     * The cross-project mode options are internal-only options that apply on all indices that have been selected by the other Options.
+     * These options may contextually change over the lifetime of the request.
+     * @param resolveIndexExpression determines that the index expression must be resolved for cross-project requests, defaults to false.
      */
-    public record ResolutionModeOptions(boolean crossProject) implements ToXContentFragment, Writeable {
+    public record CrossProjectModeOptions(boolean resolveIndexExpression) implements ToXContentFragment, Writeable {
 
-        public static final ResolutionModeOptions DEFAULT = new ResolutionModeOptions(false);
+        public static final CrossProjectModeOptions DEFAULT = new CrossProjectModeOptions(false);
 
         private static final TransportVersion INDICES_OPTIONS_RESOLUTION_MODE = TransportVersion.fromName(
             "indices_options_resolution_mode"
         );
 
-        private static final String CROSS_PROJECT_NAME = "resolve_cross_project";
+        private static final String INDEX_EXPRESSION_NAME = "resolve_cross_project_index_expression";
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(CROSS_PROJECT_NAME, crossProject);
+            return builder.field(INDEX_EXPRESSION_NAME, resolveIndexExpression);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(INDICES_OPTIONS_RESOLUTION_MODE)) {
-                out.writeBoolean(crossProject);
+                out.writeBoolean(resolveIndexExpression);
             }
         }
 
-        public static ResolutionModeOptions readFrom(StreamInput in) throws IOException {
+        public static CrossProjectModeOptions readFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().supports(INDICES_OPTIONS_RESOLUTION_MODE)) {
-                return new ResolutionModeOptions(in.readBoolean());
+                return new CrossProjectModeOptions(in.readBoolean());
             } else {
-                return ResolutionModeOptions.DEFAULT;
+                return CrossProjectModeOptions.DEFAULT;
             }
         }
     }
@@ -503,7 +503,7 @@ public record IndicesOptions(
         ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT,
         GatekeeperOptions.DEFAULT,
-        ResolutionModeOptions.DEFAULT
+        CrossProjectModeOptions.DEFAULT
     );
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = IndicesOptions.builder()
@@ -900,8 +900,8 @@ public record IndicesOptions(
     /**
      * @return whether indices will resolve to the cross-project "flat world" expression
      */
-    public boolean resolveCrossProject() {
-        return resolutionModeOptions().crossProject();
+    public boolean resolveCrossProjectIndexExpression() {
+        return crossProjectModeOptions().resolveIndexExpression();
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
@@ -964,7 +964,7 @@ public record IndicesOptions(
                 out.writeByte((byte) 0); // ordinal 0 (::data selector)
             }
         }
-        out.writeWriteable(resolutionModeOptions);
+        out.writeWriteable(crossProjectModeOptions);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -1017,7 +1017,7 @@ public record IndicesOptions(
                 : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcardOptions,
             gatekeeperOptions,
-            ResolutionModeOptions.readFrom(in)
+            CrossProjectModeOptions.readFrom(in)
         );
     }
 
@@ -1025,7 +1025,7 @@ public record IndicesOptions(
         private ConcreteTargetOptions concreteTargetOptions;
         private WildcardOptions wildcardOptions;
         private GatekeeperOptions gatekeeperOptions;
-        private ResolutionModeOptions resolutionModeOptions;
+        private CrossProjectModeOptions crossProjectModeOptions;
 
         Builder() {
             this(DEFAULT);
@@ -1035,7 +1035,7 @@ public record IndicesOptions(
             concreteTargetOptions = indicesOptions.concreteTargetOptions;
             wildcardOptions = indicesOptions.wildcardOptions;
             gatekeeperOptions = indicesOptions.gatekeeperOptions;
-            resolutionModeOptions = indicesOptions.resolutionModeOptions;
+            crossProjectModeOptions = indicesOptions.crossProjectModeOptions;
         }
 
         public Builder concreteTargetOptions(ConcreteTargetOptions concreteTargetOptions) {
@@ -1063,13 +1063,13 @@ public record IndicesOptions(
             return this;
         }
 
-        public Builder resolutionModeOptions(ResolutionModeOptions resolutionModeOptions) {
-            this.resolutionModeOptions = resolutionModeOptions;
+        public Builder crossProjectModeOptions(CrossProjectModeOptions crossProjectModeOptions) {
+            this.crossProjectModeOptions = crossProjectModeOptions;
             return this;
         }
 
         public IndicesOptions build() {
-            return new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, resolutionModeOptions);
+            return new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, crossProjectModeOptions);
         }
     }
 
@@ -1172,7 +1172,7 @@ public record IndicesOptions(
             ignoreUnavailable ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcards,
             gatekeeperOptions,
-            ResolutionModeOptions.DEFAULT
+            CrossProjectModeOptions.DEFAULT
         );
     }
 
@@ -1215,7 +1215,7 @@ public record IndicesOptions(
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name)
-            || ResolutionModeOptions.CROSS_PROJECT_NAME.equals(name);
+            || CrossProjectModeOptions.INDEX_EXPRESSION_NAME.equals(name);
     }
 
     public static IndicesOptions fromParameters(
@@ -1260,7 +1260,7 @@ public record IndicesOptions(
         concreteTargetOptions.toXContent(builder, params);
         wildcardOptions.toXContent(builder, params);
         gatekeeperOptions.toXContent(builder, params);
-        resolutionModeOptions.toXContent(builder, params);
+        crossProjectModeOptions.toXContent(builder, params);
         return builder;
     }
 
@@ -1268,7 +1268,7 @@ public record IndicesOptions(
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
-    private static final ParseField RESOLVE_CROSS_PROJECT = new ParseField(ResolutionModeOptions.CROSS_PROJECT_NAME);
+    private static final ParseField RESOLVE_CROSS_PROJECT = new ParseField(CrossProjectModeOptions.INDEX_EXPRESSION_NAME);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -1281,7 +1281,9 @@ public record IndicesOptions(
             .ignoreThrottled(defaults != null && defaults.gatekeeperOptions().ignoreThrottled());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
-        boolean resolveCrossProject = defaults == null ? ResolutionModeOptions.DEFAULT.crossProject() : defaults.resolveCrossProject();
+        boolean resolveCrossProjectIndexExpression = defaults == null
+            ? CrossProjectModeOptions.DEFAULT.resolveIndexExpression()
+            : defaults.resolveCrossProjectIndexExpression();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -1330,7 +1332,7 @@ public record IndicesOptions(
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
                 } else if (RESOLVE_CROSS_PROJECT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    resolveCrossProject = parser.booleanValue();
+                    resolveCrossProjectIndexExpression = parser.booleanValue();
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read indices options. Unexpected index option [" + currentFieldName + "]"
@@ -1361,7 +1363,7 @@ public record IndicesOptions(
             .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(generalOptions)
-            .resolutionModeOptions(new ResolutionModeOptions(resolveCrossProject))
+            .crossProjectModeOptions(new CrossProjectModeOptions(resolveCrossProjectIndexExpression))
             .build();
     }
 
@@ -1523,8 +1525,8 @@ public record IndicesOptions(
             + allowSelectors()
             + ", include_failure_indices="
             + includeFailureIndices()
-            + ", resolve_cross_project="
-            + resolveCrossProject()
+            + ", resolve_cross_project_index_expression="
+            + resolveCrossProjectIndexExpression()
             + ']';
     }
 }

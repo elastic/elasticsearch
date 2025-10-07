@@ -753,15 +753,26 @@ fe80::cae2:65ff:fece:feb9 | 127.0.0.3                 | inbound
 networkDirectionFromRow
 required_capability: network_direction
 
-// tag::networkDirectionFromRow[]
 ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
 | EVAL direction = network_direction(ip0, ip1, networks)
 | DROP networks
-// end::networkDirectionFromRow[]
 ;
 
-// tag::networkDirectionFromRow-result[]
 ip0:ip  | ip1:ip  | direction:keyword
 1.2.3.4 | 5.6.7.8 | external
-// end::networkDirectionFromRow-result[]
+;
+
+networkDirectionFromRowWithInlineNetworks
+required_capability: network_direction
+
+// tag::networkDirectionFromRowWithInlineNetworks[]
+ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip
+| EVAL direction = network_direction(ip0, ip1, ["loopback", "private"])
+// end::networkDirectionFromRowWithInlineNetworks[]
+;
+
+// tag::networkDirectionFromRowWithInlineNetworks-result[]
+ip0:ip  | ip1:ip  | direction:keyword
+1.2.3.4 | 5.6.7.8 | external
+// end::networkDirectionFromRowWithInlineNetworks-result[]
 ;

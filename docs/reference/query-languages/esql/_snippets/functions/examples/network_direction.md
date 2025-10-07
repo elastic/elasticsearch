@@ -3,9 +3,8 @@
 **Example**
 
 ```esql
-ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
-| EVAL direction = network_direction(ip0, ip1, networks)
-| DROP networks
+ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip
+| EVAL direction = network_direction(ip0, ip1, ["loopback", "private"])
 ```
 
 | ip0:ip | ip1:ip | direction:keyword |

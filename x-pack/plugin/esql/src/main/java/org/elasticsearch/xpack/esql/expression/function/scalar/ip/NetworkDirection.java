@@ -58,7 +58,7 @@ public class NetworkDirection extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         description = "Returns the direction type (inbound, outbound, internal, external) given a source IP address, destination IP address, and a list of internal networks.",
-        examples = @Example(file = "ip", tag = "networkDirectionFromRow")
+        examples = @Example(file = "ip", tag = "networkDirectionFromRowWithInlineNetworks")
     )
     public NetworkDirection(
         Source source,

@@ -130,9 +130,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean supportsNodeAssignment() throws IOException {
         if (supportsNodeAssignment == null) {
-            for (NodeInfo i : allNodeToInfo().values()) {
-                logger.error("NOCOMMIT {}", i);
-            }
             supportsNodeAssignment = allNodeToInfo().values()
                 .stream()
                 .allMatch(i -> (i.roles.contains("index") && i.roles.contains("search")) || (i.roles.contains("data")));
@@ -542,10 +539,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Map<String, NodeInfo> expectedIndices() throws IOException {
-        logger.error("ADFADF NOCOMMIT");
         Map<String, NodeInfo> result = new TreeMap<>();
         if (supportsNodeAssignment()) {
-            logger.error("supports {}", allNodeToInfo());
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
                 String name = indexMode + "_" + e.getKey();
                 if (e.getValue().cluster != null) {
@@ -554,7 +549,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 result.put(name, e.getValue());
             }
         } else {
-            logger.error("one per {}", allNodeToInfo());
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
                 String name = indexMode.toString();
                 if (e.getValue().cluster != null) {

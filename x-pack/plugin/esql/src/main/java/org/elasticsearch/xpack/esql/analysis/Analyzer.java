@@ -488,8 +488,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Gather all the children's output in case of non-unary plans; even for unaries, we need to copy because we may mutate this to
             // simplify resolution of e.g. RENAME.
             for (LogicalPlan child : plan.children()) {
-                var output = child.output();
+                List<Attribute> output = child.output();
                 childrenOutput.addAll(output);
+            }
+
+            if (plan instanceof TimeSeriesAggregate tsAggregate) {
+                // NOTE: This MUST be checked before the Aggregate version, since TimeSeriesAggregate is a subclass of Aggregate
+                return resolveTimeSeriesAggregate(tsAggregate, childrenOutput);
             }
 
             if (plan instanceof Aggregate aggregate) {
@@ -549,6 +554,63 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        /**
+         * This function is meant to deal with the implicit timestamp fields that some TS functions use.
+         */
+        private TimeSeriesAggregate resolveTimeSeriesAggregate(TimeSeriesAggregate timeSeriesAggregate, List<Attribute> childrenOutput) {
+            Attribute tsAtter = null;
+            for (int i = 0; i < childrenOutput.size(); i++) {
+                if (childrenOutput.get(i).name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                    tsAtter = childrenOutput.get(i);
+                    break;
+                }
+            }
+            if (tsAtter == null) {
+                // if we didn't find a timestamp in the children output, time to do more work
+                Holder<String> tsAttributeName = new Holder<>(MetadataAttribute.TIMESTAMP_FIELD);
+                Holder<Attribute> tsAttribute = new Holder<>();
+                timeSeriesAggregate.forEachExpressionUp(Alias.class, a -> {
+                    if (a.child() instanceof Attribute c) {
+                        // will this ever not be true?
+                        if (c.name().equals(tsAttributeName.get())) {
+                            tsAttributeName.set(a.name());
+                            tsAttribute.set(a.toAttribute());
+                        }
+                    }
+                });
+
+                // Now we know what timestamp is going to be called, replace our UnresolvedAttributes referencing timestamp with that name
+                List<Expression> newGroupings = new ArrayList<>(timeSeriesAggregate.groupings().size());
+                List<NamedExpression> newAggregates = new ArrayList<>(timeSeriesAggregate.aggregates().size());
+                // TODO: Can we just resolve these here? we have the attribute
+                for (int i = 0; i < timeSeriesAggregate.groupings().size(); i++) {
+                    newGroupings.add(timeSeriesAggregate.groupings().get(i).transformUp(UnresolvedAttribute.class, ua -> {
+                        if (ua.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                            return new UnresolvedAttribute(ua.source(), tsAttributeName.get());
+                        }
+                        return ua;
+                    }));
+                }
+
+                for (int i = 0; i < timeSeriesAggregate.aggregates().size(); i++) {
+                    newAggregates.add(
+                        (NamedExpression) timeSeriesAggregate.aggregates().get(i).transformUp(UnresolvedAttribute.class, ua -> {
+                            if (ua.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                                return new UnresolvedAttribute(ua.source(), tsAttributeName.get());
+                            }
+                            return ua;
+                        })
+                    );
+                }
+                timeSeriesAggregate = timeSeriesAggregate.with(newGroupings, newAggregates, tsAttribute.get());
+            } else {
+                timeSeriesAggregate = timeSeriesAggregate.with(timeSeriesAggregate.groupings(), timeSeriesAggregate.aggregates(), tsAtter);
+            }
+
+            // After correcting the timestamps, we still need to resolve the node as normal, so delegate to resolveAggregate
+            return (TimeSeriesAggregate) resolveAggregate(timeSeriesAggregate, childrenOutput);
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1075,7 +1137,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             Attribute resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput);
+            List<Attribute> named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -1245,9 +1307,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     projections.removeIf(x -> x.name().equals(alias.name()));
                     childrenOutput.removeIf(x -> x.name().equals(alias.name()));
 
-                    var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
+                    Attribute resolved = maybeResolveAttribute(ua, childrenOutput, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
-                        var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
+                        NamedExpression realiased = alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
                         childrenOutput.removeIf(x -> x.equals(resolved));
                         reverseAliasing.put(resolved.name(), alias.name());
@@ -1348,7 +1410,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
+        List<Attribute> matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
     }
 

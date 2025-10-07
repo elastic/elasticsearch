@@ -362,7 +362,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             if (input.anyMatch(p -> p instanceof Aggregate) == false
                 && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
-                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
+                return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null, null);
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
             }

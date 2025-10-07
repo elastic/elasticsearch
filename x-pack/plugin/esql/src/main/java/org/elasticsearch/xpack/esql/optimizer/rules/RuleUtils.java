@@ -87,7 +87,7 @@ public final class RuleUtils {
 
         // collect aliases bottom-up
         plan.forEachExpressionUp(Alias.class, a -> {
-            var c = a.child();
+            Expression c = a.child();
             boolean shouldCollect = c.foldable();
             // try to resolve the expression based on an existing foldables
             if (shouldCollect == false) {

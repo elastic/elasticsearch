@@ -203,6 +203,15 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         forEachPropertyDown(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
     }
 
+    /**
+     * This traverses all {@link Expression} nodes for all children of the current node, applying the given function to each of them.
+     * It does not transform (i.e. replace) those nodes, it just hands them to the consumer, which can read but not modify (since the
+     * nodes are immutable)
+     *
+     * @param typeToken Only process expressions matching the given type
+     * @param rule a non-modifying consumer which operates on the given token type
+     * @param <E> the type of expression this pass will process
+     */
     public <E extends Expression> void forEachExpressionUp(Class<E> typeToken, Consumer<? super E> rule) {
         forEachPropertyUp(Object.class, e -> doForEachExpression(e, exp -> exp.forEachUp(typeToken, rule)));
     }

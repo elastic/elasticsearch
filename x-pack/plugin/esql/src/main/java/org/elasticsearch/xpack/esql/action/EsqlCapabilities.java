@@ -735,6 +735,11 @@ public class EsqlCapabilities {
         KQL_FUNCTION,
 
         /**
+         * Support for optional parameters in KQL function (case_insensitive, time_zone, default_field, boost).
+         */
+        KQL_FUNCTION_OPTIONS,
+
+        /**
          * Hash function
          */
         HASH_FUNCTION,

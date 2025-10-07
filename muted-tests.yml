@@ -675,6 +675,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.ContainsFail}
   issue: https://github.com/elastic/elasticsearch/issues/136112
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:union_types.MultiIndexTsLongStatsDrop}
+  issue: https://github.com/elastic/elasticsearch/issues/136113
 
 # Examples:
 #

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.approximate;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.stat.descriptive.moment.Mean;
@@ -48,6 +48,8 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         "ConfidenceInterval",
         ConfidenceInterval::new
     );
+
+    private static final NormalDistribution normal = new NormalDistribution();
 
     private final Expression bestEstimate;
     private final Expression estimates;
@@ -174,7 +176,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         Number[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates);
         builder.beginPositionEntry();
         for (Number v : confidenceInterval) {
-            builder.appendInt(v.intValue());
+            builder.appendInt((int) Math.round(v.doubleValue()));
         }
         builder.endPositionEntry();
     }
@@ -195,12 +197,12 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         Number[] confidenceInterval = computeConfidenceInterval(bestEstimate, estimates);
         builder.beginPositionEntry();
         for (Number v : confidenceInterval) {
-            builder.appendLong(v.longValue());
+            builder.appendLong(Math.round(v.doubleValue()));
         }
         builder.endPositionEntry();
     }
 
-    private static Number[] computeConfidenceInterval(Number bestEstimate, Number[] estimates) {
+    public static Number[] computeConfidenceInterval(Number bestEstimate, Number[] estimates) {
         Mean estimatesMean = new Mean();
         StandardDeviation estimatesStdDev = new StandardDeviation(false);
         Skewness estimatesSkew = new Skewness();
@@ -209,26 +211,18 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             estimatesStdDev.increment(estimate.doubleValue());
             estimatesSkew.increment(estimate.doubleValue());
         }
-
-        double mm = estimatesMean.getResult();
         double sm = estimatesStdDev.getResult();
-
         if (sm == 0.0) {
-            return new Number[] { bestEstimate, bestEstimate, bestEstimate };
+            return new Number[] { bestEstimate, bestEstimate };
         }
-
-        double a = estimatesSkew.getResult() / 6;
-
-        NormalDistribution norm = new NormalDistribution(0, 1);
-
+        double mm = estimatesMean.getResult();
         double z0 = (bestEstimate.doubleValue() - mm) / sm;
-        double dz = norm.inverseCumulativeProbability((1 + 0.95) / 2);  // for 95% confidence interval
-        double zl = z0 - dz;
-        double zu = z0 + dz;
-
-        sm /= Math.sqrt(estimatesMean.getN());
-
-        return new Number[] { mm + sm * (z0 + zl / (1 - Math.min(0.8, a * zl))), mm + sm * (z0 + zu / (1 - Math.min(0.8, a * zu))), };
+        double dz = normal.inverseCumulativeProbability((1 + 0.95) / 2);  // for 95% confidence interval; TODO make configurable
+        double a = estimatesSkew.getResult() / (6 * Math.sqrt(estimates.length));
+        double zl = z0 + (z0 - dz) / (1 - Math.min(a * (z0 - dz), 0.9));
+        double zu = z0 + (z0 + dz) / (1 - Math.min(a * (z0 + dz), 0.9));
+        double scale = Math.max(1 / Math.sqrt(estimates.length), z0 < 0 ? z0 / zl : z0 / zu);
+        return new Number[] { mm + scale * sm * zl, mm + sm * scale * zu };
     }
 
     @Override

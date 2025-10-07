@@ -44,7 +44,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
+              - adoptopenjdk17
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -54,7 +54,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -66,11 +66,11 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
+              - adoptopenjdk17
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -85,7 +85,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
-              - openjdk17
+              - adoptopenjdk17
               - openjdk21
               - openjdk22
               - openjdk23
@@ -98,7 +98,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -111,14 +111,14 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - graalvm-ce17
-              - openjdk17
+              - adoptopenjdk17
               - openjdk21
               - openjdk22
               - openjdk23
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2204
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:

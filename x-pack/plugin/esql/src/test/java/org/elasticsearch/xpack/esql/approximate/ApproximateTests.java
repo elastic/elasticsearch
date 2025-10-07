@@ -56,9 +56,9 @@ public class ApproximateTests extends ESTestCase {
 
     private static final EsqlParser parser = EsqlParser.INSTANCE;
     private static final Analyzer analyzer = AnalyzerTestUtils.defaultAnalyzer();
-    private static final LogicalPlanPreOptimizer logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
-        new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class), TransportVersion.current()));
-
+    private static final LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(
+        new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class), TransportVersion.current())
+    );
     private static final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
     private static final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
     private static final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
@@ -298,7 +298,7 @@ public class ApproximateTests extends ESTestCase {
         LogicalPlan plan = parser.createStatement(query, new QueryParams()).plan();
         plan = analyzer.analyze(plan);
         plan.setAnalyzed();
-        logicalPlanPreOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));
+        preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));
         if (exceptionHolder.get() != null) {
             throw exceptionHolder.get();
         }

@@ -125,7 +125,8 @@ public class DatasetUtilsImpl implements DatasetUtils {
     ) throws IOException {
         MemorySegment ms = input.segmentSliceOrNull(pos, len);
         assert ms != null;
-        if (((long) numVectors * rowStride) > ms.byteSize()) {
+        final int byteSize = dataType == CuVSMatrix.DataType.FLOAT ? Float.BYTES : Byte.BYTES;
+        if (((long) numVectors * rowStride * byteSize) > ms.byteSize()) {
             throwIllegalArgumentException(ms, numVectors, dims);
         }
         return fromMemorySegment(ms, numVectors, dims, rowStride, columnStride, dataType);

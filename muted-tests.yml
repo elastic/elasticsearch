@@ -534,12 +534,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=analytics/nested_top_metrics_sort/terms order by top metrics numeric not null integer values}
   issue: https://github.com/elastic/elasticsearch/issues/135162
-- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
-  method: testSimpleWithCranky
-  issue: https://github.com/elastic/elasticsearch/issues/135224
-- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
-  method: testSimpleCircuitBreaking
-  issue: https://github.com/elastic/elasticsearch/issues/135260
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/135333

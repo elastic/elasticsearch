@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.voyageai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -96,6 +95,8 @@ public class VoyageAIService extends SenderService {
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
+
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public VoyageAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -357,7 +358,7 @@ public class VoyageAIService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     public static class Configuration {

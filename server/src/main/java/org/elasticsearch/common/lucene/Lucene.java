@@ -64,7 +64,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,6 +109,8 @@ public class Lucene {
     public static final TotalHits TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(TOTAL_HITS_EQUAL_TO_ZERO, EMPTY_SCORE_DOCS);
+
+    private static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = TransportVersion.fromName("search_incremental_top_docs_null");
 
     private Lucene() {}
 
@@ -385,7 +387,7 @@ public class Lucene {
      */
     public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs == null) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL)) {
                 out.writeByte((byte) -1);
                 return;
             } else {
@@ -433,7 +435,7 @@ public class Lucene {
     public static TopDocs readTopDocsIncludingShardIndex(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == -1) {
-            assert in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+            assert in.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL);
             return null;
         } else if (type == 0) {
             TotalHits totalHits = readTotalHits(in);

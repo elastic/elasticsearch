@@ -209,6 +209,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
+        private static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION = TransportVersion.fromName(
+            "introduce_failures_default_retention"
+        );
         private static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = TransportVersion.fromName(
             "include_index_mode_in_get_data_stream"
         );
@@ -649,7 +652,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 : null;
             DataStreamGlobalRetention dataGlobalRetention = null;
             DataStreamGlobalRetention failuresGlobalRetention = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+            if (in.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
                 var defaultRetention = in.readOptionalTimeValue();
                 var maxRetention = in.readOptionalTimeValue();
                 var failuresDefaultRetention = in.readOptionalTimeValue();
@@ -688,7 +691,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
             // A version 9.x cluster will never read this, so we only need to include the patch version here.
-            if (out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failuresGlobalRetention == null ? null : failuresGlobalRetention.defaultRetention());

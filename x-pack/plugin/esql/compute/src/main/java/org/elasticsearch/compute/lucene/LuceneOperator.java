@@ -43,8 +43,6 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING_8_19;
-
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
 
@@ -273,6 +271,8 @@ public abstract class LuceneOperator extends SourceOperator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
+
         private final int processedSlices;
         private final Set<String> processedQueries;
         private final Set<String> processedShards;
@@ -362,7 +362,7 @@ public abstract class LuceneOperator extends SourceOperator {
             } else {
                 rowsEmitted = 0;
             }
-            partitioningStrategies = in.getTransportVersion().onOrAfter(ESQL_REPORT_SHARD_PARTITIONING_8_19)
+            partitioningStrategies = in.getTransportVersion().onOrAfter(ESQL_REPORT_SHARD_PARTITIONING)
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
         }
@@ -386,7 +386,7 @@ public abstract class LuceneOperator extends SourceOperator {
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
                 out.writeVLong(rowsEmitted);
             }
-            if (out.getTransportVersion().onOrAfter(ESQL_REPORT_SHARD_PARTITIONING_8_19)) {
+            if (out.getTransportVersion().onOrAfter(ESQL_REPORT_SHARD_PARTITIONING)) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
             }
         }

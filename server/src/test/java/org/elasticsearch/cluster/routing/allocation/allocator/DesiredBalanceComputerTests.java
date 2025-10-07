@@ -54,6 +54,7 @@ import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -566,7 +567,21 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     public void testAppliesMoveCommands() {
-        var desiredBalanceComputer = createDesiredBalanceComputer();
+        var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                assertThat(
+                    "unexpected relocating shards: " + allocation.routingNodes(),
+                    allocation.routingNodes().getRelocatingShardCount(),
+                    equalTo(0)
+                );
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        });
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
@@ -578,25 +593,29 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
         clusterState = rebuildRoutingTable(clusterState, routingNodes);
 
-        var desiredBalance = desiredBalanceComputer.compute(
-            DesiredBalance.BECOME_MASTER_INITIAL,
-            createInput(clusterState),
-            queue(
-                new MoveAllocationCommand(index.getName(), 0, "node-1", "node-2"),
-                new MoveAllocationCommand(index.getName(), 1, "node-1", "node-2")
-            ),
-            input -> true
-        );
+        final var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
+        for (var nodeId : List.of("node-0", "node-1")) {
+            var desiredBalance = desiredBalanceComputer.compute(
+                DesiredBalance.BECOME_MASTER_INITIAL,
+                createInput(clusterState),
+                queue(
+                    new MoveAllocationCommand(index.getName(), 0, nodeId, "node-2"),
+                    new MoveAllocationCommand(index.getName(), 1, nodeId, "node-2")
+                ),
+                input -> true
+            );
 
-        assertDesiredAssignments(
-            desiredBalance,
-            Map.of(
-                new ShardId(index, 0),
-                new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
-                new ShardId(index, 1),
-                new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)
-            )
-        );
+            final Set<String> expectedNodeIds = Sets.difference(dataNodeIds, Set.of(nodeId));
+            assertDesiredAssignments(
+                desiredBalance,
+                Map.of(
+                    new ShardId(index, 0),
+                    new ShardAssignment(expectedNodeIds, 2, 0, 0),
+                    new ShardId(index, 1),
+                    new ShardAssignment(expectedNodeIds, 2, 0, 0)
+                )
+            );
+        }
     }
 
     public void testDesiredBalanceShouldConvergeInABigCluster() {

@@ -36,6 +36,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -291,7 +292,16 @@ public class DesiredBalanceComputer {
         while ((commands = pendingDesiredBalanceMoves.poll()) != null) {
             for (MoveAllocationCommand command : commands) {
                 try {
-                    command.execute(routingAllocation, false);
+                    final var rerouteExplanation = command.execute(routingAllocation, false);
+                    if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
+                        final ShardRouting[] initializingShards = routingNodes.node(command.toNode()).initializing();
+                        assert initializingShards.length == 1 && command.fromNode().equals(initializingShards[0].relocatingNodeId())
+                            : "expect one relocating shard, but got : " + List.of(initializingShards);
+                        Arrays.stream(initializingShards).forEach(shard -> {
+                            clusterInfoSimulator.simulateShardStarted(shard);
+                            routingNodes.startShard(shard, changes, 0L);
+                        });
+                    }
                 } catch (RuntimeException e) {
                     logger.debug(
                         () -> "move shard ["

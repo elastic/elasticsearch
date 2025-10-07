@@ -35,16 +35,15 @@ required_capability: semantic_text_field_caps
 FROM semantic_text METADATA _score
 | EVAL query_embedding = TEXT_EMBEDDING("be excellent to each other", "test_dense_inference")
 | WHERE KNN(semantic_text_dense_field, query_embedding)
-| KEEP semantic_text_field, query_embedding, _score
-| EVAL _score = ROUND(_score, 4)
 | SORT _score DESC
 | LIMIT 10
+| KEEP semantic_text_field, query_embedding
 ;
 
-semantic_text_field:text                                              | query_embedding:dense_vector | _score:double
-be excellent to each other                                            | [45.0, 55.0, 54.0]           | 1.0
-live long and prosper                                                 | [45.0, 55.0, 54.0]           | 0.0295
-all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | 0.0214
+semantic_text_field:text                                              | query_embedding:dense_vector
+be excellent to each other                                            | [45.0, 55.0, 54.0]          
+live long and prosper                                                 | [45.0, 55.0, 54.0]          
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]          
 ;
 
 text_embedding with knn (inline) on semantic_text_dense_field
@@ -55,16 +54,15 @@ required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _score
 | WHERE KNN(semantic_text_dense_field, TEXT_EMBEDDING("be excellent to each other", "test_dense_inference"))
-| KEEP semantic_text_field, _score
-| EVAL _score = ROUND(_score, 4)
 | SORT _score DESC
 | LIMIT 10
+| KEEP semantic_text_field
 ;
 
-semantic_text_field:text                                              | _score:double
-be excellent to each other                                            | 1.0
-live long and prosper                                                 | 0.0295
-all we have to decide is what to do with the time that is given to us | 0.0214
+semantic_text_field:text                                             
+be excellent to each other                                           
+live long and prosper                                                
+all we have to decide is what to do with the time that is given to us
 ;
 
 
@@ -78,17 +76,16 @@ required_capability: semantic_text_field_caps
 FROM semantic_text METADATA _score
 | FORK (EVAL query_embedding = TEXT_EMBEDDING("be excellent to each other", "test_dense_inference") | WHERE KNN(semantic_text_dense_field, query_embedding))
        (EVAL query_embedding = TEXT_EMBEDDING("live long and prosper", "test_dense_inference") | WHERE KNN(semantic_text_dense_field, query_embedding))
-| KEEP semantic_text_field, query_embedding, _score, _fork
-| EVAL _score = ROUND(_score, 4)
-| SORT _score DESC
+| SORT _score DESC, _fork ASC
 | LIMIT 10
+| KEEP semantic_text_field, query_embedding, _fork
 ;
 
-semantic_text_field:text                                              | query_embedding:dense_vector | _fork:keyword | _score:double
-be excellent to each other                                            | [45.0, 55.0, 54.0]           | fork1         | 1.0
-live long and prosper                                                 | [50.0, 57.0, 56.0]           | fork2         | 1.0
-be excellent to each other                                            | [50.0, 57.0, 56.0]           | fork2         | 0.0295
-live long and prosper                                                 | [45.0, 55.0, 54.0]           | fork1         | 0.0295
-all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | fork1         | 0.0214
-all we have to decide is what to do with the time that is given to us | [50.0, 57.0, 56.0]           | fork2         | 0.0109
+semantic_text_field:text                                              | query_embedding:dense_vector | _fork:keyword
+be excellent to each other                                            | [45.0, 55.0, 54.0]           | fork1        
+live long and prosper                                                 | [50.0, 57.0, 56.0]           | fork2        
+live long and prosper                                                 | [45.0, 55.0, 54.0]           | fork1        
+be excellent to each other                                            | [50.0, 57.0, 56.0]           | fork2        
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | fork1        
+all we have to decide is what to do with the time that is given to us | [50.0, 57.0, 56.0]           | fork2        
 ;

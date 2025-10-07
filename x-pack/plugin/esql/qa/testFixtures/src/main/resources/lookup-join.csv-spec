@@ -5629,6 +5629,7 @@ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:int
 // https://github.com/elastic/elasticsearch/issues/134407
 SortOnFieldNullifiedDueToJoinKeyMissingInSomeOfTheIndices
 required_capability: join_lookup_v12
+required_capability: fixed_pushdown_past_project_with_attributes_resolution
 
 from sample_data,languages_mixed_numerics,apps
 | rename language_code_byte as language_code

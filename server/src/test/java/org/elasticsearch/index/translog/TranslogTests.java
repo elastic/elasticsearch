@@ -1329,7 +1329,8 @@ public class TranslogTests extends ESTestCase {
         final int numOps = scaledRandomIntBetween(8, 250000);
         final Set<Long> seenSeqNos = new HashSet<>();
         boolean opsHaveValidSequenceNumbers = randomBoolean();
-        int opSize = 14;
+        // The size is the header length + data size (int for this test) + the checksum int
+        int opSize = HEADER.length() + 4 + 4;
         for (int i = 0; i < numOps; i++) {
             byte[] bytes = new byte[4];
             DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(bytes));

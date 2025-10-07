@@ -80,6 +80,12 @@ mapped_pages:
 :::
 ::::
 
+::::{dropdown} Vector functions
+:open:
+:::{include} _snippets/lists/vector-functions.md
+:::
+::::
+
 ::::{dropdown} Multi value functions
 :open:
 :::{include} _snippets/lists/mv-functions.md

@@ -496,4 +496,21 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
         assertReferableDefinition("new_tv", "8124000")
     }
+
+    def "generation is idempotent on upstream changes"() {
+        given:
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("new_tv", "8124000")
+        transportVersionUpperBound("9.2", "new_tv", "8124000")
+        execute("git add .")
+        execute("git commit -m update")
+        execute("git checkout test")
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "existing_92,8123000")
+    }
 }

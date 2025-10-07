@@ -48,6 +48,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -70,6 +73,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -148,6 +152,7 @@ public class AuthorizationService {
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
+    private final AuthorizedProjectsResolver authorizedProjectsResolver;
 
     public AuthorizationService(
         Settings settings,
@@ -166,12 +171,18 @@ public class AuthorizationService {
         RestrictedIndices restrictedIndices,
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        AuthorizedProjectsResolver authorizedProjectsResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, linkedProjectConfigService, resolver, false);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(
+            settings,
+            linkedProjectConfigService,
+            resolver,
+            new CrossProjectModeDecider(settings)
+        );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);
@@ -192,6 +203,7 @@ public class AuthorizationService {
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
+        this.authorizedProjectsResolver = authorizedProjectsResolver;
     }
 
     public void checkPrivileges(
@@ -498,39 +510,40 @@ public class AuthorizationService {
                     return SubscribableListener.newSucceeded(resolvedIndices);
                 } else {
                     final SubscribableListener<ResolvedIndices> resolvedIndicesListener = new SubscribableListener<>();
+                    final var authorizedIndicesListener = new SubscribableListener<AuthorizationEngine.AuthorizedIndices>();
+                    authorizedIndicesListener.<Tuple<AuthorizationEngine.AuthorizedIndices, TargetProjects>>andThen(
+                        (l, authorizedIndices) -> {
+                            if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
+                                authorizedProjectsResolver.resolveAuthorizedProjects(
+                                    l.map(targetProjects -> new Tuple<>(authorizedIndices, targetProjects))
+                                );
+                            } else {
+                                l.onResponse(new Tuple<>(authorizedIndices, TargetProjects.NOT_CROSS_PROJECT));
+                            }
+                        }
+                    )
+                        .addListener(
+                            ActionListener.wrap(
+                                authorizedIndicesAndProjects -> resolvedIndicesListener.onResponse(
+                                    indicesAndAliasesResolver.resolve(
+                                        action,
+                                        request,
+                                        projectMetadata,
+                                        authorizedIndicesAndProjects.v1(),
+                                        authorizedIndicesAndProjects.v2()
+                                    )
+                                ),
+                                e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)
+                            )
+                        );
+
                     authzEngine.loadAuthorizedIndices(
                         requestInfo,
                         authzInfo,
                         projectMetadata.getIndicesLookup(),
-                        ActionListener.wrap(
-                            authorizedIndices -> resolvedIndicesListener.onResponse(
-                                indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
-                            ),
-                            e -> {
-                                if (e instanceof InvalidIndexNameException
-                                    || e instanceof InvalidSelectorException
-                                    || e instanceof UnsupportedSelectorException) {
-                                    logger.debug(
-                                        () -> Strings.format(
-                                            "failed [%s] action authorization for [%s] due to [%s] exception",
-                                            action,
-                                            authentication,
-                                            e.getClass().getSimpleName()
-                                        ),
-                                        e
-                                    );
-                                    listener.onFailure(e);
-                                    return;
-                                }
-                                auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                                if (e instanceof IndexNotFoundException) {
-                                    listener.onFailure(e);
-                                } else {
-                                    listener.onFailure(actionDenied(authentication, authzInfo, action, request, e));
-                                }
-                            }
-                        )
+                        authorizedIndicesListener
                     );
+
                     return resolvedIndicesListener;
                 }
             });
@@ -560,6 +573,41 @@ public class AuthorizationService {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(actionDenied(authentication, authzInfo, action, request));
+        }
+    }
+
+    private void onAuthorizedResourceLoadFailure(
+        String requestId,
+        RequestInfo requestInfo,
+        AuthorizationInfo authzInfo,
+        AuditTrail auditTrail,
+        ActionListener<Void> listener,
+        Exception ex
+    ) {
+        final String action = requestInfo.getAction();
+        final TransportRequest request = requestInfo.getRequest();
+        final Authentication authentication = requestInfo.getAuthentication();
+
+        if (ex instanceof InvalidIndexNameException
+            || ex instanceof InvalidSelectorException
+            || ex instanceof UnsupportedSelectorException) {
+            logger.info(
+                () -> Strings.format(
+                    "failed [%s] action authorization for [%s] due to [%s] exception",
+                    action,
+                    authentication,
+                    ex.getClass().getSimpleName()
+                ),
+                ex
+            );
+            listener.onFailure(ex);
+            return;
+        }
+        auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+        if (ex instanceof IndexNotFoundException || ex instanceof NoMatchingProjectException) {
+            listener.onFailure(ex);
+        } else {
+            listener.onFailure(actionDenied(authentication, authzInfo, action, request, ex));
         }
     }
 

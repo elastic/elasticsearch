@@ -114,7 +114,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             UnassignedInfo.Reason reason;
             if (randomBoolean()) {
                 failureCount = randomBoolean() ? 0 : 1;
-                reason = UnassignedInfo.Reason.ALLOCATION_FAILED;
+                reason = failureCount > 0 ? UnassignedInfo.Reason.ALLOCATION_FAILED : UnassignedInfo.Reason.NEW_INDEX_RESTORED;
             } else {
                 failureCount = 0;
                 reason = currentInfo.reason();

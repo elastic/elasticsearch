@@ -436,10 +436,10 @@ public final class RemoteClusterService extends RemoteClusterAware
             remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
+        } else if (remote.isSkipUnavailable() != config.skipUnavailable()) {
+            remote.setSkipUnavailable(config.skipUnavailable());
+            listener.onResponse(RemoteClusterConnectionStatus.UPDATED);
         } else {
-            if (crossProjectEnabled == false) {
-                remote.setSkipUnavailable(config.skipUnavailable());
-            }
             // No changes to connection configuration.
             listener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
         }
@@ -449,7 +449,8 @@ public final class RemoteClusterService extends RemoteClusterAware
         CONNECTED,
         DISCONNECTED,
         RECONNECTED,
-        UNCHANGED
+        UNCHANGED,
+        UPDATED
     }
 
     /**

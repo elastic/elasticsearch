@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
-import java.util.Objects;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**

@@ -23,7 +23,7 @@ This field type and the [
 type make it simpler to perform semantic search on your data. The
 `semantic_text` field type may also be queried
 with [match](/reference/query-languages/query-dsl/query-dsl-match-query.md), [sparse_vector](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md)
-or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries. For a full overview of the supported query options, see [Query semantic_text fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
+or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
 
 If you don’t specify an inference endpoint, the `inference_id` field defaults to
 `.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch

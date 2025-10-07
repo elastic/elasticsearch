@@ -1751,8 +1751,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 } else {
                     logger.debug(
-                        "Unable to clean up the following dangling blobs, {}, for index {} and shard {} " +
-                            "due to insufficient heap space on the master node.",
+                        "Unable to clean up the following dangling blobs, {}, for index {} and shard {} "
+                            + "due to insufficient heap space on the master node.",
                         blobsToDelete,
                         indexId,
                         shardId
@@ -1787,10 +1787,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             if (leakedBlobsCount > 0) {
                 logger.warn(
-                    "Skipped cleanup of {} dangling snapshot blobs due to memory constraints on the master node. " +
-                        "These blobs will be cleaned up automatically by future snapshot deletions. " +
-                        "If you routinely delete large snapshots, consider increasing the master node's heap size " +
-                        "to allow for more efficient cleanup.",
+                    "Skipped cleanup of {} dangling snapshot blobs due to memory constraints on the master node. "
+                        + "These blobs will be cleaned up automatically by future snapshot deletions. "
+                        + "If you routinely delete large snapshots, consider increasing the master node's heap size "
+                        + "to allow for more efficient cleanup.",
                     leakedBlobsCount
                 );
             }

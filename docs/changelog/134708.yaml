@@ -1,0 +1,5 @@
+pr: 134708
+summary: Default `semantic_text` fields to ELSER on EIS when available
+area: Relevance
+type: enhancement
+issues: []

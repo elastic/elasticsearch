@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -59,6 +60,10 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
+import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -137,9 +142,10 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Stream.of(
-            // graph
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
+        return Stream.concat(
+            Stream.of(
+                // graph
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
             // logstash
             new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSTASH, LogstashFeatureSetUsage::new),
             // ML
@@ -313,8 +319,26 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams::new
             ),
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new)
+            ),
+            getChunkingSettingsNamedWriteables().stream()
         ).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * @return List of chunking settings named writeable entries
+     */
+    public static List<NamedWriteableRegistry.Entry> getChunkingSettingsNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, NoneChunkingSettings.NAME, in -> NoneChunkingSettings.INSTANCE),
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, WordBoundaryChunkingSettings.NAME, WordBoundaryChunkingSettings::new),
+            new NamedWriteableRegistry.Entry(
+                ChunkingSettings.class,
+                SentenceBoundaryChunkingSettings.NAME,
+                SentenceBoundaryChunkingSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, RecursiveChunkingSettings.NAME, RecursiveChunkingSettings::new)
+        );
     }
 
     @Override

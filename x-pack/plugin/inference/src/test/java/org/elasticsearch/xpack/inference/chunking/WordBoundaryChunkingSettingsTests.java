@@ -11,6 +11,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -55,8 +57,8 @@ public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTe
         );
 
         assertEquals(settings.getChunkingStrategy(), ChunkingStrategy.WORD);
-        assertEquals(settings.maxChunkSize, maxChunkSize);
-        assertEquals(settings.overlap, overlap);
+        assertEquals((int) settings.maxChunkSize(), maxChunkSize);
+        assertEquals(settings.overlap(), overlap);
     }
 
     public Map<String, Object> buildChunkingSettingsMap(Optional<Integer> maxChunkSize, Optional<Integer> overlap) {
@@ -81,8 +83,8 @@ public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected WordBoundaryChunkingSettings mutateInstance(WordBoundaryChunkingSettings instance) throws IOException {
-        var maxChunkSize = randomValueOtherThan(instance.maxChunkSize, () -> randomIntBetween(10, 300));
-        var overlap = randomValueOtherThan(instance.overlap, () -> randomIntBetween(1, maxChunkSize / 2));
+        var maxChunkSize = randomValueOtherThan(instance.maxChunkSize(), () -> randomIntBetween(10, 300));
+        var overlap = randomValueOtherThan(instance.overlap(), () -> randomIntBetween(1, maxChunkSize / 2));
 
         return new WordBoundaryChunkingSettings(maxChunkSize, overlap);
     }

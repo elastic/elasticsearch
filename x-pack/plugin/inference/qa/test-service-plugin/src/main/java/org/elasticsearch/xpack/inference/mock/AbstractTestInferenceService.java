@@ -27,7 +27,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.chunking.NoopChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunker;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;

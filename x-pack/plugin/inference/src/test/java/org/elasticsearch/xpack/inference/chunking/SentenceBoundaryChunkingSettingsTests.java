@@ -11,6 +11,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -40,7 +42,7 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
         );
 
         assertEquals(settings.getChunkingStrategy(), ChunkingStrategy.SENTENCE);
-        assertEquals(settings.maxChunkSize, maxChunkSize);
+        assertEquals((int) settings.maxChunkSize(), maxChunkSize);
     }
 
     public Map<String, Object> buildChunkingSettingsMap(Optional<Integer> maxChunkSize) {
@@ -63,7 +65,7 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
 
     @Override
     protected SentenceBoundaryChunkingSettings mutateInstance(SentenceBoundaryChunkingSettings instance) throws IOException {
-        var chunkSize = randomValueOtherThan(instance.maxChunkSize, () -> randomIntBetween(20, 300));
-        return new SentenceBoundaryChunkingSettings(chunkSize, instance.sentenceOverlap);
+        var chunkSize = randomValueOtherThan(instance.maxChunkSize(), () -> randomIntBetween(20, 300));
+        return new SentenceBoundaryChunkingSettings(chunkSize, instance.sentenceOverlap());
     }
 }

@@ -12,6 +12,7 @@ import com.ibm.icu.text.BreakIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.ArrayList;

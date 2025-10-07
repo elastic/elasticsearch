@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.chunking;
+package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -16,7 +16,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -81,7 +81,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
+        Integer maxChunkSize = InferenceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
             MAX_CHUNK_SIZE_LOWER_LIMIT,
@@ -89,7 +89,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException
         );
 
-        SeparatorGroup separatorGroup = ServiceUtils.extractOptionalEnum(
+        SeparatorGroup separatorGroup = InferenceUtils.extractOptionalEnum(
             map,
             ChunkingSettingsOptions.SEPARATOR_GROUP.toString(),
             ModelConfigurations.CHUNKING_SETTINGS,
@@ -98,7 +98,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException
         );
 
-        List<String> separators = ServiceUtils.extractOptionalList(
+        List<String> separators = InferenceUtils.extractOptionalList(
             map,
             ChunkingSettingsOptions.SEPARATORS.toString(),
             String.class,

@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -129,6 +132,92 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return DataType.DOUBLE;
         }
     }
+
+    public static final class ScriptSort implements Sort {
+        private final Alias alias;
+        private final FieldAttribute field;
+        private final Script script;
+        private final Order.OrderDirection direction;
+
+        public ScriptSort(Alias alias, Script script, Order.OrderDirection direction) {
+            this.alias = alias;
+            this.script = script;
+            this.direction = direction;
+            EsField esField = new EsField(
+                alias.name(),
+                alias.dataType(),
+                Map.of(),
+                false,
+                EsField.TimeSeriesFieldType.NONE
+            );
+            this.field = new FieldAttribute(
+                alias.source(),
+                null,
+                null,
+                alias.name() + "_script",
+                esField
+            );
+        }
+
+        @Override
+        public FieldAttribute field() {
+            return field;
+        }
+
+        @Override
+            public SortBuilder<?> sortBuilder() {
+                ScriptSortBuilder.ScriptSortType sortType = field.dataType().isNumeric()
+                    ? ScriptSortBuilder.ScriptSortType.NUMBER
+                    : ScriptSortBuilder.ScriptSortType.STRING;
+                ScriptSortBuilder builder = new ScriptSortBuilder(script, sortType);
+                builder.order(Direction.from(direction).asOrder());
+                return builder;
+            }
+
+            @Override
+            public DataType resulType() {
+                return field.dataType();
+            }
+
+        public Alias alias() {
+            return alias;
+        }
+
+        public Script script() {
+            return script;
+        }
+
+        @Override
+        public Order.OrderDirection direction() {
+            return direction;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (ScriptSort) obj;
+            return Objects.equals(this.alias, that.alias) &&
+                Objects.equals(this.field, that.field) &&
+                Objects.equals(this.script, that.script) &&
+                Objects.equals(this.direction, that.direction);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(alias, field, script, direction);
+        }
+
+        @Override
+        public String toString() {
+            return "ScriptSort[" +
+                "alias=" + alias + ", " +
+                "field=" + field + ", " +
+                "script=" + script + ", " +
+                "direction=" + direction + ']';
+        }
+
+        }
 
     public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
         @Override

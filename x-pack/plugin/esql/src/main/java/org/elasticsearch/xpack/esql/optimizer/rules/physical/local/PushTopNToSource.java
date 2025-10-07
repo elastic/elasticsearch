@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -18,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
@@ -32,8 +36,10 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 
 /**
@@ -126,6 +132,29 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     record PushableCompoundExec(EvalExec evalExec, EsQueryExec queryExec, List<EsQueryExec.Sort> pushableSorts) implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
+//            List<Alias> evalExecAlias = evalExec.fields();
+//            List<FieldAttribute> additionalQueryAttrs = new ArrayList<>();
+//            boolean aliasChanged = false;
+//            for (EsQueryExec.Sort pushableSort : pushableSorts) {
+//                if (pushableSort instanceof EsQueryExec.ScriptSort scriptSort) {
+//                    // Change eval alias to the script sort field
+//                    for(int i = 0; i < evalExecAlias.size(); i++) {
+//                        Alias alias = evalExecAlias.get(i);
+//                        if (alias.id().equals(scriptSort.alias().id())) {
+//                            evalExecAlias.set(i, alias.replaceChild(scriptSort.field()));
+//                            additionalQueryAttrs.add(scriptSort.field());
+//                            aliasChanged = true;
+//                            break;
+//                        }
+//                    }
+//                }
+//            }
+//            if (aliasChanged) {
+//                EsQueryExec newQueryExec = queryExec.withSorts(pushableSorts).withLimit(topNExec.limit());
+////                newQueryExec.attrs().addAll(additionalQueryAttrs);
+//                EvalExec newEvalExec = new EvalExec(evalExec.source(), evalExec.child(), evalExecAlias);
+//            }
+
             // We need to keep the EVAL in place because the coordinator will have its own TopNExec so we need to keep the distance
             return evalExec.replaceChild(queryExec.withSorts(pushableSorts).withLimit(topNExec.limit()));
         }
@@ -153,6 +182,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             // a distance function defined in the EVAL. We also move the EVAL to after the SORT.
             List<Order> orders = topNExec.order();
             List<Alias> fields = evalExec.fields();
+            Map<NameId, Expression> pushableExpressions = new HashMap<>();
             LinkedHashMap<NameId, StDistance> distances = new LinkedHashMap<>();
             AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
             fields.forEach(alias -> {
@@ -161,6 +191,8 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     distances.put(alias.id(), distance);
                 } else if (alias.child() instanceof Attribute attr) {
                     aliasReplacedByBuilder.put(alias.toAttribute(), attr.toAttribute());
+                } else if (alias.child().isPushable()) {
+                    pushableExpressions.put(alias.id(), alias);
                 }
             });
             AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
@@ -195,6 +227,20 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             pushableSorts.add(
                                 new EsQueryExec.FieldSort(fieldAttribute.exactAttribute(), order.direction(), order.nullsPosition())
                             );
+                        } else if (pushableExpressions.containsKey(resolvedAttribute.id())) {
+                            Alias expressionAlias = (Alias) pushableExpressions.get(resolvedAttribute.id());
+
+                            // Create a script from the expression
+                            String scriptText = expressionAlias.child().asScript();
+                            Script script = new Script(scriptText);
+
+                            // Create a script sort that computes the value
+                            EsQueryExec.ScriptSort scriptSort = new EsQueryExec.ScriptSort(
+                                expressionAlias,
+                                script,
+                                order.direction()
+                            );
+                            pushableSorts.add(scriptSort);
                         } else {
                             // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,
                             // and we can no longer push down anything

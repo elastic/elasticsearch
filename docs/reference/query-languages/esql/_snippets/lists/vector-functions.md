@@ -1,7 +1,7 @@
-* <<esql-knn>>
-* <<esql-v_cosine>>
-* <<esql-v_dot_product>>
-* <<esql-v_hamming>>
-* <<esql-v_l1_norm>>
-* <<esql-v_l2_norm>>
-* <<esql-v_magnitude>>
+* [`KNN`](../../functions-operators/vector-functions.md#esql-knn)
+% * {applies_to}`stack: development` {applies_to}`serverless: preview` [`V_COSINE`](../../functions-operators/vector-functions.md#esql-v_cosine)
+% * {applies_to}`stack: development` {applies_to}`serverless: preview` [`V_DOT_PRODUCT`](../../functions-operators/vector-functions.md#esql-v_dot_product)
+% * {applies_to}`stack: preview` {applies_to}`serverless: preview` [`V_HAMMING`](../../functions-operators/vector-functions.md#esql-v_hamming)
+% * {applies_to}`stack: development` {applies_to}`serverless: preview` [`V_L1_NORM`](../../functions-operators/vector-functions.md#esql-v_l1_norm)
+% * {applies_to}`stack: development` {applies_to}`serverless: preview` [`V_L2_NORM`](../../functions-operators/vector-functions.md#esql-v_l2_norm)
+% * {applies_to}`stack: development` {applies_to}`serverless: preview` [`V_MAGNITUDE`](../../functions-operators/vector-functions.md#esql-v_magnitude)

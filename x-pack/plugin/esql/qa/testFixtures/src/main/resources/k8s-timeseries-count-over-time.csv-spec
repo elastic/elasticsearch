@@ -128,7 +128,7 @@ event_log:long | cluster:keyword | time_bucket:datetime
 
 count_over_time_of_keyword
 required_capability: ts_command_v0
-TS k8s | STATS pod = min(count_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s | STATS pod = min(count_over_time(network.eth0.up)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 pod:long | cluster:keyword | time_bucket:datetime
 4        | prod            | 2024-05-10T00:00:00.000Z

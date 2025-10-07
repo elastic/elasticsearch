@@ -41,7 +41,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     @FunctionInfo(
         returnType = "dense_vector",
         description = "Generates dense vector embeddings for text using a specified inference endpoint.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
+        appliesTo = {@FunctionAppliesTo(version = "9.3", lifeCycle = FunctionAppliesToLifecycle.PREVIEW)},
         preview = true,
         examples = {
             @Example(

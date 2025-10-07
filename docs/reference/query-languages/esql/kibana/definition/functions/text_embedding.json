@@ -27,5 +27,5 @@
     "ROW input=\"Who is Victor Hugo?\"\n| EVAL embedding = TEXT_EMBEDDING(\"Who is Victor Hugo?\", \"test_dense_inference\")\n;"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

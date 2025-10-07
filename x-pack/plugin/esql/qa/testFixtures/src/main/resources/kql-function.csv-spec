@@ -322,6 +322,7 @@ required_capability: kql_function_options
 FROM logs
 | WHERE KQL("@timestamp > \"2023-10-23T09:56:00\" AND @timestamp < \"2023-10-23T09:57:00\"", {"time_zone": "America/New_York"})
 | KEEP @timestamp, message
+| SORT @timestamp ASC
 ;
 
 @timestamp:date          | message:text
@@ -352,16 +353,15 @@ required_capability: kql_function_options
 
 FROM employees METADATA _score
 | WHERE KQL("job_positions: Support Engineer", {"boost": 2.5})
-| KEEP emp_no, first_name, last_name, job_positions, _score
-| EVAL _score = round(_score, 2)
+| KEEP emp_no, first_name, last_name, job_positions
 | SORT emp_no
 | LIMIT 3
 ;
 
-emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword                                                                  | _score:double
-10004          | Chirstian          | Koblick           | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]                 | 6.81
-10015          | Guoxiang           | Nooteboom         | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer] | 6.81
-10021          | Ramzi              | Erde              | Support Engineer                                                                       | 6.81
+emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword                                                                 
+10004          | Chirstian          | Koblick           | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]                
+10015          | Guoxiang           | Nooteboom         | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]
+10021          | Ramzi              | Erde              | Support Engineer                                                                      
 ;
 
 kqlWithMultipleOptions

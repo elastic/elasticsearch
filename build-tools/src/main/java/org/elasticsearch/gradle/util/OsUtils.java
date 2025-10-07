@@ -38,7 +38,7 @@ public final class OsUtils {
       * This method returns true if the given version of the JDK is known to be incompatible
       */
     public static boolean jdkIsIncompatibleWithOS(Version version) {
-        return version.onOrBefore("8.10.4") && isUbuntu2404OrLater();
+        return version.after("0.0.0") && version.onOrBefore("8.10.4") && isUbuntu2404OrLater();
     }
 
     private static boolean isUbuntu2404OrLater() {

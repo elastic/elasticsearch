@@ -81,6 +81,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
@@ -195,7 +196,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(transportService, searchService, namedWriteableRegistry);
         SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
             searchTransportService,
             searchService,
@@ -1271,7 +1272,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
                     // be thrown when a search phase attempts to access it.
                     targetNodes.add(perNode.getNode());
-                    if (perNode.getSearchContextId().getSearcherId() != null) {
+                    ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
+                    if (shardSearchContextId != null && shardSearchContextId.isRetryable()) {
                         for (String node : group.allocatedNodes()) {
                             if (node.equals(perNode.getNode()) == false) {
                                 targetNodes.add(node);
@@ -1947,7 +1949,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
                         }
-                        if (perNode.getSearchContextId().getSearcherId() != null) {
+                        ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
+                        if (shardSearchContextId.isRetryable()) {
                             for (ShardRouting shard : shards) {
                                 if (shard.currentNodeId().equals(perNode.getNode()) == false) {
                                     targetNodes.add(shard.currentNodeId());
@@ -2096,7 +2099,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
-                searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, searchRequestAttributes);
 
                 if (collectCCSTelemetry) {
                     extractCCSTelemetry(searchResponse);
@@ -2112,7 +2115,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         @Override
         public void onFailure(Exception e) {
-            searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+            searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE, searchRequestAttributes);
             if (collectCCSTelemetry) {
                 usageBuilder.setFailure(e);
                 recordTelemetry();

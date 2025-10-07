@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.configuration.TransportClearVoting
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -2444,7 +2445,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getProject().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard("id", routing, null, null, null)) {
+                    if (shard == indexRouting.indexShard(new IndexRequest().id("id").routing(routing))) {
                         return routing;
                     }
                 }

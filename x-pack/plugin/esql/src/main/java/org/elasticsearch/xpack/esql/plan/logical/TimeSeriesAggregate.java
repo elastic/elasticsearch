@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -118,6 +119,19 @@ public class TimeSeriesAggregate extends Aggregate {
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
+        groupings().forEach(g -> g.forEachDown(e -> {
+            if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
+                failures.add(
+                    fail(
+                        fieldAttr,
+                        "cannot group by a metric field [{}] in a time-series aggregation. "
+                            + "If you want to group by a metric field, use the FROM "
+                            + "command instead of the TS command.",
+                        fieldAttr.sourceText()
+                    )
+                );
+            }
+        }));
         child().forEachDown(p -> {
             // reject `TS metrics | SORT BY ... | STATS ...`
             if (p instanceof OrderBy orderBy) {

@@ -799,11 +799,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
         @Override
-        public Map<String, OriginalIndices> groupIndices(
-            Set<String> remoteClusterNames,
-            IndicesOptions indicesOptions,
-            String[] indexExpressions
-        ) {
+        public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions, boolean returnLocalAll) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
             final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 

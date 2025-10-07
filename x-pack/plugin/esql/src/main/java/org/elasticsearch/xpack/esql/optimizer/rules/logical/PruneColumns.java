@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
 
 /**
  * Remove unused columns created in the plan, in fields inside eval or aggregations inside stats.
@@ -109,7 +111,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = new LocalRelation(
                     aggregate.source(),
                     List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
-                    LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
+                    LocalSupplier.of(new Page(BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1)))
                 );
             } else {
                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
@@ -193,9 +195,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan emptyLocalRelation(LogicalPlan plan) {
+    private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {
         // create an empty local relation with no attributes
-        return new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY);
+        return skipPlan(plan);
     }
 
     private static boolean isLocalEmptyRelation(LogicalPlan plan) {

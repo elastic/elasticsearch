@@ -118,6 +118,11 @@ public final class Authentication implements ToXContentObject {
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersions.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
+
+    private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
+        "security_cloud_api_key_realm_and_type"
+    );
+
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -269,10 +274,10 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
-        if (isCloudApiKey() && olderVersion.before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+        if (isCloudApiKey() && olderVersion.supports(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
                     + "] can't handle cloud API key authentication and attempted to rewrite for ["
                     + olderVersion.toReleaseVersion()
                     + "]"
@@ -650,10 +655,10 @@ public final class Authentication implements ToXContentObject {
             );
         }
         if (effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY
-            && out.getTransportVersion().before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+            && out.getTransportVersion().supports(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
                     + "] can't handle cloud API key authentication and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"

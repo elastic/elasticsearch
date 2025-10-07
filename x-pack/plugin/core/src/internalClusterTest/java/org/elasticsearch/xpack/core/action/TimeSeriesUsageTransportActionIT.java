@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -130,6 +131,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         var ilmRoundsMin = new AtomicInteger(Integer.MAX_VALUE);
         var ilmRoundsMax = new AtomicInteger(Integer.MIN_VALUE);
         Set<String> usedPolicies = new HashSet<>();
+        var forceMergeEnabled = new AtomicReference<IlmForceMergeInPolicies>();
 
         /*
          * We now add a number of simulated data streams to the cluster state. We mix different combinations of:
@@ -139,7 +141,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
          */
         updateClusterState(clusterState -> {
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-            addIlmPolicies(metadataBuilder);
+            forceMergeEnabled.set(addIlmPolicies(metadataBuilder));
 
             Map<String, DataStream> dataStreamMap = new HashMap<>();
             for (int dataStreamCount = 0; dataStreamCount < randomIntBetween(10, 100); dataStreamCount++) {
@@ -313,22 +315,31 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                 ilmRoundsMin.get(),
                 ilmRoundsMax.get()
             );
+            var explicitlyEnabled = new AtomicInteger(0);
+            var explicitlyDisabled = new AtomicInteger(0);
+            var undefined = new AtomicInteger(0);
             Map<String, Object> phasesStats = (Map<String, Object>) ilmStats.get("phases_in_use");
             if (usedPolicies.contains(DOWNSAMPLING_IN_HOT_POLICY)) {
                 assertThat(phasesStats.get("hot"), equalTo(1));
+                updateForceMergeCounters(forceMergeEnabled.get().enabledInHot, explicitlyEnabled, explicitlyDisabled, undefined);
             } else {
                 assertThat(phasesStats.get("hot"), nullValue());
             }
             if (usedPolicies.contains(DOWNSAMPLING_IN_WARM_COLD_POLICY)) {
                 assertThat(phasesStats.get("warm"), equalTo(1));
+                updateForceMergeCounters(forceMergeEnabled.get().enabledInWarm, explicitlyEnabled, explicitlyDisabled, undefined);
                 assertThat(phasesStats.get("cold"), equalTo(1));
+                updateForceMergeCounters(forceMergeEnabled.get().enabledInCold, explicitlyEnabled, explicitlyDisabled, undefined);
             } else {
                 assertThat(phasesStats.get("warm"), nullValue());
                 assertThat(phasesStats.get("cold"), nullValue());
             }
-
+            Map<String, Object> forceMergeStats = (Map<String, Object>) ilmStats.get("force_merge");
+            assertThat((int) forceMergeStats.get("explicitly_enabled_count"), equalTo(explicitlyEnabled.get()));
+            assertThat(forceMergeStats.get("explicitly_disabled_count"), equalTo(explicitlyDisabled.get()));
+            assertThat(forceMergeStats.get("undefined_count"), equalTo(undefined.get()));
+            assertThat(forceMergeStats.get("undefined_force_merge_needed_count"), equalTo(0));
         }
-
     }
 
     @SuppressWarnings("unchecked")
@@ -380,6 +391,16 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
             assertThat(roundsMap.get("average"), equalTo((double) roundsSum / roundsCount));
             assertThat(roundsMap.get("min"), equalTo(roundsMin));
             assertThat(roundsMap.get("max"), equalTo(roundsMax));
+        }
+    }
+
+    private void updateForceMergeCounters(Boolean value, AtomicInteger enabled, AtomicInteger disabled, AtomicInteger undefined) {
+        if (value == null) {
+            undefined.incrementAndGet();
+        } else if (value) {
+            enabled.incrementAndGet();
+        } else {
+            disabled.incrementAndGet();
         }
     }
 
@@ -462,7 +483,10 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         return rounds;
     }
 
-    private void addIlmPolicies(Metadata.Builder metadataBuilder) {
+    private IlmForceMergeInPolicies addIlmPolicies(Metadata.Builder metadataBuilder) {
+        Boolean hotForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
+        Boolean warmForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
+        Boolean coldForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
         List<LifecyclePolicy> policies = List.of(
             new LifecyclePolicy(
                 DOWNSAMPLING_IN_HOT_POLICY,
@@ -471,7 +495,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     new Phase(
                         "hot",
                         TimeValue.ZERO,
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.MINUTE, null, randomBoolean()))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.MINUTE, null, hotForceMergeEnabled))
                     )
                 )
             ),
@@ -482,13 +506,13 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     new Phase(
                         "warm",
                         TimeValue.ZERO,
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, randomBoolean()))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, warmForceMergeEnabled))
                     ),
                     "cold",
                     new Phase(
                         "cold",
                         TimeValue.timeValueDays(3),
-                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, randomBoolean()))
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, coldForceMergeEnabled))
                     )
                 )
             ),
@@ -506,7 +530,10 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
             );
         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(policyMetadata, OperationMode.RUNNING);
         metadataBuilder.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
+        return new IlmForceMergeInPolicies(hotForceMergeEnabled, warmForceMergeEnabled, coldForceMergeEnabled);
     }
+
+    private record IlmForceMergeInPolicies(Boolean enabledInHot, Boolean enabledInWarm, Boolean enabledInCold) {}
 
     private static String randomIlmPolicy(DownsampledBy downsampledBy, boolean ovewrittenDlm) {
         if (downsampledBy == DownsampledBy.ILM || (downsampledBy == DownsampledBy.DLM && ovewrittenDlm)) {

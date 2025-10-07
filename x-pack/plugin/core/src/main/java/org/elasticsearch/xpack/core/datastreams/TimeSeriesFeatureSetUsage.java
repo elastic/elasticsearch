@@ -338,8 +338,8 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
             builder.startObject("force_merge");
             builder.field("explicitly_enabled_count", forceMergeExplicitlyEnabledCounter);
             builder.field("explicitly_disabled_count", forceMergeExplicitlyDisabledCounter);
-            builder.field("unspecified_count", forceMergeDefaultCounter);
-            builder.field("impactful_when_unspecified_count", downsampledForceMergeNeededCounter);
+            builder.field("undefined_count", forceMergeDefaultCounter);
+            builder.field("undefined_force_merge_needed_count", downsampledForceMergeNeededCounter);
             builder.endObject();
             return null;
         }

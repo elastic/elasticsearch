@@ -143,8 +143,6 @@ public class NetworkDirection extends EsqlScalarFunction {
         boolean sourceInternal = false;
         boolean destinationInternal = false;
 
-
-        // TODO: address scratch re-use due to .length issues above when sharing buffer
         for (int i = first; i < first + valueCount; i++) {
             if (NetworkDirectionUtils.inNetwork(sourceIpAddress, networks.getBytesRef(i, netScratch).utf8ToString())) {
                 sourceInternal = true;

@@ -5,7 +5,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 
 import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -127,7 +126,7 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
         BytesRef destinationIp = destinationIpBlock.getBytesRef(destinationIpBlock.getFirstValueIndex(p), destinationIpScratch);
         try {
           result.appendBytesRef(NetworkDirection.process(this.scratch, this.netScratch, sourceIp, destinationIp, p, networksBlock));
-        } catch (IllegalStateException e) {
+        } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
         }
@@ -146,7 +145,7 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
         BytesRef destinationIp = destinationIpVector.getBytesRef(p, destinationIpScratch);
         try {
           result.appendBytesRef(NetworkDirection.process(this.scratch, this.netScratch, sourceIp, destinationIp, p, networksBlock));
-        } catch (IllegalStateException e) {
+        } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
         }

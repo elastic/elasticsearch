@@ -620,7 +620,7 @@ You can query `semantic_text` fields using the following query types:
 Refer to examples of match queries on `semantic_text` fields.
 -->
 
-- [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) - Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. 
+- [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md): Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. 
 <!-- 
 Refer to examples of kNN queries on `semantic_text` fields.
 -->

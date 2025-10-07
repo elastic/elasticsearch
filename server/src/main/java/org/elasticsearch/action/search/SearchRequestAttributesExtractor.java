@@ -22,9 +22,14 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -108,7 +113,15 @@ public final class SearchRequestAttributesExtractor {
             try {
                 introspectQueryBuilder(searchSourceBuilder.query(), queryMetadataBuilder, 0);
             } catch (Exception e) {
-                logger.error("Failed to extract query attribute", e);
+                logger.error("Failed to extract query attributes", e);
+            }
+        }
+
+        if (searchSourceBuilder.retriever() != null) {
+            try {
+                introspectRetriever(searchSourceBuilder.retriever(), queryMetadataBuilder, 0);
+            } catch (Exception e) {
+                logger.error("Failed to extract retriever attributes", e);
             }
         }
 
@@ -311,6 +324,14 @@ public final class SearchRequestAttributesExtractor {
             case NestedQueryBuilder nested:
                 introspectQueryBuilder(nested.query(), queryMetadataBuilder, ++level);
                 break;
+            case RankDocsQueryBuilder rankDocs:
+                QueryBuilder[] queryBuilders = rankDocs.getQueryBuilders();
+                if (queryBuilders != null) {
+                    for (QueryBuilder builder : queryBuilders) {
+                        introspectQueryBuilder(builder, queryMetadataBuilder, level + 1);
+                    }
+                }
+                break;
             case RangeQueryBuilder range:
                 // Note that the outcome of this switch differs depending on whether it is executed on the coord node, or data node.
                 // Data nodes perform query rewrite on each shard. That means that a query that reports a certain time range filter at the
@@ -333,6 +354,26 @@ public final class SearchRequestAttributesExtractor {
                 break;
             case KnnVectorQueryBuilder knn:
                 queryMetadataBuilder.knnQuery = true;
+                break;
+            default:
+        }
+    }
+
+    private static void introspectRetriever(RetrieverBuilder retrieverBuilder, QueryMetadataBuilder queryMetadataBuilder, int level) {
+        if (level > 20) {
+            return;
+        }
+        switch (retrieverBuilder) {
+            case KnnRetrieverBuilder knn:
+                queryMetadataBuilder.knnQuery = true;
+                break;
+            case StandardRetrieverBuilder standard:
+                introspectQueryBuilder(standard.topDocsQuery(), queryMetadataBuilder, level + 1);
+                break;
+            case CompoundRetrieverBuilder<?> compound:
+                for (CompoundRetrieverBuilder.RetrieverSource retrieverSource : compound.innerRetrievers()) {
+                    introspectRetriever(retrieverSource.retriever(), queryMetadataBuilder, level + 1);
+                }
                 break;
             default:
         }

@@ -1556,7 +1556,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                             "model_id": {
                                 "description": "The name of the model to use for the inference task.",
                                 "label": "Model ID",
-                                "required": false,
+                                "required": true,
                                 "sensitive": false,
                                 "updatable": false,
                                 "type": "str",

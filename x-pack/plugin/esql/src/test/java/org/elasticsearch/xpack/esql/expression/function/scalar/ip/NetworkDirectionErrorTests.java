@@ -34,7 +34,7 @@ public class NetworkDirectionErrorTests extends ErrorsForCasesWithoutExamplesTes
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 0, 1 -> "ip";
-            case 2 -> "keyword";
+            case 2 -> "string";
             default -> "";
         }));
     }

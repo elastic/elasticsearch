@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -60,15 +59,7 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
     try (BytesRefBlock sourceIpBlock = (BytesRefBlock) sourceIp.eval(page)) {
       try (BytesRefBlock destinationIpBlock = (BytesRefBlock) destinationIp.eval(page)) {
         try (BytesRefBlock networksBlock = (BytesRefBlock) networks.eval(page)) {
-          BytesRefVector sourceIpVector = sourceIpBlock.asVector();
-          if (sourceIpVector == null) {
-            return eval(page.getPositionCount(), sourceIpBlock, destinationIpBlock, networksBlock);
-          }
-          BytesRefVector destinationIpVector = destinationIpBlock.asVector();
-          if (destinationIpVector == null) {
-            return eval(page.getPositionCount(), sourceIpBlock, destinationIpBlock, networksBlock);
-          }
-          return eval(page.getPositionCount(), sourceIpVector, destinationIpVector, networksBlock);
+          return eval(page.getPositionCount(), sourceIpBlock, destinationIpBlock, networksBlock);
         }
       }
     }
@@ -89,6 +80,7 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
       BytesRef sourceIpScratch = new BytesRef();
       BytesRef destinationIpScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        boolean allBlocksAreNulls = true;
         if (sourceIpBlock.isNull(p)) {
           result.appendNull();
           continue position;
@@ -111,44 +103,16 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
-        if (networksBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        if (!networksBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
-        if (networksBlock.getValueCount(p) != 1) {
-          if (networksBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
         BytesRef sourceIp = sourceIpBlock.getBytesRef(sourceIpBlock.getFirstValueIndex(p), sourceIpScratch);
         BytesRef destinationIp = destinationIpBlock.getBytesRef(destinationIpBlock.getFirstValueIndex(p), destinationIpScratch);
-        try {
-          result.appendBytesRef(NetworkDirection.process(this.scratch, this.netScratch, sourceIp, destinationIp, p, networksBlock));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public BytesRefBlock eval(int positionCount, BytesRefVector sourceIpVector,
-      BytesRefVector destinationIpVector, BytesRefBlock networksBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef sourceIpScratch = new BytesRef();
-      BytesRef destinationIpScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef sourceIp = sourceIpVector.getBytesRef(p, sourceIpScratch);
-        BytesRef destinationIp = destinationIpVector.getBytesRef(p, destinationIpScratch);
-        try {
-          result.appendBytesRef(NetworkDirection.process(this.scratch, this.netScratch, sourceIp, destinationIp, p, networksBlock));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        NetworkDirection.process(result, this.scratch, this.netScratch, sourceIp, destinationIp, p, networksBlock);
       }
       return result.build();
     }

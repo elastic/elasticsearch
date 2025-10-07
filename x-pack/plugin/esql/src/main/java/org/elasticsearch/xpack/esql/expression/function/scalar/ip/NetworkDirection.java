@@ -34,6 +34,12 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.fromIndex;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPAndExact;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 
 /**
  * Returns the direction type (inbound, outbound, internal, external) given a source IP address, destination IP address, and a list of internal networks.
@@ -126,14 +132,14 @@ public class NetworkDirection extends EsqlScalarFunction {
         );
     }
 
-    @Evaluator(warnExceptions = IllegalArgumentException.class)
-    static BytesRef process(@Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, @Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef netScratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock networks) {
+    @Evaluator()
+    static void process(BytesRefBlock.Builder builder, @Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, @Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef netScratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock networks) {
         int valueCount = networks.getValueCount(position);
         if (valueCount == 0) {
-            throw new IllegalArgumentException("List of internal networks must not be empty");
+            builder.appendNull();
+            return;
         }
         int first = networks.getFirstValueIndex(position);
-
 
         System.arraycopy(sourceIp.bytes, sourceIp.offset, scratch.bytes, 0, sourceIp.length);
         InetAddress sourceIpAddress = InetAddressPoint.decode(scratch.bytes);
@@ -156,12 +162,23 @@ public class NetworkDirection extends EsqlScalarFunction {
             }
         }
 
-        return new BytesRef(NetworkDirectionUtils.getDirection(sourceInternal, destinationInternal));
+        builder.appendBytesRef(new BytesRef(NetworkDirectionUtils.getDirection(sourceInternal, destinationInternal)));
     }
 
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        return isIPAndExact(sourceIpField, sourceText(), FIRST)
+            .and(isIPAndExact(destinationIpField, sourceText(), SECOND))
+            .and(isStringAndExact(internalNetworks, sourceText(), THIRD));
     }
 
     public Expression sourceIpField() {

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
@@ -34,7 +35,7 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         // These tests copy the data from the NetworkDirectionUtils tests
-        var suppliers = new ArrayList<TestCaseSupplier>();
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         for (var stringType : DataType.stringTypes()) {
             suppliers.addAll(List.of(
@@ -212,6 +213,7 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                 )
             ));
         }
+        suppliers = anyNullIsNull(true, suppliers);
 
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }

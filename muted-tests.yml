@@ -672,6 +672,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:text-embedding.Text_embedding with knn on semantic_text_dense_field}
   issue: https://github.com/elastic/elasticsearch/issues/136108
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:string.ContainsFail}
+  issue: https://github.com/elastic/elasticsearch/issues/136112
 
 # Examples:
 #

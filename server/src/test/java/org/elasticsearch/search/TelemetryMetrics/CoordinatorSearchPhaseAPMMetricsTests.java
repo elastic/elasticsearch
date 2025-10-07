@@ -12,11 +12,8 @@ package org.elasticsearch.search.TelemetryMetrics;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.ExecutorNames;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -55,15 +52,6 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
 
         prepareIndex(indexName).setId("1").setSource("body", "doc1").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(indexName).setId("2").setSource("body", "doc2").setRefreshPolicy(IMMEDIATE).get();
-
-        prepareIndex(CoordinatorSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME).setId("1")
-            .setSource("body", "doc1")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex(CoordinatorSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME).setId("2")
-            .setSource("body", "doc2")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
     }
 
     @After
@@ -73,7 +61,7 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(TestTelemetryPlugin.class, CoordinatorSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.class);
+        return pluginList(TestTelemetryPlugin.class);
     }
 
     public void testSearchQueryThenFetch() throws InterruptedException {
@@ -97,52 +85,6 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
             List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(metricName);
             assertThat(measurements, hasSize(1));
             assertThat(measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
-        }
-    }
-
-    public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
-
-        static final String INDEX_NAME = ".test-system-index";
-
-        public TestSystemIndexPlugin() {}
-
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(
-                SystemIndexDescriptor.builder()
-                    .setIndexPattern(INDEX_NAME + "*")
-                    .setPrimaryIndex(INDEX_NAME)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                            .build()
-                    )
-                    .setMappings("""
-                          {
-                            "_meta": {
-                              "version": "8.0.0",
-                              "managed_index_mappings_version": 3
-                            },
-                            "properties": {
-                              "body": { "type": "keyword" }
-                            }
-                          }
-                        """)
-                    .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
-                    .setOrigin(ShardSearchPhaseAPMMetricsTests.class.getSimpleName())
-                    .build()
-            );
-        }
-
-        @Override
-        public String getFeatureName() {
-            return ShardSearchPhaseAPMMetricsTests.class.getSimpleName();
-        }
-
-        @Override
-        public String getFeatureDescription() {
-            return "test plugin";
         }
     }
 

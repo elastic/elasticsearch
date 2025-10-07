@@ -33,10 +33,7 @@ public class CoordinatorSearchPhaseAPMMetrics {
     }
 
     public void onQueryPhaseDone(long tookInNanos) {
-        recordPhaseLatency(queryPhaseMetric, tookInNanos);
+        queryPhaseMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
     }
 
-    protected void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
-        histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-    }
 }

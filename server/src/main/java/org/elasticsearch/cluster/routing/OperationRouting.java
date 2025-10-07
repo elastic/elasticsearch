@@ -124,7 +124,7 @@ public class OperationRouting {
         return shard.activeInitializingShardsRandomIt();
     }
 
-    private record SearchTargetShard(IndexShardRoutingTable shardRoutingTable, int reshardSplitShardCountSummary) {}
+    private record SearchTargetShard(IndexShardRoutingTable shardRoutingTable, SplitShardCountSummary reshardSplitShardCountSummary) {}
 
     private static Set<SearchTargetShard> computeTargetedShards(
         ProjectState projectState,
@@ -156,7 +156,7 @@ public class OperationRouting {
                         shardId -> result.add(
                             new SearchTargetShard(
                                 RoutingTable.shardRoutingTable(indexRoutingTable, shardId),
-                                indexMetadata.getReshardSplitShardCountSummaryForSearch(shardId)
+                                SplitShardCountSummary.forSearch(indexMetadata, shardId)
                             )
                         )
                     );
@@ -186,7 +186,9 @@ public class OperationRouting {
         final IndexRoutingTable indexRoutingTable = indexRoutingTable(projectState.routingTable(), index);
         final IndexMetadata indexMetadata = indexMetadata(projectState.metadata(), index);
         if (indexMetadata.getReshardingMetadata() == null) {
-            return indexRoutingTable.allShards().map(srt -> new SearchTargetShard(srt, indexMetadata.getNumberOfShards())).iterator();
+            return indexRoutingTable.allShards()
+                .map(srt -> new SearchTargetShard(srt, SplitShardCountSummary.forSearch(indexMetadata, srt.shardId.id())))
+                .iterator();
         }
 
         final IndexReshardingMetadata indexReshardingMetadata = indexMetadata.getReshardingMetadata();
@@ -194,10 +196,12 @@ public class OperationRouting {
         final IndexReshardingState.Split splitState = indexReshardingMetadata.getSplit();
 
         var shards = new ArrayList<SearchTargetShard>();
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            if (splitState.isTargetShard(i) == false
-                || splitState.targetStateAtLeast(i, IndexReshardingState.Split.TargetShardState.SPLIT)) {
-                shards.add(new SearchTargetShard(indexRoutingTable.shard(i), indexMetadata.getReshardSplitShardCountSummaryForSearch(i)));
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            if (splitState.isTargetShard(shardId) == false
+                || splitState.targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.SPLIT)) {
+                shards.add(
+                    new SearchTargetShard(indexRoutingTable.shard(shardId), SplitShardCountSummary.forSearch(indexMetadata, shardId))
+                );
             }
         }
         return shards.iterator();

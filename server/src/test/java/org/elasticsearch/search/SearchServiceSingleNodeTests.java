@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -2460,7 +2461,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            0
+            SplitShardCountSummary.UNSET
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2497,7 +2498,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            0
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2536,7 +2537,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            0
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2574,7 +2575,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            0
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 

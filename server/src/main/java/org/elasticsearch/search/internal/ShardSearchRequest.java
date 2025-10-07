@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -102,24 +102,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
      */
     private final boolean forceSyntheticSource;
 
-    /// The `reshardSplitShardCountSummary` has been added to accommodate the Resharding feature.
-    ///
-    /// Resharding adds new shards to the index. A search coordinator only sends shard-level search request to the new shard
-    /// (called a target shard) when coordinator has received a cluster state update with specific state of resharding metadata.
-    /// See [org.elasticsearch.cluster.routing.OperationRouting#allSearchAddressableShards].
-    ///
-    /// As such the original shard needs to be able to handle two types of search requests:
-    /// a search request where target shard is not included in routing,
-    /// and a search request where target is included.
-    /// If this is a first type then the source shard performs a search using all data stored,
-    /// if this is a second type then the source shard performs a search using only a subset of data that is not present
-    /// on the target shard (since otherwise it would be duplicated between the two).
-    ///
-    /// This field reflects the state of resharding metadata that the coordinator uses when creating this request
-    /// and is an indicator of which of the two types of requests this is.
-    ///
-    /// See also [org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCountSummary].
-    private final int reshardSplitShardCountSummary;
+    /**
+     * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
+     */
+    private final SplitShardCountSummary reshardSplitShardCountSummary;
 
     public static final TransportVersion SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY = TransportVersion.fromName(
         "shard_search_request_reshard_shard_count_summary"
@@ -149,7 +135,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             clusterAlias,
             null,
             null,
-            0
+            SplitShardCountSummary.UNSET
         );
     }
 
@@ -165,7 +151,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
         TimeValue keepAlive,
-        int reshardSplitShardCountSummary
+        SplitShardCountSummary reshardSplitShardCountSummary
     ) {
         this(
             originalIndices,
@@ -237,7 +223,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             // This parameter is specific to the resharding feature.
             // TODO
             // It is currently only supported in _search API and is stubbed here as a result.
-            IndexReshardingMetadata.NOOP_RESHARD_SPLIT_SHARD_COUNT_SUMMARY
+            SplitShardCountSummary.UNSET
         );
     }
 
@@ -261,7 +247,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         long waitForCheckpoint,
         TimeValue waitForCheckpointsTimeout,
         boolean forceSyntheticSource,
-        int reshardSplitShardCountSummary
+        SplitShardCountSummary reshardSplitShardCountSummary
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -377,10 +363,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             forceSyntheticSource = false;
         }
         if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-            reshardSplitShardCountSummary = in.readVInt();
+            reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readVInt());
         } else {
-            reshardSplitShardCountSummary = 0;
+            reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
         }
+
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -442,7 +429,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             }
         }
         if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-            out.writeVInt(reshardSplitShardCountSummary);
+            out.writeVInt(reshardSplitShardCountSummary.asInt());
         }
     }
 

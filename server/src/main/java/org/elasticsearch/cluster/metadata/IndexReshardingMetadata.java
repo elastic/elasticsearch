@@ -89,12 +89,6 @@ import java.util.Objects;
  * to beginning another resharding operation.
  */
 public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
-    /**
-     * A value of `reshardSplitShardCountSummary` ({@link IndexMetadata#getReshardSplitShardCountSummaryForSearch(int)})
-     * that is used when it is known that this value won't affect the correctness of the operation.
-     */
-    public static int NOOP_RESHARD_SPLIT_SHARD_COUNT_SUMMARY = 0;
-
     private static final String SPLIT_FIELD_NAME = "split";
     private static final ParseField SPLIT_FIELD = new ParseField(SPLIT_FIELD_NAME);
     // This exists only so that tests can verify that IndexReshardingMetadata supports more than one kind of operation.

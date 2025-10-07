@@ -15,6 +15,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -115,7 +116,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             randomAlphaOfLengthBetween(3, 10),
             shardSearchContextId,
             keepAlive,
-            randomIntBetween(0, numberOfShards)
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {

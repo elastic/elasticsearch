@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.util.PlainIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -39,7 +40,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final TimeValue searchContextKeepAlive;
     private final PlainIterator<String> targetNodesIterator;
     /** See {@link org.elasticsearch.search.internal.ShardSearchRequest#reshardSplitShardCountSummary}. */
-    private final int reshardSplitShardCountSummary;
+    private final SplitShardCountSummary reshardSplitShardCountSummary;
 
     /**
      * Creates a {@link SearchShardIterator} instance that iterates over a set of replicas of a shard with provided <code>shardId</code>.
@@ -54,7 +55,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         ShardId shardId,
         List<ShardRouting> shards,
         OriginalIndices originalIndices,
-        int reshardSplitShardCountSummary
+        SplitShardCountSummary reshardSplitShardCountSummary
     ) {
         this(
             clusterAlias,
@@ -92,7 +93,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         TimeValue searchContextKeepAlive,
         boolean prefiltered,
         boolean skip,
-        int reshardSplitShardCountSummary
+        SplitShardCountSummary reshardSplitShardCountSummary
     ) {
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
@@ -192,7 +193,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return shardId;
     }
 
-    public int getReshardSplitShardCountSummary() {
+    public SplitShardCountSummary getReshardSplitShardCountSummary() {
         return reshardSplitShardCountSummary;
     }
 

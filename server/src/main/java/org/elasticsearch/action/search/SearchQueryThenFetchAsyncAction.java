@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -360,7 +361,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         int shardIndex,
         ShardId shardId,
         ShardSearchContextId contextId,
-        int reshardSplitShardCountSummary
+        SplitShardCountSummary reshardSplitShardCountSummary
     ) implements Writeable {
 
         static ShardToQuery readFrom(StreamInput in) throws IOException {
@@ -370,7 +371,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 in.readVInt(),
                 new ShardId(in),
                 in.readOptionalWriteable(ShardSearchContextId::new),
-                in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY) ? in.readVInt() : 0
+                in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)
+                    ? SplitShardCountSummary.fromInt(in.readVInt())
+                    : SplitShardCountSummary.UNSET
             );
         }
 
@@ -382,7 +385,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                out.writeVInt(reshardSplitShardCountSummary);
+                out.writeVInt(reshardSplitShardCountSummary.asInt());
             }
         }
     }
@@ -662,7 +665,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         int totalShardCount,
         long absoluteStartMillis,
         boolean hasResponse,
-        int reshardSplitShardCountSummary
+        SplitShardCountSummary reshardSplitShardCountSummary
     ) {
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             originalIndices,

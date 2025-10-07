@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-public record SearchShardRouting(ShardIterator iterator, int reshardSplitShardCountSummary) implements Comparable<SearchShardRouting> {
+public record SearchShardRouting(ShardIterator iterator, SplitShardCountSummary reshardSplitShardCountSummary)
+    implements
+        Comparable<SearchShardRouting> {
     @Override
     public int compareTo(SearchShardRouting o) {
         return iterator.compareTo(o.iterator);

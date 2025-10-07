@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -65,7 +66,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
         private final ShardSearchContextId readerId;
         private final TimeValue keepAlive;
         private final long waitForCheckpoint;
-        private final int reshardSplitShardCountSummary;
+        private final SplitShardCountSummary reshardSplitShardCountSummary;
 
         public Shard(
             String[] indices,
@@ -76,7 +77,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             ShardSearchContextId readerId,
             TimeValue keepAlive,
             long waitForCheckpoint,
-            int reshardSplitShardCountSummary
+            SplitShardCountSummary reshardSplitShardCountSummary
         ) {
             this.indices = indices;
             this.shardId = shardId;
@@ -101,9 +102,9 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             waitForCheckpoint = in.readLong();
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
             if (in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                reshardSplitShardCountSummary = in.readVInt();
+                reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readVInt());
             } else {
-                reshardSplitShardCountSummary = 0;
+                reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
             }
         }
 
@@ -118,7 +119,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             out.writeOptionalTimeValue(keepAlive);
             out.writeLong(waitForCheckpoint);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                out.writeVInt(reshardSplitShardCountSummary);
+                out.writeVInt(reshardSplitShardCountSummary.asInt());
             }
         }
 

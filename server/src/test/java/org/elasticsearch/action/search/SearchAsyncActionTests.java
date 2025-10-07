@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
@@ -641,7 +642,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new ShardId(index, 0),
                 Collections.emptyList(),
                 originalIndices,
-                0
+                SplitShardCountSummary.UNSET
             );
             // Skip all the shards
             searchShardIterator.skip(true);
@@ -761,7 +762,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
             Collections.shuffle(started, random());
             started.addAll(initializing);
-            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices, 0));
+            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices, SplitShardCountSummary.UNSET));
         }
         return list;
     }

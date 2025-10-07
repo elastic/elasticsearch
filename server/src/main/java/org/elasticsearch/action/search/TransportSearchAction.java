@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -50,6 +49,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -1252,7 +1252,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchShardsGroup.skipped(),
                     // This parameter is specific to the resharding feature.
                     // Resharding is currently not supported with CCS.
-                    IndexReshardingMetadata.NOOP_RESHARD_SPLIT_SHARD_COUNT_SUMMARY
+                    SplitShardCountSummary.UNSET
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1308,7 +1308,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     false,
                     // This parameter is specific to the resharding feature.
                     // Resharding is currently not supported with CCS.
-                    IndexReshardingMetadata.NOOP_RESHARD_SPLIT_SHARD_COUNT_SUMMARY
+                    SplitShardCountSummary.UNSET
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1999,7 +1999,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // (it was calculated and used when PIT was created).
                         // In read-only scenarios (e.g. searchable snapshots) we don't expect resharding to happen
                         // so the value doesn't matter.
-                        IndexReshardingMetadata.NOOP_RESHARD_SPLIT_SHARD_COUNT_SUMMARY
+                        SplitShardCountSummary.UNSET
                     )
                 );
             }

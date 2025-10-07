@@ -39,7 +39,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final ShardSearchContextId searchContextId;
     private final TimeValue searchContextKeepAlive;
     private final PlainIterator<String> targetNodesIterator;
-    /** See {@link org.elasticsearch.search.internal.ShardSearchRequest#reshardSplitShardCountSummary}. */
+    /**
+     * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
+     */
     private final SplitShardCountSummary reshardSplitShardCountSummary;
 
     /**

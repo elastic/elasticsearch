@@ -16,24 +16,24 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NetworkDirectionUtilsTests extends ESTestCase {
-    public void testCIDR()  {
+    public void testCIDR() {
         testNetworkDirectionUtils("10.0.1.1", "192.168.1.2", List.of("10.0.0.0/8"), "outbound");
         testNetworkDirectionUtils("192.168.1.2", "10.0.1.1", List.of("10.0.0.0/8"), "inbound");
     }
 
-    public void testUnspecified()  {
+    public void testUnspecified() {
         testNetworkDirectionUtils("0.0.0.0", "0.0.0.0", List.of("unspecified"), "internal");
         testNetworkDirectionUtils("::", "::", List.of("unspecified"), "internal");
     }
 
-    public void testNetworkPrivate()  {
+    public void testNetworkPrivate() {
         testNetworkDirectionUtils("192.168.1.1", "192.168.1.2", List.of("private"), "internal");
         testNetworkDirectionUtils("10.0.1.1", "192.168.1.2", List.of("private"), "internal");
         testNetworkDirectionUtils("192.168.1.1", "172.16.0.1", List.of("private"), "internal");
         testNetworkDirectionUtils("192.168.1.1", "fd12:3456:789a:1::1", List.of("private"), "internal");
     }
 
-    public void testNetworkPublic()  {
+    public void testNetworkPublic() {
         testNetworkDirectionUtils("192.168.1.1", "192.168.1.2", List.of("public"), "external");
         testNetworkDirectionUtils("10.0.1.1", "192.168.1.2", List.of("public"), "external");
         testNetworkDirectionUtils("192.168.1.1", "172.16.0.1", List.of("public"), "external");

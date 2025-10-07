@@ -37,7 +37,6 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.fromIndex;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 
@@ -75,8 +74,8 @@ public class NetworkDirection extends EsqlScalarFunction {
         @Param(
             name = "internal_networks",
             type = { "keyword", "text" },
-            description = "List of internal networks. Supports IPv4 and IPv6 addresses, ranges in CIDR notation, and named ranges.")
-        Expression internalNetworks
+            description = "List of internal networks. Supports IPv4 and IPv6 addresses, ranges in CIDR notation, and named ranges."
+        ) Expression internalNetworks
     ) {
         super(source, Arrays.asList(sourceIpField, destinationIpField, internalNetworks));
         this.sourceIpField = sourceIpField;
@@ -116,7 +115,6 @@ public class NetworkDirection extends EsqlScalarFunction {
         return NodeInfo.create(this, NetworkDirection::new, sourceIpField, destinationIpField, internalNetworks);
     }
 
-
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var sourceIpEvaluatorSupplier = toEvaluator.apply(sourceIpField);
@@ -133,7 +131,15 @@ public class NetworkDirection extends EsqlScalarFunction {
     }
 
     @Evaluator()
-    static void process(BytesRefBlock.Builder builder, @Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef scratch, @Fixed(includeInToString=false, scope=THREAD_LOCAL) BytesRef netScratch, BytesRef sourceIp, BytesRef destinationIp, @Position int position, BytesRefBlock networks) {
+    static void process(
+        BytesRefBlock.Builder builder,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef netScratch,
+        BytesRef sourceIp,
+        BytesRef destinationIp,
+        @Position int position,
+        BytesRefBlock networks
+    ) {
         int valueCount = networks.getValueCount(position);
         if (valueCount == 0) {
             builder.appendNull();
@@ -176,8 +182,7 @@ public class NetworkDirection extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isIPAndExact(sourceIpField, sourceText(), FIRST)
-            .and(isIPAndExact(destinationIpField, sourceText(), SECOND))
+        return isIPAndExact(sourceIpField, sourceText(), FIRST).and(isIPAndExact(destinationIpField, sourceText(), SECOND))
             .and(isStringAndExact(internalNetworks, sourceText(), THIRD));
     }
 

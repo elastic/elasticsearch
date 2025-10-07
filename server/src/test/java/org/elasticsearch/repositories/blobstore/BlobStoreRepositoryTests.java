@@ -775,7 +775,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
      * Initially, if there is capacity, we write N blobs to ShardBlobToDelete. We expect each of them to be compressed
      *  and written to the underlying stream.
      * Once capacity is reached, we write M subsequent blobs, but expect that they will not be written to the
-     *  underlying stream, and a WARN log should be thrown for each.
+     *  underlying stream.
      * When we read from the stream, we expect only the successful writes to be returned
      */
     @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")

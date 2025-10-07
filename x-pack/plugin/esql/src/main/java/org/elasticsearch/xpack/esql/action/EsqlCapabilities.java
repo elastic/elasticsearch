@@ -250,7 +250,7 @@ public class EsqlCapabilities {
          * support for MV_CONTAINS function
          * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
-        FN_MV_CONTAINS,
+        FN_MV_CONTAINS_V1,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.

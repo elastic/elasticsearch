@@ -116,10 +116,6 @@ public class PreAnalyzer {
         Set<IndexPattern> subqueryIndices,
         IndexPattern mainIndexPattern
     ) {
-        if (relation.preAnalyzed()) {
-            return;
-        }
-
         IndexPattern pattern = relation.indexPattern();
         boolean isLookup = relation.indexMode() == IndexMode.LOOKUP;
         boolean isMainIndexPattern = pattern == mainIndexPattern;

@@ -356,56 +356,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (indexMode == IndexMode.TIME_SERIES) {
                 throw new ParsingException(source, "Subqueries are not supported in TS command");
             }
-            // If the subquery has only from command, combine the subquery index patterns into the main index pattern
-            // from idx1, idx2, (from idx3), (from idx4) => from idx1, idx2, idx3, idx4
-            List<Subquery> remainingSubqueries = new ArrayList<>(subqueries.size());
-            for (Subquery subquery : subqueries) {
-                String subqueryIndexPattern = getIndexPatternIfOnlyFrom(subquery);
-                boolean canCombine = subqueryIndexPattern != null && metadataFields.isEmpty();
-                if (canCombine) {
-                    // the subquery has only from command without metadata fields, combine the index patterns
-                    // as how or whether combining metadata fields is unclear yet
-                    String existingIndexPattern = table.indexPattern();
-                    String combinedPattern = existingIndexPattern.isEmpty()
-                        ? subqueryIndexPattern
-                        : existingIndexPattern + "," + subqueryIndexPattern;
-                    table = new IndexPattern(table.source(), combinedPattern);
-                    unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
-                } else {
-                    remainingSubqueries.add(subquery);
-                }
-            }
 
-            if (remainingSubqueries.isEmpty()) {
-                return unresolvedRelation;
-            }
-
-            List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(remainingSubqueries.size() + 1);
+            List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
                 mainQueryAndSubqueries.add(unresolvedRelation);
                 telemetryAccounting(unresolvedRelation);
             }
-            mainQueryAndSubqueries.addAll(remainingSubqueries);
+            mainQueryAndSubqueries.addAll(subqueries);
 
             if (mainQueryAndSubqueries.size() == 1) {
                 // if there is only one child, return it directly, no need for UnionAll
-                return table.indexPattern().isEmpty() ? remainingSubqueries.get(0).plan() : unresolvedRelation;
+                return table.indexPattern().isEmpty() ? subqueries.get(0).plan() : unresolvedRelation;
             } else {
                 // the output of UnionAll is resolved by analyzer
                 return new UnionAll(source, mainQueryAndSubqueries, List.of());
             }
         }
-    }
-
-    /**
-     * If the subquery plan is only a from command, return the index pattern; otherwise return null.
-     */
-    private String getIndexPatternIfOnlyFrom(Subquery subquery) {
-        LogicalPlan plan = subquery.plan();
-        if (plan instanceof UnresolvedRelation ur) {
-            return ur.indexPattern().indexPattern();
-        }
-        return null;
     }
 
     private List<Subquery> visitSubqueriesInFromCommand(List<EsqlBaseParser.SubqueryContext> ctxs) {

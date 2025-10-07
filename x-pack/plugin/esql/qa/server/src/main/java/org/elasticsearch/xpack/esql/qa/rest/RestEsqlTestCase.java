@@ -1317,6 +1317,23 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
+        bulkLoadTestData(10);
+
+        String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("integer").field("gte", "5").endObject();
+            }
+            b.endObject();
+        }).query(query);
+
+        Map<String, Object> result = runEsql(builder);
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(8)));
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);

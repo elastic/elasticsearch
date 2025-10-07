@@ -2,7 +2,7 @@
 // CSV spec for subqueries
 //
 
-subqueryInFromMergeToMainIndexPattern
+subqueryInFrom
 required_capability: fork_v9
 required_capability: subquery_in_from_command
 
@@ -23,6 +23,25 @@ null           | null              | 172.21.3.15
 null           | null              | 172.21.3.15
 null           | null              | 172.21.3.15
 null           | null              | 172.21.3.15
+;
+
+subqueryInFromWithIdenticalIndexPatternsInMainAndSubquery
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP  emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10091          | 3
+10092          | 1
+10092          | 1
+10093          | 3
+10093          | 3
 ;
 
 subqueryInFromWithEvalInSubquery

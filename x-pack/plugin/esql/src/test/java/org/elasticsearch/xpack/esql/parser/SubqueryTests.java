@@ -49,8 +49,10 @@ import static org.hamcrest.Matchers.containsString;
 public class SubqueryTests extends AbstractStatementParserTests {
 
     /**
-     * Simple subqueries in the FROM command can be merged into index patterns
-     * e.g. FROM index1, (FROM index2)  ==>  FROM index1,index2
+     * UnionAll[[]]
+     * |_UnresolvedRelation[]
+     * \_Subquery[]
+     *   \_UnresolvedRelation[]
      */
     public void testIndexPatternWithSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -61,11 +63,17 @@ public class SubqueryTests extends AbstractStatementParserTests {
             """, mainQueryIndexPattern, subqueryIndexPattern);
 
         LogicalPlan plan = statement(query);
-        UnresolvedRelation unresolvedRelation = as(plan, UnresolvedRelation.class);
-        assertEquals(
-            unquoteIndexPattern(mainQueryIndexPattern) + "," + unquoteIndexPattern(subqueryIndexPattern),
-            unresolvedRelation.indexPattern().indexPattern()
-        );
+
+        UnionAll unionAll = as(plan, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(2, children.size());
+
+        UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
+
+        Subquery subquery = as(children.get(1), Subquery.class);
+        unresolvedRelation = as(subquery.plan(), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(subqueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
     }
 
     /**
@@ -73,7 +81,49 @@ public class SubqueryTests extends AbstractStatementParserTests {
      * All processing commands are supported in the main query when subqueries exist in the
      * FROM command. With an exception on FORK, the grammar or parser doesn't block FORK,
      * however nested FORK will error out in the analysis or logical planning phase. We are hoping
-     * to lift this restriction in the future, so it is not blocked in the grammar..
+     * to lift this restriction in the future, so it is not blocked in the grammar.
+     *
+     * Rerank[test_reranker[KEYWORD],war and peace[KEYWORD],[?title AS title#45],?_score]
+     * \_Sample[0.5[DOUBLE]]
+     *   \_Completion[test_completion[KEYWORD],?prompt,?completion_output]
+     *     \_ChangePoint[?count,?@timestamp,type{r}#39,pvalue{r}#40]
+     *       \_Enrich[ANY,clientip_policy[KEYWORD],?client_ip,null,{},[?env]]
+     *         \_LookupJoin[LEFT,[?n],[?n],false,null]
+     *           |_MvExpand[?m,?m]
+     *           | \_Rename[[?k AS l#29]]
+     *           |   \_Keep[[?j]]
+     *           |     \_Drop[[?i]]
+     *           |       \_Limit[10[INTEGER],false]
+     *           |         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *           |           \_Grok[?h,Parser[pattern=%{WORD:word} %{NUMBER:number},
+     *           grok=org.elasticsearch.grok.Grok@710201ab],[number{r}#22, word{
+     * r}#23]]
+     *           |             \_Dissect[?g,Parser[pattern=%{b} %{c}, appendSeparator=,
+     *           parser=org.elasticsearch.dissect.DissectParser@6bd8533a],[b{r}#16
+     * , c{r}#17]]
+     *           |               \_InlineStats[]
+     *           |                 \_Aggregate[[?f],[?MAX[?e] AS max_e#14, ?f]]
+     *           |                   \_Aggregate[[?e],[?COUNT[*] AS cnt#11, ?e]]
+     *           |                     \_Fork[[]]
+     *           |                       |_Eval[[fork1[KEYWORD] AS _fork#7]]
+     *           |                       | \_Filter[?c &gt; 100[INTEGER]]
+     *           |                       |   \_Eval[[?a * 2[INTEGER] AS b#5]]
+     *           |                       |     \_Filter[?a &gt; 10[INTEGER]]
+     *           |                       |       \_UnionAll[[]]
+     *           |                       |         |_UnresolvedRelation[]
+     *           |                       |         \_Subquery[]
+     *           |                       |           \_Filter[?a &lt; 100[INTEGER]]
+     *           |                       |             \_UnresolvedRelation[]
+     *           |                       \_Eval[[fork2[KEYWORD] AS _fork#7]]
+     *           |                         \_Filter[?d &gt; 200[INTEGER]]
+     *           |                           \_Eval[[?a * 2[INTEGER] AS b#5]]
+     *           |                             \_Filter[?a &lt; 10[INTEGER]]
+     *           |                               \_UnionAll[[]]
+     *           |                                 |_UnresolvedRelation[]
+     *           |                                 \_Subquery[]
+     *           |                                   \_Filter[?a &lt; 100[INTEGER]]
+     *           |                                     \_UnresolvedRelation[]
+     *           \_UnresolvedRelation[lookup_index]
      */
     public void testSubqueryWithAllProcessingCommandsInMainquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -156,6 +206,43 @@ public class SubqueryTests extends AbstractStatementParserTests {
      * the grammar or parser doesn't block FORK, however nested FORK will error out in the analysis
      * or logical planning phase. We are hoping to lift this restriction in the future, so it is not blocked
      * in the grammar.
+     *
+     * UnionAll[[]]
+     * |_UnresolvedRelation[]
+     * \_Subquery[]
+     *   \_Rerank[test_reranker[KEYWORD],war and peace[KEYWORD],[?title AS title#30],?_score]
+     *     \_Sample[0.5[DOUBLE]]
+     *       \_Completion[test_completion[KEYWORD],?prompt,?completion_output]
+     *         \_ChangePoint[?count,?@timestamp,type{r}#24,pvalue{r}#25]
+     *           \_Enrich[ANY,clientip_policy[KEYWORD],?client_ip,null,{},[?env]]
+     *             \_LookupJoin[LEFT,[?n],[?n],false,null]
+     *               |_MvExpand[?m,?m]
+     *               | \_Rename[[?k AS l#17]]
+     *               |   \_Keep[[?j]]
+     *               |     \_Drop[[?i]]
+     *               |       \_Limit[10[INTEGER],false]
+     *               |         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *               |           \_Grok[?h,Parser[pattern=%{WORD:word} %{NUMBER:number},
+     *               grok=org.elasticsearch.grok.Grok@2d54cab4],[number{r}#41, word{
+     * r}#42]]
+     *               |             \_Dissect[?g,Parser[pattern=%{b} %{c}, appendSeparator=,
+     *               parser=org.elasticsearch.dissect.DissectParser@5ca49d89],[b{r}#35
+     * , c{r}#36]]
+     *               |               \_InlineStats[]
+     *               |                 \_Aggregate[[?f],[?MAX[?e] AS max_e#10, ?f]]
+     *               |                   \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *               |                     \_Fork[[]]
+     *               |                       |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     *               |                       | \_Filter[?c &lt; 100[INTEGER]]
+     *               |                       |   \_Eval[[?a * 2[INTEGER] AS b#34]]
+     *               |                       |     \_Filter[?a &gt; 10[INTEGER]]
+     *               |                       |       \_UnresolvedRelation[]
+     *               |                       \_Eval[[fork2[KEYWORD] AS _fork#3]]
+     *               |                         \_Filter[?d &gt; 200[INTEGER]]
+     *               |                           \_Eval[[?a * 2[INTEGER] AS b#34]]
+     *               |                             \_Filter[?a &gt; 10[INTEGER]]
+     *               |                               \_UnresolvedRelation[]
+     *               \_UnresolvedRelation[lookup_index]
      */
     public void testWithSubqueryWithProcessingCommandsInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -227,6 +314,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
 
     /**
      * A combination of the two previous tests with processing commands in both the subquery and main query.
+     * Plan string is skipped as it is too long.
      */
     public void testSubqueryWithProcessingCommandsInSubqueryAndMainquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -381,29 +469,60 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * If the FROM command contains only a subquery, the subquery is merged into an index pattern
+     * UnionAll[[]]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[]
+     * \_Subquery[]
+     *   \_UnresolvedRelation[]
      */
     public void testSubqueryOnly() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var subqueryIndexPattern1 = randomIndexPatterns();
         var subqueryIndexPattern2 = randomIndexPatterns();
         var subqueryIndexPattern3 = randomIndexPatterns();
-        var combinedIndexPattern = unquoteIndexPattern(subqueryIndexPattern1)
-            + ","
-            + unquoteIndexPattern(subqueryIndexPattern2)
-            + ","
-            + unquoteIndexPattern(subqueryIndexPattern3);
         String query = LoggerMessageFormat.format(null, """
              FROM (FROM {}), (FROM {}), (FROM {})
             """, subqueryIndexPattern1, subqueryIndexPattern2, subqueryIndexPattern3);
 
         LogicalPlan plan = statement(query);
-        UnresolvedRelation unresolvedRelation = as(plan, UnresolvedRelation.class);
-        assertEquals(combinedIndexPattern, unresolvedRelation.indexPattern().indexPattern());
+        UnionAll unionAll = as(plan, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(3, children.size());
+
+        Subquery subquery = as(children.get(0), Subquery.class);
+        UnresolvedRelation unresolvedRelation = as(subquery.child(), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(subqueryIndexPattern1), unresolvedRelation.indexPattern().indexPattern());
+
+        subquery = as(children.get(1), Subquery.class);
+        unresolvedRelation = as(subquery.child(), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(subqueryIndexPattern2), unresolvedRelation.indexPattern().indexPattern());
+
+        subquery = as(children.get(2), Subquery.class);
+        unresolvedRelation = as(subquery.child(), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(subqueryIndexPattern3), unresolvedRelation.indexPattern().indexPattern());
     }
 
     /**
-     * If the FROM command contains only a subquery, the subquery is merged into an index pattern
+     * If the FROM command contains only a subquery, the subquery is merged into an index pattern.
+     *
+     * Keep[[?g]]
+     * \_Drop[[?f]]
+     *   \_Limit[10[INTEGER],false]
+     *     \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *       \_Aggregate[[?e],[?COUNT[*] AS cnt#10, ?e]]
+     *         \_Fork[[]]
+     *           |_Eval[[fork1[KEYWORD] AS _fork#6]]
+     *           | \_Filter[?c &lt; 100[INTEGER]]
+     *           |   \_Eval[[?a * 2[INTEGER] AS b#4]]
+     *           |     \_Filter[?a &gt; 10[INTEGER]]
+     *           |       \_UnresolvedRelation[]
+     *           \_Eval[[fork2[KEYWORD] AS _fork#6]]
+     *             \_Filter[?d &gt; 200[INTEGER]]
+     *               \_Eval[[?a * 2[INTEGER] AS b#4]]
+     *                 \_Filter[?a &gt; 10[INTEGER]]
+     *                   \_UnresolvedRelation[]
      */
     public void testSubqueryOnlyWithProcessingCommandInMainquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -438,6 +557,24 @@ public class SubqueryTests extends AbstractStatementParserTests {
         }
     }
 
+    /**
+     * Keep[[?g]]
+     * \_Drop[[?f]]
+     *   \_Limit[10[INTEGER],false]
+     *     \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *       \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *         \_Fork[[]]
+     *           |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     *           | \_Filter[?c &lt; 100[INTEGER]]
+     *           |   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *           |     \_Filter[?a &gt; 10[INTEGER]]
+     *           |       \_UnresolvedRelation[]
+     *           \_Eval[[fork2[KEYWORD] AS _fork#3]]
+     *             \_Filter[?d &gt; 200[INTEGER]]
+     *               \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *                 \_Filter[?a &gt; 10[INTEGER]]
+     *                   \_UnresolvedRelation[]
+     */
     public void testSubqueryOnlyWithProcessingCommandsInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var subqueryIndexPattern = randomIndexPatterns();
@@ -472,7 +609,54 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * If the FROM command contains only a subquery, the subquery is merged into an index pattern
+     * If the FROM command contains only a subquery, the subquery is merged into an index pattern.
+     *
+     * Keep[[?g]]
+     * \_Drop[[?f]]
+     *   \_Limit[10[INTEGER],false]
+     *     \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *       \_Aggregate[[?e],[?COUNT[*] AS cnt#23, ?e]]
+     *         \_Fork[[]]
+     *           |_Eval[[fork1[KEYWORD] AS _fork#19]]
+     *           | \_Filter[?c &lt; 100[INTEGER]]
+     *           |   \_Eval[[?a * 2[INTEGER] AS b#17]]
+     *           |     \_Filter[?a &gt; 10[INTEGER]]
+     *           |       \_Keep[[?g]]
+     *           |         \_Drop[[?f]]
+     *           |           \_Limit[10[INTEGER],false]
+     *           |             \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *           |               \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *           |                 \_Fork[[]]
+     *           |                   |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     *           |                   | \_Filter[?c &lt; 100[INTEGER]]
+     *           |                   |   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *           |                   |     \_Filter[?a &gt; 10[INTEGER]]
+     *           |                   |       \_UnresolvedRelation[]
+     *           |                   \_Eval[[fork2[KEYWORD] AS _fork#3]]
+     *           |                     \_Filter[?d &gt; 200[INTEGER]]
+     *           |                       \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *           |                         \_Filter[?a &gt; 10[INTEGER]]
+     *           |                           \_UnresolvedRelation[]
+     *           \_Eval[[fork2[KEYWORD] AS _fork#19]]
+     *             \_Filter[?d &gt; 200[INTEGER]]
+     *               \_Eval[[?a * 2[INTEGER] AS b#17]]
+     *                 \_Filter[?a &gt; 10[INTEGER]]
+     *                   \_Keep[[?g]]
+     *                     \_Drop[[?f]]
+     *                       \_Limit[10[INTEGER],false]
+     *                         \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *                           \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *                             \_Fork[[]]
+     *                               |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     *                               | \_Filter[?c &lt; 100[INTEGER]]
+     *                               |   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *                               |     \_Filter[?a &gt; 10[INTEGER]]
+     *                               |       \_UnresolvedRelation[]
+     *                               \_Eval[[fork2[KEYWORD] AS _fork#3]]
+     *                                 \_Filter[?d &gt; 200[INTEGER]]
+     *                                   \_Eval[[?a * 2[INTEGER] AS b#13]]
+     *                                     \_Filter[?a &gt; 10[INTEGER]]
+     *                                       \_UnresolvedRelation[]
      */
     public void testSubqueryOnlyWithProcessingCommandsInSubqueryAndMainquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -532,8 +716,12 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * Simple subqueries in the FROM command can be merged into index patterns
-     * e.g. FROM index1, (FROM index2), index3, (FROM index4)  ==>  FROM index1,index3,index2,index4
+     * UnionAll[[]]
+     * |_UnresolvedRelation[]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[]
+     * \_Subquery[]
+     *   \_UnresolvedRelation[]
      */
     public void testMultipleMixedIndexPatternsAndSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -541,22 +729,100 @@ public class SubqueryTests extends AbstractStatementParserTests {
         var indexPattern2 = randomIndexPatterns();
         var indexPattern3 = randomIndexPatterns();
         var indexPattern4 = randomIndexPatterns();
-        var combinedIndexPattern = unquoteIndexPattern(indexPattern1)
-            + ","
-            + unquoteIndexPattern(indexPattern3)
-            + ","
-            + unquoteIndexPattern(indexPattern2)
-            + ","
-            + unquoteIndexPattern(indexPattern4);
         String query = LoggerMessageFormat.format(null, """
              FROM {}, (FROM {}), {}, (FROM {})
             """, indexPattern1, indexPattern2, indexPattern3, indexPattern4);
 
         LogicalPlan plan = statement(query);
-        UnresolvedRelation unresolvedRelation = as(plan, UnresolvedRelation.class);
-        assertEquals(combinedIndexPattern, unresolvedRelation.indexPattern().indexPattern());
+        UnionAll unionAll = as(plan, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(3, children.size());
+
+        UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
+        assertEquals(
+            unquoteIndexPattern(indexPattern1) + "," + unquoteIndexPattern(indexPattern3),
+            unresolvedRelation.indexPattern().indexPattern()
+        );
+
+        Subquery subquery1 = as(children.get(1), Subquery.class);
+        unresolvedRelation = as(subquery1.child(), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(indexPattern2), unresolvedRelation.indexPattern().indexPattern());
+
+        Subquery subquery2 = as(children.get(2), Subquery.class);
+        unresolvedRelation = as(subquery2.child(), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(indexPattern4), unresolvedRelation.indexPattern().indexPattern());
     }
 
+    /**
+     * Keep[[?g]]
+     * \_Drop[[?f]]
+     *   \_Limit[10[INTEGER],false]
+     *     \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *       \_Aggregate[[?e],[?COUNT[*] AS cnt#25, ?e]]
+     *         \_Fork[[]]
+     *           |_Eval[[fork1[KEYWORD] AS _fork#21]]
+     *           | \_Filter[?c &lt; 100[INTEGER]]
+     *           |   \_LookupJoin[LEFT,[?c],[?c],true,null]
+     *           |     |_Eval[[?a * 2[INTEGER] AS b#18]]
+     *           |     | \_Filter[?a &gt; 10[INTEGER]]
+     *           |     |   \_UnionAll[[]]
+     *           |     |     |_UnresolvedRelation[]
+     *           |     |     |_Subquery[]
+     *           |     |     | \_Keep[[?g]]
+     *           |     |     |   \_Drop[[?f]]
+     *           |     |     |     \_Limit[10[INTEGER],false]
+     *           |     |     |       \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *           |     |     |         \_Aggregate[[?e],[?COUNT[*] AS cnt#8, ?e]]
+     *           |     |     |           \_Fork[[]]
+     *           |     |     |             |_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *           |     |     |             | \_Filter[?c &lt; 100[INTEGER]]
+     *           |     |     |             |   \_LookupJoin[LEFT,[?c],[?c],true,null]
+     *           |     |     |             |     |_Eval[[?a * 2[INTEGER] AS b#14]]
+     *           |     |     |             |     | \_Filter[?a &gt; 10[INTEGER]]
+     *           |     |     |             |     |   \_UnresolvedRelation[]
+     *           |     |     |             |     \_UnresolvedRelation[lookup_index]
+     *           |     |     |             \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *           |     |     |               \_Filter[?d &gt; 200[INTEGER]]
+     *           |     |     |                 \_LookupJoin[LEFT,[?c],[?c],true,null]
+     *           |     |     |                   |_Eval[[?a * 2[INTEGER] AS b#14]]
+     *           |     |     |                   | \_Filter[?a &gt; 10[INTEGER]]
+     *           |     |     |                   |   \_UnresolvedRelation[]
+     *           |     |     |                   \_UnresolvedRelation[lookup_index]
+     *           |     |     \_Subquery[]
+     *           |     |       \_UnresolvedRelation[]
+     *           |     \_UnresolvedRelation[lookup_index]
+     *           \_Eval[[fork2[KEYWORD] AS _fork#21]]
+     *             \_Filter[?d > 200[INTEGER]]
+     *               \_LookupJoin[LEFT,[?c],[?c],true,null]
+     *                 |_Eval[[?a * 2[INTEGER] AS b#18]]
+     *                 | \_Filter[?a &gt; 10[INTEGER]]
+     *                 |   \_UnionAll[[]]
+     *                 |     |_UnresolvedRelation[]
+     *                 |     |_Subquery[]
+     *                 |     | \_Keep[[?g]]
+     *                 |     |   \_Drop[[?f]]
+     *                 |     |     \_Limit[10[INTEGER],false]
+     *                 |     |       \_OrderBy[[Order[?cnt,DESC,FIRST]]]
+     *                 |     |         \_Aggregate[[?e],[?COUNT[*] AS cnt#8, ?e]]
+     *                 |     |           \_Fork[[]]
+     *                 |     |             |_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *                 |     |             | \_Filter[?c &lt; 100[INTEGER]]
+     *                 |     |             |   \_LookupJoin[LEFT,[?c],[?c],true,null]
+     *                 |     |             |     |_Eval[[?a * 2[INTEGER] AS b#14]]
+     *                 |     |             |     | \_Filter[?a &gt; 10[INTEGER]]
+     *                 |     |             |     |   \_UnresolvedRelation[]
+     *                 |     |             |     \_UnresolvedRelation[lookup_index]
+     *                 |     |             \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *                 |     |               \_Filter[?d &gt; 200[INTEGER]]
+     *                 |     |                 \_LookupJoin[LEFT,[?c],[?c],true,null]
+     *                 |     |                   |_Eval[[?a * 2[INTEGER] AS b#14]]
+     *                 |     |                   | \_Filter[?a &gt; 10[INTEGER]]
+     *                 |     |                   |   \_UnresolvedRelation[]
+     *                 |     |                   \_UnresolvedRelation[lookup_index]
+     *                 |     \_Subquery[]
+     *                 |       \_UnresolvedRelation[]
+     *                 \_UnresolvedRelation[lookup_index]
+     */
     public void testMultipleSubqueriesWithProcessingCommands() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var mainIndexPattern1 = randomIndexPatterns();
@@ -564,11 +830,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
         var subqueryIndexPattern1 = randomIndexPatterns();
         var subqueryIndexPattern2 = randomIndexPatterns();
         var joinIndexPattern = "lookup_index";
-        var combinedIndexPattern = unquoteIndexPattern(mainIndexPattern1)
-            + ","
-            + unquoteIndexPattern(mainIndexPattern2)
-            + ","
-            + unquoteIndexPattern(subqueryIndexPattern2);
+        var combinedIndexPattern = unquoteIndexPattern(mainIndexPattern1) + "," + unquoteIndexPattern(mainIndexPattern2);
         String query = LoggerMessageFormat.format(null, """
              FROM {}, (FROM {}
                               | WHERE a > 10
@@ -611,7 +873,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
 
             UnionAll unionAll = as(filter.child(), UnionAll.class);
             List<LogicalPlan> children = unionAll.children();
-            assertEquals(2, children.size());
+            assertEquals(3, children.size());
 
             UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
             assertEquals(unquoteIndexPattern(combinedIndexPattern), unresolvedRelation.indexPattern().indexPattern());
@@ -631,18 +893,30 @@ public class SubqueryTests extends AbstractStatementParserTests {
                 Filter subqueryForkFilter = as(subqueryForkEval.child(), Filter.class);
                 LookupJoin subqueryLookupJoin = as(subqueryForkFilter.child(), LookupJoin.class);
                 Eval subqueryEval = as(subqueryLookupJoin.left(), Eval.class);
-                UnresolvedRelation subqueryJoinRelation = as(subqueryLookupJoin.right(), UnresolvedRelation.class);
-                assertEquals(unquoteIndexPattern(joinIndexPattern), subqueryJoinRelation.indexPattern().indexPattern());
+                joinRelation = as(subqueryLookupJoin.right(), UnresolvedRelation.class);
+                assertEquals(unquoteIndexPattern(joinIndexPattern), joinRelation.indexPattern().indexPattern());
                 Filter subqueryFilter = as(subqueryEval.child(), Filter.class);
-                UnresolvedRelation subqueryRelation = as(subqueryFilter.child(), UnresolvedRelation.class);
-                assertEquals(unquoteIndexPattern(subqueryIndexPattern1), subqueryRelation.indexPattern().indexPattern());
+                unresolvedRelation = as(subqueryFilter.child(), UnresolvedRelation.class);
+                assertEquals(unquoteIndexPattern(subqueryIndexPattern1), unresolvedRelation.indexPattern().indexPattern());
             }
+
+            Subquery subquery2 = as(children.get(2), Subquery.class);
+            unresolvedRelation = as(subquery2.plan(), UnresolvedRelation.class);
+            assertEquals(unquoteIndexPattern(subqueryIndexPattern2), unresolvedRelation.indexPattern().indexPattern());
         }
     }
 
     /**
-     * Simple nested subqueries can be flattened by LogicalPlanBuilder.
-     * e.g. FROM index1, (FROM index2, (FROM index3, (FROM index4)))  ==>  FROM index1,index2,index3,index4
+     * UnionAll[[]]
+     * |_UnresolvedRelation[]
+     * \_Subquery[]
+     *   \_UnionAll[[]]
+     *     |_UnresolvedRelation[]
+     *     \_Subquery[]
+     *       \_UnionAll[[]]
+     *         |_UnresolvedRelation[]
+     *         \_Subquery[]
+     *           \_UnresolvedRelation[]
      */
     public void testSimpleNestedSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -650,25 +924,57 @@ public class SubqueryTests extends AbstractStatementParserTests {
         var indexPattern2 = randomIndexPatterns();
         var indexPattern3 = randomIndexPatterns();
         var indexPattern4 = randomIndexPatterns();
-        var combinedIndexPattern = unquoteIndexPattern(indexPattern1)
-            + ","
-            + unquoteIndexPattern(indexPattern2)
-            + ","
-            + unquoteIndexPattern(indexPattern3)
-            + ","
-            + unquoteIndexPattern(indexPattern4);
         String query = LoggerMessageFormat.format(null, """
              FROM {}, (FROM {}, (FROM {}, (FROM {})))
             """, indexPattern1, indexPattern2, indexPattern3, indexPattern4);
 
         LogicalPlan plan = statement(query);
-        UnresolvedRelation unresolvedRelation = as(plan, UnresolvedRelation.class);
-        assertEquals(unquoteIndexPattern(combinedIndexPattern), unresolvedRelation.indexPattern().indexPattern());
+
+        UnionAll unionAll = as(plan, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(2, children.size());
+
+        UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(indexPattern1), unresolvedRelation.indexPattern().indexPattern());
+
+        Subquery subquery1 = as(children.get(1), Subquery.class);
+        unionAll = as(subquery1.plan(), UnionAll.class);
+        children = unionAll.children();
+        assertEquals(2, children.size());
+
+        unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(indexPattern2), unresolvedRelation.indexPattern().indexPattern());
+
+        Subquery subquery2 = as(children.get(1), Subquery.class);
+        unionAll = as(subquery2.plan(), UnionAll.class);
+        children = unionAll.children();
+        assertEquals(2, children.size());
+
+        unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(indexPattern3), unresolvedRelation.indexPattern().indexPattern());
+        Subquery subquery3 = as(children.get(1), Subquery.class);
+        unresolvedRelation = as(subquery3.child(), UnresolvedRelation.class);
+        assertEquals(unquoteIndexPattern(indexPattern4), unresolvedRelation.indexPattern().indexPattern());
     }
 
     /**
      * LogicalPlanBuilder does not flatten nested subqueries with processing commands,
      * the structure of the nested subqueries s preserved in the parsed plan.
+     *
+     * Limit[10[INTEGER],false]
+     * \_UnionAll[[]]
+     *   |_UnresolvedRelation[]
+     *   \_Subquery[]
+     *     \_Aggregate[[?e],[?COUNT[*] AS cnt#7, ?e]]
+     *       \_UnionAll[[]]
+     *         |_UnresolvedRelation[]
+     *         \_Subquery[]
+     *           \_Eval[[?a * 2[INTEGER] AS b#4]]
+     *             \_UnionAll[[]]
+     *               |_UnresolvedRelation[]
+     *               \_Subquery[]
+     *                 \_Filter[?a > 10[INTEGER]]
+     *                   \_UnresolvedRelation[]
      */
     public void testNestedSubqueryWithProcessingCommands() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -713,6 +1019,16 @@ public class SubqueryTests extends AbstractStatementParserTests {
 
     /**
      * The medatada options from the main query are not propagated into subqueries.
+     *
+     * Aggregate[[?a],[?COUNT[*] AS cnt#6, ?a]]
+     * \_UnionAll[[]]
+     *   |_UnresolvedRelation[]
+     *   \_Subquery[]
+     *     \_Filter[?a &gt; 10[INTEGER]]
+     *       \_UnionAll[[]]
+     *         |_UnresolvedRelation[]
+     *         \_Subquery[]
+     *           \_UnresolvedRelation[]
      */
     public void testSubqueriesWithMetadada() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -756,6 +1072,14 @@ public class SubqueryTests extends AbstractStatementParserTests {
         assertEquals(0, metadata.size());
     }
 
+    /**
+     * Aggregate[[?a],[?COUNT[*] AS cnt#4, ?a]]
+     * \_UnionAll[[]]
+     *   |_UnresolvedRelation[]
+     *   \_Subquery[]
+     *     \_Filter[?a &gt; 10[INTEGER]]
+     *       \_UnresolvedRelation[]
+     */
     public void testSubqueryWithRemoteCluster() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var mainRemoteIndexPattern = randomIndexPatterns(CROSS_CLUSTER);

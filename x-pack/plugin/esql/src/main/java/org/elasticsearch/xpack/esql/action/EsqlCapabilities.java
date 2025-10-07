@@ -933,67 +933,6 @@ public class EsqlCapabilities {
         QUERY_STRING_FUNCTION_OPTIONS,
 
         /**
-         * Support for aggregate_metric_double type
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE,
-
-        /**
-         * Support for partial subset of metrics in aggregate_metric_double type
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS,
-
-        /**
-         * Support for rendering aggregate_metric_double type
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_RENDERING,
-
-        /**
-         * Support for to_aggregate_metric_double function
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_CONVERT_TO,
-
-        /**
-         * Support for sorting when aggregate_metric_doubles are present
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_SORTING,
-
-        /**
-         * Support avg with aggregate metric doubles
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_AVG,
-
-        /**
-         * Support for implicit casting of aggregate metric double when run in aggregations
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS,
-
-        /**
-         * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
-         * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED,
-
-        /**
-         * Stop erroring out when trying to apply MV_EXPAND on aggregate metric double.
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_MV_EXPAND,
-
-        /**
-         * Registering AggregateMetricDoubleLiteral as a NamedWritable.
-         */
-        @Deprecated
-        AGGREGATE_METRIC_DOUBLE_LITERAL_REGISTERED,
-
-        /**
          * Enable aggregate_metric_double in non-snapshot builds
          */
         AGGREGATE_METRIC_DOUBLE_V0,
@@ -1123,11 +1062,6 @@ public class EsqlCapabilities {
         QUERY_MONITORING,
 
         /**
-         * Support max_over_time aggregation that gets evaluated per time-series
-         */
-        MAX_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
          * Support for FORK out of snapshot
          */
         FORK_V9,
@@ -1146,11 +1080,6 @@ public class EsqlCapabilities {
          * Does the usage information for ESQL contain a histogram of {@code took} values?
          */
         USAGE_CONTAINS_TOOK,
-
-        /**
-         * Support avg_over_time aggregation that gets evaluated per time-series
-         */
-        AVG_OVER_TIME(Build.current().isSnapshot()),
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -1177,11 +1106,6 @@ public class EsqlCapabilities {
         DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
 
         /**
-         * Support last_over_time aggregation that gets evaluated per time-series
-         */
-        LAST_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
          * score function
          */
         SCORE_FUNCTION(Build.current().isSnapshot()),
@@ -1202,45 +1126,10 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
-         * Support min_over_time aggregation that gets evaluated per time-series
-         */
-        MIN_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support first_over_time aggregation that gets evaluated per time-series
-         */
-        FIRST_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support sum_over_time aggregation that gets evaluated per time-series
-         */
-        SUM_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support count_over_time aggregation that gets evaluated per time-series
-         */
-        COUNT_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support for count_distinct_over_time aggregation that gets evaluated per time-series
-         */
-        COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
          * Support for INCREASE, DELTA timeseries aggregations.
          */
         INCREASE,
         DELTA_TS_AGG,
-
-        /**
-         * Extra field types in the k8s.csv dataset
-         */
-        K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
-
-        /**
-         * Geospatial field types in the k8s.csv and k8s-downsampled.csv datasets
-         */
-        K8S_DATASETS_GEOSPATIAL_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.
@@ -1513,11 +1402,6 @@ public class EsqlCapabilities {
         ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
 
         /**
-         * Implicitly applies last_over_time in time-series aggregations when no specific over_time function is provided.
-         */
-        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
          * Support for the Present function
          */
         FN_PRESENT,
@@ -1536,11 +1420,6 @@ public class EsqlCapabilities {
         TO_DENSE_VECTOR_FUNCTION,
 
         /**
-         * Support present_over_time aggregation that gets evaluated per time-series
-         */
-        PRESENT_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
          * Multivalued query parameters
          */
         QUERY_PARAMS_MULTI_VALUES(),
@@ -1551,11 +1430,6 @@ public class EsqlCapabilities {
          * Support for the Absent function
          */
         FN_ABSENT,
-
-        /**
-         * Support absent_over_time aggregation that gets evaluated per time-series
-         */
-        ABSENT_OVER_TIME(Build.current().isSnapshot()),
 
         /** INLINE STATS supports remote indices */
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),

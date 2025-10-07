@@ -87,6 +87,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+    // only used for telemetry purposes on the coordinating node, where the search response gets created
+    private transient Long timeRangeFilterFromMillis;
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
@@ -187,6 +189,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             clusters,
             pointInTimeId
         );
+        this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
     }
 
     public SearchResponse(
@@ -462,6 +465,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         out.writeOptionalBytesReference(pointInTimeId);
+    }
+
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
     }
 
     @Override

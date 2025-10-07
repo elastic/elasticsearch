@@ -234,12 +234,14 @@ public class JobManager {
     ) throws IOException {
 
         MlConfigVersion minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.getNodes());
+
         Job.Builder jobBuilder = request.getJobBuilder();
         jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());
         jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
         validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, minNodeVersion);
 
-        Job job = jobBuilder.build(new Date(), state, indexNameExpressionResolver);
+//        Job job = jobBuilder.build(new Date(), state, indexNameExpressionResolver);
+        Job job = jobBuilder.build(new Date());
 
         ActionListener<Boolean> putJobListener = new ActionListener<>() {
             @Override
@@ -425,10 +427,6 @@ public class JobManager {
             new CancelJobModelSnapshotUpgradeAction.Request(jobId, "_all"),
             cancelUpgradesListener
         );
-    }
-
-    public IndexNameExpressionResolver indexNameExpressionResolver() {
-        return indexNameExpressionResolver;
     }
 
     private void postJobUpdate(UpdateJobAction.Request request, Job updatedJob, ActionListener<PutJobAction.Response> actionListener) {

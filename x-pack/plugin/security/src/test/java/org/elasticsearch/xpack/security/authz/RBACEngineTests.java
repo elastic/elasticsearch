@@ -21,7 +21,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -172,7 +172,13 @@ public class RBACEngineTests extends ESTestCase {
         final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
         when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
         rolesStore = mock(CompositeRolesStore.class);
-        engine = new RBACEngine(Settings.EMPTY, rolesStore, new FieldPermissionsCache(Settings.EMPTY), timerFactory);
+        engine = new RBACEngine(
+            Settings.EMPTY,
+            rolesStore,
+            new FieldPermissionsCache(Settings.EMPTY),
+            timerFactory,
+            new ThreadContext(Settings.EMPTY)
+        );
     }
 
     public void testResolveAuthorizationInfoForEmptyRolesWithAuthentication() {
@@ -2064,7 +2070,7 @@ public class RBACEngineTests extends ESTestCase {
         final ResolvedIndices resolvedIndices = new ResolvedIndices(List.of(indices), List.of());
         final TransportRequest searchRequest = new SearchRequest(indices);
         final RequestInfo requestInfo = createRequestInfo(searchRequest, action, parentAuthorization);
-        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = () -> SubscribableListener.newSucceeded(resolvedIndices);
+        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = s -> s.onResponse(resolvedIndices);
 
         Metadata.Builder metadata = Metadata.builder();
         Stream.of(indices)
@@ -2075,7 +2081,7 @@ public class RBACEngineTests extends ESTestCase {
                 )
             );
 
-        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build().getProject()).addListener(listener);
+        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build().getProject(), listener);
     }
 
     private static RequestInfo createRequestInfo(TransportRequest request, String action, ParentActionAuthorization parentAuthorization) {

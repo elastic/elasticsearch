@@ -103,7 +103,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
         AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.setIfEmpty(threadPool.getThreadContext(), indicesAccessControl);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), mock(AuthorizationInfo.class)).addListener(future);
+        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), mock(AuthorizationInfo.class), future);
         future.actionGet();
 
         if (remoteIndices.length > 0) {

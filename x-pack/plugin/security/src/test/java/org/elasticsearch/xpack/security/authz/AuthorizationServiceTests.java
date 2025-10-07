@@ -76,7 +76,6 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -3463,11 +3462,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
-            public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
+            public void authorizeIndexAction(
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,
                 AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                ProjectMetadata metadata
+                ProjectMetadata metadata,
+                ActionListener<IndexAuthorizationResult> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
             }

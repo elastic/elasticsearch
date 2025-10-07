@@ -48,4 +48,16 @@ public final class ContextPreservingActionListener<R> extends DelegatingActionLi
     public static <R> ContextPreservingActionListener<R> wrapPreservingContext(ActionListener<R> listener, ThreadContext threadContext) {
         return new ContextPreservingActionListener<>(threadContext.newRestorableContext(true), listener);
     }
+
+    public static <R> ContextPreservingActionListener<R> wrapPreservingTransientContext(
+        ActionListener<R> listener,
+        ThreadContext threadContext
+    ) {
+        return new ContextPreservingActionListener<>(
+            threadContext.wrapRestorable(
+                threadContext.newStoredContextPreservingResponseHeaders("_security_serverless_request_scoped_credential")
+            ),
+            listener
+        );
+    }
 }

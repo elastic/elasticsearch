@@ -87,14 +87,14 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
+    public void authorizeIndexAction(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        ProjectMetadata project
+        ProjectMetadata project,
+        ActionListener<IndexAuthorizationResult> listener
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
-            SubscribableListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
             indicesAsyncSupplier.getAsync().addListener(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
@@ -104,9 +104,8 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                     new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
                 listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
             }, listener::onFailure));
-            return listener;
         } else {
-            return SubscribableListener.newSucceeded(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 

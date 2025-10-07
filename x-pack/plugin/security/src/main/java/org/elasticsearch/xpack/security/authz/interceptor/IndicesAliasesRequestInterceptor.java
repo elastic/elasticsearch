@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -54,10 +53,11 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
     }
 
     @Override
-    public SubscribableListener<Void> intercept(
+    public void intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
     ) {
         if (requestInfo.getRequest() instanceof IndicesAliasesRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
@@ -72,7 +72,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                             if (indexAccessControl != null
                                 && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
                                     || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
-                                return SubscribableListener.newFailed(
+                                listener.onFailure(
                                     new ElasticsearchSecurityException(
                                         "Alias requests are not allowed for "
                                             + "users who have field or document level security enabled on one of the indices",
@@ -98,7 +98,6 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                     list.addAll(toMerge);
                     return list;
                 }));
-            final SubscribableListener<Void> listener = new SubscribableListener<>();
             authorizationEngine.validateIndexPermissionsAreSubset(
                 requestInfo,
                 authorizationInfo,
@@ -123,9 +122,8 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                     }
                 }, listener::onFailure), threadContext)
             );
-            return listener;
         } else {
-            return SubscribableListener.nullSuccess();
+            listener.onResponse(null);
         }
     }
 }

@@ -43,10 +43,11 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
     }
 
     @Override
-    public SubscribableListener<Void> intercept(
+    public void intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
     ) {
         final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
@@ -72,12 +73,11 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                 }
             }
             if (false == accessControlByIndex.isEmpty()) {
-                final SubscribableListener<Void> listener = new SubscribableListener<>();
                 disableFeatures(indicesRequest, accessControlByIndex, listener);
-                return listener;
+                return ;
             }
         }
-        return SubscribableListener.nullSuccess();
+        listener.onResponse(null);
     }
 
     abstract void disableFeatures(

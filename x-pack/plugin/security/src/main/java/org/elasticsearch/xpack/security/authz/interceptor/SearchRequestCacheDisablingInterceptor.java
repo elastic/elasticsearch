@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz.interceptor;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,10 +33,11 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
     }
 
     @Override
-    public SubscribableListener<Void> intercept(
+    public void intercept(
         AuthorizationEngine.RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationEngine.AuthorizationInfo authorizationInfo
+        AuthorizationEngine.AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
     ) {
         final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
@@ -49,7 +50,7 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
                 searchRequest.requestCache(false);
             }
         }
-        return SubscribableListener.nullSuccess();
+        listener.onResponse(null);
     }
 
     // package private for test

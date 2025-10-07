@@ -364,6 +364,23 @@ public final class ThreadContext implements Writeable, TraceContext {
         };
     }
 
+    public StoredContext newStoredContextPreservingResponseHeaders(String transientHeader) {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        return () -> {
+            var found = threadLocal.get();
+            if (found != originalContext) {
+                if (found.transientHeaders.containsKey(transientHeader)) {
+                    threadLocal.set(
+                        originalContext.putResponseHeaders(found.responseHeaders)
+                            .putTransient(transientHeader, found.transientHeaders.get(transientHeader))
+                    );
+                } else {
+                    threadLocal.set(originalContext.putResponseHeaders(found.responseHeaders));
+                }
+            }
+        };
+    }
+
     /**
      * Capture the current context and then restore the given context, returning a {@link StoredContext} that reverts back to the current
      * context again. Equivalent to using {@link #newStoredContext()} and then calling {@code existingContext.restore()}.

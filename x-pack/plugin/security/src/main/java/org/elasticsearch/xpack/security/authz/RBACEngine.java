@@ -32,7 +32,6 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -153,17 +153,20 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final ThreadContext threadContext;
 
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
         FieldPermissionsCache fieldPermissionsCache,
-        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory,
+        ThreadContext threadContext
     ) {
         this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = fieldPermissionsCache;
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -320,11 +323,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
+    public void authorizeIndexAction(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        ProjectMetadata metadata
+        ProjectMetadata metadata,
+        ActionListener<IndexAuthorizationResult> listener
     ) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
@@ -332,14 +336,13 @@ public class RBACEngine implements AuthorizationEngine {
         try {
             role = ensureRBAC(authorizationInfo).getRole();
         } catch (Exception e) {
-            return SubscribableListener.newFailed(e);
+            listener.onFailure(e);
+            return;
         }
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
-            return SubscribableListener.newSucceeded(
-                role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED
-            );
+            listener.onResponse(role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED);
         } else if (request instanceof IndicesRequest == false) {
             if (SCROLL_RELATED_ACTIONS.contains(action)) {
                 // scroll is special
@@ -357,7 +360,6 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (TransportSearchScrollAction.TYPE.name().equals(action)) {
-                    final SubscribableListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
                     ActionRunnable.supply(listener.delegateFailureAndWrap((l, parsedScrollId) -> {
                         if (parsedScrollId.hasLocalIndices()) {
                             l.onResponse(
@@ -367,7 +369,6 @@ public class RBACEngine implements AuthorizationEngine {
                             l.onResponse(IndexAuthorizationResult.EMPTY);
                         }
                     }), ((SearchScrollRequest) request)::parseScrollId).run();
-                    return listener;
                 } else {
                     // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
                     // Scroll related actions have special security logic, where the security context of the initial search
@@ -377,26 +378,26 @@ public class RBACEngine implements AuthorizationEngine {
                     // The DLS/FLS permissions are used inside the {@code DirectoryReader} that {@code SecurityIndexReaderWrapper}
                     // built while handling the initial search request. In addition, for consistency, the DLS/FLS permissions from
                     // the originating search request are attached to the thread context upon validating the scroll.
-                    return SubscribableListener.newSucceeded(IndexAuthorizationResult.EMPTY);
+                    listener.onResponse(IndexAuthorizationResult.EMPTY);
                 }
             } else if (isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // authorize submit async search but don't fill in the DLS/FLS permissions
                     // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
                     // which DLS/FLS controls should be applied to this action
-                    return SubscribableListener.newSucceeded(IndexAuthorizationResult.EMPTY);
+                    listener.onResponse(IndexAuthorizationResult.EMPTY);
                 } else {
                     // async-search actions other than submit have a custom security layer that checks if the current user is
                     // the same as the user that submitted the original request so no additional checks are needed here.
-                    return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
+                    listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
             } else if (action.equals(TransportClosePointInTimeAction.TYPE.name())) {
-                return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
+                listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false
                     : "only scroll and async-search related requests are known indices api that don't "
                         + "support retrieving the indices they relate to";
-                return SubscribableListener.newFailed(
+                listener.onFailure(
                     new IllegalStateException(
                         "only scroll and async-search related requests are known indices "
                             + "api that don't support retrieving the indices they relate to"
@@ -404,16 +405,13 @@ public class RBACEngine implements AuthorizationEngine {
                 );
             }
         } else if (isChildActionAuthorizedByParentOnLocalNode(requestInfo, authorizationInfo)) {
-            return SubscribableListener.newSucceeded(
-                new IndexAuthorizationResult(requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
-            );
+            listener.onResponse(new IndexAuthorizationResult(requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl()));
         } else if (PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authorizationInfo)) {
             // We only pre-authorize child actions if DLS/FLS is not configured,
             // hence we can allow here access for all requested indices.
-            return SubscribableListener.newSucceeded(new IndexAuthorizationResult(IndicesAccessControl.allowAll()));
+            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.allowAll()));
         } else if (allowsRemoteIndices(request) || role.checkIndicesAction(action)) {
-            final SubscribableListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
-            indicesAsyncSupplier.getAsync().addListener(listener.delegateFailureAndWrap((delegateListener, resolvedIndices) -> {
+            indicesAsyncSupplier.getAsync(listener.delegateFailureAndWrap((delegateListener, resolvedIndices) -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
@@ -448,9 +446,8 @@ public class RBACEngine implements AuthorizationEngine {
                     delegateListener.onResponse(result);
                 }
             }));
-            return listener;
         } else {
-            return SubscribableListener.newSucceeded(IndexAuthorizationResult.DENIED);
+            listener.onResponse(IndexAuthorizationResult.DENIED);
         }
     }
 

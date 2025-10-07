@@ -50,10 +50,11 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
     }
 
     @Override
-    public SubscribableListener<Void> intercept(
+    public void intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
     ) {
         if (requestInfo.getRequest() instanceof ResizeRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
@@ -67,7 +68,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                 if (indexAccessControl != null
                     && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
                         || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
-                    return SubscribableListener.newFailed(
+                    listener.onFailure(
                         new ElasticsearchSecurityException(
                             "Resize requests are not allowed for users when "
                                 + "field or document level security is enabled on the source index",
@@ -77,7 +78,6 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                 }
             }
 
-            final SubscribableListener<Void> listener = new SubscribableListener<>();
             authorizationEngine.validateIndexPermissionsAreSubset(
                 requestInfo,
                 authorizationInfo,
@@ -101,9 +101,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                     }
                 }, listener::onFailure), threadContext)
             );
-            return listener;
         } else {
-            return SubscribableListener.nullSuccess();
-        }
+            listener.onResponse(null);        }
     }
 }

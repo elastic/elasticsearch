@@ -381,6 +381,7 @@ public class SamplingService implements ClusterStateListener {
             long samplesRejectedForCondition,
             long samplesRejectedForRate,
             long samplesRejectedForException,
+            long samplesRejectedForSize,
             TimeValue timeSampling,
             TimeValue timeEvaluatingCondition,
             TimeValue timeCompilingCondition,
@@ -392,6 +393,7 @@ public class SamplingService implements ClusterStateListener {
             this.samplesRejectedForCondition.add(samplesRejectedForCondition);
             this.samplesRejectedForRate.add(samplesRejectedForRate);
             this.samplesRejectedForException.add(samplesRejectedForException);
+            this.samplesRejectedForSize.add(samplesRejectedForSize);
             this.timeSamplingInNanos.add(timeSampling.nanos());
             this.timeEvaluatingConditionInNanos.add(timeEvaluatingCondition.nanos());
             this.timeCompilingConditionInNanos.add(timeCompilingCondition.nanos());

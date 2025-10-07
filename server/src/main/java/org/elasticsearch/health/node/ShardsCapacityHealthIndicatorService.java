@@ -141,8 +141,8 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             final var nodeTypeNames = new ArrayList<String>();
             for (var statusResult : statusResults) {
                 if (statusResult.status.indicatesHealthProblem()) {
-                    nodeTypeNames.add(nodeTypeFroResultGroup(statusResult.result.group()));
-                    diagnoses.add(diagnosisForResultGroup(statusResult.result.group()));
+                    nodeTypeNames.add(nodeTypeFroLimitGroup(statusResult.result.group()));
+                    diagnoses.add(diagnosisForLimitGroup(statusResult.result.group()));
                 }
             }
 
@@ -195,7 +195,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return (builder, params) -> {
             builder.startObject();
             for (var result : results) {
-                builder.startObject(nodeTypeFroResultGroup(result.group()));
+                builder.startObject(nodeTypeFroLimitGroup(result.group()));
                 builder.field("max_shards_in_cluster", result.maxShardsInCluster());
                 if (result.currentUsedShards().isPresent()) {
                     builder.field("current_used_shards", result.currentUsedShards().get());
@@ -217,7 +217,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         );
     }
 
-    private static String nodeTypeFroResultGroup(ShardLimitValidator.LimitGroup limitGroup) {
+    private static String nodeTypeFroLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
         return switch (limitGroup) {
             case NORMAL -> "data";
             case FROZEN -> "frozen";
@@ -226,7 +226,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         };
     }
 
-    private static Diagnosis diagnosisForResultGroup(ShardLimitValidator.LimitGroup limitGroup) {
+    private static Diagnosis diagnosisForLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
         return switch (limitGroup) {
             case NORMAL, INDEX, SEARCH -> SHARDS_MAX_CAPACITY_REACHED_DATA_NODES;
             case FROZEN -> SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES;

@@ -372,7 +372,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         }
 
         if (group == LimitGroup.INDEX) {
-            // Also add search nodes for index result group and they should not affect the result of the index group
+            // Also add search nodes for index limit group and they should not affect the result of the index group
             IntStream.range(0, nodesInCluster + 1)
                 .forEach(
                     i -> builder.add(
@@ -380,7 +380,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
                     )
                 );
         } else if (group == LimitGroup.SEARCH) {
-            // Also add index nodes for search result group and they should not affect the result of the search group
+            // Also add index nodes for search limit group and they should not affect the result of the search group
             IntStream.range(0, nodesInCluster + 1)
                 .forEach(
                     i -> builder.add(

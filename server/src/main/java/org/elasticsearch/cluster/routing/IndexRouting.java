@@ -98,6 +98,8 @@ public abstract class IndexRouting {
      */
     public abstract int indexShard(IndexRequest indexRequest);
 
+    public abstract int rerouteToTarget(IndexRequest indexRequest);
+
     /**
      * Called when updating a document to generate the shard id that should contain
      * a document with the provided {@code _id} and (optional) {@code _routing}.
@@ -234,8 +236,12 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public int rerouteToTarget(IndexRequest indexRequest) {
+            return indexShard(indexRequest);
+        }
+
+        @Override
         public int rerouteIndexingRequestIfResharding(IndexRequest indexRequest) {
-            // System.out.println("Route based on Id");
             String id = indexRequest.id();
             String routing = indexRequest.routing();
             if (id == null) {
@@ -370,13 +376,29 @@ public abstract class IndexRouting {
 
         @Override
         public int indexShard(IndexRequest indexRequest) {
-            // System.out.println("Extract from source");
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(indexRequest.routing());
             hash = hashSource(indexRequest);
             int shardId = hashToShardId(hash);
-            // System.out.println("shardId = " + shardId);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
+        }
+
+        @Override
+        public int rerouteToTarget(IndexRequest indexRequest) {
+            if (trackTimeSeriesRoutingHash) {
+                String routing = indexRequest.routing();
+                if (routing == null) {
+                    throw new IllegalStateException("Routing should be set by the coordinator");
+                }
+                TimeSeriesRoutingHashFieldMapper.decode(routing);
+                return indexShard(indexRequest);
+            } else if (addIdWithRoutingHash) {
+                // TODO: is this correct?
+                return hashToShardId(effectiveRoutingToHash(indexRequest.id()));
+            } else {
+                checkNoRouting(indexRequest.routing());
+                return indexShard(indexRequest);
+            }
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
@@ -386,15 +408,13 @@ public abstract class IndexRouting {
         // make this call cheaper.
         @Override
         public int rerouteIndexingRequestIfResharding(IndexRequest indexRequest) {
-            // System.out.println("Extract from source");
             // assert Transports.assertNotTransportThread("parsing the _source can get slow");
             // TODO: Is this always necessary ? This can be expensive. postProcess adds some additional metadata
             // TODO: to the indexing request, can that be used to get the hash in a cheaper way ? Or maybe we
             // TODO: can add the hash to the IndexRequest ?
             hash = hashSource(indexRequest);
             int shardId = hashToShardId(hash);
-            // System.out.println("shardId = " + shardId);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
         }
 
         private static int defaultOnEmpty() {
@@ -419,14 +439,14 @@ public abstract class IndexRouting {
         public int deleteShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
         }
 
         @Override
         public int rerouteDeleteRequestIfResharding(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
-            return (rerouteWritesIfResharding(shardId));
+            return rerouteWritesIfResharding(shardId);
         }
 
         @Override

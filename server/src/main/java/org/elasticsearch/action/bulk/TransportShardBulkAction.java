@@ -172,12 +172,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
-        // System.out.println("I am splitting");
+        final ShardId sourceShardId = request.shardId();
+        final Index index = sourceShardId.getIndex();
+
         ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        Index index = request.shardId().getIndex();
-        // IndexMetadata indexMetadata = clusterState.getMetadata().indexMetadata(index);
-        IndexRouting routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
+
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
         Map<ShardId, BulkShardRequest> bulkRequestsPerShard = new HashMap<>();
 
@@ -185,39 +186,26 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         // current resharding-split state.
         BulkItemRequest[] items = request.items();
         if (items.length == 0) {  // Nothing to split
-            return Map.of(request.shardId(), request);
+            return Map.of(sourceShardId, request);
         }
 
         for (int i = 0; i < items.length; i++) {
             BulkItemRequest bulkItemRequest = items[i];
             DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
-            int shardId = docWriteRequest.rerouteAtSourceDuringResharding(routing);
-            // int shardId = docWriteRequest.route(routing);
-            // System.out.println("shardId = " + shardId);
+            int newShardId = docWriteRequest.rerouteAtSourceDuringResharding(indexRouting);
             List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
-                new ShardId(index, shardId),
+                new ShardId(index, newShardId),
                 shardNum -> new ArrayList<>()
             );
-            shardRequests.add(bulkItemRequest);
+            shardRequests.add(new BulkItemRequest(newShardId, bulkItemRequest.request()));
         }
 
-        // System.out.println("requestsByShard = " + requestsByShard.size());
         // All items belong to either the source shard or target shard.
         if (requestsByShard.size() == 1) {
-            ShardId targetShard = requestsByShard.entrySet().iterator().next().getKey();
-            // Return original request if no items were split to target.
-            if (targetShard.equals(request.shardId())) {
-                return Map.of(request.shardId(), request);
-            } else {
-                // Create new bulk request that is identical to the original request except the shardId.
-                // TODO: Verify that this is alright because each BulkItemRequest also contains shardId
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                    targetShard,
-                    request.getRefreshPolicy(),
-                    request.items(),
-                    request.isSimulated()
-                );
-                return Map.of(targetShard, bulkShardRequest);
+            Map.Entry<ShardId, List<BulkItemRequest>> entry = requestsByShard.entrySet().iterator().next();
+            // Return the original request if no items were split to target.
+            if (entry.getKey().equals(sourceShardId)) {
+                return Map.of(sourceShardId, request);
             }
         }
 
@@ -232,7 +220,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
             bulkRequestsPerShard.put(shardId, bulkShardRequest);
         }
-        return (bulkRequestsPerShard);
+        return bulkRequestsPerShard;
     }
 
     @Override

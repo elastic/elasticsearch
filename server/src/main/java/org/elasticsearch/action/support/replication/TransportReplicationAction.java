@@ -527,8 +527,6 @@ public abstract class TransportReplicationAction<
                         assert numSplitRequests > 0 : "expected atleast 1 split request";
                         assert numSplitRequests <= 2 : "number of split requests too many";
 
-                        // System.out.println("numSplitRequests = " + numSplitRequests);
-                        // System.out.println("source shardId = " + primaryRequest.getRequest().shardId().toString());
                         if (numSplitRequests == 1) {
                             // System.out.println("shardId = " + splitRequests.entrySet().iterator().next().getKey().toString());
                             // If the request is for source, same behaviour as before

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.TelemetryMetrics;
+package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,12 +25,13 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.QUERY_SEARCH_PHASE_METRIC;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.TOOK_DURATION_TOTAL_HISTOGRAM_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
+public class SearchResponseMetricsTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_coordinator_search_phase_metrics";
     private final int num_primaries = randomIntBetween(2, 7);
 
@@ -69,7 +70,7 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC));
+        assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC, TOOK_DURATION_TOTAL_HISTOGRAM_NAME));
     }
 
     private void resetMeter() {
@@ -87,5 +88,4 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
             assertThat(measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
         }
     }
-
 }

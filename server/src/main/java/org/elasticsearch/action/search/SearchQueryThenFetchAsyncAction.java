@@ -34,8 +34,8 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -113,7 +113,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchResponse.Clusters clusters,
         Client client,
         boolean batchQueryPhase,
-        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(
             "query",
@@ -133,7 +133,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
             clusters,
-            coordinatorSearchPhaseAPMMetrics
+            searchResponseMetrics
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
@@ -570,9 +570,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     }
 
     @Override
-    protected void recordPhaseLatency() {
+    protected void onPhaseDone() {
         final long tookInNanos = System.nanoTime() - phaseStartTimeNanos;
-        coordinatorSearchPhaseAPMMetrics.onQueryPhaseDone(tookInNanos);
+        searchResponseMetrics.recordQueryPhaseDuration(tookInNanos);
+        super.onPhaseDone();
     }
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";

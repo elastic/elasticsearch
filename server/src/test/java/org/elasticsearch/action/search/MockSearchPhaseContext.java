@@ -18,10 +18,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
 
@@ -68,7 +69,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new ArraySearchPhaseResults<>(numShards),
             5,
             null,
-            CoordinatorSearchPhaseAPMMetrics.NOOP
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);

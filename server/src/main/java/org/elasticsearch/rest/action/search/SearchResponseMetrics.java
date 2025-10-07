@@ -16,6 +16,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Container class for aggregated metrics about search responses.
@@ -42,9 +43,11 @@ public class SearchResponseMetrics {
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
+    public static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases_took_durations.query.histogram";
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
+    private final LongHistogram queryPhaseDurationHistogram;
 
     public SearchResponseMetrics(MeterRegistry meterRegistry) {
         this(
@@ -59,13 +62,23 @@ public class SearchResponseMetrics {
                     + "success, partial failure, or failure, expressed as a single total counter and individual "
                     + "attribute counters",
                 "count"
+            ),
+            meterRegistry.registerLongHistogram(
+                QUERY_SEARCH_PHASE_METRIC,
+                "Query search phase execution times at the coordinator level, expressed as a histogram",
+                "millis"
             )
         );
     }
 
-    private SearchResponseMetrics(LongHistogram tookDurationTotalMillisHistogram, LongCounter responseCountTotalCounter) {
+    private SearchResponseMetrics(
+        LongHistogram tookDurationTotalMillisHistogram,
+        LongCounter responseCountTotalCounter,
+        LongHistogram queryPhaseDurationHistogram
+    ) {
         this.tookDurationTotalMillisHistogram = tookDurationTotalMillisHistogram;
         this.responseCountTotalCounter = responseCountTotalCounter;
+        this.queryPhaseDurationHistogram = queryPhaseDurationHistogram;
     }
 
     public long recordTookTimeForSearchScroll(long tookTime) {
@@ -90,5 +103,9 @@ public class SearchResponseMetrics {
         Map<String, Object> attributesWithStatus = new HashMap<>(attributes);
         attributesWithStatus.put(RESPONSE_COUNT_TOTAL_STATUS_ATTRIBUTE_NAME, responseCountTotalStatus.getDisplayName());
         responseCountTotalCounter.incrementBy(1L, attributesWithStatus);
+    }
+
+    public void recordQueryPhaseDuration(long tookInNanos) {
+        queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
     }
 }

@@ -67,7 +67,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -171,7 +170,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final UsageService usageService;
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
-    private final CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics;
 
     @Inject
     public TransportSearchAction(
@@ -190,8 +188,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ExecutorSelector executorSelector,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
-        UsageService usageService,
-        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
+        UsageService usageService
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -221,7 +218,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
-        this.coordinatorSearchPhaseAPMMetrics = coordinatorSearchPhaseAPMMetrics;
         forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
     }
 
@@ -1693,7 +1689,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         client,
-                        coordinatorSearchPhaseAPMMetrics
+                        searchResponseMetrics
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1715,7 +1711,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchService.batchQueryPhase(),
-                        coordinatorSearchPhaseAPMMetrics
+                        searchResponseMetrics
                     );
                 }
                 success = true;

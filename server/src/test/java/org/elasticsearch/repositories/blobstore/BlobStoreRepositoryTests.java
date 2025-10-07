@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -791,15 +790,17 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             CountDownLatch countDownLatch;
             int blobCount = 0;
 
-            // First, we write as many blobs as we have capacity for
+            // First, write blobs until capacity is exceeded
 
-            // Do not expect to see any WARN logs about dangling blobs as there should be capacity for them all
             mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "failure to clean up dangling blobs warn logs",
-                    "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
+                new MockLog.SeenEventExpectation(
+                    "skipped cleanup warning",
+                    BlobStoreRepository.class.getCanonicalName(),
                     Level.WARN,
-                    "Failure to clean up the following dangling blobs"
+                    "*Skipped cleanup of 1 dangling snapshot blobs due to memory constraints "
+                        + "on the master node. These blobs will be cleaned up automatically by future snapshot deletions. "
+                        + "If you routinely delete large snapshots, consider increasing the master node's heap size to allow "
+                        + "for more efficient cleanup."
                 )
             );
 
@@ -851,32 +852,21 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             resetMockLog();
 
             // Second, now we're at capacity, we test whether we can accept subsequent writes without throwing an error
+
             int numberOfOverflowedWrites = randomIntBetween(1, 20);
-
-            // Expect each write to throw a WARN log
-            mockLog.addExpectation(new MockLog.LoggingExpectation() {
-                int count = 0;
-
-                @Override
-                public void match(LogEvent event) {
-                    if (event.getLevel() != Level.WARN) {
-                        return;
-                    }
-                    if (event.getLoggerName().equals(BlobStoreRepository.class.getCanonicalName()) == false) {
-                        return;
-                    }
-
-                    String msg = event.getMessage().getFormattedMessage();
-                    if (msg.matches("Failure to clean up the following dangling blobs, .*, for index .+ and shard .+")) {
-                        count++;
-                    }
-                }
-
-                @Override
-                public void assertMatched() {
-                    assertEquals(numberOfOverflowedWrites, count);
-                }
-            });
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "skipped cleanup warning",
+                    BlobStoreRepository.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Skipped cleanup of "
+                        + (numberOfOverflowedWrites + 1)
+                        + " dangling snapshot blobs due to memory constraints "
+                        + "on the master node. These blobs will be cleaned up automatically by future snapshot deletions. "
+                        + "If you routinely delete large snapshots, consider increasing the master node's heap size to allow "
+                        + "for more efficient cleanup."
+                )
+            );
 
             for (int i = 0; i < numberOfOverflowedWrites; i++) {
                 // Generate the next blob to write

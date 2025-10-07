@@ -72,7 +72,7 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import java.util.zip.CRC32C;
+import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import static org.elasticsearch.core.Strings.format;
@@ -629,7 +629,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             Serialized serialized = Serialized.create(
                 header,
                 operation instanceof Index index ? ReleasableBytesReference.unwrap(index.source()) : null,
-                new CRC32C()
+                new CRC32()
             );
 
             readLock.lock();

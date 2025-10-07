@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,11 +23,17 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsDoubleEvaluator;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
+import org.locationtech.jts.io.WKTWriter;
+import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 public class StSimplify extends ScalarFunction implements EvaluatorMapper {
     Expression geometry;
@@ -86,7 +95,7 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
 
         return dvrCtx -> {
             EvalOperator.ExpressionEvaluator geometryEvaluator = geometryEval.get(dvrCtx);
-            // toleranceEvaluator is not used since we just return the geometry
+            EvalOperator.ExpressionEvaluator toleranceEvaluator = toleranceEval.get(dvrCtx);
 
             return new EvalOperator.ExpressionEvaluator() {
                 @Override
@@ -96,6 +105,30 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
 
                 @Override
                 public Block eval(Page page) {
+                    var isGeometryFoldable = geometry.foldable();
+                    var isToleranceFoldable = tolerance.foldable();
+
+                    if (isGeometryFoldable) {
+                        var esGeometry = makeGeometryFromLiteral(toEvaluator.foldCtx(), geometry);
+                        DoubleBlock fieldValBlock = (DoubleBlock) toleranceEvaluator.eval(page);
+                        String wkt = WellKnownText.toWKT(esGeometry);
+                        WKTReader reader = new WKTReader();
+                        try {
+                            org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
+
+                            org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, 0);
+                            WKTWriter writer = new WKTWriter();
+                            String simplifiedWkt = writer.write(simplifiedGeometry);
+                            var numBytes = simplifiedWkt.getBytes().length;
+                            var builder = dvrCtx.blockFactory().newBytesRefBlockBuilder(numBytes);
+                            builder.appendBytesRef(new BytesRef(simplifiedWkt));
+                            return builder.build();
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+
+
+                    }
                     return geometryEvaluator.eval(page);
                 }
 

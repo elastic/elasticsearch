@@ -10,12 +10,10 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
@@ -35,7 +33,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  * This class is part of the planner. Data node level logical optimizations.  At this point we have access to
  * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index.
  *
- * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators(boolean)}
+ * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()}
  * and {@link LogicalPlanOptimizer#cleanup()}
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
@@ -68,33 +66,33 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     @SuppressWarnings("unchecked")
     private static Batch<LogicalPlan> localOperators() {
-        var operators = operators(true);
-        var rules = operators.rules();
-        List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
-
-        // apply updates to existing rules that have different applicability locally
-        for (var r : rules) {
-            switch (r) {
-                case PropagateEmptyRelation ignoredPropagate -> newRules.add(new LocalPropagateEmptyRelation());
-                case OptimizerRules.CoordinatorOnly ignored -> {
-                }
-                default -> newRules.add(r);
-            }
-        }
-
-        // add rule that should only apply locally
-        newRules.add(new ReplaceStringCasingWithInsensitiveRegexMatch());
-
-        return operators.with(newRules.toArray(Rule[]::new));
+        return localBatch(operators(), new ReplaceStringCasingWithInsensitiveRegexMatch());
     }
 
     @SuppressWarnings("unchecked")
     private static Batch<LogicalPlan> localCleanup() {
-        var cleanup = cleanup();
-        return cleanup.with(
-            // Remove CoordinatorOnly rules
-            Arrays.stream(cleanup.rules()).filter(r -> r instanceof OptimizerRules.CoordinatorOnly == false).toArray(Rule[]::new)
-        );
+        return localBatch(cleanup());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Batch<LogicalPlan> localBatch(Batch<LogicalPlan> batch, Rule<?, LogicalPlan>... additionalRules) {
+        Rule<?, LogicalPlan>[] rules = batch.rules();
+
+        List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
+        for (Rule<?, LogicalPlan> r : rules) {
+            if (r instanceof OptimizerRules.LocalAware<?> localAware) {
+                Rule<?, LogicalPlan> local = localAware.local();
+                if (local != null) {
+                    newRules.add(local);
+                }
+            } else {
+                newRules.add(r);
+            }
+        }
+
+        newRules.addAll(Arrays.asList(additionalRules));
+
+        return batch.with(newRules.toArray(Rule[]::new));
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {

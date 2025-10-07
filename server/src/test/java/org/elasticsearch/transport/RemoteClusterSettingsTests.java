@@ -109,7 +109,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
             .put(proxyAddressSetting.getKey(), "localhost:9400")
             .build();
 
-        // Ensure the validator still throws in non-stateless environment if a connection mode is not set.
+        // Ensure the validator still throws in non-CPS environment if a connection mode is not set.
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> skipUnavailableSetting.get(Settings.builder().put(skipUnavailableSetting.getKey(), true).build())
@@ -119,7 +119,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
             equalTo("Cannot configure setting [" + skipUnavailableSetting.getKey() + "] if remote cluster is not enabled.")
         );
 
-        // Ensure we can still get the set value in non-stateless environment.
+        // Ensure we can still get the set value in non-CPS environment.
         final var randomSkipUnavailableSettingValue = randomBoolean();
         assertThat(
             skipUnavailableSetting.get(
@@ -128,7 +128,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
             equalTo(randomSkipUnavailableSettingValue)
         );
 
-        // Check the validator rejects the skip_unavailable setting if present when stateless is enabled.
+        // Check the validator rejects the skip_unavailable setting if present when CPS is enabled.
         exception = expectThrows(
             IllegalArgumentException.class,
             () -> skipUnavailableSetting.get(
@@ -141,7 +141,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         );
         assertThat(
             exception.getMessage(),
-            equalTo("setting [" + skipUnavailableSetting.getKey() + "] is unavailable when stateless is enabled")
+            equalTo("setting [" + skipUnavailableSetting.getKey() + "] is unavailable when CPS is enabled")
         );
 
         // Should not throw if the setting is not present, returning the expected default value of true.

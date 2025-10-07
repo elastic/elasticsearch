@@ -499,7 +499,7 @@ public class RemoteClusterSettings {
         @Override
         public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
             if (isPresent && (Boolean) settings.get(cpsSetting)) {
-                throw new IllegalArgumentException("setting [" + getKey() + "] is unavailable when stateless is enabled");
+                throw new IllegalArgumentException("setting [" + getKey() + "] is unavailable when CPS is enabled");
             }
             super.validate(value, settings, isPresent);
         }

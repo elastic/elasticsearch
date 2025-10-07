@@ -136,6 +136,22 @@ language_code:integer | language_name:keyword
 6                     |null
 ;
 
+selfShadowing
+required_capability: join_lookup_v12
+required_capability: fix_join_output_merging
+
+FROM languages_lookup_non_unique_key
+| EVAL language_code = null::integer
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| LIMIT 3
+;
+
+language_code:integer |country:text |country.keyword:keyword |language_name:keyword
+null                  |null         |null                    |null
+null                  |null         |null                    |null
+null                  |null         |null                    |null
+;
+
 nonUniqueLeftKeyOnTheDataNode
 required_capability: join_lookup_v12
 
@@ -240,7 +256,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
     10091      | 1                     | null                  | United Kingdom
     10091      | 1                     | English               | United States of America
     10091      | 1                     | English               | null
-    10092      | 2                     | German                | [Germany, Austria]
+    10092      | 2                     | German                | [Austria, Germany]
     10092      | 2                     | German                | Switzerland
     10092      | 2                     | German                | null
     10093      | 3                     | null                  | null
@@ -265,7 +281,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 10001          | 1                     | English               | null
 10001          | 1                     | null                  | United Kingdom
 10001          | 1                     | English               | United States of America
-10002          | 2                     | German                | [Germany, Austria]
+10002          | 2                     | German                | [Austria, Germany]
 10002          | 2                     | German                | Switzerland
 10002          | 2                     | German                | null
 10003          | 3                     | null                  | null
@@ -308,7 +324,7 @@ ROW language_code = 2
 
 ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
-2                     | [Germany, Austria] | German
+2                     | [Austria, Germany] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;

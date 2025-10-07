@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -56,6 +57,7 @@ import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -203,8 +205,13 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
-
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan
+    ) {
+        final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -213,12 +220,8 @@ public class LocalExecutionPlanner {
             bigArrays,
             blockFactory,
             foldCtx,
-            settings,
-            new Holder<>(
-                localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec)
-                    ? DataPartitioning.AutoStrategy.DEFAULT_TIME_SERIES
-                    : DataPartitioning.AutoStrategy.DEFAULT
-            ),
+            plannerSettings,
+            timeSeries,
             shardContexts
         );
 
@@ -443,6 +446,13 @@ public class LocalExecutionPlanner {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
         PhysicalOperation source = plan(child, context);
+        if (Assertions.ENABLED) {
+            List<Attribute> inputAttributes = exchangeSink.child().output();
+            for (Attribute attr : inputAttributes) {
+                assert source.layout.get(attr.id()) != null
+                    : "input attribute [" + attr + "] does not exist in the source layout [" + source.layout + "]";
+            }
+        }
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }
 
@@ -503,7 +513,7 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
+            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(topNExec, rowSize)),
             source.layout
         );
     }
@@ -1024,8 +1034,8 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         FoldContext foldCtx,
-        Settings settings,
-        Holder<DataPartitioning.AutoStrategy> autoPartitioningStrategy,
+        PlannerSettings plannerSettings,
+        boolean timeSeries,
         List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
@@ -1036,7 +1046,11 @@ public class LocalExecutionPlanner {
             driverParallelism.set(parallelism);
         }
 
-        int pageSize(Integer estimatedRowSize) {
+        DataPartitioning.AutoStrategy autoPartitioningStrategy() {
+            return timeSeries ? DataPartitioning.AutoStrategy.DEFAULT_TIME_SERIES : DataPartitioning.AutoStrategy.DEFAULT;
+        }
+
+        int pageSize(PhysicalPlan node, Integer estimatedRowSize) {
             if (estimatedRowSize == null) {
                 throw new IllegalStateException("estimated row size hasn't been set");
             }
@@ -1046,7 +1060,11 @@ public class LocalExecutionPlanner {
             if (queryPragmas.pageSize() != 0) {
                 return queryPragmas.pageSize();
             }
-            return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
+            if (timeSeries && node instanceof EsQueryExec) {
+                return TimeSeriesSourceOperator.pageSize(estimatedRowSize, plannerSettings.valuesLoadingJumboSize().getBytes());
+            } else {
+                return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
+            }
         }
     }
 

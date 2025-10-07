@@ -298,9 +298,9 @@ public class ShardLimitValidator {
          * @return The total number of new shards to be created for this group.
          */
         public int newShardsTotal(Settings indexSettings) {
-            final boolean frozen = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
-            final int numberOfShards = (frozen == (this == FROZEN)) ? INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings) : 0;
-            final int numberOfReplicas = (frozen == (this == FROZEN))
+            final boolean isFrozenLimitGroup = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
+            final int numberOfShards = (isFrozenLimitGroup == (this == FROZEN)) ? INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings) : 0;
+            final int numberOfReplicas = (isFrozenLimitGroup == (this == FROZEN))
                 ? IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings)
                 : 0;
             return newShardsTotal(numberOfShards, numberOfReplicas);
@@ -313,13 +313,13 @@ public class ShardLimitValidator {
          * @return The number of new replica shards to be created for this group.
          */
         public int newShardsTotal(Settings indexSettings, int updatedReplicas) {
-            final boolean frozen = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
+            final boolean isFrozenLimitGroup = FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(indexSettings));
             final int shards = INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
             final int replicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings);
             final int replicaIncrease = updatedReplicas - replicas;
             return switch (this) {
-                case NORMAL -> frozen ? 0 : shards * replicaIncrease;
-                case FROZEN -> frozen ? shards * replicaIncrease : 0;
+                case NORMAL -> isFrozenLimitGroup ? 0 : shards * replicaIncrease;
+                case FROZEN -> isFrozenLimitGroup ? shards * replicaIncrease : 0;
                 case INDEX -> 0;
                 case SEARCH -> shards * replicaIncrease;
             };

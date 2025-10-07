@@ -43,9 +43,6 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/functions/layout/kql.md
 :::
 
-:::{include} ../_snippets/functions/layout/knn.md
-:::
-
 :::{include} ../_snippets/functions/layout/match.md
 :::
 

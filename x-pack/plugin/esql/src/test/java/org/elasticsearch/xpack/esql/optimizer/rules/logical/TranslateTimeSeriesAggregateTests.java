@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -212,8 +211,33 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | RENAME ts2 AS ts3
             | RENAME ts3 AS ts4
             | RENAME ts4 as newTs
-            | STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)
+            | STATS maxRate = max(rate(network.total_cost))  BY time_bucket = bucket(newTs, 1hour)
             """);
+        Limit limit = as(plan, Limit.class);
+
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
+        assertEquals(1, outerStats.groupings().size());
+        Attribute timeBucketGroup = as(outerStats.groupings().get(0), Attribute.class);
+        assertEquals("time_bucket", timeBucketGroup.name());
+        assertEquals(2, outerStats.aggregates().size());
+        assertEquals(timeBucketGroup, outerStats.aggregates().get(1));
+        Alias outerAggFunction = as(outerStats.aggregates().get(0), Alias.class);
+        Max outerMax = as(outerAggFunction.child(), Max.class);
+
+        TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
+        assertEquals(2, innerStats.groupings().size());
+        Attribute tsidGroup = as(innerStats.groupings().get(0), Attribute.class);
+        assertEquals("_tsid", tsidGroup.name());
+        assertEquals(timeBucketGroup, innerStats.groupings().get(1));
+
+        assertEquals(2, innerStats.aggregates().size());
+        Alias innerAggFunction = as(innerStats.aggregates().get(0), Alias.class);
+        Rate rateAgg = as(innerAggFunction.child(), Rate.class);
+        Alias timeBucketAlias = as(innerStats.aggregates().get(1), Alias.class);
+        assertEquals(timeBucketGroup, timeBucketAlias.child());
+
+        Eval eval = as(innerStats.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
     public void testOverTimeFunctionWithRename() {
@@ -221,8 +245,34 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS newTs
-            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
+            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY time_bucket = bucket(newTs, 1hour)
             """);
+
+        Limit limit = as(plan, Limit.class);
+
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
+        assertEquals(1, outerStats.groupings().size());
+        Attribute timeBucketGroup = as(outerStats.groupings().get(0), Attribute.class);
+        assertEquals("time_bucket", timeBucketGroup.name());
+        assertEquals(2, outerStats.aggregates().size());
+        assertEquals(timeBucketGroup, outerStats.aggregates().get(1));
+        Alias outerAggFunction = as(outerStats.aggregates().get(0), Alias.class);
+        Max outerMax = as(outerAggFunction.child(), Max.class);
+
+        TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
+        assertEquals(2, innerStats.groupings().size());
+        Attribute tsidGroup = as(innerStats.groupings().get(0), Attribute.class);
+        assertEquals("_tsid", tsidGroup.name());
+        assertEquals(timeBucketGroup, innerStats.groupings().get(1));
+
+        assertEquals(2, innerStats.aggregates().size());
+        Alias innerAggFunction = as(innerStats.aggregates().get(0), Alias.class);
+        Max innerMax = as(innerAggFunction.child(), Max.class);
+        Alias timeBucketAlias = as(innerStats.aggregates().get(1), Alias.class);
+        assertEquals(timeBucketGroup, timeBucketAlias.child());
+
+        Eval eval = as(innerStats.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
     public void testTbucketWithRename() {
@@ -231,8 +281,34 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS newTs
-            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)
+            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY time_bucket = tbucket(1hour)
             """);
+        Limit limit = as(plan, Limit.class);
+
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
+        assertEquals(1, outerStats.groupings().size());
+        Attribute timeBucketGroup = as(outerStats.groupings().get(0), Attribute.class);
+        assertEquals("BUCKET", timeBucketGroup.name());
+        assertEquals(2, outerStats.aggregates().size());
+        Alias outerAggFunction = as(outerStats.aggregates().get(0), Alias.class);
+        Max outerMax = as(outerAggFunction.child(), Max.class);
+        Alias outerTimeBucketAlias = as(outerStats.aggregates().get(1), Alias.class);
+        assertEquals(timeBucketGroup, outerTimeBucketAlias.child());
+
+        TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
+        assertEquals(2, innerStats.groupings().size());
+        Attribute tsidGroup = as(innerStats.groupings().get(0), Attribute.class);
+        assertEquals("_tsid", tsidGroup.name());
+        Attribute innerTimeBucket = as(innerStats.groupings().get(1), Attribute.class);
+        assertEquals("time_bucket", innerTimeBucket.name());
+
+        assertEquals(2, innerStats.aggregates().size());
+        Alias innerAggFunction = as(innerStats.aggregates().get(0), Alias.class);
+        Max maxAgg = as(innerAggFunction.child(), Max.class);
+        assertEquals(innerTimeBucket, innerStats.aggregates().get(1));
+
+        Eval eval = as(innerStats.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
     public void testTbucketWithManyRenames() {
@@ -244,7 +320,33 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | RENAME ts1 AS ts2
             | RENAME ts2 AS ts3
             | RENAME ts3 AS ts4
-            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)
+            | STATS maxRate = max(max_over_time(network.eth0.tx))  BY time_bucket = tbucket(1hour)
             """);
+        Limit limit = as(plan, Limit.class);
+
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
+        assertEquals(1, outerStats.groupings().size());
+        Attribute timeBucketGroup = as(outerStats.groupings().get(0), Attribute.class);
+        assertEquals("BUCKET", timeBucketGroup.name());
+        assertEquals(2, outerStats.aggregates().size());
+        Alias outerAggFunction = as(outerStats.aggregates().get(0), Alias.class);
+        Max outerMax = as(outerAggFunction.child(), Max.class);
+        Alias outerTimeBucketAlias = as(outerStats.aggregates().get(1), Alias.class);
+        assertEquals(timeBucketGroup, outerTimeBucketAlias.child());
+
+        TimeSeriesAggregate innerStats = as(outerStats.child(), TimeSeriesAggregate.class);
+        assertEquals(2, innerStats.groupings().size());
+        Attribute tsidGroup = as(innerStats.groupings().get(0), Attribute.class);
+        assertEquals("_tsid", tsidGroup.name());
+        Attribute innerTimeBucket = as(innerStats.groupings().get(1), Attribute.class);
+        assertEquals("time_bucket", innerTimeBucket.name());
+
+        assertEquals(2, innerStats.aggregates().size());
+        Alias innerAggFunction = as(innerStats.aggregates().get(0), Alias.class);
+        Max maxAgg = as(innerAggFunction.child(), Max.class);
+        assertEquals(innerTimeBucket, innerStats.aggregates().get(1));
+
+        Eval eval = as(innerStats.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
     }
 }

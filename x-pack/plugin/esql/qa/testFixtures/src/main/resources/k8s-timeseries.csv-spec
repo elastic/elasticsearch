@@ -583,3 +583,24 @@ TS k8s
 maxRate:double | tbucket:datetime
 0.058979885057471274 | 2024-05-10T00:00:00.000Z
 ;
+
+Max of max with TBucket
+required_capability: ts_command_v0
+
+TS k8s
+| STATS max_of_max = max(max_over_time(network.eth0.tx))  BY time_bucket = tbucket(1hour);
+
+max_of_max:integer | time_bucket:datetime
+1716               | 2024-05-10T00:00:00.000Z
+;
+
+Max of max with TBucket and Rename timestamp
+required_capability: ts_command_v0
+
+TS k8s
+| RENAME `@timestamp` AS newTs
+| STATS max_of_max = max(max_over_time(network.eth0.tx))  BY time_bucket = tbucket(1hour);
+
+max_of_max:integer | time_bucket:datetime
+1716               | 2024-05-10T00:00:00.000Z
+;

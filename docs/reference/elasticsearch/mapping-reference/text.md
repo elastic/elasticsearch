@@ -348,9 +348,6 @@ serverless: preview
 stack: preview 9.2
 ```
 
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
 
 A variant of [`text`](#text-field-type) with improved space efficiency for log data.
 Internally, it decomposes values into static parts that are likely to be shared among many values, and dynamic parts that tend to vary.

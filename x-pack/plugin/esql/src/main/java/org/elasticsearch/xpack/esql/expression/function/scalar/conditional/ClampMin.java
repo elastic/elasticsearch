@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -148,29 +149,15 @@ public class ClampMin extends EsqlScalarFunction {
         var minF = outputType != min.dataType()
             ? Cast.cast(source(), min.dataType(), outputType, toEvaluator.apply(min))
             : toEvaluator.apply(min);
-        if (outputType == DataType.BOOLEAN) {
-            return new ClampMinBooleanEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-        }
-        if (outputType == DataType.DOUBLE) {
-            return new ClampMinDoubleEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-        }
-        if (outputType == DataType.INTEGER) {
-            return new ClampMinIntegerEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-        }
-        if (outputType == DataType.UNSIGNED_LONG
-            || outputType == DataType.LONG
-            || outputType == DataType.DATETIME
-            || outputType == DataType.DATE_NANOS) {
-            return new ClampMinLongEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-        }
-        if (DataType.isString(outputType)
-            || outputType == DataType.IP
-            || outputType == DataType.VERSION
-            || outputType == DataType.UNSUPPORTED) {
 
-            return new ClampMinBytesRefEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(outputType);
+        return switch (PlannerUtils.toElementType(outputType)) {
+            case BOOLEAN -> new ClampMinBooleanEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
+            case DOUBLE -> new ClampMinDoubleEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
+            case INT -> new ClampMinIntegerEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
+            case LONG -> new ClampMinLongEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
+            case BYTES_REF -> new ClampMinBytesRefEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), minF);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(outputType);
+        };
     }
 
     @Evaluator(extraName = "Boolean")

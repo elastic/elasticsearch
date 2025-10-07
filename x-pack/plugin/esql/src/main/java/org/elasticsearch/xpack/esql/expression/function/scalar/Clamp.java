@@ -38,7 +38,6 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
     private final Expression field;
     private final Expression min;
     private final Expression max;
-    private DataType dataType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
@@ -99,11 +98,9 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
             fieldDataType.typeName()
         );
         if (resolution.unresolved()) {
-            dataType = NULL;
             return resolution;
         }
         if (fieldDataType == NULL) {
-            dataType = NULL;
             return new TypeResolution("'field' must not be null in clamp()");
         }
         for (Expression child : List.of(children().get(1), children().get(2))) {
@@ -111,24 +108,19 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
                 child,
                 t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType,
                 sourceText(),
-                TypeResolutions.ParamOrdinal.SECOND,
+                child == children().get(1) ? TypeResolutions.ParamOrdinal.SECOND : TypeResolutions.ParamOrdinal.THIRD,
                 fieldDataType.typeName()
             );
             if (childRes.unresolved()) {
-                dataType = NULL;
                 return childRes;
             }
         }
-        dataType = fieldDataType;
         return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
-        return dataType;
+        return field.dataType();
     }
 
     @Override

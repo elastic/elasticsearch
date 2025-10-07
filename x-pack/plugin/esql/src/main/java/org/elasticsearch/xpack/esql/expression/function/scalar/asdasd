@@ -1,2 +1,0 @@
-:<[boolean, date, double,        integer, ip, keyword, long, unsigned_long, version]> but was:
- <[boolean, date, double, float, integer, ip, keyword, long, unsigned_long, version]>

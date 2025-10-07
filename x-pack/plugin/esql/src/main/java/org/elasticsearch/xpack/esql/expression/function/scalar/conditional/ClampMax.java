@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,8 +38,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  */
 public class ClampMax extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMax", ClampMax::new);
-
-    private DataType dataType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
@@ -79,10 +78,7 @@ public class ClampMax extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
-        return dataType;
+        return children().getFirst().dataType();
     }
 
     @Override
@@ -102,11 +98,9 @@ public class ClampMax extends EsqlScalarFunction {
             fieldDataType.typeName()
         );
         if (resolution.unresolved()) {
-            dataType = NULL;
             return resolution;
         }
         if (fieldDataType == NULL) {
-            dataType = NULL;
             return new TypeResolution("'field' must not be null in clamp()");
         }
         resolution = TypeResolutions.isType(
@@ -117,10 +111,8 @@ public class ClampMax extends EsqlScalarFunction {
             fieldDataType.typeName()
         );
         if (resolution.unresolved()) {
-            dataType = NULL;
             return resolution;
         }
-        dataType = fieldDataType;
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -149,26 +141,14 @@ public class ClampMax extends EsqlScalarFunction {
             ? Cast.cast(source(), max.dataType(), outputType, toEvaluator.apply(max))
             : toEvaluator.apply(max);
 
-        if (dataType == DataType.BOOLEAN) {
-            return new ClampMaxBooleanEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-        }
-        if (dataType == DataType.DOUBLE) {
-            return new ClampMaxDoubleEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-        }
-        if (dataType == DataType.INTEGER) {
-            return new ClampMaxIntegerEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-        }
-        if (dataType == DataType.UNSIGNED_LONG
-            || dataType == DataType.LONG
-            || dataType == DataType.DATETIME
-            || dataType == DataType.DATE_NANOS) {
-            return new ClampMaxLongEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-        }
-        if (DataType.isString(dataType) || dataType == DataType.IP || dataType == DataType.VERSION || dataType == DataType.UNSUPPORTED) {
-
-            return new ClampMaxBytesRefEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(dataType);
+        return switch (PlannerUtils.toElementType(outputType)) {
+            case BOOLEAN -> new ClampMaxBooleanEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
+            case DOUBLE -> new ClampMaxDoubleEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
+            case INT -> new ClampMaxIntegerEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
+            case LONG -> new ClampMaxLongEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
+            case BYTES_REF -> new ClampMaxBytesRefEvaluator.Factory(source(), toEvaluator.apply(children().get(0)), maxF);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(outputType);
+        };
     }
 
     @Evaluator(extraName = "Boolean")

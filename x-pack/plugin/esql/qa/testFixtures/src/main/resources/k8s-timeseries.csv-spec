@@ -573,6 +573,7 @@ maxRate:double | tbucket:datetime
 
 Max of Rate with Bucket, Rename Timestamp
 required_capability: ts_command_v0
+required_capability: fix_rename_timestamp_rate_bug
 
 TS k8s
 | RENAME `@timestamp` AS newTs

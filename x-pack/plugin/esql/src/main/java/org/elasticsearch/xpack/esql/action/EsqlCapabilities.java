@@ -1061,7 +1061,7 @@ public class EsqlCapabilities {
         REPORT_ORIGINAL_TYPES,
 
         /**
-         * The metrics command
+         * The metrics command.  Use {@link Cap#TS_COMMAND_V0} instead
          */
         @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
@@ -1547,6 +1547,12 @@ public class EsqlCapabilities {
          * Support TS command in non-snapshot builds
          */
         TS_COMMAND_V0(),
+
+        /**
+         * Bugfix for https://github.com/elastic/elasticsearch/issues/134994, enabling rename of @timestamp field
+         * when used with functions that have an implicit @timestamp parameter, like rate.
+         */
+        FIX_RENAME_TIMESTAMP_RATE_BUG(),
 
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 

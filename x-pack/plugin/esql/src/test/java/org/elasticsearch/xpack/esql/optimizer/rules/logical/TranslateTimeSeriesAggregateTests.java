@@ -169,6 +169,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
 
     public void testRateWithRename() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires rename fix", EsqlCapabilities.Cap.FIX_RENAME_TIMESTAMP_RATE_BUG.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS newTs
@@ -203,6 +204,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
 
     public void testRateWithManyRenames() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires rename fix", EsqlCapabilities.Cap.FIX_RENAME_TIMESTAMP_RATE_BUG.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS ts1
@@ -225,6 +227,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
 
     public void testTbucketWithRename() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires rename fix", EsqlCapabilities.Cap.FIX_RENAME_TIMESTAMP_RATE_BUG.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS newTs
@@ -234,6 +237,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
 
     public void testTbucketWithManyRenames() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires rename fix", EsqlCapabilities.Cap.FIX_RENAME_TIMESTAMP_RATE_BUG.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
             | RENAME `@timestamp` AS ts1

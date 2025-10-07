@@ -131,6 +131,9 @@ public final class IndexSortConfig {
                 return new FieldSortSpec[0];
             }
 
+            // Can't use IndexSettings.MODE.get(settings) here because the validation logic for IndexSettings.MODE uses the default value
+            // of index.sort.*, which causes infinite recursion (since we're already in the default value provider for those settings).
+            // So we need to get the mode while bypassing the validation.
             String indexMode = settings.get(IndexSettings.MODE.getKey());
             if (indexMode != null) {
                 indexMode = indexMode.toLowerCase(Locale.ROOT);

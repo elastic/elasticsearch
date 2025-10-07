@@ -149,10 +149,7 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testVerify_incompatibleAggregation() {
-        assertError(
-            "FROM test | STATS MIN(emp_no)",
-            equalTo("line 1:19: aggregation function [MIN] cannot be approximated")
-        );
+        assertError("FROM test | STATS MIN(emp_no)", equalTo("line 1:19: aggregation function [MIN] cannot be approximated"));
         assertError(
             "FROM test | STATS SUM(emp_no), VALUES(emp_no), COUNT()",
             equalTo("line 1:32: aggregation function [VALUES] cannot be approximated")
@@ -238,7 +235,8 @@ public class ApproximateTests extends ESTestCase {
 
     public void testApproximatePlan_dependentConfidenceIntervals() throws Exception {
         Approximate approximate = createApproximate(
-            "FROM test | STATS x=COUNT() | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)");
+            "FROM test | STATS x=COUNT() | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
+        );
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
         approximate.approximate(runner, TestRunner.resultCloser);
         // One pass is needed to get the number of rows, and approximation is executed immediately
@@ -256,7 +254,10 @@ public class ApproximateTests extends ESTestCase {
     }
 
     private Matcher<? super LogicalPlan> hasFilter(String field) {
-        return hasPlan(Filter.class, filter -> filter.condition().anyMatch(expr -> expr instanceof NamedExpression ne && ne.name().equals(field)));
+        return hasPlan(
+            Filter.class,
+            filter -> filter.condition().anyMatch(expr -> expr instanceof NamedExpression ne && ne.name().equals(field))
+        );
     }
 
     private Matcher<? super LogicalPlan> hasEval(String field) {
@@ -264,7 +265,7 @@ public class ApproximateTests extends ESTestCase {
     }
 
     private Matcher<? super LogicalPlan> hasSample() {
-        return hasPlan(Sample.class,sample -> true);
+        return hasPlan(Sample.class, sample -> true);
     }
 
     private Matcher<? super LogicalPlan> hasSample(Double probability) {

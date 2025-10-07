@@ -639,7 +639,7 @@ stack: ga 9.2
 serverless: unavailable
 ```
 
-`semantic_text` supports [Cross-Cluster Search](docs-content://solutions/search/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)
+`semantic_text` supports [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)
 when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `true`.
 This is the default value for `ccs_minimize_roundtrips`, so most CCS queries should work automatically:
 

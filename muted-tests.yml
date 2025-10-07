@@ -663,6 +663,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testRomanianAnalyzerBWC {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135948
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testRecovery {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135953
 
 # Examples:
 #

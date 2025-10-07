@@ -33,9 +33,9 @@ import java.util.List;
 /**
  * Replaces an aggregation function having a false/null filter with an EVAL node.
  * <pre>
- *     ... | STATS/INLINESTATS x = someAgg(y) WHERE FALSE {BY z} | ...
+ *     ... | STATS/INLINE STATS x = someAgg(y) WHERE FALSE {BY z} | ...
  *     =>
- *     ... | STATS/INLINESTATS x = someAgg(y) {BY z} > | EVAL x = NULL | KEEP x{, z} | ...
+ *     ... | STATS/INLINE STATS x = someAgg(y) {BY z} > | EVAL x = NULL | KEEP x{, z} | ...
  * </pre>
  *
  * This rule is applied to both STATS' {@link Aggregate} and {@link InlineJoin} right-hand side {@link Aggregate} plans.
@@ -92,7 +92,7 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                                 agg -> agg == aggregate ? new Eval(aggregate.source(), aggregate.child(), newEvals) : agg
                             );
                         // Remove the StubRelation since the right-hand side of the join is now part of the main plan
-                        // and it won't be executed separately by the EsqlSession inlinestats planning.
+                        // and it won't be executed separately by the EsqlSession INLINE STATS planning.
                         newRight = InlineJoin.replaceStub(leftHandSide, newRight);
 
                         // project the correct output (the one of the former inlinejoin) and remove the InlineJoin altogether,

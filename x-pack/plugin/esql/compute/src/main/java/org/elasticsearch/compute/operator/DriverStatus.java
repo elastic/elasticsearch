@@ -67,14 +67,12 @@ public record DriverStatus(
                 || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0,
             in.readLong(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
+            in.readLong(),
+            in.readVLong(),
+            in.readVLong(),
             Status.read(in),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
-                ? in.readCollectionAsImmutableList(OperatorStatus::readFrom)
-                : List.of(),
+            in.readCollectionAsImmutableList(OperatorStatus::readFrom),
             in.readCollectionAsImmutableList(OperatorStatus::readFrom),
             DriverSleeps.read(in)
         );
@@ -92,18 +90,12 @@ public record DriverStatus(
             out.writeString(clusterName);
             out.writeString(nodeName);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeLong(started);
-        }
+        out.writeLong(started);
         out.writeLong(lastUpdated);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeVLong(cpuNanos);
-            out.writeVLong(iterations);
-        }
+        out.writeVLong(cpuNanos);
+        out.writeVLong(iterations);
         status.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeCollection(completedOperators);
-        }
+        out.writeCollection(completedOperators);
         out.writeCollection(activeOperators);
         sleeps.writeTo(out);
     }

@@ -9,12 +9,17 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceRequest;
+import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceResponse;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -24,9 +29,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -38,6 +45,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +62,6 @@ import java.util.concurrent.CountDownLatch;
 import static java.util.stream.IntStream.range;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator.calculateUtilizationForWriteLoad;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -74,171 +82,58 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     /**
      * Uses MockTransportService to set up write load stat responses from the data nodes and tests the allocation decisions made by the
      * balancer, specifically the effect of the {@link WriteLoadConstraintDecider}.
-     *
+     * <p>
      * Leverages the {@link FilterAllocationDecider} to first start all shards on a Node1, and then eventually force the shards off of
      * Node1 while Node3 is hot-spotting, resulting in reassignment of all shards to Node2.
      */
     public void testHighNodeWriteLoadPreventsNewShardAllocation() {
-        int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
-        int numberOfWritePoolThreads = randomIntBetween(2, 20);
-        float shardWriteLoad = randomFloatBetween(0.0f, 0.01f, false);
-        Settings settings = Settings.builder()
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                randomUtilizationThresholdPercent + "%"
-            )
-            .build();
-
-        final String masterName = internalCluster().startMasterOnlyNode(settings);
-        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
-        final String firstDataNodeName = dataNodes.get(0);
-        final String secondDataNodeName = dataNodes.get(1);
-        final String thirdDataNodeName = dataNodes.get(2);
-        final String firstDataNodeId = getNodeId(firstDataNodeName);
-        final String secondDataNodeId = getNodeId(secondDataNodeName);
-        final String thirdDataNodeId = getNodeId(thirdDataNodeName);
-        ensureStableCluster(4);
-
-        logger.info(
-            "---> first node name "
-                + firstDataNodeName
-                + " and ID "
-                + firstDataNodeId
-                + "; second node name "
-                + secondDataNodeName
-                + " and ID "
-                + secondDataNodeId
-                + "; third node name "
-                + thirdDataNodeName
-                + " and ID "
-                + thirdDataNodeId
-        );
+        TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
 
         /**
-         * Exclude assignment of shards to the second and third data nodes via the {@link FilterAllocationDecider} settings.
-         * Then create an index with many shards, which will all be assigned to the first data node.
+         * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
+         * load stats. The stats will show the third node hot-spotting, while the second node has capacity to receive all the index shards.
          */
 
-        logger.info("---> Limit shard assignment to node " + firstDataNodeName + " by excluding the other nodes");
-        updateClusterSettings(
-            Settings.builder().put("cluster.routing.allocation.exclude._name", secondDataNodeName + "," + thirdDataNodeName)
-        );
-
-        String indexName = randomIdentifier();
-        int randomNumberOfShards = randomIntBetween(10, 20); // Pick a high number of shards, so it is clear assignment is not accidental.
-
-        // Calculate the maximum utilization a node can report while still being able to accept all relocating shards
-        double additionalLoadFromAllShards = calculateUtilizationForWriteLoad(
-            shardWriteLoad * randomNumberOfShards,
-            numberOfWritePoolThreads
-        );
-        int maxUtilizationPercent = randomUtilizationThresholdPercent - (int) (additionalLoadFromAllShards * 100) - 1;
-
-        var verifyAssignmentToFirstNodeListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            var indexRoutingTable = clusterState.routingTable().index(indexName);
-            if (indexRoutingTable == null) {
-                return false;
-            }
-            return checkShardAssignment(
-                clusterState.getRoutingNodes(),
-                indexRoutingTable.getIndex(),
-                firstDataNodeId,
-                secondDataNodeId,
-                thirdDataNodeId,
-                randomNumberOfShards,
-                0,
-                0
-            );
-        });
-
-        createIndex(
-            indexName,
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomNumberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
-        ensureGreen(indexName);
-
-        logger.info("---> Waiting for all shards to be assigned to node " + firstDataNodeName);
-        safeAwait(verifyAssignmentToFirstNodeListener);
-
-        /**
-         * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} and {@link TransportIndicesStatsAction} actions on the data
-         * nodes to supply artificial write load stats. The stats will show the third node hot-spotting, and that all shards have non-empty
-         * write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
-         */
-
-        final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
-        final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
-        final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
         final NodeUsageStatsForThreadPools firstNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
-            firstDiscoveryNode,
-            numberOfWritePoolThreads,
-            randomIntBetween(0, maxUtilizationPercent) / 100f,
+            harness.firstDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(0, harness.maxUtilBelowThresholdThatAllowsAllShardsToRelocate) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools secondNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
-            secondDiscoveryNode,
-            numberOfWritePoolThreads,
-            randomIntBetween(0, maxUtilizationPercent) / 100f,
+            harness.secondDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(0, harness.maxUtilBelowThresholdThatAllowsAllShardsToRelocate) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
-            thirdDiscoveryNode,
-            numberOfWritePoolThreads,
-            (randomUtilizationThresholdPercent + 1) / 100f,
+            harness.thirdDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
             0
         );
 
-        MockTransportService.getInstance(firstDataNodeName).<NodeUsageStatsForThreadPoolsAction.NodeRequest>addRequestHandlingBehavior(
-            TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-            (handler, request, channel, task) -> channel.sendResponse(
-                new NodeUsageStatsForThreadPoolsAction.NodeResponse(firstDiscoveryNode, firstNodeNonHotSpottingNodeStats)
-            )
-        );
-        MockTransportService.getInstance(secondDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(secondDiscoveryNode, secondNodeNonHotSpottingNodeStats)
-                )
-            );
-        MockTransportService.getInstance(thirdDataNodeName)
-            .addRequestHandlingBehavior(
-                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(thirdDiscoveryNode, thirdNodeHotSpottingNodeStats)
-                )
-            );
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats);
+
+        /**
+         * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
+         * will show that all shards have non-empty write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
+         */
 
         IndexMetadata indexMetadata = internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
             .state()
             .getMetadata()
             .getProject()
-            .index(indexName);
-        MockTransportService.getInstance(firstDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
-                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    shardStats.add(createShardStats(indexMetadata, i, shardWriteLoad, firstDataNodeId));
-                }
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, firstDataNodeName);
-                channel.sendResponse(instance.new NodeResponse(firstDataNodeId, indexMetadata.getNumberOfShards(), shardStats, List.of()));
-            });
-        MockTransportService.getInstance(secondDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, secondDataNodeName);
-                channel.sendResponse(instance.new NodeResponse(secondDataNodeId, 0, List.of(), List.of()));
-            });
-        MockTransportService.getInstance(thirdDataNodeName)
-            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                // Return no stats for the index because none are assigned to this node.
-                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, thirdDataNodeName);
-                channel.sendResponse(instance.new NodeResponse(thirdDataNodeId, 0, List.of(), List.of()));
-            });
+            .index(harness.indexName);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
 
         /**
          * Provoke a ClusterInfo stats refresh, update the cluster settings to make shard assignment to the first node undesired, and
@@ -249,25 +144,358 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
         refreshClusterInfo();
 
-        logger.info(
-            "---> Update the filter to exclude " + firstDataNodeName + " so that shards will be reassigned away to the other nodes"
-        );
-        // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", firstDataNodeName));
-
-        safeAwait(ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            Index index = clusterState.routingTable().index(indexName).getIndex();
+        var temporaryClusterStateListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            Index index = clusterState.routingTable().index(harness.indexName).getIndex();
             return checkShardAssignment(
                 clusterState.getRoutingNodes(),
                 index,
-                firstDataNodeId,
-                secondDataNodeId,
-                thirdDataNodeId,
+                harness.firstDataNodeId,
+                harness.secondDataNodeId,
+                harness.thirdDataNodeId,
                 0,
-                randomNumberOfShards,
+                harness.randomNumberOfShards,
                 0
             );
-        }));
+        });
+
+        try {
+            logger.info(
+                "---> Update the filter to exclude " + harness.firstDataNodeName + " so shards will be reassigned away to the other nodes"
+            );
+            // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName));
+
+            safeAwait(temporaryClusterStateListener);
+        } catch (AssertionError error) {
+            ClusterState state = internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .setRoutingTable(true)
+                .get()
+                .getState();
+            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            throw error;
+        }
+    }
+
+    /**
+     * Tests that {@link AllocationDecider#canRemain} returning {@link Decision.Type#NO} for a {@code NodeX} will ignore a
+     * {@link AllocationDecider#canAllocate} response of {@link Decision.Type#NOT_PREFERRED} from a {@code NodeY} and reassign the shard
+     * when there are no better node options.
+     * <p>
+     * Uses MockTransportService to set up write load stat responses from the data nodes and tests the allocation decisions made by the
+     * balancer. Leverages the {@link FilterAllocationDecider} to first start all shards on a Node1, and then eventually force the shards
+     * off of Node1 while Node2 and Node3 are hot-spotting, resulting in overriding not-preferred and relocating shards to Node2 and Node3.
+     */
+    public void testShardsAreAssignedToNotPreferredWhenAlternativeIsNo() {
+        TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
+
+        /**
+         * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
+         * load stats. The stats will show both the second and third nodes are hot-spotting.
+         */
+
+        final NodeUsageStatsForThreadPools firstNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.firstDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(0, harness.maxUtilBelowThresholdThatAllowsAllShardsToRelocate) / 100f,
+            0
+        );
+        final NodeUsageStatsForThreadPools secondNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.secondDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
+            0
+        );
+        final NodeUsageStatsForThreadPools thirdNodeHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.thirdDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
+            0
+        );
+
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeHotSpottingNodeStats);
+
+        /**
+         * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
+         * will show that all shards have non-empty write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
+         */
+
+        IndexMetadata indexMetadata = internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .state()
+            .getMetadata()
+            .getProject()
+            .index(harness.indexName);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
+
+        /**
+         * Provoke a ClusterInfo stats refresh, update the cluster settings to make shard assignment to the first node undesired and
+         * initiate rebalancing. Then wait to see a cluster state update that has all the shards assigned away from the first node _despite_
+         * the second and third node reporting hot-spotting: a canRemain::NO response should override a canAllocate::NOT_PREFERRED answer.
+         */
+
+        logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with a hot-spotting node");
+        refreshClusterInfo();
+
+        var temporaryClusterStateListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            Index index = clusterState.routingTable().index(harness.indexName).getIndex();
+            if (clusterState.getRoutingNodes()
+                .node(harness.firstDataNodeId)
+                .numberOfOwningShardsForIndex(index) == harness.randomNumberOfShards) {
+                return true;
+            }
+            return false;
+        });
+
+        try {
+            logger.info(
+                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
+            );
+            // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+
+            safeAwait(temporaryClusterStateListener);
+        } catch (AssertionError error) {
+            ClusterState state = internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .setRoutingTable(true)
+                .get()
+                .getState();
+            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            throw error;
+        }
+    }
+
+    @TestLogging(
+        reason = "track when reconciliation has completed",
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:DEBUG"
+    )
+    public void testCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred() {
+        TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
+
+        /**
+         * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
+         * load stats. The stats will show all the nodes above the high utilization threshold, so they do not accept new shards, while the
+         * first node will show queue latency above the threshold and request a shard to move away. However, there will be nowhere to
+         * reassign any shards.
+         */
+
+        final NodeUsageStatsForThreadPools firstNodeUtilHotSpottingAndQueuingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.firstDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
+            randomLongBetween(harness.randomQueueLatencyThresholdMillis, harness.randomQueueLatencyThresholdMillis + 1_000)
+        );
+        final NodeUsageStatsForThreadPools secondNodeUtilHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.secondDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
+            0
+        );
+        final NodeUsageStatsForThreadPools thirdNodeUtilHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.thirdDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
+            0
+        );
+
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeUtilHotSpottingAndQueuingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeUtilHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeUtilHotSpottingNodeStats);
+
+        /**
+         * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
+         * will show that all shards have non-empty write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
+         */
+
+        IndexMetadata indexMetadata = internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .state()
+            .getMetadata()
+            .getProject()
+            .index(harness.indexName);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
+
+        /**
+         * Refresh the ClusterInfo to pull in the new dummy hot-spot stats. Then remove the filter restricting the shards to the first node.
+         * Then wait for the DesiredBalance computation to finish running after the cluster settings update. All the shards should remain on
+         * the first node, despite hot-spotting with queuing, because no other node has below utilization threshold stats.
+         */
+
+        // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. Ensures no async computation.
+        MockLog.awaitLogger(() -> {
+            logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
+            refreshClusterInfo();
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
+
+        // Wait for the DesiredBalance to be recomputed as a result of the settings change.
+        MockLog.awaitLogger(() -> {
+            logger.info(
+                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
+            );
+            // Updating the cluster settings will trigger a reroute request.
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
+
+        try {
+            // Now check that all the shards remain on the first node because the other two nodes have too high write thread pool
+            // utilization to accept additional shards.
+            var desiredBalanceResponse = safeGet(
+                client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+            );
+            Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(harness.indexName);
+            logger.info("---> Checking desired shard assignments are still on the first data node. Desired assignments: " + shardsMap);
+            for (var desiredShard : shardsMap.values()) {
+                for (var desiredNodeId : desiredShard.desired().nodeIds()) {
+                    assertEquals("Found a shard assigned to an unexpected node: " + shardsMap, desiredNodeId, harness.firstDataNodeId);
+                }
+            }
+        } catch (AssertionError error) {
+            ClusterState state = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .setRoutingTable(true)
+                .get()
+                .getState();
+            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            throw error;
+        }
+    }
+
+    @TestLogging(
+        reason = "track when reconciliation has completed",
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:DEBUG"
+    )
+    public void testCanRemainRelocatesOneShardWhenAHotSpotOccurs() {
+        TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
+
+        /**
+         * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
+         * load stats. The stats will show all the nodes above the high utilization threshold, so they do not accept new shards, while the
+         * first node will show queue latency above the threshold and request a shard to move away. A single shard should move away from the
+         * queuing node, no more than one.
+         */
+
+        final NodeUsageStatsForThreadPools firstNodeUtilHotSpottingAndQueuingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.firstDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            (harness.randomUtilizationThresholdPercent + 1) / 100f,
+            randomLongBetween(harness.randomQueueLatencyThresholdMillis, harness.randomQueueLatencyThresholdMillis + 1_000)
+        );
+        final NodeUsageStatsForThreadPools secondNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.secondDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(0, harness.maxUtilBelowThresholdThatAllowsAllShardsToRelocate) / 100f,
+            0
+        );
+        final NodeUsageStatsForThreadPools thirdNodeNonHotSpottingNodeStats = createNodeUsageStatsForThreadPools(
+            harness.thirdDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(0, harness.maxUtilBelowThresholdThatAllowsAllShardsToRelocate) / 100f,
+            0
+        );
+
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeUtilHotSpottingAndQueuingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeNonHotSpottingNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeNonHotSpottingNodeStats);
+
+        /**
+         * Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
+         * will show that all shards have non-empty write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
+         */
+
+        IndexMetadata indexMetadata = internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .state()
+            .getMetadata()
+            .getProject()
+            .index(harness.indexName);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.randomShardWriteLoad, harness.firstDataNodeId)
+        );
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
+
+        /**
+         * Refresh the ClusterInfo to pull in the new dummy hot-spot stats. Then remove the filter restricting the shards to the first node.
+         * Then wait for the DesiredBalance computation to finish running after the cluster settings update. All the shards should remain on
+         * the first node, despite hot-spotting, because no other node has below utilization threshold stats.
+         */
+
+        // Wait for the DesiredBalance to be recomputed as a result of the ClusterInfo refresh. This way nothing async is running.
+        MockLog.awaitLogger(() -> {
+            logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats with hot-spot stats");
+            refreshClusterInfo();
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
+
+        // Wait for the DesiredBalance to be recomputed as a result of the settings change.
+        MockLog.awaitLogger(() -> {
+            logger.info(
+                "---> Update the filter to remove exclusions so that shards can be reassigned based on the write load decider only"
+            );
+            // Updating the cluster settings will trigger a reroute request.
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", ""));
+        }, DesiredBalanceShardsAllocator.class, createBalancerConvergedSeenEvent());
+
+        try {
+            // Now check that all a single shard was moved off of the first node to address the queuing, but the rest of the shards remain.
+            var desiredBalanceResponse = safeGet(
+                client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+            );
+            Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(harness.indexName);
+            logger.info("---> Checking desired shard assignments. Desired assignments: " + shardsMap);
+            int countShardsStillAssignedToFirstNode = 0;
+            for (var desiredShard : shardsMap.values()) {
+                for (var desiredNodeId : desiredShard.desired().nodeIds()) {
+                    if (desiredNodeId.equals(harness.firstDataNodeId)) {
+                        ++countShardsStillAssignedToFirstNode;
+                    }
+                }
+            }
+            assertEquals(
+                "Expected all shards except one to still be on the first data node: " + shardsMap,
+                harness.randomNumberOfShards,
+                countShardsStillAssignedToFirstNode + 1
+            );
+        } catch (AssertionError error) {
+            ClusterState state = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .setRoutingTable(true)
+                .get()
+                .getState();
+            logger.info("---> Failed to reach expected allocation state. Dumping assignments: " + state.getRoutingNodes());
+            throw error;
+        }
     }
 
     public void testMaxQueueLatencyMetricIsPublished() {
@@ -321,6 +549,24 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         return measurements;
     }
 
+    private void setUpMockTransportNodeUsageStatsResponse(DiscoveryNode node, NodeUsageStatsForThreadPools nodeUsageStats) {
+        MockTransportService.getInstance(node.getName())
+            .addRequestHandlingBehavior(
+                TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
+                (handler, request, channel, task) -> channel.sendResponse(
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(node, nodeUsageStats)
+                )
+            );
+    }
+
+    private void setUpMockTransportIndicesStatsResponse(DiscoveryNode node, int totalShards, List<ShardStats> shardStats) {
+        MockTransportService.getInstance(node.getName())
+            .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, node.getName());
+                channel.sendResponse(instance.new NodeResponse(node.getId(), totalShards, shardStats, List.of()));
+            });
+    }
+
     /**
      * Verifies that the {@link RoutingNodes} shows that the expected portion of an index's shards are assigned to each node.
      */
@@ -351,6 +597,40 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         return true;
     }
 
+    /**
+     * Enables the write load decider and overrides other write load decider settings.
+     * @param utilizationThresholdPercent Sets the write thread pool utilization threshold, controlling when canAllocate starts returning
+     *                                    not-preferred.
+     * @param queueLatencyThresholdMillis Sets the queue latency threshold, controlling when canRemain starts returning not-preferred.
+     */
+    private Settings enabledWriteLoadDeciderSettings(int utilizationThresholdPercent, long queueLatencyThresholdMillis) {
+        return Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                utilizationThresholdPercent + "%"
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(queueLatencyThresholdMillis)
+            )
+            // Disable rebalancing so that testing can see Decider change outcomes only.
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+            .build();
+    }
+
+    /**
+     * The utilization percent overhead needed to add the given amount of shard write load to a node with the given number of write pool
+     * threads.
+     */
+    private int shardLoadUtilizationOverhead(float totalShardWriteLoad, int numberOfWritePoolThreads) {
+        float totalWriteLoadPerThread = totalShardWriteLoad / numberOfWritePoolThreads;
+        return (int) (100 * totalWriteLoadPerThread);
+    }
+
     private DiscoveryNode getDiscoveryNode(String nodeName) {
         final TransportService transportService = internalCluster().getInstance(TransportService.class, nodeName);
         assertNotNull(transportService);
@@ -379,6 +659,21 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     }
 
     /**
+     * Helper to create a list of dummy {@link ShardStats} for the given index, each shard reporting a {@code peakShardWriteLoad} stat.
+     */
+    private List<ShardStats> createShardStatsResponseForIndex(
+        IndexMetadata indexMetadata,
+        float peakShardWriteLoad,
+        String assignedShardNodeId
+    ) {
+        List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
+        for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+            shardStats.add(createShardStats(indexMetadata, i, peakShardWriteLoad, assignedShardNodeId));
+        }
+        return shardStats;
+    }
+
+    /**
      * Helper to create a dummy {@link ShardStats} for the given index shard with the supplied {@code peakWriteLoad} value.
      */
     private static ShardStats createShardStats(IndexMetadata indexMeta, int shardIndex, double peakWriteLoad, String assignedShardNodeId) {
@@ -401,4 +696,156 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }
+
+    /**
+     * Creates a MockLog.SeenEventExpectation for a log message indicating that the balancer computation has converged / finalized.
+     */
+    private MockLog.SeenEventExpectation createBalancerConvergedSeenEvent() {
+        return new MockLog.SeenEventExpectation(
+            "desired balance computation ran and completed",
+            DesiredBalanceShardsAllocator.class.getCanonicalName(),
+            Level.DEBUG,
+            "Desired balance computation for * is completed, scheduling reconciliation"
+        );
+    }
+
+    /**
+     * Sets up common test infrastructure to deduplicate code across tests.
+     * <p>
+     * Starts three data nodes and creates an index with many shards, then forces shard assignment to only the first data node via the
+     * {@link FilterAllocationDecider}.
+     */
+    private TestHarness setUpThreeTestNodesAndAllIndexShardsOnFirstNode() {
+        int randomUtilizationThresholdPercent = randomIntBetween(50, 100);
+        int randomNumberOfWritePoolThreads = randomIntBetween(2, 20);
+        long randomQueueLatencyThresholdMillis = randomLongBetween(1, 20_000);
+        float randomShardWriteLoad = randomFloatBetween(0.0f, 0.01f, false);
+        Settings settings = enabledWriteLoadDeciderSettings(randomUtilizationThresholdPercent, randomQueueLatencyThresholdMillis);
+
+        internalCluster().startMasterOnlyNode(settings);
+        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
+        final String firstDataNodeName = dataNodes.get(0);
+        final String secondDataNodeName = dataNodes.get(1);
+        final String thirdDataNodeName = dataNodes.get(2);
+        final String firstDataNodeId = getNodeId(firstDataNodeName);
+        final String secondDataNodeId = getNodeId(secondDataNodeName);
+        final String thirdDataNodeId = getNodeId(thirdDataNodeName);
+        ensureStableCluster(4);
+
+        final DiscoveryNode firstDiscoveryNode = getDiscoveryNode(firstDataNodeName);
+        final DiscoveryNode secondDiscoveryNode = getDiscoveryNode(secondDataNodeName);
+        final DiscoveryNode thirdDiscoveryNode = getDiscoveryNode(thirdDataNodeName);
+
+        logger.info(
+            "---> first node name "
+                + firstDataNodeName
+                + " and ID "
+                + firstDataNodeId
+                + "; second node name "
+                + secondDataNodeName
+                + " and ID "
+                + secondDataNodeId
+                + "; third node name "
+                + thirdDataNodeName
+                + " and ID "
+                + thirdDataNodeId
+        );
+
+        logger.info(
+            "---> utilization threshold: "
+                + randomUtilizationThresholdPercent
+                + ",  write threads: "
+                + randomNumberOfWritePoolThreads
+                + ", individual shard write loads: "
+                + randomShardWriteLoad
+        );
+
+        /**
+         * Exclude assignment of shards to the second and third data nodes via the {@link FilterAllocationDecider} settings.
+         * Then create an index with many shards, which will all be assigned to the first data node.
+         */
+
+        logger.info("---> Limit shard assignment to node " + firstDataNodeName + " by excluding the other nodes");
+        updateClusterSettings(
+            Settings.builder().put("cluster.routing.allocation.exclude._name", secondDataNodeName + "," + thirdDataNodeName)
+        );
+
+        String indexName = randomIdentifier();
+        int randomNumberOfShards = randomIntBetween(10, 20); // Pick a high number of shards, so it is clear assignment is not accidental.
+
+        // Calculate the maximum utilization a node can report while still being able to accept all relocating shards
+        int shardWriteLoadOverhead = shardLoadUtilizationOverhead(
+            randomShardWriteLoad * randomNumberOfShards,
+            randomNumberOfWritePoolThreads
+        );
+        int maxUtilBelowThresholdThatAllowsAllShardsToRelocate = randomUtilizationThresholdPercent - shardWriteLoadOverhead - 1;
+
+        var verifyAssignmentToFirstNodeListener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+            var indexRoutingTable = clusterState.routingTable().index(indexName);
+            if (indexRoutingTable == null) {
+                return false;
+            }
+            return checkShardAssignment(
+                clusterState.getRoutingNodes(),
+                indexRoutingTable.getIndex(),
+                firstDataNodeId,
+                secondDataNodeId,
+                thirdDataNodeId,
+                randomNumberOfShards,
+                0,
+                0
+            );
+        });
+
+        createIndex(
+            indexName,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomNumberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen(indexName);
+
+        logger.info("---> Waiting for all [" + randomNumberOfShards + "] shards to be assigned to node " + firstDataNodeName);
+        safeAwait(verifyAssignmentToFirstNodeListener);
+
+        return new TestHarness(
+            firstDataNodeName,
+            secondDataNodeName,
+            thirdDataNodeName,
+            firstDataNodeId,
+            secondDataNodeId,
+            thirdDataNodeId,
+            firstDiscoveryNode,
+            secondDiscoveryNode,
+            thirdDiscoveryNode,
+            randomUtilizationThresholdPercent,
+            randomNumberOfWritePoolThreads,
+            randomQueueLatencyThresholdMillis,
+            randomShardWriteLoad,
+            indexName,
+            randomNumberOfShards,
+            maxUtilBelowThresholdThatAllowsAllShardsToRelocate
+        );
+    }
+
+    /**
+     * Carries set-up state from {@link #setUpThreeTestNodesAndAllIndexShardsOnFirstNode()} to the testing logic.
+     */
+    record TestHarness(
+        String firstDataNodeName,
+        String secondDataNodeName,
+        String thirdDataNodeName,
+        String firstDataNodeId,
+        String secondDataNodeId,
+        String thirdDataNodeId,
+        DiscoveryNode firstDiscoveryNode,
+        DiscoveryNode secondDiscoveryNode,
+        DiscoveryNode thirdDiscoveryNode,
+        int randomUtilizationThresholdPercent,
+        int randomNumberOfWritePoolThreads,
+        long randomQueueLatencyThresholdMillis,
+        float randomShardWriteLoad,
+        String indexName,
+        int randomNumberOfShards,
+        int maxUtilBelowThresholdThatAllowsAllShardsToRelocate
+    ) {};
+
 }

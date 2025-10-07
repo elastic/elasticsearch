@@ -158,7 +158,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static ShardsAllocator createShardsAllocator(Settings settings) {
         return switch (pickShardsAllocator(settings)) {
-            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(
+                Settings.builder().put(settings).put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR).build()
+            );
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
         };

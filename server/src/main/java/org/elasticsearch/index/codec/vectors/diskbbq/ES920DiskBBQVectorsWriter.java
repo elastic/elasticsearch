@@ -17,7 +17,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
@@ -39,6 +38,8 @@ import java.nio.ByteOrder;
 import java.util.AbstractList;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
+
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
  * partition the vector space, and then stores the centroids and posting list in a sequential
@@ -51,12 +52,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int centroidsPerParentCluster;
 
     public ES920DiskBBQVectorsWriter(
+        String rawVectorFormatName,
         SegmentWriteState state,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster
     ) throws IOException {
-        super(state, rawVectorDelegate);
+        super(state, rawVectorFormatName, rawVectorDelegate);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
     }
@@ -75,7 +77,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
             // if soar assignments are present, count them as well
-            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
+            if (overspillAssignments.length > i && overspillAssignments[i] != NO_SOAR_ASSIGNMENT) {
                 centroidVectorCount[overspillAssignments[i]]++;
             }
         }
@@ -95,7 +97,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             // if soar assignments are present, add them to the cluster as well
             if (overspillAssignments.length > i) {
                 int s = overspillAssignments[i];
-                if (s != -1) {
+                if (s != NO_SOAR_ASSIGNMENT) {
                     assignmentsByCluster[s][centroidVectorCount[s]++] = i;
                 }
             }
@@ -187,7 +189,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 int c = assignments[i];
                 float[] centroid = centroidSupplier.centroid(c);
                 float[] vector = floatVectorValues.vectorValue(i);
-                boolean overspill = overspillAssignments.length > i && overspillAssignments[i] != -1;
+                boolean overspill = overspillAssignments.length > i && overspillAssignments[i] != NO_SOAR_ASSIGNMENT;
                 OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
                     vector,
                     scratch,
@@ -220,7 +222,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
             // if soar assignments are present, count them as well
-            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
+            if (overspillAssignments.length > i && overspillAssignments[i] != NO_SOAR_ASSIGNMENT) {
                 centroidVectorCount[overspillAssignments[i]]++;
             }
         }
@@ -242,7 +244,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             // if soar assignments are present, add them to the cluster as well
             if (overspillAssignments.length > i) {
                 int s = overspillAssignments[i];
-                if (s != -1) {
+                if (s != NO_SOAR_ASSIGNMENT) {
                     assignmentsByCluster[s][centroidVectorCount[s]] = i;
                     isOverspillByCluster[s][centroidVectorCount[s]++] = true;
                 }
@@ -383,7 +385,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
-            new OnHeapCentroidSupplier(centroidGroups.centroids),
+            CentroidSupplier.fromArray(centroidGroups.centroids),
             fieldInfo.getVectorDimension(),
             osq,
             globalCentroid
@@ -576,18 +578,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    interface QuantizedVectorValues {
-        int count();
-
-        byte[] next() throws IOException;
-
-        OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException;
-    }
-
-    interface IntToBooleanFunction {
-        boolean apply(int ord);
-    }
-
     static class QuantizedCentroids implements QuantizedVectorValues {
         private final CentroidSupplier supplier;
         private final OptimizedScalarQuantizer quantizer;
@@ -757,39 +747,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
             bitSum = quantizedVectorsInput.readShort();
-        }
-    }
-
-    private static class IntSorter extends IntroSorter {
-        int pivot = -1;
-        private final int[] arr;
-        private final IntToIntFunction func;
-
-        private IntSorter(int[] arr, IntToIntFunction func) {
-            this.arr = arr;
-            this.func = func;
-        }
-
-        @Override
-        protected void setPivot(int i) {
-            pivot = func.apply(arr[i]);
-        }
-
-        @Override
-        protected int comparePivot(int j) {
-            return Integer.compare(pivot, func.apply(arr[j]));
-        }
-
-        @Override
-        protected int compare(int a, int b) {
-            return Integer.compare(func.apply(arr[a]), func.apply(arr[b]));
-        }
-
-        @Override
-        protected void swap(int i, int j) {
-            final int tmp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = tmp;
         }
     }
 }

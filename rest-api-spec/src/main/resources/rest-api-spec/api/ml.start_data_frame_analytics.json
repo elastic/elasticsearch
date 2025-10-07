@@ -33,7 +33,6 @@
     "params": {
       "timeout": {
         "type": "time",
-        "required": false,
         "description": "Controls the time to wait until the task has started. Defaults to 20 seconds"
       }
     },

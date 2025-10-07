@@ -76,8 +76,9 @@ public final class ScalbConstantLongEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
+        double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Scalb.processConstantLong(dBlock.getDouble(dBlock.getFirstValueIndex(p)), this.scaleFactor));
+          result.appendDouble(Scalb.processConstantLong(d, this.scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -90,8 +91,9 @@ public final class ScalbConstantLongEvaluator implements EvalOperator.Expression
   public DoubleBlock eval(int positionCount, DoubleVector dVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double d = dVector.getDouble(p);
         try {
-          result.appendDouble(Scalb.processConstantLong(dVector.getDouble(p), this.scaleFactor));
+          result.appendDouble(Scalb.processConstantLong(d, this.scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

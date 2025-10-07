@@ -11,7 +11,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -1212,7 +1211,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     /**
-     * INLINESTATS <strong>can</strong> group on {@code NOW()}. It's a little silly, but
+     * INLINE STATS <strong>can</strong> group on {@code NOW()}. It's a little silly, but
      * doing something like {@code DATE_TRUNC(1 YEAR, NOW() - 1970-01-01T00:00:00Z)} is
      * much more sensible. But just grouping on {@code NOW()} is enough to test this.
      * <p>
@@ -1221,11 +1220,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      * </p>
      */
     public void testInlineStatsNow() throws IOException {
-        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("INLINE STATS only available on snapshots", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(
-            fromIndex() + " | EVAL now=NOW() | INLINESTATS AVG(value) BY now | SORT value ASC"
+            fromIndex() + " | EVAL now=NOW() | INLINE STATS AVG(value) BY now | SORT value ASC"
         );
         Map<String, Object> result = runEsql(builder);
         ListMatcher values = matchesList();
@@ -1411,6 +1410,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(json, profileEnabled);
         }
 
+        var supportsAsyncHeadersFix = hasCapabilities(adminClient(), List.of("async_query_status_headers_fix"));
+        if (supportsAsyncHeadersFix) {
+            assertNoAsyncHeaders(response);
+        }
         assertWarnings(response, assertWarnings);
 
         return json;
@@ -1448,17 +1451,18 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
-        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers"));
+        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers_fix"));
         var supportsSuggestedCast = hasCapabilities(adminClient(), List.of("suggested_cast"));
+
+        // Check headers on initial query call
+        if (supportsAsyncHeaders) {
+            assertAsyncHeaders(response, id, (boolean) json.get("is_running"));
+        }
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
             assertThat(requestObject.keepOnCompletion(), either(nullValue()).or(is(false)));
             assertThat((boolean) json.get("is_running"), is(false));
-            if (supportsAsyncHeaders) {
-                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
-                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
-            }
             if (profileLogger != null) {
                 profileLogger.extractProfile(json, profileEnabled);
             }
@@ -1485,11 +1489,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(json.get("pages"), nullValue());
             }
 
-            if (supportsAsyncHeaders) {
-                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), is(id));
-                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is(isRunning ? "?1" : "?0"));
-            }
-
             // issue a second request to "async get" the results
             Request getRequest = prepareAsyncGetRequest(id);
             getRequest.setOptions(request.getOptions());
@@ -1498,6 +1497,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         var result = entityToMap(entity, requestObject.contentType());
+
+        // Check headers on get call
+        if (supportsAsyncHeaders) {
+            assertAsyncHeaders(response, id, (boolean) result.get("is_running"));
+        }
 
         // assert initial contents, if any, are the same as async get contents
         if (initialColumns != null) {
@@ -2003,6 +2007,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String settings = "\"settings\" : {\"mode\" : \"lookup\"}, ";
         request.setJsonEntity("{" + (lookupMode ? settings : "") + mapping + "}");
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
+    private static void assertAsyncHeaders(Response response, @Nullable String asyncId, boolean isRunning) {
+        assertThat(response.getHeader("X-Elasticsearch-Async-Id"), asyncId == null ? nullValue() : equalTo(asyncId));
+        assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), isRunning ? is("?1") : is("?0"));
+    }
+
+    private static void assertNoAsyncHeaders(Response response) {
+        assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
+        assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), nullValue());
     }
 
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {

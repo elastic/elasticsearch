@@ -29,7 +29,7 @@ public interface PostOptimizationPlanVerificationAware {
      *     Example: the SORT command, {@code OrderBy}, can only be executed currently if it can be associated with a LIMIT {@code Limit}
      *     and together transformed into a {@code TopN} (which is executable). The replacement of the LIMIT+SORT into a TopN is done at
      *     the end of the optimization phase. This means that any SORT still existing in the plan post optimization is an error.
-     *     However, there can be a LIMIT in the plan, but separated from the SORT by an INLINESTATS; in this case, the LIMIT cannot be
+     *     However, there can be a LIMIT in the plan, but separated from the SORT by an INLINE STATS; in this case, the LIMIT cannot be
      *     pushed down near the SORT. To inform the user how they need to modify the query so it can be run, we implement this:
      *     <pre>
      *     {@code
@@ -42,7 +42,7 @@ public interface PostOptimizationPlanVerificationAware {
      *                      failures.add(
      *                          fail(
      *                              inlineJoin,
-     *                              "unbounded sort [{}] not supported before inlinestats [{}], move the sort after the inlinestats",
+     *                              "unbounded SORT [{}] not supported before INLINE STATS [{}], move the sort after the INLINE STATS",
      *                              orderBy.sourceText(),
      *                              inlineJoin.sourceText()
      *                          )

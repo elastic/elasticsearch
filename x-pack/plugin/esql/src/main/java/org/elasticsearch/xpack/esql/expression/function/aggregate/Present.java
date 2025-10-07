@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -42,6 +44,7 @@ public class Present extends AggregateFunction implements ToAggregator {
         description = "Returns true if the input expression yields any non-null values within the current aggregation context. "
             + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         examples = {
             @Example(file = "present", tag = "present"),
             @Example(
@@ -130,6 +133,12 @@ public class Present extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types or dense_vector"
+        );
     }
 }

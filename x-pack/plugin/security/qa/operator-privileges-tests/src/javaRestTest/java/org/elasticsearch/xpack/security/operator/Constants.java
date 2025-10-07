@@ -452,6 +452,7 @@ public class Constants {
         "cluster:monitor/xpack/rollup/get/caps",
         "cluster:monitor/xpack/searchable_snapshots/stats",
         "cluster:monitor/xpack/security/saml/metadata",
+        "cluster:monitor/xpack/security/stats",
         "cluster:monitor/xpack/spatial/stats",
         "cluster:monitor/xpack/sql/async/status", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_STATUS_ACTION_NAME
         "cluster:monitor/xpack/sql/stats/dist",

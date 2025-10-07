@@ -29,8 +29,7 @@ abstract class DiskBBQBulkWriter {
         this.out = out;
     }
 
-    abstract void writeVectors(ES920DiskBBQVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
-        throws IOException;
+    abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
 
     static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
@@ -41,8 +40,7 @@ abstract class DiskBBQBulkWriter {
         }
 
         @Override
-        void writeVectors(ES920DiskBBQVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
-            throws IOException {
+        void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
@@ -104,8 +102,7 @@ abstract class DiskBBQBulkWriter {
         }
 
         @Override
-        void writeVectors(ES920DiskBBQVectorsWriter.QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter)
-            throws IOException {
+        void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {

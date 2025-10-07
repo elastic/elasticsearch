@@ -61,7 +61,7 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
 
     @Override
     public long estimatedBytes() {
-        return (long) values.length * Double.BYTES;
+        return valuesSize(values.length);
     }
 
     @Override

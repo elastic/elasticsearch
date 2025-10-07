@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
@@ -21,6 +20,10 @@ import java.io.UnsupportedEncodingException;
 
 public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCWireSerializationTestCase<
     GetInferenceDiagnosticsAction.NodeResponse> {
+
+    private static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = TransportVersion.fromName("ml_inference_endpoint_cache");
+    private static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = TransportVersion.fromName("inference_api_eis_diagnostics");
+
     public static GetInferenceDiagnosticsAction.NodeResponse createRandom() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
         var randomExternalPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
@@ -105,11 +108,11 @@ public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractBWCW
         GetInferenceDiagnosticsAction.NodeResponse instance,
         TransportVersion version
     ) {
-        if (version.onOrAfter(TransportVersions.ML_INFERENCE_ENDPOINT_CACHE)) {
+        if (version.supports(ML_INFERENCE_ENDPOINT_CACHE)) {
             return instance;
         }
 
-        var eisMltsConnectionPoolStats = version.onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)
+        var eisMltsConnectionPoolStats = version.supports(INFERENCE_API_EIS_DIAGNOSTICS)
             ? new PoolStats(
                 instance.getEisMtlsConnectionPoolStats().getLeasedConnections(),
                 instance.getEisMtlsConnectionPoolStats().getPendingConnections(),

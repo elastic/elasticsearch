@@ -166,6 +166,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
@@ -2666,7 +2667,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                                 }
-                            }
+                            },
+                            mock(SamplingService.class)
                         ),
                         client,
                         actionFilters,
@@ -2681,7 +2683,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                 return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                             }
-                        }
+                        },
+                        mock(SamplingService.class)
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

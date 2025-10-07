@@ -103,13 +103,7 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
       if (valuesBlock.isNull(p)) {
         continue;
       }
-      int start = valuesBlock.getFirstValueIndex(p);
-      int end = start + valuesBlock.getValueCount(p);
-      int[] valuesArray = new int[end - start];
-      for (int i = start; i < end; i++) {
-        valuesArray[i-start] = valuesBlock.getInt(i);
-      }
-      SpatialExtentGeoShapeDocValuesAggregator.combine(state, valuesArray);
+      SpatialExtentGeoShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
 
@@ -121,13 +115,7 @@ public final class SpatialExtentGeoShapeDocValuesAggregatorFunction implements A
       if (valuesBlock.isNull(p)) {
         continue;
       }
-      int start = valuesBlock.getFirstValueIndex(p);
-      int end = start + valuesBlock.getValueCount(p);
-      int[] valuesArray = new int[end - start];
-      for (int i = start; i < end; i++) {
-        valuesArray[i-start] = valuesBlock.getInt(i);
-      }
-      SpatialExtentGeoShapeDocValuesAggregator.combine(state, valuesArray);
+      SpatialExtentGeoShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
 

@@ -56,11 +56,11 @@ public record DriverProfile(
                 || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
             in.readCollectionAsImmutableList(OperatorStatus::readFrom),
             DriverSleeps.read(in)
         );
@@ -77,15 +77,11 @@ public record DriverProfile(
             out.writeString(clusterName);
             out.writeString(nodeName);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVLong(startMillis);
-            out.writeVLong(stopMillis);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeVLong(tookNanos);
-            out.writeVLong(cpuNanos);
-            out.writeVLong(iterations);
-        }
+        out.writeVLong(startMillis);
+        out.writeVLong(stopMillis);
+        out.writeVLong(tookNanos);
+        out.writeVLong(cpuNanos);
+        out.writeVLong(iterations);
         out.writeCollection(operators);
         sleeps.writeTo(out);
     }

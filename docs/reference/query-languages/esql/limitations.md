@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Limitations"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-limitations.html
@@ -35,7 +38,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * `long`
 * `null`
 * `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
-* [preview] `unsigned_long`
+* {applies_to}`stack: preview` {applies_to}`serverless: preview` `unsigned_long`
 * `version`
 * Spatial types
 
@@ -240,6 +243,13 @@ Work around this limitation by converting the field to single value with one of 
 ## Timezone support [esql-limitations-timezone]
 
 {{esql}} only supports the UTC timezone.
+
+
+## INLINE STATS limitations [esql-limitations-inlinestats]
+
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
+
+Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
 
 
 ## Kibana limitations [esql-limitations-kibana]

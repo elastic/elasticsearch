@@ -32,7 +32,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlinestats;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -384,19 +384,19 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var source = as(aggregate.child(), EsRelation.class);
     }
 
-    /**
+    /*
      * Project[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
      * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, sum(salary) where false{r}#3]]
      * \_Eval[[null[LONG] AS sum(salary) where false#3]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalSingleAgg() {
+    public void testReplaceInlineStatsFilteredAggWithEvalSingleAgg() {
         var query = """
             FROM test
-            | INLINESTATS sum(salary) where false
+            | INLINE STATS sum(salary) where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -427,19 +427,19 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         as(limit.child(), EsRelation.class);
     }
 
-    /**
+    /*
      * Project[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
      * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, sum(salary) + 1 where false{r}#3]]
      * \_Eval[[null[LONG] AS sum(salary) + 1 where false#3]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalSingleAggWithExpression() {
+    public void testReplaceInlineStatsFilteredAggWithEvalSingleAggWithExpression() {
         var query = """
             FROM test
-            | INLINESTATS sum(salary) + 1 where false
+            | INLINE STATS sum(salary) + 1 where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -480,15 +480,15 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *       \_Aggregate[[emp_no{f}#9],[SUM(salary{f}#14,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_ _2$1#21, emp_no{f}#9]]
      *         \_StubRelation[[salary{f}#14, emp_no{f}#9]]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalMixedFilterAndNoFilter() {
+    public void testReplaceInlineStatsFilteredAggWithEvalMixedFilterAndNoFilter() {
         var query = """
             FROM test
             | KEEP salary, emp_no
-            | INLINESTATS sum(salary) + 1 where false,
+            | INLINE STATS sum(salary) + 1 where false,
                     sum(salary) + 2
               BY emp_no
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -535,16 +535,16 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *       \_Aggregate[[],[SUM(salary{f}#16,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$sum(salary)_ _3$1#23]]
      *         \_StubRelation[[salary{f}#16]]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalFilterFalseAndNull() {
+    public void testReplaceInlineStatsFilteredAggWithEvalFilterFalseAndNull() {
         var query = """
             FROM test
             | KEEP salary
-            | INLINESTATS sum(salary) + 1 where false,
+            | INLINE STATS sum(salary) + 1 where false,
                     sum(salary) + 3,
                     sum(salary) + 2 where null,
                     sum(salary) + 4 where not true
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -589,13 +589,13 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalNotTrue() {
+    public void testReplaceInlineStatsFilteredAggWithEvalNotTrue() {
         var query = """
             FROM test
             | KEEP emp_no, salary
-            | INLINESTATS count(salary) where not true
+            | INLINE STATS count(salary) where not true
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -621,13 +621,13 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *   \_Aggregate[[],[COUNT(salary{f}#13,true[BOOLEAN]) AS m1#7]]
      *     \_StubRelation[[emp_no{f}#8, salary{f}#13, gender{f}#10]]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalNotFalse() {
+    public void testReplaceInlineStatsFilteredAggWithEvalNotFalse() {
         var query = """
             FROM test
             | KEEP emp_no, salary, gender
-            | INLINESTATS m1 = count(salary) WHERE not false
+            | INLINE STATS m1 = count(salary) WHERE not false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -654,13 +654,13 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalCount() {
+    public void testReplaceInlineStatsFilteredAggWithEvalCount() {
         var query = """
             FROM test
             | KEEP salary
-            | INLINESTATS count(salary) where false
+            | INLINE STATS count(salary) where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -684,13 +684,13 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalCountDistinctInExpression() {
+    public void testReplaceInlineStatsFilteredAggWithEvalCountDistinctInExpression() {
         var query = """
             FROM test
             | KEEP salary
-            | INLINESTATS count_distinct(salary + 2) + 3 where false
+            | INLINE STATS count_distinct(salary + 2) + 3 where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -718,16 +718,16 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *       \_Aggregate[[emp_no{f}#17],[MAX(salary{f}#22,true[BOOLEAN]) AS max#6, MIN(salary{f}#22,true[BOOLEAN]) AS min#12, emp_no{f}#17]]
      *         \_StubRelation[[emp_no{f}#17, salary{f}#22]]
      */
-    public void testReplaceInlinestatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
+    public void testReplaceInlineStatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
         var query = """
             FROM test
             | KEEP emp_no, salary
-            | INLINESTATS max = max(salary), max_a = max(salary) WHERE null,
+            | INLINE STATS max = max(salary), max_a = max(salary) WHERE null,
                     min = min(salary),
                     min_a = min(salary) WHERE to_string(null) == "abc"
               BY emp_no
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -769,16 +769,16 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
      *   \_TopN[[Order[emp_no{f}#9,ASC,LAST]],3[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
-    public void testReplaceTwoConsecutiveInlinestats_WithFalseFilters() {
+    public void testReplaceTwoConsecutiveInlineStats_WithFalseFilters() {
         var query = """
             FROM test
                 | KEEP emp_no
                 | SORT emp_no
                 | LIMIT 3
-                | INLINESTATS count = count(*) WHERE false
-                | INLINESTATS cc = count_distinct(emp_no) WHERE false
+                | INLINE STATS count = count(*) WHERE false
+                | INLINE STATS cc = count_distinct(emp_no) WHERE false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);

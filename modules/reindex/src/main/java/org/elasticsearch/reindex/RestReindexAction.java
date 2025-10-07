@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.rest.FilteredRestRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
@@ -22,8 +23,10 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -79,10 +82,43 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         return internal;
     }
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("source.remote.host.password");
-
+    /**
+     * This method isn't used because we implement {@link #getFilteredRequest(RestRequest)} instead
+     */
     @Override
     public Set<String> getFilteredFields() {
-        return FILTERED_FIELDS;
+        assert false : "This method should never be called";
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RestRequest getFilteredRequest(RestRequest restRequest) {
+        if (restRequest.hasContent()) {
+            return new FilteredRestRequest(restRequest, Set.of()) {
+                @Override
+                @SuppressWarnings({ "rawtypes", "unchecked" })
+                protected Map<String, Object> transformBody(Map<String, Object> map) {
+                    final var source = map.get("source");
+                    if (source instanceof Map sourceMap) {
+                        final var remote = sourceMap.get("remote");
+                        if (remote instanceof Map remoteMap) {
+                            remoteMap.computeIfPresent("password", (key, value) -> "::es-redacted::");
+                            remoteMap.computeIfPresent("headers", (key, value) -> {
+                                if (value instanceof Map<?, ?> headers) {
+                                    return headers.entrySet()
+                                        .stream()
+                                        .collect(Collectors.toMap(Map.Entry::getKey, ignore -> "::es-redacted::"));
+                                } else {
+                                    return null;
+                                }
+                            });
+                        }
+                    }
+                    return map;
+                }
+            };
+        } else {
+            return restRequest;
+        }
     }
 }

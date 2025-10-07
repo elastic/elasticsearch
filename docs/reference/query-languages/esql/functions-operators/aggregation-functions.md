@@ -1,15 +1,22 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Aggregation functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-agg-functions
+
 ---
 
 # {{esql}} aggregation functions [esql-aggregation-functions]
 
 
-The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supports these aggregate functions:
+The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) commands support these aggregate functions:
 
 :::{include} ../_snippets/lists/aggregation-functions.md
+:::
+
+:::{include} ../_snippets/functions/layout/absent.md
 :::
 
 :::{include} ../_snippets/functions/layout/avg.md
@@ -19,6 +26,12 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 :::
 
 :::{include} ../_snippets/functions/layout/count_distinct.md
+:::
+
+:::{include} ../_snippets/functions/layout/first.md
+:::
+
+:::{include} ../_snippets/functions/layout/last.md
 :::
 
 :::{include} ../_snippets/functions/layout/max.md
@@ -61,4 +74,7 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 :::
 
 :::{include} ../_snippets/functions/layout/present.md
+:::
+
+:::{include} ../_snippets/functions/layout/absent.md
 :::

@@ -1,5 +1,0 @@
-pr: 133919
-summary: Fix double-counting of inference memory in the assignment rebalancer
-area: Machine Learning
-type: bug
-issues: []

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -27,19 +28,37 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.script.ScriptCompiler;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
@@ -204,5 +223,150 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
             ((SourceIntervalsSource) rangeIntervals).getIntervalsSource()
         );
+    }
+
+    public void test_block_loader_uses_stored_fields_for_loading_when_synthetic_source_delegate_is_absent() {
+        // given
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "parent",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            null
+        );
+
+        // when
+        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+
+        // then
+        // verify that we delegate block loading to the synthetic source delegate
+        assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
+    }
+
+    public void test_block_loader_uses_synthetic_source_delegate_when_ignore_above_is_not_set() {
+        // given
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
+            "child",
+            true,
+            true,
+            Collections.emptyMap()
+        );
+
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "parent",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            syntheticSourceDelegate
+        );
+
+        // when
+        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+
+        // then
+        // verify that we delegate block loading to the synthetic source delegate
+        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
+    }
+
+    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set() {
+        // given
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
+        builder.ignoreAbove(123);
+
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
+            "child",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
+        );
+
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "parent",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            syntheticSourceDelegate
+        );
+
+        // when
+        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
+        BlockLoader blockLoader = ft.blockLoader(blContext);
+
+        // then
+        // verify that we don't delegate anything
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
+    }
+
+    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set_at_index_level() {
+        // given
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
+        MappingParserContext mappingParserContext = mock(MappingParserContext.class);
+        doReturn(settings).when(mappingParserContext).getSettings();
+        doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
+        doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
+
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
+            "child",
+            mock(FieldType.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            mock(NamedAnalyzer.class),
+            builder,
+            true
+        );
+
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            "parent",
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            true,
+            Collections.emptyMap(),
+            false,
+            false,
+            syntheticSourceDelegate
+        );
+
+        // when
+        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
+        BlockLoader blockLoader = ft.blockLoader(blContext);
+
+        // then
+        // verify that we don't delegate anything
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
     }
 }

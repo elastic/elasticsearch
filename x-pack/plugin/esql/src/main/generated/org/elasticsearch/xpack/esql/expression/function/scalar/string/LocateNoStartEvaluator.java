@@ -98,7 +98,9 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendInt(Locate.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch)));
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef substr = substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch);
+        result.appendInt(Locate.process(str, substr));
       }
       return result.build();
     }
@@ -109,7 +111,9 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch)));
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef substr = substrVector.getBytesRef(p, substrScratch);
+        result.appendInt(p, Locate.process(str, substr));
       }
       return result.build();
     }

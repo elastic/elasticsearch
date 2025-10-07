@@ -76,7 +76,8 @@ public final class DateTruncDatetimeEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateTrunc.processDatetime(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), this.rounding));
+        long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
+        result.appendLong(DateTrunc.processDatetime(fieldVal, this.rounding));
       }
       return result.build();
     }
@@ -85,7 +86,8 @@ public final class DateTruncDatetimeEvaluator implements EvalOperator.Expression
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateTrunc.processDatetime(fieldValVector.getLong(p), this.rounding));
+        long fieldVal = fieldValVector.getLong(p);
+        result.appendLong(p, DateTrunc.processDatetime(fieldVal, this.rounding));
       }
       return result.build();
     }

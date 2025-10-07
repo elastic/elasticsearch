@@ -53,7 +53,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -69,22 +68,13 @@ public abstract class MappedFieldType {
     private final boolean docValues;
     private final boolean isIndexed;
     private final boolean isStored;
-    private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
 
-    public MappedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
+    public MappedFieldType(String name, boolean isIndexed, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
         this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
-        this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
         // irrelevant
         this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
@@ -649,7 +639,7 @@ public abstract class MappedFieldType {
      * {@link TextSearchInfo#SIMPLE_MATCH_WITHOUT_TERMS}
      */
     public TextSearchInfo getTextSearchInfo() {
-        return textSearchInfo;
+        return TextSearchInfo.NONE;
     }
 
     public enum CollapseType {

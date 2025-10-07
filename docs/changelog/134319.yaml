@@ -1,5 +1,0 @@
-pr: 134319
-summary: Fix `allow_duplicates` edge case bug in append processor
-area: Ingest Node
-type: bug
-issues: []

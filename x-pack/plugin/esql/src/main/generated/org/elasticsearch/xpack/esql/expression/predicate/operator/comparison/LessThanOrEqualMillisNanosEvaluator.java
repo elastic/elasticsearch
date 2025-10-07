@@ -95,7 +95,9 @@ public final class LessThanOrEqualMillisNanosEvaluator implements EvalOperator.E
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(LessThanOrEqual.processMillisNanos(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+        long lhs = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
+        long rhs = rhsBlock.getLong(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(LessThanOrEqual.processMillisNanos(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class LessThanOrEqualMillisNanosEvaluator implements EvalOperator.E
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, LessThanOrEqual.processMillisNanos(lhsVector.getLong(p), rhsVector.getLong(p)));
+        long lhs = lhsVector.getLong(p);
+        long rhs = rhsVector.getLong(p);
+        result.appendBoolean(p, LessThanOrEqual.processMillisNanos(lhs, rhs));
       }
       return result.build();
     }

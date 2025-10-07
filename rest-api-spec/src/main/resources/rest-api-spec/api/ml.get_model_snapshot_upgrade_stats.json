@@ -34,7 +34,6 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
-        "required": false,
         "description": "Whether to ignore if a wildcard expression matches no jobs or no snapshots. (This includes the `_all` string.)"
       }
     }

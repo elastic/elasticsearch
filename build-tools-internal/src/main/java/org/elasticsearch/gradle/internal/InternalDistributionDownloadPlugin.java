@@ -113,6 +113,9 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             String versionProperty = System.getProperty("tests.bwc.main.version");
             // We use this phony version as a placeholder for the real version
             if (distribution.getVersion().equals("0.0.0")) {
+                if (versionProperty == null) {
+                    throw new GradleException("System property 'tests.bwc.main.version' expected for building bwc version.");
+                }
                 BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo = new BwcVersions.UnreleasedVersionInfo(
                     Version.fromString(versionProperty),
                     "main",

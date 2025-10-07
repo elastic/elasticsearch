@@ -167,7 +167,6 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-
 tasks.named('assemble').configure {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
   dependsOn tasks.named('jar')
@@ -184,6 +183,7 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
+  exclude '**/*.bcfks'
   exclude '**/*.p12'
   exclude '**/*.der'
   exclude '**/*.zip'

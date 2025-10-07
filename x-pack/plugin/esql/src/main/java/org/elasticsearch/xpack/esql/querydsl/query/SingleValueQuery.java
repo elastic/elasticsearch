@@ -145,20 +145,14 @@ public class SingleValueQuery extends Query {
             super(in);
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                if (in instanceof PlanStreamInput psi) {
-                    this.source = Source.readFrom(psi);
-                } else {
-                    /*
-                     * For things like CanMatchNodeRequest we serialize without the Source. But we
-                     * don't use it, so that's ok.
-                     */
-                    this.source = Source.readEmpty(in);
-                }
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.source = readOldSource(in);
+            if (in instanceof PlanStreamInput psi) {
+                this.source = Source.readFrom(psi);
             } else {
-                this.source = Source.EMPTY;
+                /*
+                 * For things like CanMatchNodeRequest we serialize without the Source. But we
+                 * don't use it, so that's ok.
+                 */
+                this.source = Source.readEmpty(in);
             }
         }
 
@@ -166,11 +160,7 @@ public class SingleValueQuery extends Query {
         protected final void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                source.writeTo(out);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                writeOldSource(out, source);
-            }
+            source.writeTo(out);
         }
 
         public QueryBuilder next() {

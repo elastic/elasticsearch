@@ -71,7 +71,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     private final String query;
-    private boolean caseInsensitive = true;
+    private boolean caseInsensitive = false;
     private ZoneId timeZone;
     private String defaultField;
 
@@ -152,7 +152,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
         try {
             KqlParser parser = new KqlParser();
             QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(context));

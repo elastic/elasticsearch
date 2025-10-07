@@ -73,6 +73,19 @@
       "fields": {
         "type": "list",
         "description": "A comma-separated list of fields to return in the output"
+      },
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
       }
     }
   }

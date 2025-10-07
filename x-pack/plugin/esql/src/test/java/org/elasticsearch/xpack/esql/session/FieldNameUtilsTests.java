@@ -10,19 +10,12 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldNameUtilsTests extends ESTestCase {
@@ -33,18 +26,18 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("from test", ALL_FIELDS);
     }
 
-    public void testBasicFromCommandWithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
-        assertFieldNames("from test | inlinestats max(salary) by gender", ALL_FIELDS);
+    public void testBasicFromCommandWithInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assertFieldNames("from test | inline stats max(salary) by gender", ALL_FIELDS);
     }
 
     public void testBasicFromCommandWithMetadata() {
         assertFieldNames("from test metadata _index, _id, _version", ALL_FIELDS);
     }
 
-    public void testBasicFromCommandWithMetadata_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
-        assertFieldNames("from test metadata _index, _id, _version | inlinestats max(salary)", ALL_FIELDS);
+    public void testBasicFromCommandWithMetadata_AndInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assertFieldNames("from test metadata _index, _id, _version | inline stats max(salary)", ALL_FIELDS);
     }
 
     public void testBasicEvalAndDrop() {
@@ -319,11 +312,11 @@ public class FieldNameUtilsTests extends ESTestCase {
             | LIMIT 0""", ALL_FIELDS);
     }
 
-    public void testLimitZero_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testLimitZero_WithInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             FROM employees
-            | INLINESTATS COUNT(*), MAX(salary) BY gender
+            | INLINE STATS COUNT(*), MAX(salary) BY gender
             | LIMIT 0""", ALL_FIELDS);
     }
 
@@ -334,12 +327,12 @@ public class FieldNameUtilsTests extends ESTestCase {
             | LIMIT 0""", ALL_FIELDS);
     }
 
-    public void testDocsDropHeight_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testDocsDropHeight_WithInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             FROM employees
             | DROP height
-            | INLINESTATS MAX(salary) BY gender
+            | INLINE STATS MAX(salary) BY gender
             | LIMIT 0""", ALL_FIELDS);
     }
 
@@ -350,11 +343,11 @@ public class FieldNameUtilsTests extends ESTestCase {
             | LIMIT 0""", ALL_FIELDS);
     }
 
-    public void testDocsDropHeightWithWildcard_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testDocsDropHeightWithWildcard_AndInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             FROM employees
-            | INLINESTATS MAX(salary) BY gender
+            | INLINE STATS MAX(salary) BY gender
             | DROP height*
             | LIMIT 0""", ALL_FIELDS);
     }
@@ -517,9 +510,9 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("from employees | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
-    public void testSortWithLimitOne_DropHeight_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
-        assertFieldNames("from employees | inlinestats avg(salary) by languages | sort languages | limit 1 | drop height*", ALL_FIELDS);
+    public void testSortWithLimitOne_DropHeight_WithInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assertFieldNames("from employees | inline stats avg(salary) by languages | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
     public void testDropAllColumns() {
@@ -817,9 +810,9 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("FROM apps metadata _id | WHERE _id == \"4\"", ALL_FIELDS);
     }
 
-    public void testFilterById_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
-        assertFieldNames("FROM apps metadata _id | INLINESTATS max(rate) | WHERE _id == \"4\"", ALL_FIELDS);
+    public void testFilterById_WithInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assertFieldNames("FROM apps metadata _id | INLINE STATS max(rate) | WHERE _id == \"4\"", ALL_FIELDS);
     }
 
     public void testKeepId() {
@@ -1288,11 +1281,11 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, ALL_FIELDS);
     }
 
-    public void testProjectDropPattern_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testProjectDropPattern_WithInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
-            | inlinestats max(foo) by bar
+            | inline stats max(foo) by bar
             | keep *
             | drop *_name
             """, ALL_FIELDS);
@@ -1371,11 +1364,11 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
-    public void testCountAllAndOtherStatGrouped_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testCountAllAndOtherStatGrouped_WithInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
-            | inlinestats c = count(*), min = min(emp_no) by languages
+            | inline stats c = count(*), min = min(emp_no) by languages
             | stats c = count(*), min = min(emp_no) by languages
             | sort languages
             """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
@@ -1410,12 +1403,12 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
-    public void testCountAllWithEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testCountAllWithEval_AndInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
-            | inlinestats max(salary) by l
+            | inline stats max(salary) by l
             | stats min = min(salary) by l
             | eval x = min + 1
             | stats ca = count(*), cx = count(x) by l
@@ -1423,12 +1416,12 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
-    public void testKeepAfterEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testKeepAfterEval_AndInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
-            | inlinestats max(salary) by l
+            | inline stats max(salary) by l
             | stats min = min(salary) by l
             | eval x = min + 1
             | keep x, l
@@ -1436,46 +1429,46 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
-    public void testKeepBeforeEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testKeepBeforeEval_AndInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
             | keep l, salary, emp_no
-            | inlinestats max(salary) by l
+            | inline stats max(salary) by l
             | eval x = `max(salary)` + 1
             | stats min = min(salary) by l
             | sort l
             """, Set.of("languages", "languages.*", "salary", "salary.*", "emp_no", "emp_no.*"));
     }
 
-    public void testStatsBeforeEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testStatsBeforeEval_AndInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
             | stats min = min(salary) by l
             | eval salary = min + 1
-            | inlinestats max(salary) by l
+            | inline stats max(salary) by l
             | sort l
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
-    public void testStatsBeforeInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testStatsBeforeInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
             | stats min = min(salary) by languages
-            | inlinestats max(min) by languages
+            | inline stats max(min) by languages
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
-    public void testKeepBeforeInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testKeepBeforeInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             from test
             | keep languages, salary
-            | inlinestats max(salary) by languages
+            | inline stats max(salary) by languages
             """, Set.of("languages", "languages.*", "salary", "salary.*"));
     }
 
@@ -1489,15 +1482,10 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        assertFieldNames(
-            """
-                from employees
-                | enrich languages_policy
-                | keep emp_no""",
-            enrichResolutionWith("language_name"),
-            Set.of("emp_no", "emp_no.*", "language_name", "language_name.*"),
-            Set.of()
-        );
+        assertFieldNames("""
+            from employees
+            | enrich languages_policy
+            | keep emp_no""", true, Set.of("*"), Set.of());
     }
 
     public void testDissectOverwriteName() {
@@ -1512,7 +1500,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127467">ES|QL: pruning of JOINs leads to missing fields</a>
       */
     public void testAvoidGrokAttributesRemoval() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from message_types
             | eval type = 1
@@ -1524,7 +1511,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testAvoidGrokAttributesRemoval2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from sample_data
             | dissect message "%{type}"
@@ -1536,7 +1522,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testAvoidGrokAttributesRemoval3() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from sample_data
             | grok message "%{WORD:type}"
@@ -1551,7 +1536,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval4() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from message_types
             | eval type = 1
@@ -1566,7 +1550,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval5() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data, employees
@@ -1601,16 +1584,11 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testEnrichOnDefaultField() {
         assertFieldNames("""
             from employees
-            | enrich languages_policy""", enrichResolutionWith("language_name"), ALL_FIELDS, Set.of());
+            | enrich languages_policy""", true, ALL_FIELDS, Set.of());
     }
 
     public void testMetrics() {
         var query = "TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
-        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
-            var e = expectThrows(ParsingException.class, () -> parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-            assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
-            return;
-        }
         assertFieldNames(
             query,
             Set.of(
@@ -1628,7 +1606,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
             Set.of("languages", "languages.*", "language_code", "language_code.*"),
@@ -1637,7 +1614,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLookupJoinKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1651,7 +1627,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLookupJoinKeepWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1665,7 +1640,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1678,7 +1652,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1692,7 +1665,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1717,7 +1689,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1744,7 +1715,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfterWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1758,7 +1728,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndex() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1772,7 +1741,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1787,7 +1755,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1813,7 +1780,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1988,7 +1954,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoins() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             FROM sample_data
             | EVAL client_ip = client_ip::keyword
@@ -1999,7 +1964,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoins2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             FROM sample_data
             | EVAL client_ip = client_ip::keyword
@@ -2011,7 +1975,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoinsAndKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2027,7 +1990,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoinKeepLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2043,7 +2005,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterKeepAndLookupJoins() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2059,7 +2020,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterKeepAndLookupJoins2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2242,8 +2202,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testRerankerAfterFuse() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2257,8 +2215,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSimpleFuse() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees METADATA _id, _index, _score
             | FORK ( WHERE emp_no:10001 )
@@ -2270,8 +2226,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithMatchAndScore() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2284,8 +2238,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithDisjunctionAndPostFilter() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2299,8 +2251,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithStats() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2312,8 +2262,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithMultipleForkBranches() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK (WHERE author:"Keith Faulkner" AND qstr("author:Rory or author:Beverlie") | SORT _score, _id DESC | LIMIT 3)
@@ -2329,8 +2277,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithSemanticSearch() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM semantic_text METADATA _id, _score, _index
             | FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
@@ -2516,8 +2462,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2544,8 +2488,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2572,8 +2514,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2845,39 +2785,36 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
-            | INLINESTATS max_lang = MAX(languages) BY gender
+            | INLINE STATS max_lang = MAX(languages) BY gender
             | SORT emp_no, gender, _fork
             | LIMIT 5""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
     }
 
     public void testForkBranchWithInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081
-            | INLINESTATS x = MAX(languages) BY gender)
+            | INLINE STATS x = MAX(languages) BY gender)
             (WHERE emp_no == 10081 OR emp_no == 10087
-            | INLINESTATS x = MIN(languages))
+            | INLINE STATS x = MIN(languages))
             (WHERE emp_no == 10012 OR emp_no == 10012)
             | SORT emp_no, gender, _fork""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
     }
 
     public void testForkAfterInlineStatsIgnore() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
-            | INLINESTATS max_lang = MAX(languages) BY gender
+            | INLINE STATS max_lang = MAX(languages) BY gender
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
             | SORT emp_no, gender, _fork""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
@@ -3054,26 +2991,16 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, Set<String> expected) {
-        assertFieldNames(query, new EnrichResolution(), expected, Set.of());
+        assertFieldNames(query, false, expected, Set.of());
     }
 
     private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
-        assertFieldNames(query, new EnrichResolution(), expected, wildCardIndices);
+        assertFieldNames(query, false, expected, wildCardIndices);
     }
 
-    private void assertFieldNames(String query, EnrichResolution enrichResolution, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichResolution);
+    private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), hasEnriches);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
-    }
-
-    private static EnrichResolution enrichResolutionWith(String enrichPolicyMatchField) {
-        var enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy(
-            "policy",
-            Enrich.Mode.ANY,
-            new ResolvedEnrichPolicy(enrichPolicyMatchField, null, List.of(), Map.of(), Map.of())
-        );
-        return enrichResolution;
     }
 }

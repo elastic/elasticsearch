@@ -52,12 +52,26 @@
           "pb"
         ]
       },
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
+      },
       "local": {
         "type": "boolean",
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout for connection to master node"
       },
       "h": {

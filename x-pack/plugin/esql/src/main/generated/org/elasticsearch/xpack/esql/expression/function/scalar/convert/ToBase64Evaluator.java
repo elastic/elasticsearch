@@ -80,8 +80,9 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
+        BytesRef field = fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch);
         try {
-          result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), this.oScratch));
+          result.appendBytesRef(ToBase64.process(field, this.oScratch));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -95,8 +96,9 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef field = fieldVector.getBytesRef(p, fieldScratch);
         try {
-          result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), this.oScratch));
+          result.appendBytesRef(ToBase64.process(field, this.oScratch));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

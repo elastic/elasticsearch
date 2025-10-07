@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
 
 /**
  * Remove unused columns created in the plan, in fields inside eval or aggregations inside stats.
@@ -49,7 +51,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
         // while going top-to-bottom (upstream)
         return plan.transformDown(p -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINESTATS. It is perfectly fine that
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
             // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
             // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
             // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
@@ -115,7 +117,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
                 Attribute attribute = Expressions.attribute(aggregate.groupings().getFirst());
                 NamedExpression firstAggregate = aggregate.aggregates().getFirst();
-                remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id()));
+                remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, attribute.id()));
                 p = aggregate.with(aggregate.groupings(), remaining);
             }
         } else {
@@ -193,9 +195,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan emptyLocalRelation(LogicalPlan plan) {
+    private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {
         // create an empty local relation with no attributes
-        return new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY);
+        return skipPlan(plan);
     }
 
     private static boolean isLocalEmptyRelation(LogicalPlan plan) {

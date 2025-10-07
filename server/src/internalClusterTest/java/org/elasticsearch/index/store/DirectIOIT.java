@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,6 +45,8 @@ import static org.hamcrest.Matchers.is;
 @ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class DirectIOIT extends ESIntegTestCase {
 
+    private static boolean SUPPORTED;
+
     @BeforeClass
     public static void checkSupported() {
         assumeTrue("Direct IO is not enabled", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
@@ -53,8 +54,9 @@ public class DirectIOIT extends ESIntegTestCase {
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");
+            SUPPORTED = true;
         } catch (IOException e) {
-            assumeNoException("test requires filesystem that supports Direct IO", e);
+            SUPPORTED = false;
         }
     }
 
@@ -112,30 +114,26 @@ public class DirectIOIT extends ESIntegTestCase {
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
     public void testDirectIOUsed() {
         try (MockLog mockLog = MockLog.capture(FsDirectoryFactory.class)) {
-            // we're just looking for some evidence direct IO is used
-            mockLog.addExpectation(
-                new MockLog.PatternSeenEventExpectation(
+            // we're just looking for some evidence direct IO is used (or not)
+            MockLog.LoggingExpectation expectation = SUPPORTED
+                ? new MockLog.PatternSeenEventExpectation(
                     "Direct IO used",
                     FsDirectoryFactory.class.getCanonicalName(),
                     Level.DEBUG,
                     "Opening .*\\.vec with direct IO"
                 )
-            );
+                : new MockLog.PatternSeenEventExpectation(
+                    "Direct IO not used",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Could not open .*\\.vec with direct IO"
+                );
+            mockLog.addExpectation(expectation);
 
             indexVectors();
 
             // do a search
-            var knn = List.of(
-                new KnnSearchBuilder(
-                    "fooVector",
-                    new VectorData(null, new byte[64]),
-                    10,
-                    20,
-                    IVF_FORMAT.isEnabled() ? 10f : null,
-                    null,
-                    null
-                )
-            );
+            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch("foo-vectors").setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }

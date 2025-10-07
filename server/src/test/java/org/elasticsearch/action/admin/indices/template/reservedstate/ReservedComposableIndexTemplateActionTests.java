@@ -963,7 +963,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                     withReservedState.reservedStateMetadata(projectId).values(),
                     ReservedComposableIndexTemplateAction.NAME,
                     modifiedKeys,
-                    pr.name()
+                    pr::name
                 )
             ).getMessage()
         );
@@ -979,7 +979,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             withReservedState.reservedStateMetadata(projectId).values(),
             ReservedComposableIndexTemplateAction.NAME,
             modifiedKeysOK,
-            prOK.name()
+            prOK::name
         );
     }
 

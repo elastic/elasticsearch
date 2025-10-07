@@ -74,7 +74,8 @@ public final class SignumLongEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Signum.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Signum.process(val));
       }
       return result.build();
     }
@@ -83,7 +84,8 @@ public final class SignumLongEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleVector eval(int positionCount, LongVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Signum.process(valVector.getLong(p)));
+        long val = valVector.getLong(p);
+        result.appendDouble(p, Signum.process(val));
       }
       return result.build();
     }

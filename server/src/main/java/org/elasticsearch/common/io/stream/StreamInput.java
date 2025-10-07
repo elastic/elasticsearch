@@ -203,6 +203,14 @@ public abstract class StreamInput extends InputStream {
         return readBytesRef(length);
     }
 
+    public @Nullable BytesRef readBytesRefOrNullIfEmpty() throws IOException {
+        int length = readArraySize();
+        if (length == 0) {
+            return null;
+        }
+        return readBytesRef(length);
+    }
+
     public BytesRef readBytesRef(int length) throws IOException {
         if (length == 0) {
             return new BytesRef();
@@ -841,7 +849,19 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     * Read an optional {@link Map} using the given key and value readers. The returned Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map or null if not present
+     */
+    public <K, V> Map<K, V> readOptionalImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        final boolean present = readBoolean();
+        return present ? readImmutableMap(keyReader, valueReader) : null;
+    }
+
+    /**
+     * Read a {@link Map} using the given key and value readers. The returned Map is immutable.
      *
      * @param keyReader Method to read a key. Must not return null.
      * @param valueReader Method to read a value. Must not return null.

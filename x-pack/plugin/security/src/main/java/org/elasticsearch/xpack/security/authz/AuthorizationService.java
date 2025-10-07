@@ -171,7 +171,7 @@ public class AuthorizationService {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, linkedProjectConfigService, resolver);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, linkedProjectConfigService, resolver, false);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);

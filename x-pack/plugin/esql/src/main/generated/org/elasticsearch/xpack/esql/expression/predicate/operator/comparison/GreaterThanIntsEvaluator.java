@@ -95,7 +95,9 @@ public final class GreaterThanIntsEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(GreaterThan.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+        int lhs = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
+        int rhs = rhsBlock.getInt(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(GreaterThan.processInts(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class GreaterThanIntsEvaluator implements EvalOperator.ExpressionEv
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, GreaterThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        int lhs = lhsVector.getInt(p);
+        int rhs = rhsVector.getInt(p);
+        result.appendBoolean(p, GreaterThan.processInts(lhs, rhs));
       }
       return result.build();
     }

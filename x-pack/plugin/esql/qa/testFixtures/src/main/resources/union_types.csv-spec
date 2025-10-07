@@ -375,7 +375,6 @@ count:long  |  client_ip:ip
 
 statsUnionAggInline
 required_capability: union_types
-required_capability: inlinestats
 
 FROM sample_data, sample_data_str
 | STATS
@@ -1398,11 +1397,11 @@ event_duration:long | _index:keyword       | ts:date                   | ts_str:
 ;
 
 multiIndexInlinestatsOfMultiTypedField
-required_capability: inlinestats_v11
+required_capability: inline_stats
 required_capability: fork_union_types
 // https://github.com/elastic/elasticsearch/issues/133973
 FROM apps, apps_short
-| INLINESTATS s = sum(id::integer)
+| INLINE STATS s = sum(id::integer)
 | SORT name, version
 | LIMIT 5
 ;

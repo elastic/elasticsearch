@@ -87,7 +87,8 @@ public final class RoundToLong5Evaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
-        result.appendLong(RoundToLong.process(fieldBlock.getLong(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1, this.p2, this.p3, this.p4));
+        long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
+        result.appendLong(RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }
@@ -96,7 +97,8 @@ public final class RoundToLong5Evaluator implements EvalOperator.ExpressionEvalu
   public LongVector eval(int positionCount, LongVector fieldVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, RoundToLong.process(fieldVector.getLong(p), this.p0, this.p1, this.p2, this.p3, this.p4));
+        long field = fieldVector.getLong(p);
+        result.appendLong(p, RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }

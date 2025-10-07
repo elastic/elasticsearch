@@ -41,6 +41,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
+        "idp_custom_saml_attributes_allow_list"
+    );
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH = IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST
+        .nextPatchVersion();
+
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
         doc.setDocId(randomAlphaOfLength(16));
@@ -97,12 +103,12 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
             ? TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersions.STORED_SCRIPT_CONTENT_LENGTH_90,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
+                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
             )
             : TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersions.V_8_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
+                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH)
             );
         final SamlServiceProviderDocument copy = copyWriteable(
             original,
@@ -189,7 +195,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
+            IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
             TransportVersion.current()
         );
         final SamlServiceProviderDocument read = copyWriteable(

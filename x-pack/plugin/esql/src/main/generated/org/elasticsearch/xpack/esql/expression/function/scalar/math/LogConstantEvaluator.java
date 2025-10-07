@@ -73,8 +73,9 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
           result.appendNull();
           continue position;
         }
+        double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log.process(valueBlock.getDouble(valueBlock.getFirstValueIndex(p))));
+          result.appendDouble(Log.process(value));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -87,8 +88,9 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleBlock eval(int positionCount, DoubleVector valueVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double value = valueVector.getDouble(p);
         try {
-          result.appendDouble(Log.process(valueVector.getDouble(p)));
+          result.appendDouble(Log.process(value));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

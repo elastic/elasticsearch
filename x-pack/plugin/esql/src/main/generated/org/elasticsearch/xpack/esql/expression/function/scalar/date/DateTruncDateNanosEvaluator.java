@@ -76,7 +76,8 @@ public final class DateTruncDateNanosEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateTrunc.processDateNanos(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), this.rounding));
+        long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
+        result.appendLong(DateTrunc.processDateNanos(fieldVal, this.rounding));
       }
       return result.build();
     }
@@ -85,7 +86,8 @@ public final class DateTruncDateNanosEvaluator implements EvalOperator.Expressio
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateTrunc.processDateNanos(fieldValVector.getLong(p), this.rounding));
+        long fieldVal = fieldValVector.getLong(p);
+        result.appendLong(p, DateTrunc.processDateNanos(fieldVal, this.rounding));
       }
       return result.build();
     }

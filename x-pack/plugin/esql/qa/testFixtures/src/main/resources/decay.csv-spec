@@ -104,18 +104,22 @@ decay_result:double
 intMultipleRows
 required_capability: decay_function
 
+// tag::decay[]
 FROM employees
 | EVAL decay_result = decay(salary, 0, 100000, {"offset": 5, "decay": 0.5, "type": "linear"})
-| KEEP decay_result
 | SORT decay_result DESC
+// end::decay[]
+| KEEP decay_result
 | LIMIT 5;
 
+// tag::decay-result[]
 decay_result:double
 0.873405
 0.8703
 0.870145
 0.867845
 0.86395
+// end::decay-result[]
 ;
 
 intOriginReference

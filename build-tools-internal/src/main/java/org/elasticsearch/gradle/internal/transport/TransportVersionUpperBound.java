@@ -23,7 +23,16 @@ record TransportVersionUpperBound(String name, String definitionName, TransportV
         int slashIndex = filename.lastIndexOf('/');
         String branch = filename.substring(slashIndex == -1 ? 0 : (slashIndex + 1), filename.length() - 4);
 
-        String[] parts = contents.split(",");
+        String idsLine = null;
+        String[] lines = contents.split(System.lineSeparator());
+        for (String line : lines) {
+            line = line.replaceAll("\\s+", "");
+            if (line.startsWith("#") == false) {
+                idsLine = line;
+                break;
+            }
+        }
+        String[] parts = idsLine.split(",");
         if (parts.length != 2) {
             throw new IllegalStateException("Invalid transport version upper bound file [" + file + "]: " + contents);
         }

@@ -75,14 +75,15 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();
 
             // append channels to the layout
-            if (aggregatorMode == AggregatorMode.FINAL) {
-                layout.append(aggregates);
-            } else {
+            if (aggregatorMode.isOutputPartial()) {
                 layout.append(aggregateMapper.mapNonGrouping(aggregates));
+            } else {
+                layout.append(aggregates);
             }
 
             // create the agg factories
             aggregatesToFactory(
+                aggregateExec,
                 aggregates,
                 aggregatorMode,
                 sourceLayout,
@@ -146,18 +147,19 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
             }
 
-            if (aggregatorMode == AggregatorMode.FINAL) {
+            if (aggregatorMode.isOutputPartial()) {
+                layout.append(aggregateMapper.mapGrouping(aggregates));
+            } else {
                 for (var agg : aggregates) {
                     if (Alias.unwrap(agg) instanceof AggregateFunction) {
                         layout.append(agg);
                     }
                 }
-            } else {
-                layout.append(aggregateMapper.mapGrouping(aggregates));
             }
 
             // create the agg factories
             aggregatesToFactory(
+                aggregateExec,
                 aggregates,
                 aggregatorMode,
                 sourceLayout,
@@ -247,7 +249,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, List<Integer> channels, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
-
+        AggregateExec aggregateExec,
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
         Layout layout,
@@ -264,7 +266,13 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 if (child instanceof AggregateFunction aggregateFunction) {
                     List<NamedExpression> sourceAttr = new ArrayList<>();
 
-                    if (mode == AggregatorMode.INITIAL) {
+                    if (mode.isInputPartial()) {
+                        if (grouping) {
+                            sourceAttr = aggregateMapper.mapGrouping(ne);
+                        } else {
+                            sourceAttr = aggregateMapper.mapNonGrouping(ne);
+                        }
+                    } else {
                         // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
                         Expression field = aggregateFunction.field();
                         // Only count can now support literals - all the other aggs should be optimized away
@@ -279,7 +287,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             }
                         } else {
                             // extra dependencies like TS ones (that require a timestamp)
-                            for (Expression input : aggregateFunction.aggregateInputReferences()) {
+                            for (Expression input : aggregateFunction.aggregateInputReferences(aggregateExec.child()::output)) {
                                 Attribute attr = Expressions.attribute(input);
                                 if (attr == null) {
                                     throw new EsqlIllegalArgumentException(
@@ -291,16 +299,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                                 sourceAttr.add(attr);
                             }
                         }
-                    }
-                    // coordinator/exchange phase
-                    else if (mode == AggregatorMode.FINAL || mode == AggregatorMode.INTERMEDIATE) {
-                        if (grouping) {
-                            sourceAttr = aggregateMapper.mapGrouping(ne);
-                        } else {
-                            sourceAttr = aggregateMapper.mapNonGrouping(ne);
-                        }
-                    } else {
-                        throw new EsqlIllegalArgumentException("illegal aggregation mode");
                     }
 
                     AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction);

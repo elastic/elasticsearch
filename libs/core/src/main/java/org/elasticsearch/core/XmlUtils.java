@@ -28,6 +28,9 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
+import javax.xml.xpath.XPathFactoryConfigurationException;
 
 public class XmlUtils {
 
@@ -126,14 +129,22 @@ public class XmlUtils {
     public static SAXParserFactory getHardenedSaxParserFactory() throws SAXNotSupportedException, SAXNotRecognizedException,
         ParserConfigurationException {
         var saxParserFactory = SAXParserFactory.newInstance();
-
         saxParserFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         saxParserFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
         saxParserFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
         saxParserFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
         saxParserFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-
         return saxParserFactory;
+    }
+
+    /**
+     * Constructs an XPath configured to be secure
+     */
+    @SuppressForbidden(reason = "This is the only allowed way to construct an XPath")
+    public static XPath getHardenedXPath() throws XPathFactoryConfigurationException {
+        XPathFactory xPathFactory = XPathFactory.newInstance();
+        xPathFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        return xPathFactory.newXPath();
     }
 
     private static class ErrorHandler implements org.xml.sax.ErrorHandler {

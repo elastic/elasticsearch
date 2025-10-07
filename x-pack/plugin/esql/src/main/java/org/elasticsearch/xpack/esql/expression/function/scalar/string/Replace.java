@@ -50,11 +50,13 @@ public class Replace extends EsqlScalarFunction {
         description = """
             The function substitutes in the string `str` any match of the regular expression `regex`
             with the replacement string `newStr`.""",
-        examples = @Example(
-            file = "docs",
-            tag = "replaceString",
-            description = "This example replaces any occurrence of the word \"World\" with the word \"Universe\":"
-        )
+        examples = {
+            @Example(
+                file = "string",
+                tag = "replaceString",
+                description = "This example replaces any occurrence of the word \"World\" with the word \"Universe\":"
+            ),
+            @Example(file = "string", tag = "replaceRegex", description = "This example removes all spaces:") }
     )
     public Replace(
         Source source,

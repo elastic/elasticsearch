@@ -74,7 +74,8 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Sqrt.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Sqrt.processUnsignedLong(val));
       }
       return result.build();
     }
@@ -83,7 +84,8 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   public DoubleVector eval(int positionCount, LongVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Sqrt.processUnsignedLong(valVector.getLong(p)));
+        long val = valVector.getLong(p);
+        result.appendDouble(p, Sqrt.processUnsignedLong(val));
       }
       return result.build();
     }

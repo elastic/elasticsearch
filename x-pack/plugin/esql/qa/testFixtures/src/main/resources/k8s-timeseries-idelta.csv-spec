@@ -113,7 +113,6 @@ avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offs
 
 idelta_multi_values
 required_capability: ts_command_v0
-required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:double | pod:keyword | time_bucket:datetime
@@ -132,7 +131,6 @@ null          | two         | 2024-05-10T00:07:00.000Z
 
 idelta_null_values
 required_capability: ts_command_v0
-required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:double | pod:keyword | time_bucket:datetime
@@ -152,7 +150,6 @@ null          | two         | 2024-05-10T00:13:00.000Z
 
 idelta_all_value_types
 required_capability: ts_command_v0
-required_capability: k8s_dataset_additional_fields
 // tag::idelta[]
 TS k8s 
 | STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute)

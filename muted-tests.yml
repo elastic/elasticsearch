@@ -461,6 +461,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
   method: testRollupIndex {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135906
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSystemIndexMetadataIsUpgraded {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135923
 
 # Examples:
 #

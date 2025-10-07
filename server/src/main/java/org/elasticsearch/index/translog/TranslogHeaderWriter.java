@@ -40,19 +40,14 @@ public final class TranslogHeaderWriter {
         int uidVIntLen = RecyclerBytesStreamOutput.vIntLength(uidLen);
         BytesRef page = buffer.tryGetPageForWrite(FIXED_INDEX_HEADER_SIZE + uidLen + uidVIntLen);
         if (page != null) {
-            writeFastIndexHeader(buffer, index, page, uidLen, uidVIntLen);
+            writeFastIndexHeader(buffer, index, page, uidVIntLen);
         } else {
             writeSlowIndexHeader(buffer, index);
         }
     }
 
-    private static void writeFastIndexHeader(
-        RecyclerBytesStreamOutput buffer,
-        Translog.Index index,
-        BytesRef page,
-        int uidLen,
-        int uidVIntLen
-    ) throws IOException {
+    private static void writeFastIndexHeader(RecyclerBytesStreamOutput buffer, Translog.Index index, BytesRef page, int uidVIntLen)
+        throws IOException {
         BytesRef uid = index.uid();
         String routing = index.routing();
 
@@ -67,7 +62,7 @@ public final class TranslogHeaderWriter {
         ByteUtils.writeLongBE(index.primaryTerm(), bytes, off + 30);
         StreamOutput.putVInt(bytes, uid.length, off + 38);
         System.arraycopy(uid.bytes, uid.offset, bytes, off + 38 + uidVIntLen, uid.length);
-        bytes[off + 38 + uidVIntLen + uidLen] = index.routing() == null ? (byte) 0 : (byte) 1;
+        bytes[off + 38 + uidVIntLen + uid.length] = index.routing() == null ? (byte) 0 : (byte) 1;
 
         long variableLengthStart = buffer.position();
         // Write variable length items in header
@@ -82,7 +77,8 @@ public final class TranslogHeaderWriter {
         buffer.writeVInt(sourceLength);
 
         int variableLengthSize = (int) (buffer.position() - variableLengthStart);
-        int sizeOfOperation = FIXED_INDEX_HEADER_SIZE - Integer.BYTES + variableLengthSize + sourceLength + Integer.BYTES;
+        int sizeOfOperation = FIXED_INDEX_HEADER_SIZE - Integer.BYTES + uidVIntLen + uid.length + variableLengthSize + sourceLength
+            + Integer.BYTES;
         ByteUtils.writeIntBE(sizeOfOperation, bytes, off);
     }
 
@@ -100,15 +96,19 @@ public final class TranslogHeaderWriter {
     }
 
     public static void writeDeleteHeader(RecyclerBytesStreamOutput buffer, Translog.Delete delete) throws IOException {
-        BytesRef page = buffer.tryGetPageForWrite(FIXED_DELETE_HEADER_SIZE);
+        int uidLen = delete.uid().length;
+        int uidVIntLen = RecyclerBytesStreamOutput.vIntLength(uidLen);
+        BytesRef page = buffer.tryGetPageForWrite(FIXED_DELETE_HEADER_SIZE + uidLen + uidVIntLen);
         if (page != null) {
-            writeFastDeleteHeader(buffer, delete, page);
+            writeFastDeleteHeader(delete, page, uidVIntLen);
         } else {
             writeSlowDeleteHeader(buffer, delete);
         }
     }
 
-    private static void writeFastDeleteHeader(RecyclerBytesStreamOutput buffer, Translog.Delete delete, BytesRef page) throws IOException {
+    private static void writeFastDeleteHeader(Translog.Delete delete, BytesRef page, int uidVIntLen) throws IOException {
+        BytesRef uid = delete.uid();
+
         int off = page.offset;
         byte[] bytes = page.bytes;
         bytes[off + 4] = Translog.Operation.Type.DELETE.id();
@@ -117,13 +117,10 @@ public final class TranslogHeaderWriter {
         ByteUtils.writeLongBE(delete.version(), bytes, off + 6);
         ByteUtils.writeLongBE(delete.seqNo(), bytes, off + 14);
         ByteUtils.writeLongBE(delete.primaryTerm(), bytes, off + 22);
+        StreamOutput.putVInt(bytes, uid.length, off + FIXED_DELETE_HEADER_SIZE);
+        System.arraycopy(uid.bytes, uid.offset, bytes, off + FIXED_DELETE_HEADER_SIZE + uidVIntLen, uid.length);
 
-        long variableLengthStart = buffer.position();
-        // Write variable length items in header
-        buffer.writeBytesRef(delete.uid());
-        int variableLengthSize = (int) (buffer.position() - variableLengthStart);
-        // The total operation size is the header size + 4 bytes for checksum
-        int sizeOfOperation = FIXED_DELETE_HEADER_SIZE - Integer.BYTES + variableLengthSize + Integer.BYTES;
+        int sizeOfOperation = FIXED_DELETE_HEADER_SIZE - Integer.BYTES + uidVIntLen + uid.length + Integer.BYTES;
         ByteUtils.writeIntBE(sizeOfOperation, bytes, off);
     }
 

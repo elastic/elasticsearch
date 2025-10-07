@@ -82,6 +82,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.node.LocalHealthMonitor;
+import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -650,6 +651,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
-        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
+        ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
+        ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
     );
 }

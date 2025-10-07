@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.core.Nullable;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -25,4 +27,28 @@ public @interface Param {
     String description() default "";
 
     boolean optional() default false;
+
+    @Nullable
+    AutocompleteHint autocompleteHint() default @AutocompleteHint(entityType = AutocompleteHint.ENTITY_TYPE.NONE);
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.PARAMETER)
+    @interface AutocompleteHint {
+        enum ENTITY_TYPE {
+            NONE,
+            INFERENCE_ENDPOINT,
+        }
+
+        ENTITY_TYPE entityType();
+
+        Constraint[] constraints() default {};
+
+        @Retention(RetentionPolicy.RUNTIME)
+        @Target(ElementType.PARAMETER)
+        @interface Constraint {
+            String name();
+
+            String value();
+        }
+    }
 }

@@ -48,17 +48,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         preview = true,
         examples = {
             @Example(
-                description = "Basic text embedding generation from a text string using an inference endpoint.",
-                file = "text-embedding",
-                tag = "text-embedding-eval"
-            ),
-            @Example(
-                description = "Generate text embeddings and store them in a variable for reuse in KNN vector search queries.",
-                file = "text-embedding",
-                tag = "text-embedding-knn"
-            ),
-            @Example(
-                description = "Directly embed text within a KNN query for streamlined vector search without intermediate variables.",
+                description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
                 file = "text-embedding",
                 tag = "text-embedding-knn-inline"
             ) }
@@ -75,7 +65,11 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
             type = { "keyword" },
             description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
                 + "The inference endpoint must have the `text_embedding` task type and should use the same model "
-                + "that was used to embed your indexed data."
+                + "that was used to embed your indexed data.",
+            autocompleteHint = @Param.AutocompleteHint(
+                entityType = Param.AutocompleteHint.ENTITY_TYPE.INFERENCE_ENDPOINT,
+                constraints = { @Param.AutocompleteHint.Constraint(name = "task_type", value = "text_embedding") }
+            )
         ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));
@@ -109,7 +103,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @Override
     public DataType dataType() {
-        return inputText.dataType() == DataType.NULL ? DataType.NULL : DataType.DENSE_VECTOR;
+        return DataType.DENSE_VECTOR;
     }
 
     @Override

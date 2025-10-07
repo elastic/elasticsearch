@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -243,9 +242,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 static boolean isExpectedFailure(Exception e) {
                     return e instanceof NotMasterException
-                        || e instanceof FailedToCommitClusterStateException
-                            && e.getCause() instanceof EsRejectedExecutionException esre
-                            && esre.isExecutorShutdown();
+                        && e.getCause() instanceof EsRejectedExecutionException esre
+                        && esre.isExecutorShutdown();
                 }
 
             });

@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -239,8 +240,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
-        XContentParser.Token token;
-        String currentFieldName = null;
+        XContentParser.Token token = parser.nextToken();;
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token + "]");
+        }
+
+        String currentFieldName = parser.currentName();
+        fieldName = currentFieldName;
+        FieldNameValidator.ensureQualified(fieldName, parser);
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

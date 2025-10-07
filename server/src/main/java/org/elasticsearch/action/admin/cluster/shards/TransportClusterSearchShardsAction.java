@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.shard.ShardId;
@@ -110,18 +109,17 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         }
 
         Set<String> nodeIds = new HashSet<>();
-        List<SearchShardRouting> groupShardRouting = clusterService.operationRouting()
+        List<SearchShardRouting> groupShardsIterator = clusterService.operationRouting()
             .searchShards(project, concreteIndices, routingMap, request.preference());
         ShardRouting shard;
-        ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardRouting.size()];
+        ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];
         int currentGroup = 0;
-        for (SearchShardRouting shardRouting : groupShardRouting) {
-            ShardIterator shardIterator = shardRouting.iterator();
-            ShardId shardId = shardIterator.shardId();
-            ShardRouting[] shardRoutings = new ShardRouting[shardIterator.size()];
+        for (SearchShardRouting shardIt : groupShardsIterator) {
+            ShardId shardId = shardIt.shardId();
+            ShardRouting[] shardRoutings = new ShardRouting[shardIt.size()];
             int currentShard = 0;
-            shardIterator.reset();
-            while ((shard = shardIterator.nextOrNull()) != null) {
+            shardIt.reset();
+            while ((shard = shardIt.nextOrNull()) != null) {
                 shardRoutings[currentShard++] = shard;
                 nodeIds.add(shard.currentNodeId());
             }

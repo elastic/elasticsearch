@@ -552,7 +552,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 searchShardsResponses
                             );
                             final Map<String, AliasFilter> remoteAliasFilters;
-                            final List<SearchShardIterator> remoteShardIterators;
+                            final List<org.elasticsearch.action.search.SearchShardIterator> remoteShardIterators;
                             if (searchContext != null) {
                                 remoteAliasFilters = searchContext.aliasFilter();
                                 remoteShardIterators = getRemoteShardsIteratorFromPointInTime(
@@ -1221,15 +1221,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Produce a list of {@link SearchShardIterator}s from the set of responses from remote clusters.
+     * Produce a list of {@link org.elasticsearch.action.search.SearchShardIterator}s from the set of responses from remote clusters.
      * Used for ccs_minimize_roundtrips=false.
      */
-    static List<SearchShardIterator> getRemoteShardsIterator(
+    static List<org.elasticsearch.action.search.SearchShardIterator> getRemoteShardsIterator(
         Map<String, SearchShardsResponse> searchShardsResponses,
         Map<String, OriginalIndices> remoteIndicesByCluster,
         Map<String, AliasFilter> aliasFilterMap
     ) {
-        final List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
+        final List<org.elasticsearch.action.search.SearchShardIterator> remoteShardIterators = new ArrayList<>();
         for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
             for (SearchShardsGroup searchShardsGroup : entry.getValue().getGroups()) {
                 // add the cluster name to the remote index names for indices disambiguation
@@ -1241,7 +1241,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String[] finalIndices = aliases.length == 0 ? new String[] { shardId.getIndexName() } : aliases;
                 final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
-                SearchShardIterator shardIterator = new SearchShardIterator(
+                org.elasticsearch.action.search.SearchShardIterator shardIterator = new org.elasticsearch.action.search.SearchShardIterator(
                     clusterAlias,
                     shardId,
                     searchShardsGroup.allocatedNodes(),
@@ -1260,13 +1260,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return remoteShardIterators;
     }
 
-    static List<SearchShardIterator> getRemoteShardsIteratorFromPointInTime(
+    static List<org.elasticsearch.action.search.SearchShardIterator> getRemoteShardsIteratorFromPointInTime(
         Map<String, SearchShardsResponse> searchShardsResponses,
         SearchContextId searchContextId,
         TimeValue searchContextKeepAlive,
         Map<String, OriginalIndices> remoteClusterIndices
     ) {
-        final List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
+        final List<org.elasticsearch.action.search.SearchShardIterator> remoteShardIterators = new ArrayList<>();
         for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
             for (SearchShardsGroup group : entry.getValue().getGroups()) {
                 final ShardId shardId = group.shardId();
@@ -1297,7 +1297,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     new String[] { shardId.getIndexName() },
                     remoteClusterIndices.get(clusterAlias).indicesOptions()
                 );
-                SearchShardIterator shardIterator = new SearchShardIterator(
+                org.elasticsearch.action.search.SearchShardIterator shardIterator = new org.elasticsearch.action.search.SearchShardIterator(
                     clusterAlias,
                     shardId,
                     targetNodes,
@@ -1364,7 +1364,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider,
         SearchRequest searchRequest,
         ResolvedIndices resolvedIndices,
-        List<SearchShardIterator> remoteShardIterators,
+        List<org.elasticsearch.action.search.SearchShardIterator> remoteShardIterators,
         BiFunction<String, String, DiscoveryNode> remoteConnections,
         ProjectState projectState,
         Map<String, AliasFilter> remoteAliasMap,
@@ -1379,7 +1379,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
-        final List<SearchShardIterator> localShardIterators;
+        final List<org.elasticsearch.action.search.SearchShardIterator> localShardIterators;
         final Map<String, AliasFilter> aliasFilter;
 
         final String[] concreteLocalIndices;
@@ -1435,7 +1435,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             }
         }
-        final List<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
+        final List<org.elasticsearch.action.search.SearchShardIterator> shardIterators = mergeShardsIterators(
+            localShardIterators,
+            remoteShardIterators
+        );
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -1569,17 +1572,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     // package private for testing
-    static List<SearchShardIterator> mergeShardsIterators(
-        List<SearchShardIterator> localShardIterators,
-        List<SearchShardIterator> remoteShardIterators
+    static List<org.elasticsearch.action.search.SearchShardIterator> mergeShardsIterators(
+        List<org.elasticsearch.action.search.SearchShardIterator> localShardIterators,
+        List<org.elasticsearch.action.search.SearchShardIterator> remoteShardIterators
     ) {
-        final List<SearchShardIterator> shards;
+        final List<org.elasticsearch.action.search.SearchShardIterator> shards;
         if (remoteShardIterators.isEmpty()) {
             shards = localShardIterators;
         } else {
             shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
         }
-        shards.sort(SearchShardIterator::compareTo);
+        shards.sort(org.elasticsearch.action.search.SearchShardIterator::compareTo);
         return shards;
     }
 
@@ -1588,7 +1591,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchTask task,
             SearchRequest searchRequest,
             Executor executor,
-            List<SearchShardIterator> shardIterators,
+            List<org.elasticsearch.action.search.SearchShardIterator> shardIterators,
             SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -1612,7 +1615,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchTask task,
             SearchRequest searchRequest,
             Executor executor,
-            List<SearchShardIterator> shardIterators,
+            List<org.elasticsearch.action.search.SearchShardIterator> shardIterators,
             SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -1939,7 +1942,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
     }
 
-    static List<SearchShardIterator> getLocalShardsIteratorFromPointInTime(
+    static List<org.elasticsearch.action.search.SearchShardIterator> getLocalShardsIteratorFromPointInTime(
         ProjectState projectState,
         IndicesOptions indicesOptions,
         String localClusterAlias,
@@ -1947,7 +1950,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         TimeValue keepAlive,
         boolean allowPartialSearchResults
     ) {
-        final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
+        final List<org.elasticsearch.action.search.SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
             final SearchContextIdForNode perNode = entry.getValue();
             if (Strings.isEmpty(perNode.getClusterAlias())) {
@@ -1982,7 +1985,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);
                 iterators.add(
-                    new SearchShardIterator(
+                    new org.elasticsearch.action.search.SearchShardIterator(
                         localClusterAlias,
                         shardId,
                         targetNodes,
@@ -2008,10 +2011,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Create a list of {@link SearchShardIterator}s for the local indices we are searching.
+     * Create a list of {@link org.elasticsearch.action.search.SearchShardIterator}s for the local indices we are searching.
      * This resolves aliases and index expressions.
      */
-    List<SearchShardIterator> getLocalShardsIterator(
+    List<org.elasticsearch.action.search.SearchShardIterator> getLocalShardsIterator(
         ProjectState projectState,
         SearchRequest searchRequest,
         String clusterAlias,
@@ -2024,7 +2027,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.routing(),
             searchRequest.indices()
         );
-        List<SearchShardRouting> searchShards = clusterService.operationRouting()
+        List<SearchShardRouting> shardRoutings = clusterService.operationRouting()
             .searchShards(
                 projectState,
                 concreteIndices,
@@ -2039,19 +2042,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteIndices,
             searchRequest.indicesOptions()
         );
-        SearchShardIterator[] list = new SearchShardIterator[searchShards.size()];
+        SearchShardIterator[] list = new SearchShardIterator[shardRoutings.size()];
         int i = 0;
-        for (SearchShardRouting shardInfo : searchShards) {
-            ShardIterator iterator = shardInfo.iterator();
-            final ShardId shardId = iterator.shardId();
+        for (SearchShardRouting shardRouting : shardRoutings) {
+            final ShardId shardId = shardRouting.shardId();
             OriginalIndices finalIndices = originalIndices.get(shardId.getIndex().getName());
             assert finalIndices != null;
             list[i++] = new SearchShardIterator(
                 clusterAlias,
                 shardId,
-                iterator.getShardRoutings(),
+                shardRouting.getShardRoutings(),
                 finalIndices,
-                shardInfo.reshardSplitShardCountSummary()
+                shardRouting.reshardSplitShardCountSummary()
             );
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here

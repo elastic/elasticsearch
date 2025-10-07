@@ -386,34 +386,34 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        List<SearchShardRouting> searchShards = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
-        assertThat(searchShards.size(), equalTo(1));
-        assertThat(searchShards.iterator().next().iterator().shardId().id(), equalTo(0));
+        List<SearchShardRouting> shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
+        assertThat(shardIterators.size(), equalTo(1));
+        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
 
-        searchShards = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:1");
-        assertThat(searchShards.size(), equalTo(1));
-        assertThat(searchShards.iterator().next().iterator().shardId().id(), equalTo(1));
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:1");
+        assertThat(shardIterators.size(), equalTo(1));
+        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(1));
 
         // check node preference, first without preference to see they switch
-        searchShards = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|");
-        assertThat(searchShards.size(), equalTo(1));
-        assertThat(searchShards.iterator().next().iterator().shardId().id(), equalTo(0));
-        String firstRoundNodeId = searchShards.iterator().next().iterator().nextOrNull().currentNodeId();
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|");
+        assertThat(shardIterators.size(), equalTo(1));
+        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
+        String firstRoundNodeId = shardIterators.iterator().next().nextOrNull().currentNodeId();
 
-        searchShards = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
-        assertThat(searchShards.size(), equalTo(1));
-        assertThat(searchShards.iterator().next().iterator().shardId().id(), equalTo(0));
-        assertThat(searchShards.iterator().next().iterator().nextOrNull().currentNodeId(), not(equalTo(firstRoundNodeId)));
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0");
+        assertThat(shardIterators.size(), equalTo(1));
+        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
+        assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), not(equalTo(firstRoundNodeId)));
 
-        searchShards = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1");
-        assertThat(searchShards.size(), equalTo(1));
-        assertThat(searchShards.iterator().next().iterator().shardId().id(), equalTo(0));
-        assertThat(searchShards.iterator().next().iterator().nextOrNull().currentNodeId(), equalTo("node1"));
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1");
+        assertThat(shardIterators.size(), equalTo(1));
+        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
+        assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
 
-        searchShards = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1,node2");
-        assertThat(searchShards.size(), equalTo(1));
-        Iterator<SearchShardRouting> iterator = searchShards.iterator();
-        final ShardIterator it = iterator.next().iterator();
+        shardIterators = operationRouting.searchShards(project, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1,node2");
+        assertThat(shardIterators.size(), equalTo(1));
+        Iterator<SearchShardRouting> iterator = shardIterators.iterator();
+        final ShardIterator it = iterator.next();
         assertThat(it.shardId().id(), equalTo(0));
         final String firstNodeId = it.nextOrNull().currentNodeId();
         assertThat(firstNodeId, anyOf(equalTo("node1"), equalTo("node2")));

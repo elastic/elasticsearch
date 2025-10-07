@@ -219,19 +219,21 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     }
 
     @Override
-    protected List<ShardIterator> shards(ClusterState clusterState, AnalyzeIndexDiskUsageRequest request, String[] concreteIndices) {
+    protected List<? extends ShardIterator> shards(
+        ClusterState clusterState,
+        AnalyzeIndexDiskUsageRequest request,
+        String[] concreteIndices
+    ) {
         ProjectState project = projectResolver.getProjectState(clusterState);
         final List<SearchShardRouting> groups = clusterService.operationRouting().searchShards(project, concreteIndices, null, null);
 
-        var shardIterators = new ArrayList<ShardIterator>(groups.size());
-        for (SearchShardRouting group : groups) {
+        for (ShardIterator group : groups) {
             // fails fast if any non-active groups
-            if (group.iterator().size() == 0) {
-                throw new NoShardAvailableActionException(group.iterator().shardId());
+            if (group.size() == 0) {
+                throw new NoShardAvailableActionException(group.shardId());
             }
-            shardIterators.add(group.iterator());
         }
-        return shardIterators;
+        return groups;
     }
 
     @Override

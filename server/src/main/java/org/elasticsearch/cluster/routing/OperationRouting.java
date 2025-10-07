@@ -108,7 +108,12 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                res.add(new SearchShardRouting(ShardIterator.allSearchableShards(iterator), targetShard.reshardSplitShardCountSummary()));
+                res.add(
+                    SearchShardRouting.fromShardIterator(
+                        ShardIterator.allSearchableShards(iterator),
+                        targetShard.reshardSplitShardCountSummary()
+                    )
+                );
             }
         }
         res.sort(SearchShardRouting::compareTo);

@@ -76,8 +76,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
             return operationRouting.searchShards(project, new String[] { request.concreteIndex() }, null, request.request().preference())
-                .getFirst()
-                .iterator();
+                .getFirst();
         }
 
         ShardIterator iterator = clusterService.operationRouting()

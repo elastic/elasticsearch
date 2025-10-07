@@ -232,13 +232,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
         var projectState = projectResolver.getProjectState(clusterState);
-        List<SearchShardRouting> shards = clusterService.operationRouting()
+        List<SearchShardRouting> shardIterators = clusterService.operationRouting()
             .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
-        if (shards.size() != 1) {
+        if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
             return;
         }
-        ShardIterator shardIt = shards.get(0).iterator();
+        ShardIterator shardIt = shardIterators.get(0);
         ShardRouting shardRouting = shardIt.nextOrNull();
         ShardId shardId = shardIt.shardId();
         if (shardRouting == null) {

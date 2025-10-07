@@ -9,11 +9,27 @@
 
 package org.elasticsearch.cluster.routing;
 
-public record SearchShardRouting(ShardIterator iterator, SplitShardCountSummary reshardSplitShardCountSummary)
-    implements
-        Comparable<SearchShardRouting> {
-    @Override
-    public int compareTo(SearchShardRouting o) {
-        return iterator.compareTo(o.iterator);
+import org.elasticsearch.index.shard.ShardId;
+
+import java.util.List;
+
+/**
+ * Contains an iterator of shards for a given {@link ShardId shard id} and additional routing-related metadata needed to
+ * execute searches on these shards.
+ */
+public final class SearchShardRouting extends ShardIterator {
+    private final SplitShardCountSummary reshardSplitShardCountSummary;
+
+    public SearchShardRouting(ShardId shardId, List<ShardRouting> shards, SplitShardCountSummary reshardSplitShardCountSummary) {
+        super(shardId, shards);
+        this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
+    }
+
+    public SplitShardCountSummary reshardSplitShardCountSummary() {
+        return reshardSplitShardCountSummary;
+    }
+
+    public static SearchShardRouting fromShardIterator(ShardIterator shardIterator, SplitShardCountSummary reshardSplitShardCountSummary) {
+        return new SearchShardRouting(shardIterator.shardId(), shardIterator.getShardRoutings(), reshardSplitShardCountSummary);
     }
 }

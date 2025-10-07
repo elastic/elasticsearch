@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -210,9 +211,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
             List<SearchShardRouting> shards = clusterService.operationRouting().searchShards(project, singleIndex, null, null);
 
-            for (SearchShardRouting copiesOfShard : shards) {
+            for (ShardIterator copiesOfShard : shards) {
                 ShardRouting selectedCopyOfShard = null;
-                for (ShardRouting copy : copiesOfShard.iterator()) {
+                for (ShardRouting copy : copiesOfShard) {
                     // Pick the first active node with a copy of the shard
                     if (copy.active() && copy.assignedToNode()) {
                         selectedCopyOfShard = copy;

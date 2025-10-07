@@ -106,16 +106,16 @@ public final class RequestDispatcher {
         ProjectState project = projectResolver.getProjectState(clusterState);
 
         for (String index : indices) {
-            final List<SearchShardRouting> searchShards;
+            final List<SearchShardRouting> shardIts;
             try {
-                searchShards = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
+                shardIts = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
             } catch (Exception e) {
                 onIndexFailure.accept(index, e);
                 continue;
             }
             final IndexSelector indexResult = new IndexSelector(
                 fieldCapsRequest.clusterAlias(),
-                searchShards,
+                shardIts,
                 fieldCapsRequest.indexFilter(),
                 nowInMillis,
                 coordinatorRewriteContextProvider
@@ -271,15 +271,14 @@ public final class RequestDispatcher {
 
         IndexSelector(
             String clusterAlias,
-            List<SearchShardRouting> searchShards,
+            List<SearchShardRouting> shardIts,
             QueryBuilder indexFilter,
             long nowInMillis,
             CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
         ) {
-            for (SearchShardRouting routing : searchShards) {
+            for (ShardIterator shardIt : shardIts) {
                 boolean canMatch = true;
-                ShardIterator iterator = routing.iterator();
-                final ShardId shardId = iterator.shardId();
+                final ShardId shardId = shardIt.shardId();
                 if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
                     var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
                     if (coordinatorRewriteContext != null) {
@@ -293,7 +292,7 @@ public final class RequestDispatcher {
                     }
                 }
                 if (canMatch) {
-                    for (ShardRouting shard : iterator) {
+                    for (ShardRouting shard : shardIt) {
                         nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
                     }
                 } else {

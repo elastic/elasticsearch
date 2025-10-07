@@ -2,13 +2,13 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.approximate;
 
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ConfidenceInterval}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConfidenceIntervalDoubleEvaluator.class);
+public final class ConfidenceIntervalLongEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConfidenceIntervalLongEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
 
   private Warnings warnings;
 
-  public ConfidenceIntervalDoubleEvaluator(Source source,
+  public ConfidenceIntervalLongEvaluator(Source source,
       EvalOperator.ExpressionEvaluator bestEstimateBlock,
       EvalOperator.ExpressionEvaluator estimatesBlock, DriverContext driverContext) {
     this.source = source;
@@ -44,8 +44,8 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
 
   @Override
   public Block eval(Page page) {
-    try (DoubleBlock bestEstimateBlockBlock = (DoubleBlock) bestEstimateBlock.eval(page)) {
-      try (DoubleBlock estimatesBlockBlock = (DoubleBlock) estimatesBlock.eval(page)) {
+    try (LongBlock bestEstimateBlockBlock = (LongBlock) bestEstimateBlock.eval(page)) {
+      try (LongBlock estimatesBlockBlock = (LongBlock) estimatesBlock.eval(page)) {
         return eval(page.getPositionCount(), bestEstimateBlockBlock, estimatesBlockBlock);
       }
     }
@@ -59,9 +59,9 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
     return baseRamBytesUsed;
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock bestEstimateBlockBlock,
-      DoubleBlock estimatesBlockBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongBlock bestEstimateBlockBlock,
+      LongBlock estimatesBlockBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!bestEstimateBlockBlock.isNull(p)) {
@@ -82,7 +82,7 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
 
   @Override
   public String toString() {
-    return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
+    return "ConfidenceIntervalLongEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
   }
 
   @Override
@@ -117,13 +117,13 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
     }
 
     @Override
-    public ConfidenceIntervalDoubleEvaluator get(DriverContext context) {
-      return new ConfidenceIntervalDoubleEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), context);
+    public ConfidenceIntervalLongEvaluator get(DriverContext context) {
+      return new ConfidenceIntervalLongEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
+      return "ConfidenceIntervalLongEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
     }
   }
 }

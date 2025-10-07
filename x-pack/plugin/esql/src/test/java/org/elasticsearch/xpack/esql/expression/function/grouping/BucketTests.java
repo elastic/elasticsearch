@@ -351,6 +351,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
             arg.description(),
             false,
             arg.variadic(),
+            null,
             arg.targetDataType()
         );
     }

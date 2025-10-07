@@ -53,6 +53,7 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
 
     @Before
     public void configureChunks() throws IOException {
+        assumeTrue("test clusters were broken", testClustersOk);
         boolean smallChunks = randomBoolean();
         Request request = new Request("PUT", "/_cluster/settings");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject().startObject("persistent");

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -187,34 +188,11 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-
-            if (condition instanceof Score) {
-                failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
-            }
-
-            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                // Check for limitations of QSTR and KQL function.
-                checkCommandsBeforeExpression(
-                    plan,
-                    condition,
-                    functionClass,
-                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                    failures
-                );
-            });
-
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                FullTextFunction.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
-            checkFullTextFunctionsParents(condition, failures);
+            checkFullTextQueryFunctionForCondition(plan, failures, condition);
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
+        } else if (plan instanceof LookupJoin lookupJoin) {
+            checkFullTextQueryFunctionForCondition(plan, failures, lookupJoin.config().joinOnConditions());
         } else {
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> {
@@ -235,6 +213,37 @@ public abstract class FullTextFunction extends Function
                 }
             });
         }
+    }
+
+    private static void checkFullTextQueryFunctionForCondition(LogicalPlan plan, Failures failures, Expression condition) {
+        if (condition == null) {
+            return;
+        }
+        if (condition instanceof Score) {
+            failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
+        }
+
+        List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+            // Check for limitations of QSTR and KQL function.
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                functionClass,
+                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                failures
+            );
+        });
+
+        checkCommandsBeforeExpression(
+            plan,
+            condition,
+            FullTextFunction.class,
+            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+            m -> "[" + m.functionName() + "] " + m.functionType(),
+            failures
+        );
+        checkFullTextFunctionsParents(condition, failures);
     }
 
     private static void checkScoreFunction(LogicalPlan plan, Failures failures, Score scoreFunction) {
@@ -358,7 +367,9 @@ public abstract class FullTextFunction extends Function
         } else {
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
-                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
+                if (p instanceof EsRelation esRelation
+                    && esRelation.indexMode() != IndexMode.STANDARD
+                    && esRelation.indexMode() != IndexMode.LOOKUP) {
                     // Check if this EsRelation supplies the field
                     if (esRelation.outputSet().contains(fieldAttribute)) {
                         failures.add(

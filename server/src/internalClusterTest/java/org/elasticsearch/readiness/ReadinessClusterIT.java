@@ -105,7 +105,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         plugins.add(MockReadinessService.TestPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
-    
+
     public void testReadinessDuringRestarts() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         writeFileSettings(testJSON);

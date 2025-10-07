@@ -94,7 +94,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
-            super(NAME, IndexType.DOC_VALUES_ONLY, false, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), false, Collections.emptyMap());
         }
 
         @Override
@@ -163,7 +163,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        assert fieldType().indexType() == IndexType.DOC_VALUES_ONLY;
+        assert fieldType().indexType().hasOnlyDocValues();
 
         final BytesRef timeSeriesId;
         final RoutingPathFields routingPathFields;

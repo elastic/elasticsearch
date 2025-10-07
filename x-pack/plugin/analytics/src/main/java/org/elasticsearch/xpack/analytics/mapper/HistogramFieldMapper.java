@@ -141,7 +141,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
-            super(name, IndexType.DOC_VALUES_ONLY, false, meta);
+            super(name, IndexType.docValuesOnly(), false, meta);
         }
 
         @Override

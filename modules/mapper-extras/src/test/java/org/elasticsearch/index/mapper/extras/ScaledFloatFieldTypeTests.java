@@ -89,7 +89,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // searching doubles that are rounded to the closest half float
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
             "scaled_float",
-            randomBoolean() ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+            IndexType.points(true, randomBoolean()),
             false,
             Collections.emptyMap(),
             0.1 + randomDouble() * 100,

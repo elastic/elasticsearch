@@ -594,7 +594,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         for (String v : values) {
             BytesRef bytes = new BytesRef(v);
             doc.add(new SortedSetDocValuesField(ft.name(), bytes));
-            if (IndexType.hasTerms(ft.indexType())) {
+            if (ft.indexType().hasTerms()) {
                 doc.add(new KeywordField(ft.name(), bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
             }
         }
@@ -820,12 +820,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private List<IndexableField> doc(MappedFieldType ft1, MappedFieldType ft2, String f1v1, String f1v2, String f2v) {
         FieldType fieldType1 = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        if (IndexType.hasTerms(ft1.indexType()) == false) {
+        if (ft1.indexType().hasTerms() == false) {
             fieldType1.setIndexOptions(IndexOptions.NONE);
         }
         fieldType1.freeze();
         FieldType fieldType2 = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        if (IndexType.hasTerms(ft2.indexType()) == false) {
+        if (ft2.indexType().hasTerms() == false) {
             fieldType2.setIndexOptions(IndexOptions.NONE);
         }
         fieldType2.freeze();
@@ -947,7 +947,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             } else {
                 result.add(new SortedDocValuesField("field", new BytesRef(val)));
             }
-            if (IndexType.hasTerms(fieldType.indexType())) {
+            if (fieldType.indexType().hasTerms()) {
                 result.add(new StringField("field", new BytesRef(val), Field.Store.NO));
             }
             return result;
@@ -1329,7 +1329,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         boolean indexed = randomBoolean();
         MappedFieldType fieldType = new IpFieldMapper.IpFieldType(
             "field",
-            indexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+            IndexType.points(indexed, true),
             false,
             null,
             null,

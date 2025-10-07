@@ -244,12 +244,12 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = CircleUtils.createRegularShapePolygon(circle, numSides);
 
-        Query sameShapeQuery = XYQueriesUtils.toXYShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, IndexType.POINTS);
+        Query sameShapeQuery = XYQueriesUtils.toXYShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, IndexType.points(true, true));
         Query centerPointQuery = XYQueriesUtils.toXYShapeQuery(
             new Point(circle.getLon(), circle.getLat()),
             fieldName,
             ShapeRelation.INTERSECTS,
-            IndexType.POINTS
+            IndexType.points(true, true)
         );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

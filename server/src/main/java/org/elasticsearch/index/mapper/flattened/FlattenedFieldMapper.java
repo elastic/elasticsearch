@@ -295,7 +295,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
             this(
                 rootName,
-                IndexType.hasTerms(ref.indexType()),
+                ref.indexType().hasTerms(),
                 ref.hasDocValues(),
                 key,
                 ref.splitQueriesOnWhitespace,

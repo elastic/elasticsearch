@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -215,7 +214,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.indexType() == IndexType.DOC_VALUES_ONLY && (innerHits != null && innerHits.isEmpty() == false)) {
+        if (fieldType.indexType().hasIndex() == false && (innerHits != null && innerHits.isEmpty() == false)) {
             throw new IllegalArgumentException(
                 "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
             );

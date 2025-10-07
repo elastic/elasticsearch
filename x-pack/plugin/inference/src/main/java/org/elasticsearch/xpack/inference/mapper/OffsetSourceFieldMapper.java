@@ -133,7 +133,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         private final CharsetFormat charset;
 
         public OffsetSourceFieldType(String name, CharsetFormat charset, Map<String, String> meta) {
-            super(name, IndexType.TERMS_WITHOUT_DOC_VALUES, false, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.charset = charset;
         }
 

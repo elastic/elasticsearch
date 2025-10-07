@@ -282,7 +282,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private final IgnoreAbove ignoreAbove;
 
         private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
-            super(name, IndexType.TERMS, false, meta);
+            super(name, IndexType.terms(true, true), false, meta);
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {

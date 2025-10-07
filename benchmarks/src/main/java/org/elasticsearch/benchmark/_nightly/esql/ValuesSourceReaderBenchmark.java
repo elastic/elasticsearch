@@ -291,7 +291,7 @@ public class ValuesSourceReaderBenchmark {
         return new NumberFieldMapper.NumberFieldType(
             w.name,
             numberType,
-            docValues ? IndexType.POINTS : IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, docValues),
             stored,
             true,
             null,

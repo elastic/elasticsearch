@@ -226,7 +226,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 context.buildFullName(leafName()),
-                IndexType.points(indexed.get(), hasDocValues.get(), false),
+                IndexType.points(indexed.get(), hasDocValues.get()),
                 stored.getValue(),
                 parsedNullValue(),
                 meta.getValue(),
@@ -293,7 +293,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, IndexType.POINTS, false, null, Collections.emptyMap(), false, null, null, false);
+            this(name, IndexType.points(true, true), false, null, Collections.emptyMap(), false, null, null, false);
         }
 
         @Override
@@ -489,7 +489,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                boolean indexed = IndexType.hasPoints(indexType);
+                boolean indexed = indexType.hasPoints();
                 return (cache, breakerService) -> {
                     final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                         name(),
@@ -561,7 +561,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (IndexType.hasPoints(indexType)) {
+            if (indexType.hasPoints()) {
                 // convert from the shifted value back to the original value
                 return (value) -> convertUnsignedLongToDouble(LongPoint.decodeDimension(value, 0));
             }

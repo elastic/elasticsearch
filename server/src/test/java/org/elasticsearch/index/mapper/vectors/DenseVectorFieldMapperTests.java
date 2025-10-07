@@ -1463,7 +1463,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
-        assertThat(fieldType.indexType(), equalTo(indexed ? IndexType.VECTOR : IndexType.NONE));
+        if (indexed) {
+            assertTrue(fieldType.indexType().hasVectors());
+        } else {
+            assertThat(fieldType.indexType(), equalTo(IndexType.NONE));
+        }
         assertEquals(fieldType.isSearchable(), indexed);
     }
 
@@ -2147,7 +2151,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
-        assertThat(denseVectorFieldType.indexType(), equalTo(IndexType.DOC_VALUES_ONLY));
+        assertTrue(denseVectorFieldType.indexType().hasOnlyDocValues());
         assertNull(denseVectorFieldType.getSimilarity());
     }
 
@@ -2158,7 +2162,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
-        assertThat(denseVectorFieldType.indexType(), equalTo(IndexType.VECTOR));
+        assertTrue(denseVectorFieldType.indexType().hasVectors());
         assertEquals(VectorSimilarity.DOT_PRODUCT, denseVectorFieldType.getSimilarity());
     }
 
@@ -2167,7 +2171,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
-        assertThat(denseVectorFieldType.indexType(), equalTo(IndexType.VECTOR));
+        assertTrue(denseVectorFieldType.indexType().hasVectors());
         assertEquals(VectorSimilarity.COSINE, denseVectorFieldType.getSimilarity());
     }
 

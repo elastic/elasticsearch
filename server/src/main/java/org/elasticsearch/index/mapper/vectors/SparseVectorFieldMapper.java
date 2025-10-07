@@ -225,7 +225,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             @Nullable SparseVectorIndexOptions indexOptions
         ) {
-            super(name, IndexType.VECTOR, isStored, meta);
+            super(name, IndexType.vectors(), isStored, meta);
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
         }

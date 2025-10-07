@@ -427,7 +427,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             LegacyGeoShapeParser parser,
             Map<String, String> meta
         ) {
-            super(name, indexed ? IndexType.TERMS_WITHOUT_DOC_VALUES : IndexType.NONE, false, parser, orientation, meta);
+            super(name, IndexType.terms(indexed, false), false, parser, orientation, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 

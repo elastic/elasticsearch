@@ -132,8 +132,8 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.POINTS_WITHOUT_DOC_VALUES);
-                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.DOC_VALUES_ONLY);
+                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false));
+                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly());
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -174,8 +174,8 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.POINTS_WITHOUT_DOC_VALUES);
-                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.DOC_VALUES_ONLY);
+                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false));
+                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly());
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }

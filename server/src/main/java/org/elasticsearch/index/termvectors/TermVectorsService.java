@@ -31,7 +31,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -184,7 +183,7 @@ public class TermVectorsService {
             return false;
         }
         // and must be indexed
-        if (IndexType.hasTerms(fieldType.indexType()) == false) {
+        if (fieldType.indexType().hasTerms() == false) {
             return false;
         }
         // and must not be the nested path field

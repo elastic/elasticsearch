@@ -308,7 +308,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         }
 
         public AggregateMetricDoubleFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, IndexType.POINTS, false, meta);
+            super(name, IndexType.points(true, true), false, meta);
             this.metricType = metricType;
         }
 

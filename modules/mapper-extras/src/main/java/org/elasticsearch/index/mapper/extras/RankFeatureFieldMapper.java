@@ -114,7 +114,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         private final Float nullValue;
 
         public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact, Float nullValue) {
-            super(name, IndexType.TERMS_WITHOUT_DOC_VALUES, false, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.positiveScoreImpact = positiveScoreImpact;
             this.nullValue = nullValue;
         }

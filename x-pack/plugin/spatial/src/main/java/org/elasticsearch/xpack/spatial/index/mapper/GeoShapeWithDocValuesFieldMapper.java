@@ -232,7 +232,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues, false), isStored, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
             this.isSyntheticSource = isSyntheticSource;
@@ -264,7 +264,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 );
             }
             Query query;
-            if (IndexType.hasPoints(indexType)) {
+            if (indexType.hasPoints()) {
                 query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
                 if (hasDocValues()) {
                     final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
@@ -401,7 +401,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         );
         this.builder = builder;
         this.indexer = indexer;
-        this.indexed = IndexType.hasPoints(mappedFieldType.indexType());
+        this.indexed = mappedFieldType.indexType().hasPoints();
     }
 
     @Override

@@ -91,7 +91,7 @@ public class ScriptScoreBenchmark {
             new NumberFieldType(
                 "n",
                 NumberType.LONG,
-                IndexType.DOC_VALUES_ONLY,
+                IndexType.docValuesOnly(),
                 false,
                 true,
                 null,

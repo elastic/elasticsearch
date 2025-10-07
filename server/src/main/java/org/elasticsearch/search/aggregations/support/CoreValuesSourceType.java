@@ -28,7 +28,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
@@ -301,7 +300,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
-                    if (fieldContext.fieldType().indexType() == IndexType.POINTS) {
+                    if (fieldContext.fieldType().indexType().hasPoints()) {
                         log.trace("Attempting to apply index bound date rounding");
                         /*
                          * We can't look up the min and max date without both the
@@ -320,7 +319,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
-                        if (fieldContext.fieldType().indexType() == IndexType.POINTS) {
+                        if (fieldContext.fieldType().indexType().hasPoints()) {
                             PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
                             if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
                                 isMultiValue = true;

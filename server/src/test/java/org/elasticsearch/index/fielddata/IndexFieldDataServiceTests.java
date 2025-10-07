@@ -321,7 +321,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.NumberFieldType(
                 "field",
                 LONG,
-                IndexType.POINTS_WITHOUT_DOC_VALUES,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
@@ -341,7 +341,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberType.DOUBLE,
-                IndexType.POINTS_WITHOUT_DOC_VALUES,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,

@@ -15,7 +15,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -145,7 +144,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
-        if (fieldType == null || (missingBucket && afterValue == null) || IndexType.supportsSortShortcuts(fieldType.indexType()) == false ||
+        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.indexType().supportsSortShortcuts() == false ||
         // inverse of the natural order
             reverseMul == -1) {
             return false;

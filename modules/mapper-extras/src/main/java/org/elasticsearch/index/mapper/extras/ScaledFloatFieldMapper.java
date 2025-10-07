@@ -220,7 +220,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
-            IndexType indexType = IndexType.points(indexed.get(), hasDocValues.get(), false);
+            IndexType indexType = IndexType.points(indexed.get(), hasDocValues.get());
             ScaledFloatFieldType type = new ScaledFloatFieldType(
                 context.buildFullName(leafName()),
                 indexType,
@@ -298,18 +298,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
-            this(
-                name,
-                indexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
-                false,
-                Collections.emptyMap(),
-                scalingFactor,
-                null,
-                null,
-                null,
-                false,
-                false
-            );
+            this(name, IndexType.points(indexed, true), false, Collections.emptyMap(), scalingFactor, null, null, null, false, false);
         }
 
         public double getScalingFactor() {
@@ -328,7 +317,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return IndexType.hasPoints(indexType) || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
         }
 
         @Override
@@ -340,13 +329,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType() == IndexType.POINTS);
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType().hasPoints());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (IndexType.hasPoints(indexType)) {
+            if (indexType.hasPoints()) {
                 List<Long> scaledValues = new ArrayList<>(values.size());
                 for (Object value : values) {
                     long scaledValue = Math.round(scale(value));
@@ -383,16 +372,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(
-                name(),
-                lo,
-                hi,
-                true,
-                true,
-                hasDocValues(),
-                context,
-                IndexType.hasPoints(indexType)
-            );
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, indexType.hasPoints());
         }
 
         @Override
@@ -497,7 +477,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
                         },
-                        IndexType.hasPoints(indexType)
+                        indexType.hasPoints()
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };

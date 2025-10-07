@@ -352,7 +352,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }));
         var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.indexType(), equalTo(IndexType.DOC_VALUES_ONLY));
+        assertThat(ft.indexType(), equalTo(IndexType.docValuesOnly()));
     }
 
     @Override

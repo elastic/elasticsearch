@@ -369,7 +369,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testRangeFilter() throws IOException {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(
             "test",
-            IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -826,7 +826,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testComplexUnionDisabledFilterByFilter() throws IOException {
         MappedFieldType dft = new DateFieldMapper.DateFieldType(
             "date",
-            IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1216,7 +1216,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggs() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1301,7 +1301,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggsManyDocs() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1372,7 +1372,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggsManyFilters() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

@@ -341,7 +341,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertEquals("field", termQuery.getTerm().text());
             assertNoDocValuesField(fields, "field");
             IndexType indexType = fieldType.indexType();
-            if (IndexType.hasPoints(indexType) || IndexType.hasTerms(indexType) || fieldType.isStored()) {
+            if (indexType.hasPoints() || indexType.hasTerms() || fieldType.isStored()) {
                 assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
             } else {
                 assertNoFieldNamesField(fields);

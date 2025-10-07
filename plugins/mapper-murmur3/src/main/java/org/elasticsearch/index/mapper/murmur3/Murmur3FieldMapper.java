@@ -69,7 +69,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     public static class Murmur3FieldType extends MappedFieldType {
 
         private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
-            super(name, IndexType.DOC_VALUES_ONLY, isStored, meta);
+            super(name, IndexType.docValuesOnly(), isStored, meta);
         }
 
         @Override

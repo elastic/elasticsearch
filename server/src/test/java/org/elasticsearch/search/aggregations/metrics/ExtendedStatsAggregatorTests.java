@@ -60,7 +60,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         DateFormatter.forPattern("epoch_millis");
         final MappedFieldType ft = new DateFieldMapper.DateFieldType(
             "field",
-            IndexType.POINTS,
+            IndexType.points(true, true),
             false,
             true,
             DateFormatter.forPattern("epoch_millis"),

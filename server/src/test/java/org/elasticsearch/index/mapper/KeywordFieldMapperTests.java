@@ -879,7 +879,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+        assertTrue(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeWithSkipDocValues_LogsDbMode() throws IOException {
@@ -896,10 +896,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.SPARSE));
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -916,7 +915,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+        assertTrue(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -933,7 +932,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("hostname");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+        assertTrue(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -953,10 +952,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(mapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.SPARSE));
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -976,10 +974,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(mapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.SPARSE));
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -999,10 +996,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(mapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.SPARSE));
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -1019,7 +1015,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertThat(mapper.fieldType().indexType(), equalTo(IndexType.TERMS));
+        assertTrue(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -1040,10 +1036,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(mapper.fieldType().hasDocValues());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.SPARSE));
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
-            assertThat(mapper.fieldType().indexType(), equalTo(IndexType.DOC_VALUES_ONLY));
+            assertTrue(mapper.fieldType().indexType().hasOnlyDocValues());
         }
     }
 

@@ -204,7 +204,9 @@ public class IpFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP
             );
-            IndexType indexType = IndexType.points(indexed.get(), hasDocValues.get(), indexCreatedVersion.isLegacyIndexVersion());
+            IndexType indexType = indexCreatedVersion.isLegacyIndexVersion()
+                ? IndexType.archivedPoints()
+                : IndexType.points(indexed.get(), hasDocValues.get());
             return new IpFieldMapper(
                 leafName(),
                 new IpFieldType(
@@ -254,7 +256,7 @@ public class IpFieldMapper extends FieldMapper {
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
-            this.isIndexed = IndexType.hasPoints(indexType);
+            this.isIndexed = indexType.hasPoints();
         }
 
         public IpFieldType(String name) {
@@ -266,7 +268,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         public IpFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, IndexType.points(isIndexed, hasDocValues, false), false, null, null, Collections.emptyMap(), false, false);
+            this(name, IndexType.points(isIndexed, hasDocValues), false, null, null, Collections.emptyMap(), false, false);
         }
 
         @Override
@@ -276,7 +278,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed || hasDocValues() || indexType == IndexType.POINTS_METADATA;
+            return isIndexed || hasDocValues() || indexType.hasPointsMetadata();
         }
 
         @Override

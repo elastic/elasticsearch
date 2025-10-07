@@ -1174,7 +1174,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return BlockSourceReader.lookupMatchingAll();
             }
 
-            if (IndexType.hasTerms(indexType) && getTextSearchInfo().hasNorms()) {
+            if (indexType.hasTerms() && getTextSearchInfo().hasNorms()) {
                 return BlockSourceReader.lookupFromNorms(name());
             } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();

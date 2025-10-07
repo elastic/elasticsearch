@@ -303,7 +303,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 new NumberFieldMapper.NumberFieldType(
                     NUMBER_FIELD_NAME,
                     NumberType.INTEGER,
-                    randomBoolean() ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+                    IndexType.points(true, randomBoolean()),
                     randomBoolean(),
                     false,
                     null,
@@ -321,7 +321,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldMillisecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            randomBoolean() ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+            IndexType.points(true, randomBoolean()),
             randomBoolean(),
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
@@ -350,7 +350,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            IndexType.POINTS,
+            IndexType.points(true, true),
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
@@ -380,7 +380,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testMissingDateWithDateNanosField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            IndexType.POINTS,
+            IndexType.points(true, true),
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
@@ -684,7 +684,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
-            randomBoolean() ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+            IndexType.points(true, randomBoolean()),
             randomBoolean(),
             false,
             null,

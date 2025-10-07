@@ -155,7 +155,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues, false), false, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, meta);
             this.isSyntheticSource = isSyntheticSource;
         }
 
@@ -257,7 +257,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         if (geometry == null) {
             return;
         }
-        boolean indexed = IndexType.hasPoints(fieldType().indexType());
+        boolean indexed = fieldType().indexType().hasPoints();
         List<IndexableField> fields = indexer.indexShape(geometry);
         if (indexed) {
             context.doc().addAll(fields);

@@ -539,7 +539,7 @@ public final class MappingLookup {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateMappedFieldType) {
             IndexType indexType = dateMappedFieldType.indexType();
-            return indexType == IndexType.POINTS || indexType == IndexType.SPARSE;
+            return indexType.hasPoints() || indexType.hasDocValuesSkipper();
         } else {
             return false;
         }

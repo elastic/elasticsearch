@@ -145,7 +145,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
-                IndexType.POINTS_WITHOUT_DOC_VALUES,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
@@ -163,7 +163,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
-                IndexType.DOC_VALUES_ONLY,
+                IndexType.docValuesOnly(),
                 false,
                 false,
                 null,
@@ -214,7 +214,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", IndexType.POINTS, false, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", IndexType.points(true, true), false, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "some_type";

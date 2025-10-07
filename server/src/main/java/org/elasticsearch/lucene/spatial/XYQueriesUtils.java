@@ -40,8 +40,8 @@ public class XYQueriesUtils {
      *  using just that one.
      * */
     public static Query toXYPointQuery(Geometry geometry, String fieldName, ShapeRelation relation, IndexType indexType) {
-        boolean indexed = IndexType.hasPoints(indexType);
-        boolean hasDocValues = IndexType.hasDocValues(indexType);
+        boolean indexed = indexType.hasPoints();
+        boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
         final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
         // XYPointField only supports intersects query so we build all the relationships using that logic.
@@ -289,8 +289,8 @@ public class XYQueriesUtils {
     /** Generates a lucene query for a field that has been previously indexed using {@link XYShape}.It expects
      * either {code indexed} or {@code has docValues} to be true or both to be true. */
     public static Query toXYShapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, IndexType indexType) {
-        boolean indexed = IndexType.hasPoints(indexType);
-        boolean hasDocValues = IndexType.hasDocValues(indexType);
+        boolean indexed = indexType.hasPoints();
+        boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
         if (geometry == null || geometry.isEmpty()) {
             return new MatchNoDocsQuery();

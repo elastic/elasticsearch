@@ -119,7 +119,7 @@ public abstract class MappedFieldType {
     }
 
     public boolean hasDocValues() {
-        return IndexType.hasDocValues(indexType);
+        return indexType.hasDocValues();
     }
 
     /**
@@ -390,7 +390,7 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues() || (IndexType.hasTerms(indexType) && getTextSearchInfo().hasNorms())) {
+        if (hasDocValues() || (indexType.hasTerms() && getTextSearchInfo().hasNorms())) {
             return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
@@ -478,21 +478,21 @@ public abstract class MappedFieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (indexType == IndexType.NONE || indexType == IndexType.DOC_VALUES_ONLY) {
+        if (indexType.hasOnlyDocValues() || indexType == IndexType.NONE) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
     }
 
     protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
-        if (IndexType.hasDocValues(indexType) == false && context.indexVersionCreated().isLegacyIndexVersion()) {
+        if (indexType.hasDocValues() == false && context.indexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalArgumentException(
                 "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
             );
         } else if (indexType == IndexType.NONE) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
-        } else if (indexType == IndexType.DOC_VALUES_ONLY && context.allowExpensiveQueries() == false) {
+        } else if (indexType.hasOnlyDocValues() && context.allowExpensiveQueries() == false) {
             // if query can only run using doc values, ensure running expensive queries are allowed
             throw new ElasticsearchException(
                 "Cannot search on field ["

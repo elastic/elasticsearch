@@ -162,7 +162,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     @Override
     protected void index(DocumentParserContext context, CartesianPoint point) {
-        final boolean indexed = IndexType.hasPoints(fieldType().indexType());
+        final boolean indexed = fieldType().indexType().hasPoints();
         final boolean hasDocValues = fieldType().hasDocValues();
         final boolean store = fieldType().isStored();
         if (indexed && hasDocValues) {
@@ -205,7 +205,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues, false), stored, parser, nullValue, meta);
+            super(name, IndexType.points(indexed, hasDocValues), stored, parser, nullValue, meta);
             this.isSyntheticSource = isSyntheticSource;
         }
 

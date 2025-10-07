@@ -674,7 +674,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType dateFieldType(String name) {
         return new DateFieldMapper.DateFieldType(
             name,
-            IndexType.POINTS,
+            IndexType.points(true, true),
             false,
             true,
             DateFormatter.forPattern("strict_date_optional_time"),

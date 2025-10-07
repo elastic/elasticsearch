@@ -12,118 +12,156 @@ package org.elasticsearch.index.mapper;
 /**
  * What type of index structure is available for this field
  */
-public enum IndexType {
+public class IndexType {
 
-    /**
-     * An inverted index of terms with doc values
-     */
-    TERMS,
+    private final boolean hasTerms;
+    private final boolean hasPoints;
+    private final boolean hasPointsMetadata;
+    private final boolean hasVectors;
+    private final boolean hasDocValues;
+    private final boolean hasDocValuesSkipper;
 
-    /**
-     * An inverted index of terms without doc values
-     */
-    TERMS_WITHOUT_DOC_VALUES,
-
-    /**
-     * A BKD-tree with doc values
-     */
-    POINTS,
-
-    /**
-     * A BKD-tree without doc values
-     */
-    POINTS_WITHOUT_DOC_VALUES,
-
-    /**
-     * Archive indexes: BKD metadata reconstructed from doc values, but no actual BKD tree
-     */
-    POINTS_METADATA,
-
-    /**
-     * A sparse index over doc-values
-     */
-    SPARSE,
-
-    /**
-     * A knn vector tree
-     */
-    VECTOR,
-
-    /**
-     * Doc values but no index structures
-     */
-    DOC_VALUES_ONLY,
-
-    /**
-     * No index structures are stored for this field
-     */
-    NONE;
+    private IndexType(
+        boolean hasTerms,
+        boolean hasPoints,
+        boolean hasPointsMetadata,
+        boolean hasVectors,
+        boolean hasDocValues,
+        boolean hasDocValuesSkipper
+    ) {
+        this.hasTerms = hasTerms;
+        this.hasPoints = hasPoints;
+        this.hasPointsMetadata = hasPointsMetadata;
+        this.hasVectors = hasVectors;
+        this.hasDocValues = hasDocValues;
+        this.hasDocValuesSkipper = hasDocValuesSkipper;
+    }
 
     /**
      * @return {@code true} if this IndexType has a Points index
      */
-    public static boolean hasPoints(IndexType type) {
-        return type == POINTS || type == POINTS_WITHOUT_DOC_VALUES;
+    public boolean hasPoints() {
+        return hasPoints;
     }
 
     /**
      * @return {@code true} if this IndexType has Points metadata
      */
-    public static boolean hasPointsMetadata(IndexType type) {
-        return type == POINTS_METADATA || hasPoints(type);
+    public boolean hasPointsMetadata() {
+        return hasPointsMetadata;
     }
 
     /**
      * @return {@code true} if this IndexType has an inverted index
      */
-    public static boolean hasTerms(IndexType type) {
-        return type == TERMS || type == TERMS_WITHOUT_DOC_VALUES;
+    public boolean hasTerms() {
+        return hasTerms;
+    }
+
+    /**
+     * @return {@code true} if this IndexType has a vector index
+     */
+    public boolean hasVectors() {
+        return hasVectors;
     }
 
     /**
      * @return {@code true} if this IndexType has doc values
      */
-    public static boolean hasDocValues(IndexType type) {
-        return type == POINTS || type == POINTS_METADATA || type == TERMS || type == SPARSE || type == DOC_VALUES_ONLY;
+    public boolean hasDocValues() {
+        return hasDocValues;
+    }
+
+    /**
+     * @return {@code true} if this IndexType has a doc values skipper
+     */
+    public boolean hasDocValuesSkipper() {
+        return hasDocValuesSkipper;
+    }
+
+    /**
+     * @return {@code true} if this IndexType has doc values but no index
+     */
+    public boolean hasOnlyDocValues() {
+        return hasDocValues && hasIndex() == false;
     }
 
     /**
      * @return {@code true} if this IndexType has any index structure at all
      */
-    public static boolean isIndexed(IndexType type) {
-        return hasPoints(type) || hasTerms(type) || type == VECTOR;
+    public boolean hasIndex() {
+        return hasPoints || hasTerms || hasVectors;
     }
 
     /**
      * @return {@code true} if this IndexType has index structures that support sort-based early termination
      */
-    public static boolean supportsSortShortcuts(IndexType type) {
-        return hasTerms(type) || hasPoints(type);
+    public boolean supportsSortShortcuts() {
+        return hasTerms || hasPoints;
     }
+
+    /**
+     * An IndexType with no index structures or doc values
+     */
+    public static final IndexType NONE = new IndexType(false, false, false, false, false, false);
 
     /**
      * @return an inverted-index based IndexType
      */
     public static IndexType terms(boolean isIndexed, boolean hasDocValues) {
         if (isIndexed && hasDocValues) {
-            return IndexType.TERMS;
+            return new IndexType(true, false, false, false, true, false);
         }
         if (isIndexed) {
-            return IndexType.TERMS_WITHOUT_DOC_VALUES;
+            return new IndexType(true, false, false, false, false, false);
         }
-        return hasDocValues ? IndexType.DOC_VALUES_ONLY : IndexType.NONE;
+        if (hasDocValues) {
+            return new IndexType(false, false, false, false, true, false);
+        }
+        return NONE;
+    }
+
+    /**
+     * @return an IndexType with docValuesSkippers
+     */
+    public static IndexType skippers() {
+        return new IndexType(false, false, false, false, true, true);
     }
 
     /**
      * @return a point-based IndexType
      */
-    public static IndexType points(boolean isIndexed, boolean hasDocValues, boolean archive) {
+    public static IndexType points(boolean isIndexed, boolean hasDocValues) {
         if (isIndexed && hasDocValues) {
-            return archive ? IndexType.POINTS_METADATA : IndexType.POINTS;
+            return new IndexType(false, true, true, false, true, false);
         }
         if (isIndexed) {
-            return IndexType.POINTS_WITHOUT_DOC_VALUES;
+            return new IndexType(false, true, true, false, false, false);
         }
-        return hasDocValues ? IndexType.DOC_VALUES_ONLY : IndexType.NONE;
+        if (hasDocValues) {
+            return new IndexType(false, false, false, false, true, false);
+        }
+        return NONE;
+    }
+
+    /**
+     * @return an IndexType representing archive data, with points metadata extracted from doc values
+     */
+    public static IndexType archivedPoints() {
+        return new IndexType(false, false, true, false, true, false);
+    }
+
+    /**
+     * @return an IndexType with doc values but no index
+     */
+    public static IndexType docValuesOnly() {
+        return new IndexType(false, false, false, false, true, false);
+    }
+
+    /**
+     * @return an IndexType with a vector index
+     */
+    public static IndexType vectors() {
+        return new IndexType(false, false, false, true, true, false);
     }
 }

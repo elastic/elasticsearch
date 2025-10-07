@@ -89,7 +89,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQueryDateMillisDocValueSkipper() throws IOException {
         DateFieldType ft = new DateFieldType(
             "my_date",
-            IndexType.SPARSE,
+            IndexType.skippers(),
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
@@ -103,7 +103,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQueryDateNanosDocValueSkipper() throws IOException {
         DateFieldType ft = new DateFieldType(
             "my_date",
-            IndexType.SPARSE,
+            IndexType.skippers(),
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.NANOSECONDS,
@@ -120,7 +120,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         LuceneDocument doc = new LuceneDocument();
         Field field;
-        if (ft.indexType == IndexType.SPARSE) {
+        if (ft.indexType.hasDocValuesSkipper()) {
             field = SortedNumericDocValuesField.indexedField("my_date", ft.parse("2015-10-12"));
         } else {
             field = new LongPoint("my_date", ft.parse("2015-10-12"));
@@ -538,7 +538,17 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static DateFieldType fieldType(Resolution resolution, String format, String nullValue) {
         DateFormatter formatter = DateFormatter.forPattern(format);
-        return new DateFieldType("field", IndexType.POINTS, false, true, formatter, resolution, nullValue, null, Collections.emptyMap());
+        return new DateFieldType(
+            "field",
+            IndexType.points(true, true),
+            false,
+            true,
+            formatter,
+            resolution,
+            nullValue,
+            null,
+            Collections.emptyMap()
+        );
     }
 
     public void testFetchSourceValue() throws IOException {

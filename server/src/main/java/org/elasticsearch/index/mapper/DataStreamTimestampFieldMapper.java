@@ -140,7 +140,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
         IndexType indexType = dateFieldMapper.fieldType().indexType();
-        if (IndexType.hasPoints(indexType) == false && indexType != IndexType.SPARSE) {
+        if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {

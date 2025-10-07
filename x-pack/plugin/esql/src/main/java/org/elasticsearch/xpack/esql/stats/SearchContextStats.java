@@ -22,7 +22,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -112,7 +111,7 @@ public class SearchContextStats implements SearchStats {
                     mixedFieldType = true;
                 }
                 exists |= true;
-                indexed &= IndexType.isIndexed(type.indexType());
+                indexed &= type.indexType().hasIndex();
                 hasDocValues &= type.hasDocValues();
                 hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {

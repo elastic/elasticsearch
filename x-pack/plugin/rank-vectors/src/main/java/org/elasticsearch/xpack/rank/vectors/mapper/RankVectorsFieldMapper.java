@@ -173,7 +173,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
-            super(name, IndexType.DOC_VALUES_ONLY, false, meta);
+            super(name, IndexType.docValuesOnly(), false, meta);
             this.element = Element.getElement(elementType);
             this.dims = dims;
             this.licenseState = licenseState;

@@ -134,7 +134,7 @@ public class SliceBuilderTests extends ESTestCase {
         String fieldName,
         DocValuesType dvType
     ) {
-        IndexType indexType = dvType == null ? IndexType.NONE : IndexType.DOC_VALUES_ONLY;
+        IndexType indexType = IndexType.terms(false, dvType != null);
         MappedFieldType fieldType = new MappedFieldType(fieldName, indexType, false, Collections.emptyMap()) {
 
             @Override

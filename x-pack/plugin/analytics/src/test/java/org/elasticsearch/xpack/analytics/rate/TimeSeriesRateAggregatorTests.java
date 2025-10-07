@@ -202,7 +202,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         return new NumberFieldMapper.NumberFieldType(
             name,
             NumberFieldMapper.NumberType.LONG,
-            IndexType.POINTS,
+            IndexType.points(true, true),
             false,
             false,
             null,
@@ -218,7 +218,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType timeStampField() {
         return new DateFieldMapper.DateFieldType(
             "@timestamp",
-            IndexType.POINTS,
+            IndexType.points(true, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

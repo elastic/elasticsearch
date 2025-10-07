@@ -228,7 +228,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     static class ExponentialHistogramFieldType extends MappedFieldType {
 
         ExponentialHistogramFieldType(String name, Map<String, String> meta) {
-            super(name, IndexType.DOC_VALUES_ONLY, false, meta);
+            super(name, IndexType.docValuesOnly(), false, meta);
         }
 
         @Override

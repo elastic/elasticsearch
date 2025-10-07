@@ -108,7 +108,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             super(
                 name,
                 NumberFieldMapper.NumberType.INTEGER,
-                IndexType.points(isSearchable, hasDocValues, false),
+                IndexType.points(isSearchable, hasDocValues),
                 isStored,
                 false,
                 nullValue,

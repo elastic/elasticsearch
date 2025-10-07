@@ -419,9 +419,7 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
-        @Override
-        public DateFieldMapper build(MapperBuilderContext context) {
-            final String fullFieldName = context.buildFullName(leafName());
+        private IndexType indexType(String fullFieldName) {
             boolean hasDocValuesSkipper = shouldUseDocValuesSkipper(
                 indexCreatedVersion,
                 useDocValuesSkipper,
@@ -430,9 +428,19 @@ public final class DateFieldMapper extends FieldMapper {
                 indexSortConfig,
                 fullFieldName
             );
-            IndexType indexType = hasDocValuesSkipper
-                ? IndexType.SPARSE
-                : IndexType.points(index.get(), docValues.get(), indexCreatedVersion.isLegacyIndexVersion());
+            if (hasDocValuesSkipper) {
+                return IndexType.skippers();
+            }
+            if (indexCreatedVersion.isLegacyIndexVersion()) {
+                return IndexType.archivedPoints();
+            }
+            return IndexType.points(index.get(), docValues.get());
+        }
+
+        @Override
+        public DateFieldMapper build(MapperBuilderContext context) {
+            final String fullFieldName = context.buildFullName(leafName());
+            IndexType indexType = indexType(fullFieldName);
             DateFieldType ft = new DateFieldType(
                 fullFieldName,
                 indexType,
@@ -462,7 +470,7 @@ public final class DateFieldMapper extends FieldMapper {
                 context.isSourceSynthetic(),
                 indexMode,
                 indexSortConfig,
-                hasDocValuesSkipper,
+                indexType.hasDocValuesSkipper(),
                 this
             );
         }
@@ -540,13 +548,22 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public DateFieldType(String name) {
-            this(name, IndexType.POINTS, false, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(
+                name,
+                IndexType.points(true, true),
+                false,
+                DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            );
         }
 
         public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
             this(
                 name,
-                isIndexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+                IndexType.points(isIndexed, true),
                 false,
                 DEFAULT_DATE_TIME_FORMATTER,
                 resolution,
@@ -561,15 +578,15 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, IndexType.POINTS, false, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, IndexType.POINTS, false, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
-            this(name, IndexType.POINTS, false, dateFormatter, resolution, null, null, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, dateFormatter, resolution, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -595,7 +612,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public boolean hasDocValuesSkipper() {
-            return indexType == IndexType.SPARSE;
+            return indexType.hasDocValuesSkipper();
         }
 
         @Override
@@ -663,7 +680,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return IndexType.hasPoints(indexType()) || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
         }
 
         @Override
@@ -699,7 +716,7 @@ public final class DateFieldMapper extends FieldMapper {
                 name(),
                 (l, u) -> {
                     Query query;
-                    if (IndexType.hasPoints(indexType)) {
+                    if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
                             Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
@@ -818,7 +835,7 @@ public final class DateFieldMapper extends FieldMapper {
                 u = (includeUpper == false) ? upperTerm - 1 : upperTerm;
             }
             Query query;
-            if (IndexType.hasPoints(indexType)) {
+            if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
@@ -840,7 +857,7 @@ public final class DateFieldMapper extends FieldMapper {
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             long pivotLong = resolution.convert(pivotTime);
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always pass a boost of 1.0 to distanceFeatureQuery
-            if (IndexType.hasPoints(indexType())) {
+            if (indexType.hasPoints()) {
                 return LongField.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
             } else {
                 return new LongScriptFieldDistanceFeatureQuery(
@@ -864,8 +881,8 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (IndexType.hasPointsMetadata(indexType()) == false && hasDocValues()) {
-                if (indexType != IndexType.SPARSE) {
+            if (indexType.hasPointsMetadata() == false && hasDocValues()) {
+                if (indexType.hasDocValuesSkipper() == false) {
                     // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                     return Relation.INTERSECTS;
                 }
@@ -952,7 +969,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (IndexType.hasPoints(indexType())) {
+            if (indexType.hasPoints()) {
                 return resolution()::parsePointAsMillis;
             }
             return null;
@@ -978,7 +995,7 @@ public final class DateFieldMapper extends FieldMapper {
                 };
             }
 
-            BlockSourceReader.LeafIteratorLookup lookup = isStored() || IndexType.hasPoints(indexType())
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || indexType.hasPoints()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
@@ -1038,7 +1055,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType(),
                     resolution.getDefaultToScriptFieldFactory(),
-                    IndexType.hasPoints(indexType())
+                    indexType.hasPoints()
                 );
             }
 

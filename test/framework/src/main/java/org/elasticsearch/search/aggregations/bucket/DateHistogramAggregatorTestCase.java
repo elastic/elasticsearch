@@ -108,7 +108,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     ) {
         return new DateFieldMapper.DateFieldType(
             AGGREGABLE_DATE,
-            isSearchable ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+            IndexType.points(isSearchable, true),
             randomBoolean(),
             true,
             formatter,

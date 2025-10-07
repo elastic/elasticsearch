@@ -689,7 +689,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType dateFieldType(String name) {
         return new DateFieldMapper.DateFieldType(
             name,
-            IndexType.POINTS,
+            IndexType.points(true, true),
             false,
             true,
             DateFormatter.forPattern("strict_date"),

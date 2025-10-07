@@ -84,7 +84,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(
             fieldName,
             numType,
-            indexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+            IndexType.points(indexed, true),
             false,
             false,
             null,
@@ -106,7 +106,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
     ) {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(
             fieldName,
-            indexed ? IndexType.POINTS : IndexType.DOC_VALUES_ONLY,
+            IndexType.points(indexed, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

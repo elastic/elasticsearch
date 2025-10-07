@@ -141,7 +141,7 @@ public class RangeFieldMapper extends FieldMapper {
                 }
                 return new RangeFieldType(
                     fullName,
-                    IndexType.points(index.get(), hasDocValues.get(), false),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
                     DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()),
                     coerce.getValue().value(),
@@ -151,7 +151,7 @@ public class RangeFieldMapper extends FieldMapper {
             if (type == RangeType.DATE) {
                 return new RangeFieldType(
                     fullName,
-                    IndexType.points(index.get(), hasDocValues.get(), false),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
                     Defaults.DATE_FORMATTER,
                     coerce.getValue().value(),
@@ -161,7 +161,7 @@ public class RangeFieldMapper extends FieldMapper {
             return new RangeFieldType(
                 fullName,
                 type,
-                IndexType.points(index.get(), hasDocValues.get(), false),
+                IndexType.points(index.get(), hasDocValues.get()),
                 store.getValue(),
                 coerce.getValue().value(),
                 meta.getValue()
@@ -191,7 +191,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, RangeType type) {
-            this(name, type, IndexType.POINTS, false, false, Collections.emptyMap());
+            this(name, type, IndexType.points(true, true), false, false, Collections.emptyMap());
         }
 
         public RangeFieldType(
@@ -210,7 +210,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, IndexType.POINTS, false, formatter, false, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, formatter, false, Collections.emptyMap());
         }
 
         public RangeType rangeType() {

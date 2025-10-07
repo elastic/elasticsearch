@@ -804,7 +804,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             boolean useLegacyFormat,
             Map<String, String> meta
         ) {
-            super(name, IndexType.TERMS_WITHOUT_DOC_VALUES, false, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.inferenceId = inferenceId;
             this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;

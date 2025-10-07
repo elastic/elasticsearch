@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -47,7 +46,6 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -342,7 +340,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }));
         var ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.indexType(), is(IndexType.DOC_VALUES_ONLY));
+        assertTrue(ft.hasDocValues());
+        assertFalse(ft.indexType().hasIndex());
     }
 
     @Override

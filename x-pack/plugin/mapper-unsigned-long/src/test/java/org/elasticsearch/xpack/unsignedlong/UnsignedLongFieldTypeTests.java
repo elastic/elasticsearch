@@ -57,7 +57,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() {
         UnsignedLongFieldType ft = new UnsignedLongFieldType(
             "my_unsigned_long",
-            IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, false),
             false,
             null,
             Collections.emptyMap(),

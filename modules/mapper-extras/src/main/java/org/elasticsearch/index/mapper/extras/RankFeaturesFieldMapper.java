@@ -81,7 +81,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, IndexType.TERMS_WITHOUT_DOC_VALUES, false, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 

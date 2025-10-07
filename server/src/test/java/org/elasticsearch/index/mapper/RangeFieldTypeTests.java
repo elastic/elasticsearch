@@ -271,7 +271,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         RangeFieldType fieldType = new RangeFieldType(
             "field",
-            IndexType.POINTS_WITHOUT_DOC_VALUES,
+            IndexType.points(true, false),
             false,
             formatter,
             false,

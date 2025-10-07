@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -169,7 +168,7 @@ class FlattenedFieldParser {
             throw new IllegalArgumentException(msg);
         }
         BytesRef bytesValue = new BytesRef(value);
-        if (fieldType.indexType() == IndexType.TERMS || fieldType.indexType() == IndexType.TERMS_WITHOUT_DOC_VALUES) {
+        if (fieldType.indexType().hasTerms()) {
             fields.add(new StringField(rootFieldFullPath, bytesValue, Field.Store.NO));
             fields.add(new StringField(keyedFieldFullPath, bytesKeyedValue, Field.Store.NO));
         }

@@ -75,7 +75,7 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                         List.of(
                             new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("0.0.0.0"), DataType.IP, "source_ip"),
                             new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("0.0.0.0"), DataType.IP, "destination_ip"),
-                            new TestCaseSupplier.TypedData(new BytesRef("unspecified"), stringType, "internal_networks") // TODO: unspecified causes errors
+                            new TestCaseSupplier.TypedData(new BytesRef("unspecified"), stringType, "internal_networks")
                         ),
                         "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
                         DataType.KEYWORD,

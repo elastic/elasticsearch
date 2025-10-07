@@ -52,7 +52,7 @@ public class NetworkDirection extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         description = "Returns true if the direction of the source-to-destination-IPs is determined to be inbound, provided a list of internal networks.",
-        examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs") // TODO make an example
+        examples = @Example(file = "ip", tag = "networkDirectionSimple")
     )
     public NetworkDirection(
         Source source,

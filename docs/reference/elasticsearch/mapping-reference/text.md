@@ -4,16 +4,6 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/text.html
 ---
 
-# Text type family [text]
-
-
-The text family includes the following field types:
-
-* [`text`](#text-field-type), the traditional field type for full-text content such as the body of an email or the description of a product.
-* [`match_only_text`](#match-only-text-field-type), a space-optimized variant of `text` that disables scoring and performs slower on queries that need positions. It is best suited for indexing log messages.
-* [`pattern_text`](#pattern-text-field-type), a variant of `text` with improved space efficiency when storing log messages.
-
-
 ## Text field type [text-field-type]
 
 A field to index full-text values, such as the body of an email or the description of a product. These fields are `analyzed`, that is they are passed through an [analyzer](docs-content://manage-data/data-store/text-analysis.md) to convert the string into a list of individual terms before being indexed. The analysis process allows Elasticsearch to search for individual words *within* each full text field. Text fields are not used for sorting and seldom used for aggregations (although the [significant text aggregation](/reference/aggregations/search-aggregations-bucket-significanttext-aggregation.md) is a notable exception).

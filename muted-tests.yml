@@ -633,45 +633,12 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/135820
-- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
-  method: testRollupIndex {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135906
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSingleDoc {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135908
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testRollover {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135952
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettingsMappingsMerging
   issue: https://github.com/elastic/elasticsearch/issues/135884
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/135032
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testResize {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135909
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSearchTimeSeriesMode {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135963
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testClusterState {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135960
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testForbidDisableSoftDeletesOnRestore {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135937
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testRomanianAnalyzerBWC {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135948
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testRecovery {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135953
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testHistoryUUIDIsAdded {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135957
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/135933
 
 # Examples:
 #

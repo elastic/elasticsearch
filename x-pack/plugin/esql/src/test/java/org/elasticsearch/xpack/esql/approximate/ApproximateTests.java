@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -48,13 +49,14 @@ import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class ApproximateTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
     private static final Analyzer analyzer = AnalyzerTestUtils.defaultAnalyzer();
     private static final LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(
-        new LogicalPreOptimizerContext(FoldContext.small())
+        new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class))
     );
     private static final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
     private static final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));

@@ -65,8 +65,7 @@ public record DriverStatus(
     public static DriverStatus readFrom(StreamInput in) throws IOException {
         return new DriverStatus(
             in.readString(),
-            in.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19) ? in.readString() : "",
+            in.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0,
@@ -85,8 +84,7 @@ public record DriverStatus(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
-        if (out.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)) {
             out.writeString(description);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {

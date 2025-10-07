@@ -431,9 +431,16 @@ public record IndicesOptions(
 
         private static final String INDEX_EXPRESSION_NAME = "resolve_cross_project_index_expression";
 
+        public static CrossProjectModeOptions parseParameter(Object resolveIndexExpression, CrossProjectModeOptions defaultOptions) {
+            if (resolveIndexExpression == null) {
+                return defaultOptions != null ? defaultOptions : DEFAULT;
+            }
+            return new CrossProjectModeOptions(nodeBooleanValue(resolveIndexExpression, INDEX_EXPRESSION_NAME));
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(INDEX_EXPRESSION_NAME, resolveIndexExpression);
+            return resolveIndexExpression ? builder.field(INDEX_EXPRESSION_NAME, resolveIndexExpression) : builder;
         }
 
         @Override
@@ -1198,6 +1205,7 @@ public record IndicesOptions(
                 : map.get("ignoreUnavailable"),
             map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
             map.containsKey(GatekeeperOptions.IGNORE_THROTTLED) ? map.get(GatekeeperOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
+            map.get(CrossProjectModeOptions.INDEX_EXPRESSION_NAME),
             defaultSettings
         );
     }
@@ -1214,8 +1222,7 @@ public record IndicesOptions(
             || GatekeeperOptions.IGNORE_THROTTLED.equals(name)
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
-            || "allowNoIndices".equals(name)
-            || CrossProjectModeOptions.INDEX_EXPRESSION_NAME.equals(name);
+            || "allowNoIndices".equals(name);
     }
 
     public static IndicesOptions fromParameters(
@@ -1233,7 +1240,27 @@ public record IndicesOptions(
         Object ignoreUnavailableString,
         Object allowNoIndicesString,
         Object ignoreThrottled,
+        Object resolveCrossProject,
+        IndicesOptions defaultSettings
+    ) {
+        return fromParameters(
+            wildcardsString,
+            ignoreUnavailableString,
+            allowNoIndicesString,
+            ignoreThrottled,
+            null,
+            resolveCrossProject,
+            defaultSettings
+        );
+    }
+
+    public static IndicesOptions fromParameters(
+        Object wildcardsString,
+        Object ignoreUnavailableString,
+        Object allowNoIndicesString,
+        Object ignoreThrottled,
         Object failureStoreString,
+        Object resolveCrossProject,
         IndicesOptions defaultSettings
     ) {
         if (wildcardsString == null
@@ -1252,6 +1279,7 @@ public record IndicesOptions(
             .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(gatekeeperOptions)
+            .crossProjectModeOptions(CrossProjectModeOptions.parseParameter(resolveCrossProject, defaultSettings.crossProjectModeOptions))
             .build();
     }
 

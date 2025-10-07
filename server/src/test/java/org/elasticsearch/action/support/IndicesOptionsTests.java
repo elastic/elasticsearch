@@ -376,7 +376,10 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        assertThat(map.get("resolve_cross_project_index_expression"), equalTo(crossProjectModeOptions.resolveIndexExpression()));
+        assertThat(
+            map.get("resolve_cross_project_index_expression"),
+            equalTo(crossProjectModeOptions.resolveIndexExpression() ? true : null)
+        );
     }
 
     public void testFromXContent() throws IOException {

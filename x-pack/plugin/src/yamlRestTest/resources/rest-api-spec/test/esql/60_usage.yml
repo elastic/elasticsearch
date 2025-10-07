@@ -55,13 +55,8 @@ setup:
             - snapshot_test_for_telemetry_v2
             - fn_byte_length
             - match_function_options
-            - first_over_time
-            - sum_over_time
-            - count_over_time
-            - count_distinct_over_time
+            - ts_command_v0
             - cosine_vector_similarity_function
-            - present_over_time
-            - absent_over_time
             - inline_stats
       reason: "Test that should only be executed on snapshot versions"
 

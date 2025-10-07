@@ -357,7 +357,6 @@ This decomposition allows for improved compression on log-like data.
 We call the static portion of the value the `template`.
 Although the template cannot be accessed directly, a separate field called `<field_name>.template_id` is accessible.
 This field is a hash of the template and can be used to group similar values.
-As this feature is in technical preview, the internal structure of the template is subject to change.
 Because of this, `<field_name>.template_id` is also subject to future changes.
 
 Unlike most mapping types, `pattern_text` does not support multiple values for a given field per document.

@@ -295,8 +295,14 @@ public class DesiredBalanceComputer {
                     final var rerouteExplanation = command.execute(routingAllocation, false);
                     assert rerouteExplanation.decisions().type() != Decision.Type.NO;
                     if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
-                        final ShardRouting[] initializingShards = routingNodes.node(command.toNode()).initializing();
-                        assert initializingShards.length == 1 && command.fromNode().equals(initializingShards[0].relocatingNodeId())
+                        final ShardRouting[] initializingShards = routingNodes.node(
+                            routingAllocation.nodes().resolveNode(command.toNode()).getId()
+                        ).initializing();
+                        assert initializingShards.length == 1
+                            && routingAllocation.nodes()
+                                .resolveNode(command.fromNode())
+                                .getId()
+                                .equals(initializingShards[0].relocatingNodeId())
                             : "expect one relocating shard, but got : " + List.of(initializingShards);
                         Arrays.stream(initializingShards).forEach(shard -> {
                             clusterInfoSimulator.simulateShardStarted(shard);

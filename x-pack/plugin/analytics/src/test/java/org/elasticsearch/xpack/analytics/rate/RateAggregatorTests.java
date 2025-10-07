@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -380,7 +380,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-03-11T01:07:45",
                     new NumericDocValuesField("val", 1),
                     new IntPoint("val", 1),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -388,7 +388,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-03-12T01:07:45",
                     new NumericDocValuesField("val", 2),
                     new IntPoint("val", 2),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -396,7 +396,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-04-01T03:43:34",
                     new NumericDocValuesField("val", 3),
                     new IntPoint("val", 3),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -404,7 +404,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-04-27T03:43:34",
                     new NumericDocValuesField("val", 4),
                     new IntPoint("val", 4),
-                    new SortedSetDocValuesField("term", new BytesRef("b"))
+                    new BinaryDocValuesField("term", new BytesRef("b"))
                 )
             );
         }, (Consumer<InternalDateHistogram>) dh -> {
@@ -445,7 +445,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-03-11T01:07:45",
                     new NumericDocValuesField("val", 1),
                     new IntPoint("val", 1),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -453,7 +453,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-03-12T01:07:45",
                     new NumericDocValuesField("val", 2),
                     new IntPoint("val", 2),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -461,7 +461,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-04-01T03:43:34",
                     new NumericDocValuesField("val", 3),
                     new IntPoint("val", 3),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -469,7 +469,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-04-27T03:43:34",
                     new NumericDocValuesField("val", 4),
                     new IntPoint("val", 4),
-                    new SortedSetDocValuesField("term", new BytesRef("b"))
+                    new BinaryDocValuesField("term", new BytesRef("b"))
                 )
             );
         }, (Consumer<InternalComposite>) composite -> {
@@ -523,7 +523,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-03-11T01:07:45",
                     new NumericDocValuesField("val", 1),
                     new IntPoint("val", 1),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -531,7 +531,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-03-12T01:07:45",
                     new NumericDocValuesField("val", 2),
                     new IntPoint("val", 2),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -539,7 +539,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-04-01T03:43:34",
                     new NumericDocValuesField("val", 3),
                     new IntPoint("val", 3),
-                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                    new BinaryDocValuesField("term", new BytesRef("a"))
                 )
             );
             iw.addDocument(
@@ -547,7 +547,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     "2010-04-27T03:43:34",
                     new NumericDocValuesField("val", 4),
                     new IntPoint("val", 4),
-                    new SortedSetDocValuesField("term", new BytesRef("b"))
+                    new BinaryDocValuesField("term", new BytesRef("b"))
                 )
             );
         },
@@ -597,22 +597,22 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
         testCase(iw -> {
             iw.addDocument(
-                doc("2020-11-02T01:07:45", new NumericDocValuesField("val", 1), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc("2020-11-02T01:07:45", new NumericDocValuesField("val", 1), new BinaryDocValuesField("term", new BytesRef("a")))
             );
             iw.addDocument(
-                doc("2020-11-03T01:07:45", new NumericDocValuesField("val", 2), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc("2020-11-03T01:07:45", new NumericDocValuesField("val", 2), new BinaryDocValuesField("term", new BytesRef("a")))
             );
             iw.addDocument(
-                doc("2020-11-04T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+                doc("2020-11-04T03:43:34", new NumericDocValuesField("val", 4), new BinaryDocValuesField("term", new BytesRef("b")))
             );
             iw.addDocument(
-                doc("2020-11-09T03:43:34", new NumericDocValuesField("val", 30), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc("2020-11-09T03:43:34", new NumericDocValuesField("val", 30), new BinaryDocValuesField("term", new BytesRef("a")))
             );
             iw.addDocument(
-                doc("2020-11-10T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+                doc("2020-11-10T03:43:34", new NumericDocValuesField("val", 4), new BinaryDocValuesField("term", new BytesRef("b")))
             );
             iw.addDocument(
-                doc("2020-11-11T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+                doc("2020-11-11T03:43:34", new NumericDocValuesField("val", 4), new BinaryDocValuesField("term", new BytesRef("b")))
             );
         }, (Consumer<InternalDateHistogram>) dh -> {
             assertThat(dh.getBuckets(), hasSize(2));

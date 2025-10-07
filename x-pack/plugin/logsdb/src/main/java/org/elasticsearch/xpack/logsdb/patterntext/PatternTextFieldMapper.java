@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SingletonBinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
@@ -346,10 +347,13 @@ public class PatternTextFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
-            new PatternTextSyntheticFieldLoaderLayer(
-                fieldType().name(),
-                leafReader -> PatternTextCompositeValues.from(leafReader, fieldType())
-            )
+            new SingletonBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), leafReader -> {
+                try {
+                    return PatternTextCompositeValues.from(leafReader, fieldType());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            })
         );
     }
 

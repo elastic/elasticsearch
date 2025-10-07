@@ -51,11 +51,4 @@ public class ProcessWorkerExecutorService extends AbstractProcessWorkerExecutorS
             throw new EsRejectedExecutionException(processName + " queue is full. Unable to execute command", false);
         }
     }
-
-    @Override
-    protected void notifyIfAbstractRunnable(Runnable runnable, Exception ex, String msg) {
-        if (runnable instanceof AbstractRunnable ar) {
-            notifyAbstractRunnable(ex, msg, ar);
-        }
-    }
 }

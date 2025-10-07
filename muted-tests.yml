@@ -467,6 +467,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testNewReplicas {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/135956
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testPeerRecoveryRetentionLeases {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/135929
 
 # Examples:
 #

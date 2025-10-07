@@ -3950,8 +3950,7 @@ from employees
 
 inlineStatsOnAggregateMetricDouble
 required_capability: inline_stats
-required_capability: aggregate_metric_double_literal_registered
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 FROM k8s-downsampled
 | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)     // Temporary workaround to enable aggregate_metric_double
 | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
@@ -3970,4 +3969,24 @@ FROM k8s-downsampled
 2024-05-09T23:30:00.000Z | staging         | one         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}  | 1060.0
 2024-05-09T23:30:00.000Z | staging         | three       | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}   | 824.0
 2024-05-09T23:30:00.000Z | staging         | two         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}  | 1419.0
+;
+
+selfShadowing
+required_capability: inline_stats
+required_capability: fix_join_output_merging
+
+FROM languages_lookup_non_unique_key
+| KEEP country, language_name
+| EVAL language_code = null::integer
+| INLINE STATS MAX(language_code) BY language_code
+| SORT country
+| LIMIT 5
+;
+
+country:text      |language_name:keyword |MAX(language_code):integer |language_code:integer
+Atlantis          |null                  |null                       |null
+[Austria, Germany]|German                |null                       |null
+Canada            |English               |null                       |null
+Mv-Land           |Mv-Lang               |null                       |null
+Mv-Land2          |Mv-Lang2              |null                       |null
 ;

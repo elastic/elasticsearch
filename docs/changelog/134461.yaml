@@ -1,6 +1,0 @@
-pr: 134461
-summary: Propagates filter() to aggregation functions' surrogates
-area: Aggregations
-type: bug
-issues:
- - 134380

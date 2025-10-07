@@ -4,11 +4,13 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | keyword |
 | boolean | keyword |
 | cartesian_point | keyword |
 | cartesian_shape | keyword |
 | date | keyword |
 | date_nanos | keyword |
+| dense_vector | keyword |
 | double | keyword |
 | geo_point | keyword |
 | geo_shape | keyword |

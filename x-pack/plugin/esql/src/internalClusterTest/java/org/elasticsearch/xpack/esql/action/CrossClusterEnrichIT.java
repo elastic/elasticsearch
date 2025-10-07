@@ -456,7 +456,7 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             """, enrichHosts(Enrich.Mode.REMOTE));
         // This is currently not supported, because we can not handle double topN with remote enrich
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("Physical plan contains remote executing operation [EnrichExec] in local part"));
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [SORT timestamp]"));
     }
 
     public void testLimitThenEnrichRemote() {

@@ -130,8 +130,11 @@ import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -821,6 +824,7 @@ public class ActionModule extends AbstractModule {
 
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
             actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
+            actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1053,6 +1057,7 @@ public class ActionModule extends AbstractModule {
 
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
             registerHandler.accept(new RestGetSampleAction());
+            registerHandler.accept(new RestGetSampleStatsAction());
         }
     }
 

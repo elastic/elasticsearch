@@ -54,7 +54,7 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         );
     }
 
-    /* Push down filters that can be evaluated by the UnionAll child/leg to each child/leg,
+    /* Push down filters that can be evaluated by the UnionAll branch to each branch,
      * so that the filters can be pushed down further to the data source when possible.
      * Filters that cannot be pushed down remain above the UnionAll.
      *

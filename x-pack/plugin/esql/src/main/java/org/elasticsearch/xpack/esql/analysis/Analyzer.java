@@ -2277,9 +2277,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * Handle union types in UnionAll:
-     * 1. Push down explicit conversion functions into the UnionAll legs
+     * 1. Push down explicit conversion functions into the UnionAll branches
      * 2. Replace the explicit conversion functions with the corresponding attributes in the UnionAll output
-     * 3. Implicitly cast the outputs of the UnionAll legs to the common type if necessary
+     * 3. Implicitly cast the outputs of the UnionAll branches to the common type if necessary
      * 4. Update the attributes referencing the updated UnionAll output
      */
     private static class ResolveUnionTypesInUnionAll extends Rule<LogicalPlan, LogicalPlan> {
@@ -2293,7 +2293,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan plan) {
             convertFunctionsToAttributes = new HashMap<>();
             updatedUnionAllOutput = new ArrayList<>();
-            // First push down the conversion functions into the UnionAll legs
+            // First push down the conversion functions into the UnionAll branches
             LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(
                 UnionAll.class,
                 unionAll -> maybePushDownConvertFunctions(unionAll, plan)
@@ -2302,7 +2302,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Then replace the conversion functions with the corresponding attributes in the UnionAll output
             LogicalPlan planWithConvertFunctionsReplaced = replaceConvertFunctions(planWithConvertFunctionsPushedDown);
 
-            // Next implicitly cast the outputs of the UnionAll legs to the common type if necessary
+            // Next implicitly cast the outputs of the UnionAll branches to the common type if necessary
             LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
                 UnionAll.class,
                 unionAll -> unionAll.resolved() ? implicitCastingUnionAllOutput(unionAll, plan) : unionAll
@@ -2322,7 +2322,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return unionAll;
             }
 
-            // push down the conversion functions into the unionAll legs
+            // push down the conversion functions into the unionAll branches
             List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
             boolean outputChanged = false;
             for (LogicalPlan child : unionAll.children()) {
@@ -2420,7 +2420,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             Map<Integer, DataType> indexToCommonType = new HashMap<>();
 
-            // Cast each leg's output to the common type
+            // Cast each branch's output to the common type
             List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
             boolean outputChanged = false;
             for (LogicalPlan child : unionAll.children()) {

@@ -22,26 +22,23 @@ import java.util.stream.Collectors;
 
 public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
 
-    private final List<Attribute> output;
-
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
-        this.output = output;
     }
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new UnionAll(source(), newChildren, output);
+        return new UnionAll(source(), newChildren, output());
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, UnionAll::new, children(), output);
+        return NodeInfo.create(this, UnionAll::new, children(), output());
     }
 
     @Override
     public UnionAll replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new UnionAll(source(), subPlans, output);
+        return new UnionAll(source(), subPlans, output());
     }
 
     @Override

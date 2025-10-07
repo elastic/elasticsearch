@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.1.5 [elasticsearch-9.1.5-release-notes]
-```{applies_to}
-stack: ga 9.1.5
-```
 
 ### Highlights [elasticsearch-9.1.5-highlights]
 

@@ -201,7 +201,6 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     }
 
     private static Number[] computeConfidenceInterval(Number bestEstimate, Number[] estimates) {
-        System.out.println("@@@ computeConfidenceInterval: bestEstimate = " + bestEstimate + ", estimates = " + Arrays.toString(estimates));
         Mean estimatesMean = new Mean();
         StandardDeviation estimatesStdDev = new StandardDeviation(false);
         Skewness estimatesSkew = new Skewness();

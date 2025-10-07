@@ -695,18 +695,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         });
 
-        if (model instanceof ElasticRerankerModel elasticRerankerModel) {
-            var serviceSettings = elasticRerankerModel.getServiceSettings();
-            var longDocumentStrategy = serviceSettings.getLongDocumentStrategy();
-            if (longDocumentStrategy == ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK) {
-                var rerankChunker = new RerankRequestChunker(query, inputs, serviceSettings.getMaxChunksPerDoc());
-                inputs = rerankChunker.getChunkedInputs();
-                resultsListener = rerankChunker.parseChunkedRerankResultsListener(resultsListener);
-            }
-
-        }
-        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
-
         var returnDocs = Boolean.TRUE;
         if (returnDocuments != null) {
             returnDocs = returnDocuments;
@@ -714,6 +702,18 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var requestSettings = RerankTaskSettings.fromMap(requestTaskSettings);
             returnDocs = RerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
         }
+
+        if (model instanceof ElasticRerankerModel elasticRerankerModel) {
+            var serviceSettings = elasticRerankerModel.getServiceSettings();
+            var longDocumentStrategy = serviceSettings.getLongDocumentStrategy();
+            if (longDocumentStrategy == ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK) {
+                var rerankChunker = new RerankRequestChunker(query, inputs, serviceSettings.getMaxChunksPerDoc());
+                inputs = rerankChunker.getChunkedInputs();
+                resultsListener = rerankChunker.parseChunkedRerankResultsListener(resultsListener, returnDocs);
+            }
+
+        }
+        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
 
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
 

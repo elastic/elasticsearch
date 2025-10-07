@@ -17,6 +17,7 @@ import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -79,6 +81,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TestThreadPool threadPool;
     private IndicesService indicesService;
+    private FeatureService mockFeatureService;
 
     private TestTransportSimulateBulkAction bulkAction;
 
@@ -96,7 +99,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 indicesService,
                 NamedXContentRegistry.EMPTY,
-                new IndexSettingProviders(Set.of())
+                new IndexSettingProviders(Set.of()),
+                mockFeatureService
             );
         }
     }
@@ -126,6 +130,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         indicesService = mock(IndicesService.class);
         bulkAction = new TestTransportSimulateBulkAction();
+        mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)).thenReturn(false);
     }
 
     @After
@@ -179,7 +185,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                                           "_index": "%s",
                                           "_version": -3,
                                           "_source": %s,
-                                          "executed_pipelines": [%s]
+                                          "executed_pipelines": [%s],
+                                          "effective_mapping":{}
                                         }""",
                                     indexRequest.id(),
                                     indexRequest.index(),
@@ -313,7 +320,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                                               "_version": -3,
                                               "_source": %s,
                                               "executed_pipelines": [%s],
-                                              "error":{"type":"exception","reason":"invalid mapping"}
+                                              "error":{"type":"exception","reason":"invalid mapping"},
+                                              "effective_mapping":{"_doc":{"dynamic":"strict"}}
                                             }""",
                                         indexRequest.id(),
                                         indexName,
@@ -340,7 +348,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                                               "_index": "%s",
                                               "_version": -3,
                                               "_source": %s,
-                                              "executed_pipelines": [%s]
+                                              "executed_pipelines": [%s],
+                                              "effective_mapping":{"_doc":{"dynamic":"strict"}}
                                             }""",
                                         indexRequest.id(),
                                         indexName,
@@ -367,7 +376,9 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         };
         when(indicesService.withTempIndexService(any(), any())).thenAnswer((Answer<?>) invocation -> {
             IndexMetadata imd = invocation.getArgument(0);
-            if (indicesWithInvalidMappings.contains(imd.getIndex().getName())) {
+            if (indicesWithInvalidMappings.contains(imd.getIndex().getName())
+                // We only want to throw exceptions inside TransportSimulateBulkAction:
+                && invocation.getArgument(1).getClass().getSimpleName().contains(TransportSimulateBulkAction.class.getSimpleName())) {
                 throw new ElasticsearchException("invalid mapping");
             } else {
                 // we don't actually care what is returned, as long as no exception is thrown the request is considered valid:

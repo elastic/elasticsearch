@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReplaceEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator str;
@@ -68,6 +71,15 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += str.baseRamBytesUsed();
+    baseRamBytesUsed += regex.baseRamBytesUsed();
+    baseRamBytesUsed += newStr.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock regexBlock,
       BytesRefBlock newStrBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
@@ -108,8 +120,11 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef regex = regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch);
+        BytesRef newStr = newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch), newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+          result.appendBytesRef(Replace.process(str, regex, newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -126,8 +141,11 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef regex = regexVector.getBytesRef(p, regexScratch);
+        BytesRef newStr = newStrVector.getBytesRef(p, newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regexVector.getBytesRef(p, regexScratch), newStrVector.getBytesRef(p, newStrScratch)));
+          result.appendBytesRef(Replace.process(str, regex, newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

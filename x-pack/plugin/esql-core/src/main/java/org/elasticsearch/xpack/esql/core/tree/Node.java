@@ -307,13 +307,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Return the information about this node.
-     * <p>
      * Normally, you want to use one of the static {@code create} methods to implement this.
      * <p>
      * For {@code QueryPlan}s, it is very important that
      * the properties contain all of the expressions and references relevant to this node, and
-     * that all of the properties are used in the provided constructor; otherwise query plan
+     * that all the properties are used in the provided constructor; otherwise query plan
      * transformations like
      * {@code QueryPlan#transformExpressionsOnly(Function)}
      * will not have an effect.

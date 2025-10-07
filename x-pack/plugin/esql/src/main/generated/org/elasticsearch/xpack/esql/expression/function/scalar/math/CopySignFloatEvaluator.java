@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CopySignFloatEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator magnitude;
@@ -59,6 +62,14 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += magnitude.baseRamBytesUsed();
+    baseRamBytesUsed += sign.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public FloatBlock eval(int positionCount, FloatBlock magnitudeBlock, DoubleBlock signBlock) {
     try(FloatBlock.Builder result = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -84,7 +95,9 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendFloat(CopySign.processFloat(magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        float magnitude = magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendFloat(CopySign.processFloat(magnitude, sign));
       }
       return result.build();
     }
@@ -93,7 +106,9 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
   public FloatVector eval(int positionCount, FloatVector magnitudeVector, DoubleVector signVector) {
     try(FloatVector.FixedBuilder result = driverContext.blockFactory().newFloatVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendFloat(p, CopySign.processFloat(magnitudeVector.getFloat(p), signVector.getDouble(p)));
+        float magnitude = magnitudeVector.getFloat(p);
+        double sign = signVector.getDouble(p);
+        result.appendFloat(p, CopySign.processFloat(magnitude, sign));
       }
       return result.build();
     }

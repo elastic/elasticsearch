@@ -1,4 +1,7 @@
-## `STATS` [esql-stats-by]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `STATS` processing command groups rows according to a common value
 and calculates one or more aggregated values over the grouped rows.
@@ -47,6 +50,10 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 
 :::{include} ../../lists/aggregation-functions.md
 :::
+
+When `STATS` is used under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
+[time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+are also supported.
 
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 
@@ -107,9 +114,22 @@ It’s also possible to group by multiple values:
 
 :::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
 :::
+
 If all the grouping keys are multivalued then the input row is in all groups:
 
 :::{include} ../examples/stats.csv-spec/multi-mv-group.md
+:::
+
+The input **ROW** is in all groups. The entire row. All the values. Even group
+keys. That means that:
+
+:::{include} ../examples/stats.csv-spec/mv-group-values.md
+:::
+
+The `VALUES` function above sees the whole row - all of the values of the group
+key. If you want to send the group key to the function then `MV_EXPAND` first:
+
+:::{include} ../examples/stats.csv-spec/mv-group-values-expand.md
 :::
 
 Both the aggregating functions and the grouping expressions accept other

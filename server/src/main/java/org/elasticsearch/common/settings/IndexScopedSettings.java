@@ -49,8 +49,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
-
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
@@ -225,6 +223,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // TSDB index settings
                 IndexSettings.MODE,
                 IndexMetadata.INDEX_ROUTING_PATH,
+                IndexMetadata.INDEX_DIMENSIONS,
+                IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
@@ -243,9 +243,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.DOC_VALUES_SKIPPER) {
             settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
         }
-        if (SYNTHETIC_VECTORS) {
-            settings.add(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING);
-        }
+        settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };
 

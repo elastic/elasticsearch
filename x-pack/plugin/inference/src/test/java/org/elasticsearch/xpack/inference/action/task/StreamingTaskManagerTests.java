@@ -54,7 +54,7 @@ public class StreamingTaskManagerTests extends ESTestCase {
         doAnswer(ans -> {
             TaskAwareRequest taskAwareRequest = ans.getArgument(2);
             return taskAwareRequest.createTask(1L, taskType, taskAction, TaskId.EMPTY_TASK_ID, Map.of());
-        }).when(taskManager).register(any(), any(), any());
+        }).when(taskManager).register(any(), any(), any(), eq(false));
     }
 
     @After
@@ -67,7 +67,7 @@ public class StreamingTaskManagerTests extends ESTestCase {
 
         processor.subscribe(mock());
 
-        verify(taskManager, only()).register(eq(taskType), eq(taskAction), any());
+        verify(taskManager, only()).register(eq(taskType), eq(taskAction), any(), eq(false));
     }
 
     public void testCancelPropagatesUpstreamAndDownstream() {
@@ -77,7 +77,7 @@ public class StreamingTaskManagerTests extends ESTestCase {
             var registeredTask = (CancellableTask) taskAwareRequest.createTask(1L, taskType, taskAction, TaskId.EMPTY_TASK_ID, Map.of());
             task.set(registeredTask);
             return registeredTask;
-        }).when(taskManager).register(any(), any(), any());
+        }).when(taskManager).register(any(), any(), any(), eq(false));
 
         Flow.Subscriber<Object> downstream = mock();
         Flow.Subscription upstream = mock();
@@ -173,7 +173,7 @@ public class StreamingTaskManagerTests extends ESTestCase {
             var registeredTask = (CancellableTask) taskAwareRequest.createTask(1L, taskType, taskAction, TaskId.EMPTY_TASK_ID, Map.of());
             task.set(registeredTask);
             return registeredTask;
-        }).when(taskManager).register(any(), any(), any());
+        }).when(taskManager).register(any(), any(), any(), eq(false));
 
         var processor = streamingTaskManager.create(taskType, taskAction);
         var downstream = establishFlow(processor);

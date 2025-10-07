@@ -13,7 +13,7 @@ import com.sun.management.ThreadMXBean;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.logging.Level;
@@ -39,6 +39,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -76,7 +78,8 @@ public class KnnIndexTester {
     enum IndexType {
         HNSW,
         FLAT,
-        IVF
+        IVF,
+        GPU_HNSW
     }
 
     enum MergePolicyType {
@@ -90,6 +93,8 @@ public class KnnIndexTester {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
+        } else if (args.indexType() == IndexType.GPU_HNSW) {
+            suffix.add("gpu_hnsw");
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));
@@ -106,7 +111,17 @@ public class KnnIndexTester {
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
-            format = new IVFVectorsFormat(args.ivfClusterSize(), IVFVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+            format = new ES920DiskBBQVectorsFormat(args.ivfClusterSize(), ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+        } else if (args.indexType() == IndexType.GPU_HNSW) {
+            if (args.quantizeBits() == 32) {
+                format = new ES92GpuHnswVectorsFormat();
+            } else if (args.quantizeBits() == 7) {
+                format = new ES92GpuHnswSQVectorsFormat();
+            } else {
+                throw new IllegalArgumentException(
+                    "GPU HNSW index type only supports 7 or 32 bits quantization, but got: " + args.quantizeBits()
+                );
+            }
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {
@@ -130,7 +145,7 @@ public class KnnIndexTester {
                 format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
             }
         }
-        return new Lucene101Codec() {
+        return new Lucene103Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return format;
@@ -191,9 +206,9 @@ public class KnnIndexTester {
         FormattedResults formattedResults = new FormattedResults();
 
         for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
-            int[] nProbes = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
-                ? cmdLineArgs.nProbes()
-                : new int[] { 0 };
+            double[] visitPercentages = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
+                ? cmdLineArgs.visitPercentages()
+                : new double[] { 0 };
             String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(
                 cmdLineArgs.docVectors().get(0).getFileName().toString(),
@@ -201,8 +216,8 @@ public class KnnIndexTester {
                 cmdLineArgs.numDocs(),
                 cmdLineArgs.filterSelectivity()
             );
-            Results[] results = new Results[nProbes.length];
-            for (int i = 0; i < nProbes.length; i++) {
+            Results[] results = new Results[visitPercentages.length];
+            for (int i = 0; i < visitPercentages.length; i++) {
                 results[i] = new Results(
                     cmdLineArgs.docVectors().get(0).getFileName().toString(),
                     indexType,
@@ -240,8 +255,7 @@ public class KnnIndexTester {
             numSegments(indexPath, indexResults);
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
                 for (int i = 0; i < results.length; i++) {
-                    int nProbe = nProbes[i];
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, nProbe);
+                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, visitPercentages[i]);
                     knnSearcher.runSearch(results[i], cmdLineArgs.earlyTermination());
                 }
             }
@@ -293,7 +307,7 @@ public class KnnIndexTester {
             String[] searchHeaders = {
                 "index_name",
                 "index_type",
-                "n_probe",
+                "visit_percentage(%)",
                 "latency(ms)",
                 "net_cpu_time(ms)",
                 "avg_cpu_count",
@@ -324,7 +338,7 @@ public class KnnIndexTester {
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
-                    Integer.toString(queryResult.nProbe),
+                    String.format(Locale.ROOT, "%.2f", queryResult.visitPercentage),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
                     String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
@@ -400,7 +414,7 @@ public class KnnIndexTester {
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
-        int nProbe;
+        double visitPercentage;
         double avgLatency;
         double qps;
         double avgRecall;

@@ -111,6 +111,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.INDEX_OPTIONS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
@@ -1213,6 +1214,99 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(ex.getMessage(), containsString("[model_settings] must be set for field [field] when chunks are provided"));
     }
 
+    public void testPre811IndexSemanticTextDenseVectorRaisesError() throws IOException {
+        Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+        String fieldName = randomAlphaOfLength(8);
+
+        MapperService mapperService = createMapperService(
+            mapping(
+                b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", model.getInferenceEntityId()).endObject()
+            ),
+            true,
+            IndexVersions.V_8_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
+        );
+        assertSemanticTextField(mapperService, fieldName, false, null, null);
+
+        merge(
+            mapperService,
+            mapping(
+                b -> b.startObject(fieldName)
+                    .field("type", "semantic_text")
+                    .field("inference_id", model.getInferenceEntityId())
+                    .startObject("model_settings")
+                    .field("task_type", TaskType.TEXT_EMBEDDING.toString())
+                    .field("dimensions", model.getServiceSettings().dimensions())
+                    .field("similarity", model.getServiceSettings().similarity())
+                    .field("element_type", model.getServiceSettings().elementType())
+                    .endObject()
+                    .endObject()
+            )
+        );
+        assertSemanticTextField(mapperService, fieldName, true, null, null);
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        true,
+                        b,
+                        List.of(randomSemanticText(true, fieldName, model, null, List.of("foo", "bar"), XContentType.JSON))
+                    )
+                )
+            )
+        );
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
+        assertThat(e.getCause().getMessage(), equalTo(UNSUPPORTED_INDEX_MESSAGE));
+    }
+
+    public void testPre811IndexSemanticTextSparseVectorRaisesError() throws IOException {
+        Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        String fieldName = randomAlphaOfLength(8);
+
+        MapperService mapperService = createMapperService(
+            mapping(
+                b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", model.getInferenceEntityId()).endObject()
+            ),
+            true,
+            IndexVersions.V_8_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.NEW_SPARSE_VECTOR)
+        );
+        assertSemanticTextField(mapperService, fieldName, false, null, null);
+
+        merge(
+            mapperService,
+            mapping(
+                b -> b.startObject(fieldName)
+                    .field("type", "semantic_text")
+                    .field("inference_id", model.getInferenceEntityId())
+                    .startObject("model_settings")
+                    .field("task_type", TaskType.SPARSE_EMBEDDING.toString())
+                    .endObject()
+                    .endObject()
+            )
+        );
+        assertSemanticTextField(mapperService, fieldName, true, null, null);
+
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        true,
+                        b,
+                        List.of(randomSemanticText(true, fieldName, model, null, List.of("foo", "bar"), XContentType.JSON))
+                    )
+                )
+            )
+        );
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
+        assertThat(e.getCause().getMessage(), equalTo(UNSUPPORTED_INDEX_MESSAGE));
+    }
+
     private MapperService mapperServiceForFieldWithModelSettings(String fieldName, String inferenceId, MinimalServiceSettings modelSettings)
         throws IOException {
         return mapperServiceForFieldWithModelSettings(fieldName, inferenceId, null, modelSettings);
@@ -1437,7 +1531,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("similarity", "cosine");
             b.field("element_type", "float");
             b.endObject();
-        }), useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        }),
+            useLegacyFormat,
+            IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+        );
         assertSemanticTextField(mapperService, "field", true, null, defaultBbqHnswSemanticTextIndexOptions());
 
         // Previous 8.x index versions do not set BBQ index options

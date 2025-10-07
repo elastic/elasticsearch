@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class RoundToIntBinarySearchEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToIntBinarySearchEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
@@ -51,6 +54,13 @@ public final class RoundToIntBinarySearchEvaluator implements EvalOperator.Expre
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, IntBlock fieldBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -65,7 +75,8 @@ public final class RoundToIntBinarySearchEvaluator implements EvalOperator.Expre
           result.appendNull();
           continue position;
         }
-        result.appendInt(RoundToInt.process(fieldBlock.getInt(fieldBlock.getFirstValueIndex(p)), this.points));
+        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
+        result.appendInt(RoundToInt.process(field, this.points));
       }
       return result.build();
     }
@@ -74,7 +85,8 @@ public final class RoundToIntBinarySearchEvaluator implements EvalOperator.Expre
   public IntVector eval(int positionCount, IntVector fieldVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, RoundToInt.process(fieldVector.getInt(p), this.points));
+        int field = fieldVector.getInt(p);
+        result.appendInt(p, RoundToInt.process(field, this.points));
       }
       return result.build();
     }

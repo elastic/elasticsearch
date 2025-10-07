@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -160,9 +161,31 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool);
+        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool, randomLifecycle());
         isWrapped.set(true);
         listener.onFailure(e);
+    }
+
+    private static Lifecycle randomLifecycle() {
+        return randomBoolean() ? randomInitializedOrStartedLifecycle() : randomStoppedOrClosedLifecycle();
+    }
+
+    private static Lifecycle randomInitializedOrStartedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        if (randomBoolean()) {
+            lifecycle.started();
+        }
+        return lifecycle;
+    }
+
+    private static Lifecycle randomStoppedOrClosedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        lifecycle.started();
+        lifecycle.stopped();
+        if (randomBoolean()) {
+            lifecycle.closed();
+        }
+        return lifecycle;
     }
 
     public void testWrapListenerForErrorHandlingDebugLog() {
@@ -197,9 +220,31 @@ public class SearchServiceTests extends IndexShardTestCase {
                     mockLog.assertAllExpectationsMatched();
                 }
             };
-            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage); // 400-level exception
-            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
-            listener.onFailure(e);
+            // Default behavior is to use debug level for 400-level exceptions
+            IllegalArgumentException iae = new IllegalArgumentException(exceptionMessage); // 400-level exception
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomLifecycle()
+            );
+            listener.onFailure(iae);
+
+            // Debug logging for a 500-level exception when closing or stopped lifecycle is to log as debug level
+            IllegalStateException ise = new IllegalStateException(exceptionMessage);
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomStoppedOrClosedLifecycle()
+            );
+            listener.onFailure(ise);
         }
     }
 
@@ -235,7 +280,15 @@ public class SearchServiceTests extends IndexShardTestCase {
                 }
             };
             IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
-            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomInitializedOrStartedLifecycle()
+            );
             listener.onFailure(e);
         }
     }

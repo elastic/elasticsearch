@@ -162,4 +162,9 @@ public final class StoreTrustConfig implements SslTrustConfig {
         sb.append('}');
         return sb.toString();
     }
+
+    @Override
+    public boolean hasExplicitConfig() {
+        return true;
+    }
 }

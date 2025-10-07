@@ -305,6 +305,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testNodeWriteLoadsArePresent() {
+        // Disable write load decider to begin with
+        setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
+
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
         Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
@@ -315,13 +318,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(nodeThreadPoolStats.isEmpty());
 
         // Enable collection for node write loads.
-        updateClusterSettings(
-            Settings.builder()
-                .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-                )
-                .build()
+        setWriteLoadDeciderEnablement(
+            randomBoolean()
+                ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
         );
         try {
             // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
@@ -344,9 +344,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
             }
         } finally {
-            updateClusterSettings(
-                Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()
-            );
+            clearWriteLoadDeciderEnablementSetting();
         }
     }
 
@@ -363,25 +361,25 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
-        // Not collecting stats yet because allocation write load stats collection is disabled by default.
-        {
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
-            assertNotNull(shardWriteLoads);
-            assertTrue(shardWriteLoads.isEmpty());
-        }
-
-        // Turn on collection of write-load stats.
-        updateClusterSettings(
-            Settings.builder()
-                .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-                )
-                .build()
-        );
+        // Explicitly disable write load decider
+        setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
 
         try {
+            // Stats should not be collected when the decider is disabled
+            {
+                ClusterInfoServiceUtils.refresh(clusterInfoService);
+                final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
+                assertNotNull(shardWriteLoads);
+                assertTrue(shardWriteLoads.isEmpty());
+            }
+
+            // Turn on collection of write-load stats.
+            setWriteLoadDeciderEnablement(
+                randomBoolean()
+                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+            );
+
             // Force a ClusterInfo refresh to run collection of the write-load stats.
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
@@ -400,9 +398,24 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 assertThat(maximumLoadRecorded, greaterThan(0.0));
             }
         } finally {
-            updateClusterSettings(
-                Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()
-            );
+            clearWriteLoadDeciderEnablementSetting();
+        }
+    }
+
+    private void clearWriteLoadDeciderEnablementSetting() {
+        updateClusterSettings(Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build());
+    }
+
+    public void testMaxHeapPerNodeIsPresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, ByteSizeValue> maxHeapSizePerNode = clusterInfoService.getClusterInfo().getMaxHeapSizePerNode();
+        assertNotNull(maxHeapSizePerNode);
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), maxHeapSizePerNode.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(maxHeapSizePerNode.containsKey(node.getId()));
+            assertThat(maxHeapSizePerNode.get(node.getId()), greaterThan(ByteSizeValue.ZERO));
         }
     }
 
@@ -745,6 +758,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         } finally {
             closeShardNoCheck(newShard, randomBoolean());
         }
+    }
+
+    private void setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus status) {
+        updateClusterSettings(
+            Settings.builder().put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), status).build()
+        );
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {

@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateDiffNanosMillisEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffNanosMillisEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator unit;
@@ -72,6 +75,15 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += unit.baseRamBytesUsed();
+    baseRamBytesUsed += startTimestampNanos.baseRamBytesUsed();
+    baseRamBytesUsed += endTimestampMillis.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, BytesRefBlock unitBlock,
       LongBlock startTimestampNanosBlock, LongBlock endTimestampMillisBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
@@ -110,8 +122,11 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
+        BytesRef unit = unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch);
+        long startTimestampNanos = startTimestampNanosBlock.getLong(startTimestampNanosBlock.getFirstValueIndex(p));
+        long endTimestampMillis = endTimestampMillisBlock.getLong(endTimestampMillisBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processNanosMillis(unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch), startTimestampNanosBlock.getLong(startTimestampNanosBlock.getFirstValueIndex(p)), endTimestampMillisBlock.getLong(endTimestampMillisBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.processNanosMillis(unit, startTimestampNanos, endTimestampMillis));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -126,8 +141,11 @@ public final class DateDiffNanosMillisEvaluator implements EvalOperator.Expressi
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef unit = unitVector.getBytesRef(p, unitScratch);
+        long startTimestampNanos = startTimestampNanosVector.getLong(p);
+        long endTimestampMillis = endTimestampMillisVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processNanosMillis(unitVector.getBytesRef(p, unitScratch), startTimestampNanosVector.getLong(p), endTimestampMillisVector.getLong(p)));
+          result.appendInt(DateDiff.processNanosMillis(unit, startTimestampNanos, endTimestampMillis));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

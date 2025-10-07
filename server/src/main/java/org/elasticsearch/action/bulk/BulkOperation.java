@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -401,13 +402,20 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
 
+                // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+                var indexMetadata = project.index(shardId.getIndexName());
+                SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
+                if (indexMetadata != null) {
+                    reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                }
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
+                    reshardSplitShardCountSummary,
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0]),
                     bulkRequest.isSimulated()
                 );
-                var indexMetadata = project.index(shardId.getIndexName());
+
                 if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
                 }
@@ -615,7 +623,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return a data stream if the write request points to a data stream, or {@code null} if it does not
      */
     private static DataStream getRedirectTargetCandidate(DocWriteRequest<?> docWriteRequest, ProjectMetadata project) {
-        // PRTODO: We could check for cluster feature here instead
         // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
         IndexAbstraction ia = project.getIndicesLookup().get(docWriteRequest.index());
         return DataStream.resolveDataStream(ia, project);

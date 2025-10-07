@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLong;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
 
@@ -176,6 +177,26 @@ abstract class SpatialEvaluatorFactory<V, T> {
                 toEvaluator.apply(s.left()),
                 asLuceneComponent2D(toEvaluator.foldCtx(), s.crsType(), s.right())
             );
+        }
+    }
+
+    /**
+     * This evaluator factory is used when the right hand side is a geo-grid constant or literal,
+     * and the left is sourced from the index, or from previous evaluators.
+     */
+    protected static class SpatialEvaluatorWithConstantGridFactory extends SpatialEvaluatorFactory<
+        EvalOperator.ExpressionEvaluator.Factory,
+        Long> {
+
+        SpatialEvaluatorWithConstantGridFactory(
+            TriFunction<Source, EvalOperator.ExpressionEvaluator.Factory, Long, EvalOperator.ExpressionEvaluator.Factory> factoryCreator
+        ) {
+            super(factoryCreator);
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
+            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLong(toEvaluator.foldCtx(), s.right()));
         }
     }
 

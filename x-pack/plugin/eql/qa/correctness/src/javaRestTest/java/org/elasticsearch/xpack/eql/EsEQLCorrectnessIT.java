@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Request;
@@ -47,7 +46,6 @@ import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:INFO", reason = "Log query execution time")
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112572")
 public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";

@@ -33,7 +33,7 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -59,7 +59,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         mockModelRegistry = mock(ModelRegistry.class);
         mockInferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         action = new TransportDeleteInferenceEndpointAction(

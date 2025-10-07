@@ -143,6 +143,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
+    @SuppressWarnings("unchecked")
     public void testRandomQueries() throws IOException {
         int numberOfDocuments = ESTestCase.randomIntBetween(10, 50);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
@@ -238,7 +239,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     public void testDateHistogramAggregation() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);
+        int numberOfDocuments = ESTestCase.randomIntBetween(20, 70);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
         indexDocuments(documents);

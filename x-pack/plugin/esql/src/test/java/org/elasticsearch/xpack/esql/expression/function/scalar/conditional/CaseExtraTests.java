@@ -281,6 +281,11 @@ public class CaseExtraTests extends ESTestCase {
                         }
 
                         @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
+                        }
+
+                        @Override
                         public void close() {}
                     };
                 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
@@ -66,6 +65,11 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * and executing these computes on the data nodes.
  */
 final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRequest> {
+
+    private static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = TransportVersion.fromName(
+        "esql_retry_on_shard_level_failure"
+    );
+
     private final ComputeService computeService;
     private final SearchService searchService;
     private final ClusterService clusterService;
@@ -227,6 +231,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final ComputeListener computeListener;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
+        private final boolean singleShardPipeline;
         private final boolean failFastOnShardFailure;
         private final Map<ShardId, Exception> shardLevelFailures;
 
@@ -238,6 +243,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             int maxConcurrentShards,
             boolean failFastOnShardFailure,
             Map<ShardId, Exception> shardLevelFailures,
+            boolean singleShardPipeline,
             ComputeListener computeListener
         ) {
             this.flags = flags;
@@ -248,6 +254,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.maxConcurrentShards = maxConcurrentShards;
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.shardLevelFailures = shardLevelFailures;
+            this.singleShardPipeline = singleShardPipeline;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
         }
 
@@ -297,18 +304,37 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     batchListener.onResponse(DriverCompletionInfo.EMPTY);
                     return;
                 }
-                var computeContext = new ComputeContext(
-                    sessionId,
-                    "data",
-                    clusterAlias,
-                    flags,
-                    searchContexts,
-                    configuration,
-                    configuration.newFoldContext(),
-                    null,
-                    () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
-                );
-                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
+                if (singleShardPipeline) {
+                    try (ComputeListener sub = new ComputeListener(threadPool, () -> {}, batchListener)) {
+                        for (SearchContext searchContext : searchContexts) {
+                            var computeContext = new ComputeContext(
+                                sessionId,
+                                "data",
+                                clusterAlias,
+                                flags,
+                                List.of(searchContext),
+                                configuration,
+                                configuration.newFoldContext(),
+                                null,
+                                () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                            );
+                            computeService.runCompute(parentTask, computeContext, request.plan(), sub.acquireCompute());
+                        }
+                    }
+                } else {
+                    var computeContext = new ComputeContext(
+                        sessionId,
+                        "data",
+                        clusterAlias,
+                        flags,
+                        searchContexts,
+                        configuration,
+                        configuration.newFoldContext(),
+                        null,
+                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                    );
+                    computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
+                }
             }, batchListener::onFailure));
         }
 
@@ -428,14 +454,21 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
                 });
                 EsqlFlags flags = computeService.createFlags();
+                int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
+                final boolean sortedTimeSeriesSource = PlannerUtils.requiresSortedTimeSeriesSource(request.plan());
+                if (sortedTimeSeriesSource) {
+                    // each time-series pipeline uses 3 drivers
+                    maxConcurrentShards = Math.clamp(Math.ceilDiv(request.pragmas().taskConcurrency(), 3), 1, maxConcurrentShards);
+                }
                 DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
                     flags,
                     request,
                     task,
                     internalSink,
-                    request.configuration().pragmas().maxConcurrentShardsPerNode(),
+                    maxConcurrentShards,
                     failFastOnShardFailure,
                     shardLevelFailures,
+                    sortedTimeSeriesSource,
                     computeListener
                 );
                 dataNodeRequestExecutor.start();
@@ -505,7 +538,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     static boolean supportShardLevelRetryFailure(TransportVersion transportVersion) {
-        return transportVersion.onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)
-            || transportVersion.isPatchFrom(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19);
+        return transportVersion.supports(ESQL_RETRY_ON_SHARD_LEVEL_FAILURE);
     }
 }

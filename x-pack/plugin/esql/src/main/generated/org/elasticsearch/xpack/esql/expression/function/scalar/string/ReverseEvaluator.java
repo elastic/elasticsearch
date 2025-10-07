@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReverseEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
@@ -49,6 +52,13 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
@@ -64,7 +74,8 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Reverse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
+        result.appendBytesRef(Reverse.process(val));
       }
       return result.build();
     }
@@ -74,7 +85,8 @@ public final class ReverseEvaluator implements EvalOperator.ExpressionEvaluator 
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Reverse.process(valVector.getBytesRef(p, valScratch)));
+        BytesRef val = valVector.getBytesRef(p, valScratch);
+        result.appendBytesRef(Reverse.process(val));
       }
       return result.build();
     }

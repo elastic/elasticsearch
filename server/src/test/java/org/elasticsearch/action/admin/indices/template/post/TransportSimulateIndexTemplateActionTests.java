@@ -17,6 +17,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -62,29 +63,33 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         // Create a setting provider that sets the test-setting to 0
         Set<IndexSettingProvider> indexSettingsProviders = Set.of(new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void provideAdditionalSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings allSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
             ) {
-                return Settings.builder().put("test-setting", 0).build();
+                additionalSettings.put("test-setting", 0);
             }
         }, new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void provideAdditionalSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
             ) {
-                return Settings.builder().put("test-setting-2", 10).build();
+                additionalSettings.put("test-setting-2", 10);
             }
 
             @Override

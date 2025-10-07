@@ -10,6 +10,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
 import java.time.temporal.TemporalAmount;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SubDatetimesEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator datetime;
@@ -54,6 +57,13 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += datetime.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -68,8 +78,9 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
+        long datetime = datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Sub.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), this.temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -82,8 +93,9 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongVector datetimeVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long datetime = datetimeVector.getLong(p);
         try {
-          result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), this.temporalAmount));
+          result.appendLong(Sub.processDatetimes(datetime, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();

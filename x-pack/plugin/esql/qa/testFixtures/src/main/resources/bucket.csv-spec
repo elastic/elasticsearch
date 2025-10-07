@@ -286,14 +286,13 @@ median_duration:double | bucket:date
 
 bucketByTimeDuration#[skip:-8.13.99, reason:BUCKET extended in 8.14]
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = BUCKET(@timestamp, 30 minutes)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = BUCKET(@timestamp, 30 minutes)
 | SORT min
 ;
 
-          min:date      |          max:date      |         bucket:date
-2023-10-23T12:27:28.948Z|2023-10-23T12:27:28.948Z|2023-10-23T12:00:00.000Z
-2023-10-23T13:55:01.543Z|2023-10-23T13:55:01.543Z|2023-10-23T13:30:00.000Z
-
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:30:00.000Z
 ;
 
 aggByTimeDuratinBucket#[skip:-8.13.99, reason:BUCKET extended in 8.14]

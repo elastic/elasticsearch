@@ -1,0 +1,5 @@
+pr: 132858
+summary: Add index mode to resolve index response
+area: Indices APIs
+type: feature
+issues: []

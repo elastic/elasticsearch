@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvPercentileDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPercentileDoubleEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator values;
@@ -53,6 +56,14 @@ public final class MvPercentileDoubleEvaluator implements EvalOperator.Expressio
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += values.baseRamBytesUsed();
+    baseRamBytesUsed += percentile.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock valuesBlock, DoubleBlock percentileBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -75,8 +86,9 @@ public final class MvPercentileDoubleEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
+        double percentile = percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p));
         try {
-          MvPercentile.process(result, p, valuesBlock, percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p)), this.scratch);
+          MvPercentile.process(result, p, valuesBlock, percentile, this.scratch);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

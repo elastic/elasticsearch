@@ -14,7 +14,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,6 +40,7 @@ import java.util.Objects;
  */
 public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "wildcard";
+    private static final TransportVersion ESQL_FIXED_INDEX_LIKE = TransportVersion.fromName("esql_fixed_index_like");
 
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -126,9 +126,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
      * Returns true if the Transport version is compatible with ESQL_FIXED_INDEX_LIKE
      */
     public static boolean expressionTransportSupported(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1);
+        return version.supports(ESQL_FIXED_INDEX_LIKE);
     }
 
     @Override
@@ -297,6 +295,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -21,6 +21,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
@@ -32,6 +34,8 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
  * This works by examining pairs of neighboring buckets and determining at which scale reduction they would merge into a single bucket.
  */
 class DownscaleStats {
+
+    static final long SIZE = RamUsageEstimator.shallowSizeOf(DownscaleStats.class) + RamEstimationUtil.estimateIntArray(MAX_INDEX_BITS);
 
     // collapsedBucketCount[i] stores the number of additional
     // collapsed buckets when increasing the scale by (i+1) instead of just by (i)

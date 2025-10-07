@@ -81,31 +81,11 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
         bulk.get();
     }
 
-    private void createLocalIndex(int numDocs) throws Exception {
-        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
-        mapping.startObject("runtime");
-        {
-            mapping.startObject("const");
-            {
-                mapping.field("type", "long");
-                mapping.startObject("script").field("source", "").field("lang", "pause").endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-        mapping.endObject();
-        client(LOCAL_CLUSTER).admin().indices().prepareCreate("test").setMapping(mapping).get();
-        BulkRequestBuilder bulk = client(LOCAL_CLUSTER).prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < numDocs; i++) {
-            bulk.add(new IndexRequest().source("foo", i));
-        }
-        bulk.get();
-    }
-
     public void testCancel() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        String stats = randomStats();
+        request.query("FROM *:test | " + stats + " total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
         client().execute(EsqlQueryAction.INSTANCE, request, requestFuture);
@@ -182,7 +162,8 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     public void testTasks() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        String stats = randomStats();
+        request.query("FROM *:test | " + stats + " total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         ActionFuture<EsqlQueryResponse> requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
         assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
@@ -220,7 +201,8 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     public void testCancelSkipUnavailable() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        String stats = randomStats();
+        request.query("FROM *:test | " + stats + " total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         request.includeCCSMetadata(true);
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();

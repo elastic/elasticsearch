@@ -30,15 +30,15 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleAbstractBlockSourceOperator;
 import org.elasticsearch.compute.operator.TupleDocLongBlockSourceOperator;
-import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TupleAbstractBlockSourceOperator;
+import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.Tuple;
@@ -92,7 +92,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -470,7 +469,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             page
         );
         TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
-        rf.row(position, row);
+        rf.writeKey(position, row);
+        rf.writeValues(position, row);
         return row;
     }
 
@@ -531,7 +531,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
                 continue;
             }
             elementTypes.add(e);
@@ -1468,6 +1468,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
+        boolean asc = randomBoolean();
         try (
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
@@ -1475,7 +1476,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 10,
                 types,
                 encoders,
-                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
                 randomPageSize()
             )
         ) {
@@ -1489,7 +1490,10 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            assertThat(breaker.getMemoryRequestCount(), is(94L));
+            // 105 are from the objects
+            // 1 is for the min-heap itself
+            // -1 IF we're sorting ascending. We encode one less value.
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 105L : 106L));
         }
     }
 

@@ -54,7 +54,7 @@ public class PolicyManager {
      */
     static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
-    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
+    public static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop", "java.xml");
 
     /**
      * Identifies a particular entitlement {@link Scope} within a {@link Policy}.
@@ -94,7 +94,7 @@ public class PolicyManager {
          * If this kind corresponds to a single component, this is that component's name;
          * otherwise null.
          */
-        final String componentName;
+        public final String componentName;
 
         ComponentKind(String componentName) {
             this.componentName = componentName;
@@ -369,15 +369,15 @@ public class PolicyManager {
     boolean isTriviallyAllowed(Class<?> requestingClass) {
         // note: do not log exceptions in here, this could interfere with loading of additionally necessary classes such as ThrowableProxy
         if (requestingClass == null) {
-            generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
+            generalLogger.trace("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
         if (requestingClass == NO_CLASS) {
-            generalLogger.debug("Entitlement trivially allowed from outermost frame");
+            generalLogger.trace("Entitlement trivially allowed from outermost frame");
             return true;
         }
         if (isTrustedSystemClass(requestingClass)) {
-            generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+            // note: no logging here, this has caused ClassCircularityErrors in certain cases
             return true;
         }
         generalLogger.trace("Entitlement not trivially allowed");

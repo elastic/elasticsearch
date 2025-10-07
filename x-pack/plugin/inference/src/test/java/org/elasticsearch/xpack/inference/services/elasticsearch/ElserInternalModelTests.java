@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
+import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -46,6 +47,25 @@ public class ElserInternalModelTests extends ESTestCase {
         assertThat(
             model.getServiceSettings().getAdaptiveAllocationsSettings(),
             equalTo(trainedModelAssignment.getAdaptiveAllocationsSettings())
+        );
+    }
+
+    public void testHugeChunkingSettings() {
+        Exception expectedException = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ElserInternalModel(
+                "foo",
+                TaskType.SPARSE_EMBEDDING,
+                ElasticsearchInternalService.NAME,
+                new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(null, 1, "elser", null, null)),
+                new ElserMlNodeTaskSettings(),
+                new SentenceBoundaryChunkingSettings(10000, 0)
+            )
+        );
+
+        assertThat(
+            expectedException.getMessage(),
+            equalTo("ELSER based models do not support chunk sizes larger than 300. Requested chunk size: 10000")
         );
     }
 }

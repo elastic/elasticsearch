@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GreatestBytesRefEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator[] values;
@@ -56,6 +59,15 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
       }
       return eval(page.getPositionCount(), valuesVectors).asBlock();
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    for (EvalOperator.ExpressionEvaluator e : values) {
+      baseRamBytesUsed += e.baseRamBytesUsed();
+    }
+    return baseRamBytesUsed;
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {

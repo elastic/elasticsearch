@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.action.bulk.TransportAbstractBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,7 +39,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
+public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasable {
 
     // Flag set for disallowing index auto creation for an individual write request.
     String REQUIRE_ALIAS = "require_alias";
@@ -345,5 +347,13 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
             );
         }
         return validationException;
+    }
+
+    @Override
+    default void close() {
+        IndexRequest indexRequest = TransportAbstractBulkAction.getIndexWriteRequest(this);
+        if (indexRequest != null) {
+            indexRequest.indexSource().close();
+        }
     }
 }

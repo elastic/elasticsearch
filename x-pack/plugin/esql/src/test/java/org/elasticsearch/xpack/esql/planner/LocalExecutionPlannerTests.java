@@ -19,9 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -56,8 +54,6 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -72,8 +68,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -137,8 +133,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 List.of(),
                 null,
                 null,
-                null,
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -150,7 +146,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneTopNSourceOperator() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        FieldAttribute sortField = new FieldAttribute(Source.EMPTY, "field", new EsField("field", DataType.INTEGER, Map.of(), true));
+        FieldAttribute sortField = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
@@ -162,10 +162,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 IndexMode.STANDARD,
                 index().indexNameWithModes(),
                 List.of(),
-                null,
                 limit,
                 List.of(sort),
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -177,7 +177,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneTopNSourceOperatorDistanceSort() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        FieldAttribute sortField = new FieldAttribute(Source.EMPTY, "point", new EsField("point", DataType.GEO_POINT, Map.of(), true));
+        FieldAttribute sortField = new FieldAttribute(
+            Source.EMPTY,
+            "point",
+            new EsField("point", DataType.GEO_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
@@ -189,10 +193,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 IndexMode.STANDARD,
                 index().indexNameWithModes(),
                 List.of(),
-                null,
                 limit,
                 List.of(sort),
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
@@ -215,36 +219,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 List.of(),
                 null,
                 null,
-                null,
-                estimatedRowSize
+                estimatedRowSize,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
             )
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
         assertThat(supplier.clusterName(), equalTo("dev-cluster"));
         assertThat(supplier.nodeName(), equalTo("node-1"));
-    }
-
-    public void testParallel() throws Exception {
-        EsQueryExec queryExec = new EsQueryExec(
-            Source.EMPTY,
-            index().name(),
-            IndexMode.STANDARD,
-            index().indexNameWithModes(),
-            List.of(),
-            null,
-            null,
-            null,
-            between(1, 1000)
-        );
-        var limitExec = new LimitExec(
-            Source.EMPTY,
-            new ParallelExec(queryExec.source(), queryExec),
-            new Literal(Source.EMPTY, between(1, 100), DataType.INTEGER),
-            randomEstimatedRowSize(estimatedRowSizeIsHuge)
-        );
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), limitExec);
-        assertThat(plan.driverFactories, hasSize(2));
     }
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
@@ -271,8 +253,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD)),
             null,
             null,
-            null,
-            between(1, 1000)
+            between(1, 1000),
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
         FieldExtractExec fieldExtractExec = new FieldExtractExec(
             Source.EMPTY,
@@ -336,17 +318,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             false,
             Map.of(),
             System.nanoTime(),
-            randomBoolean()
+            randomBoolean(),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null)
         );
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
-        return new EsPhysicalOperationProviders(
-            FoldContext.small(),
-            shardContexts,
-            null,
-            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
-        );
+        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null, TEST_PLANNER_SETTINGS);
     }
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {

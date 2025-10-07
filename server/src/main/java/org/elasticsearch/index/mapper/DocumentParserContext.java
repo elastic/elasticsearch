@@ -14,11 +14,13 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -115,6 +117,11 @@ public abstract class DocumentParserContext {
         @Override
         public boolean isImmediateParentAnArray() {
             return in.isImmediateParentAnArray();
+        }
+
+        @Override
+        public BytesRef getTsid() {
+            return in.getTsid();
         }
     }
 
@@ -299,6 +306,10 @@ public abstract class DocumentParserContext {
         return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
     }
 
+    public final List<VectorsFormatProvider> getVectorFormatProviders() {
+        return mappingParserContext.getVectorsFormatProviders();
+    }
+
     public final MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
         return mappingParserContext.createDynamicTemplateContext(dateFormatter);
     }
@@ -332,12 +343,6 @@ public abstract class DocumentParserContext {
         if (canAddIgnoredField()) {
             // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
             ignoredFieldValues.add(values);
-        }
-    }
-
-    final void removeLastIgnoredField(String name) {
-        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
-            ignoredFieldValues.removeLast();
         }
     }
 
@@ -870,6 +875,9 @@ public abstract class DocumentParserContext {
     public abstract LuceneDocument doc();
 
     protected abstract void addDoc(LuceneDocument doc);
+
+    @Nullable
+    public abstract BytesRef getTsid();
 
     /**
      * Find a dynamic mapping template for the given field and its matching type

@@ -24,33 +24,57 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseDenseNumericValues;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer.BaseSortedDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
-    private final Codec codec = new Elasticsearch900Lucene101Codec() {
+    private final Codec codec = new Elasticsearch92Lucene103Codec() {
 
-        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean()
+        );
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -705,14 +729,812 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
+    public void testOptionalColumnAtATimeReader() throws Exception {
+        final String counterField = "counter";
+        final String counterFieldAsString = "counter_as_string";
+        final String timestampField = "@timestamp";
+        final String gaugeField = "gauge";
+        long currentTimestamp = 1704067200000L;
+        long currentCounter = 10_000_000;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField(counterField, currentCounter));
+                d.add(new SortedSetDocValuesField(counterFieldAsString, new BytesRef(Long.toString(currentCounter))));
+                d.add(new SortedNumericDocValuesField(gaugeField, gauge1Values[i % gauge1Values.length]));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                    currentCounter++;
+                }
+            }
+            iw.commit();
+            var factory = TestBlock.factory();
+            final long lastIndexedTimestamp = currentTimestamp;
+            final long lastIndexedCounter = currentCounter;
+            try (var reader = DirectoryReader.open(iw)) {
+                int gaugeIndex = numDocs;
+                for (var leaf : reader.leaves()) {
+                    var timestampDV = getBaseDenseNumericValues(leaf.reader(), timestampField);
+                    var counterDV = getBaseDenseNumericValues(leaf.reader(), counterField);
+                    var gaugeDV = getBaseDenseNumericValues(leaf.reader(), gaugeField);
+                    var stringCounterDV = getBaseSortedDocValues(leaf.reader(), counterFieldAsString);
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc;) {
+                        int size = Math.max(1, random().nextInt(0, maxDoc - i));
+                        var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
+
+                        {
+                            // bulk loading timestamp:
+                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                long actualTimestamp = (long) block.get(j);
+                                long expectedTimestamp = currentTimestamp;
+                                assertEquals(expectedTimestamp, actualTimestamp);
+                                currentTimestamp -= 1000L;
+                            }
+                        }
+                        {
+                            // bulk loading counter field:
+                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            assertNotNull(stringBlock);
+                            assertEquals(size, stringBlock.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                long expectedCounter = currentCounter;
+                                long actualCounter = (long) block.get(j);
+                                assertEquals(expectedCounter, actualCounter);
+
+                                var expectedStringCounter = Long.toString(actualCounter);
+                                var actualStringCounter = ((BytesRef) stringBlock.get(j)).utf8ToString();
+                                assertEquals(expectedStringCounter, actualStringCounter);
+
+                                currentCounter--;
+                            }
+                        }
+                        {
+                            // bulk loading gauge field:
+                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                long actualGauge = (long) block.get(j);
+                                long expectedGauge = gauge1Values[--gaugeIndex % gauge1Values.length];
+                                assertEquals(expectedGauge, actualGauge);
+                            }
+                        }
+
+                        i += size;
+                    }
+                }
+            }
+
+            // Now bulk reader from one big segment and use random offset:
+            iw.forceMerge(1);
+            var blockFactory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                int randomOffset = random().nextInt(numDocs / 4);
+                currentTimestamp = lastIndexedTimestamp - (randomOffset * 1000L);
+                currentCounter = lastIndexedCounter - randomOffset;
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().get(0).reader();
+                int maxDoc = leafReader.maxDoc();
+                int size = maxDoc - randomOffset;
+                int gaugeIndex = size;
+
+                var timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
+                var counterDV = getBaseDenseNumericValues(leafReader, counterField);
+                var gaugeDV = getBaseDenseNumericValues(leafReader, gaugeField);
+                var stringCounterDV = getBaseSortedDocValues(leafReader, counterFieldAsString);
+
+                var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
+
+                {
+                    // bulk loading timestamp:
+                    var block = (TestBlock) timestampDV.tryRead(blockFactory, docs, randomOffset, false, null, false);
+                    assertNotNull(block);
+                    assertEquals(size, block.size());
+                    for (int j = 0; j < block.size(); j++) {
+                        long actualTimestamp = (long) block.get(j);
+                        long expectedTimestamp = currentTimestamp;
+                        assertEquals(expectedTimestamp, actualTimestamp);
+                        currentTimestamp -= 1000L;
+                    }
+                }
+                {
+                    // bulk loading counter field:
+                    var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset, false, null, false);
+                    assertNotNull(block);
+                    assertEquals(size, block.size());
+
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, randomOffset, false, null, false);
+                    assertNotNull(stringBlock);
+                    assertEquals(size, stringBlock.size());
+
+                    for (int j = 0; j < block.size(); j++) {
+                        long actualCounter = (long) block.get(j);
+                        long expectedCounter = currentCounter;
+                        assertEquals(expectedCounter, actualCounter);
+
+                        var expectedStringCounter = Long.toString(actualCounter);
+                        var actualStringCounter = ((BytesRef) stringBlock.get(j)).utf8ToString();
+                        assertEquals(expectedStringCounter, actualStringCounter);
+
+                        currentCounter--;
+                    }
+                }
+                {
+                    // bulk loading gauge field:
+                    var block = (TestBlock) gaugeDV.tryRead(factory, docs, randomOffset, false, null, false);
+                    assertNotNull(block);
+                    assertEquals(size, block.size());
+                    for (int j = 0; j < block.size(); j++) {
+                        long actualGauge = (long) block.get(j);
+                        long expectedGauge = gauge1Values[--gaugeIndex % gauge1Values.length];
+                        assertEquals(expectedGauge, actualGauge);
+                    }
+                }
+
+                // And finally docs with gaps:
+                docs = TestBlock.docs(IntStream.range(0, maxDoc).filter(docId -> docId == 0 || docId % 64 != 0).toArray());
+                size = docs.count();
+                // Test against values loaded using normal doc value apis:
+                long[] expectedCounters = new long[size];
+                counterDV = getBaseDenseNumericValues(leafReader, counterField);
+                for (int i = 0; i < docs.count(); i++) {
+                    int docId = docs.get(i);
+                    counterDV.advanceExact(docId);
+                    expectedCounters[i] = counterDV.longValue();
+                }
+                counterDV = getBaseDenseNumericValues(leafReader, counterField);
+                stringCounterDV = getBaseSortedDocValues(leafReader, counterFieldAsString);
+                {
+                    // bulk loading counter field:
+                    var block = (TestBlock) counterDV.tryRead(factory, docs, 0, false, null, false);
+                    assertNotNull(block);
+                    assertEquals(size, block.size());
+
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, false, null, false);
+                    assertNotNull(stringBlock);
+                    assertEquals(size, stringBlock.size());
+
+                    for (int j = 0; j < block.size(); j++) {
+                        long actualCounter = (long) block.get(j);
+                        long expectedCounter = expectedCounters[j];
+                        assertEquals(expectedCounter, actualCounter);
+
+                        var expectedStringCounter = Long.toString(actualCounter);
+                        var actualStringCounter = ((BytesRef) stringBlock.get(j)).utf8ToString();
+                        assertEquals(expectedStringCounter, actualStringCounter);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testOptionalColumnAtATimeReaderReadAsInt() throws Exception {
+        final String counterField = "counter";
+        final String timestampField = "@timestamp";
+        final String gaugeField = "gauge";
+        int currentTimestamp = 17040672;
+        int currentCounter = 10_000_000;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int[] gauge1Values = new int[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField(counterField, currentCounter));
+                d.add(new SortedNumericDocValuesField(gaugeField, gauge1Values[i % gauge1Values.length]));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000;
+                    currentCounter++;
+                }
+            }
+            iw.commit();
+            var factory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                int gaugeIndex = numDocs;
+                for (var leaf : reader.leaves()) {
+                    var timestampDV = getBaseDenseNumericValues(leaf.reader(), timestampField);
+                    var counterDV = getBaseDenseNumericValues(leaf.reader(), counterField);
+                    var gaugeDV = getBaseDenseNumericValues(leaf.reader(), gaugeField);
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc;) {
+                        int size = Math.max(1, random().nextInt(0, maxDoc - i));
+                        var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
+
+                        {
+                            // bulk loading timestamp:
+                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                int actualTimestamp = (int) block.get(j);
+                                int expectedTimestamp = currentTimestamp;
+                                assertEquals(expectedTimestamp, actualTimestamp);
+                                currentTimestamp -= 1000;
+                            }
+                        }
+                        {
+                            // bulk loading counter field:
+                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                int expectedCounter = currentCounter;
+                                int actualCounter = (int) block.get(j);
+                                assertEquals(expectedCounter, actualCounter);
+                                currentCounter--;
+                            }
+                        }
+                        {
+                            // bulk loading gauge field:
+                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                int actualGauge = (int) block.get(j);
+                                int expectedGauge = gauge1Values[--gaugeIndex % gauge1Values.length];
+                                assertEquals(expectedGauge, actualGauge);
+                            }
+                        }
+
+                        i += size;
+                    }
+                }
+            }
+        }
+    }
+
+    public void testOptionalColumnAtATimeReaderWithSparseDocs() throws Exception {
+        final String counterField = "counter";
+        final String counterAsStringField = "counter_as_string";
+        final String timestampField = "@timestamp";
+        String queryField = "query_field";
+        String temperatureField = "temperature_field";
+        long currentTimestamp = 1704067200000L;
+        long currentCounter = 10_000_000;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocsPerQValue = 120;
+            int numDocs = numDocsPerQValue * (1 + random().nextInt(40));
+            Long[] temperatureValues = new Long[numDocs];
+            long q = 1;
+            for (int i = 1; i <= numDocs; i++) {
+                var d = new Document();
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+                currentTimestamp += 1000L;
+                d.add(new SortedNumericDocValuesField(counterField, currentCounter));
+                d.add(new SortedDocValuesField(counterAsStringField, new BytesRef(Long.toString(currentCounter))));
+                d.add(new SortedNumericDocValuesField(queryField, q));
+                if (i % 120 == 0) {
+                    q++;
+                }
+                if (random().nextBoolean()) {
+                    long v = random().nextLong();
+                    temperatureValues[numDocs - i] = v;
+                    d.add(new NumericDocValuesField(temperatureField, v));
+                }
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentCounter++;
+                }
+            }
+            iw.commit();
+
+            // Now bulk reader from one big segment and use random offset:
+            iw.forceMerge(1);
+            var factory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().get(0).reader();
+
+                for (int query = 1; query < q; query++) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    var topDocs = searcher.search(
+                        SortedNumericDocValuesField.newSlowExactQuery(queryField, query),
+                        numDocsPerQValue,
+                        new Sort(SortField.FIELD_DOC),
+                        false
+                    );
+                    assertEquals(numDocsPerQValue, topDocs.totalHits.value());
+                    var timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
+                    long[] expectedTimestamps = new long[numDocsPerQValue];
+                    var counterDV = getBaseDenseNumericValues(leafReader, counterField);
+                    long[] expectedCounters = new long[numDocsPerQValue];
+                    var counterAsStringDV = getBaseSortedDocValues(leafReader, counterAsStringField);
+                    String[] expectedCounterAsStrings = new String[numDocsPerQValue];
+                    int[] docIds = new int[numDocsPerQValue];
+                    for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                        var scoreDoc = topDocs.scoreDocs[i];
+                        docIds[i] = scoreDoc.doc;
+
+                        assertTrue(timestampDV.advanceExact(scoreDoc.doc));
+                        expectedTimestamps[i] = timestampDV.longValue();
+
+                        assertTrue(counterDV.advanceExact(scoreDoc.doc));
+                        expectedCounters[i] = counterDV.longValue();
+                        assertTrue(counterAsStringDV.advanceExact(scoreDoc.doc));
+                        expectedCounterAsStrings[i] = counterAsStringDV.lookupOrd(counterAsStringDV.ordValue()).utf8ToString();
+                    }
+
+                    var docs = TestBlock.docs(docIds);
+                    {
+                        timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
+                        var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                        assertNotNull(block);
+                        assertEquals(numDocsPerQValue, block.size());
+                        for (int j = 0; j < block.size(); j++) {
+                            long actualTimestamp = (long) block.get(j);
+                            long expectedTimestamp = expectedTimestamps[j];
+                            assertEquals(expectedTimestamp, actualTimestamp);
+                        }
+                    }
+                    {
+                        counterDV = getBaseDenseNumericValues(leafReader, counterField);
+                        var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                        assertNotNull(block);
+                        assertEquals(numDocsPerQValue, block.size());
+                        for (int j = 0; j < block.size(); j++) {
+                            long actualCounter = (long) block.get(j);
+                            long expectedCounter = expectedCounters[j];
+                            assertEquals(expectedCounter, actualCounter);
+                        }
+                    }
+                    {
+                        counterAsStringDV = getBaseSortedDocValues(leafReader, counterAsStringField);
+                        var block = (TestBlock) counterAsStringDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                        assertNotNull(block);
+                        assertEquals(numDocsPerQValue, block.size());
+                        for (int j = 0; j < block.size(); j++) {
+                            var actualCounter = ((BytesRef) block.get(j)).utf8ToString();
+                            var expectedCounter = expectedCounterAsStrings[j];
+                            assertEquals(expectedCounter, actualCounter);
+                        }
+                    }
+                    {
+                        int startIndex = ESTestCase.between(0, temperatureValues.length - 1);
+                        int endIndex = ESTestCase.between(startIndex + 1, temperatureValues.length);
+                        List<Integer> testDocs = new ArrayList<>();
+                        for (int i = startIndex; i < endIndex; i++) {
+                            if (temperatureValues[i] != null) {
+                                testDocs.add(i);
+                            }
+                        }
+                        if (testDocs.isEmpty() == false) {
+                            NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
+                            assertThat(dv, instanceOf(OptionalColumnAtATimeReader.class));
+                            OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
+                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                            assertNull(directReader.tryRead(factory, docs, 0, false, null, false));
+                            TestBlock block = (TestBlock) directReader.tryRead(factory, docs, 0, true, null, false);
+                            assertNotNull(block);
+                            for (int i = 0; i < testDocs.size(); i++) {
+                                assertThat(block.get(i), equalTo(temperatureValues[testDocs.get(i)]));
+                            }
+                        }
+                        if (testDocs.size() > 2) {
+                            // currently bulk loading is disabled with gaps
+                            testDocs.remove(ESTestCase.between(1, testDocs.size() - 2));
+                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                            NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
+                            OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
+                            assertNull(directReader.tryRead(factory, docs, 0, false, null, false));
+                            assertNull(directReader.tryRead(factory, docs, 0, true, null, false));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testLoadKeywordFieldWithIndexSorts() throws IOException {
+        String primaryField = "sorted_first";
+        String secondField = "sorted_second";
+        String unsortedField = "no_sort";
+        String sparseField = "sparse";
         var config = new IndexWriterConfig();
-        config.setIndexSort(
-            new Sort(
-                new SortField(hostnameField, SortField.Type.STRING, false),
-                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
-            )
-        );
+        config.setIndexSort(new Sort(new SortField(primaryField, SortField.Type.STRING, false)));
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(getCodec());
+        Map<Integer, String> hostnames = new HashMap<>();
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            int numDocs = ESTestCase.randomIntBetween(100, 5000);
+            for (int i = 0; i < numDocs; i++) {
+                hostnames.put(i, "h" + random().nextInt(10));
+            }
+            List<Integer> ids = new ArrayList<>(hostnames.keySet());
+            Randomness.shuffle(ids);
+            Set<Integer> sparseIds = new HashSet<>(ESTestCase.randomSubsetOf(ESTestCase.between(1, ids.size() / 2), ids));
+            for (Integer id : ids) {
+                var d = new Document();
+                String hostname = hostnames.get(id);
+                d.add(new NumericDocValuesField("id", id));
+                d.add(new SortedDocValuesField(primaryField, new BytesRef(hostname)));
+                d.add(new SortedDocValuesField(secondField, new BytesRef(hostname)));
+                d.add(new SortedDocValuesField(unsortedField, new BytesRef(hostname)));
+                if (sparseIds.contains(id)) {
+                    d.add(new SortedDocValuesField(sparseField, new BytesRef(hostname)));
+                }
+                writer.addDocument(d);
+                if (random().nextInt(100) < 10) {
+                    writer.flush();
+                }
+            }
+            for (int iter = 0; iter < 2; iter++) {
+                var factory = TestBlock.factory();
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        BlockLoader.Docs docs = new BlockLoader.Docs() {
+                            @Override
+                            public int count() {
+                                return leaf.reader().maxDoc();
+                            }
+
+                            @Override
+                            public int get(int i) {
+                                return i;
+                            }
+                        };
+                        var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
+                        TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null, false);
+                        assertNotNull(idBlock);
+
+                        {
+                            var reader2 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(secondField)
+                            );
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader2.getValueCount() == 1) {
+                                block = (TestBlock) reader2.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader2.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset, false, null, false);
+                            }
+                            assertNotNull(block);
+                            assertThat(block.size(), equalTo(docs.count() - randomOffset));
+                            for (int i = 0; i < block.size(); i++) {
+                                String actualHostName = BytesRefs.toString(block.get(i));
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
+                                String expectedHostName = hostnames.get(id);
+                                assertEquals(expectedHostName, actualHostName);
+                            }
+                        }
+                        {
+                            var reader3 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(unsortedField)
+                            );
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader3.getValueCount() == 1) {
+                                block = (TestBlock) reader3.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader3.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset, false, null, false);
+                            }
+                            assertNotNull(reader3);
+                            assertNotNull(block);
+                            assertThat(block.size(), equalTo(docs.count() - randomOffset));
+                            for (int i = 0; i < block.size(); i++) {
+                                String actualHostName = BytesRefs.toString(block.get(i));
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
+                                String expectedHostName = hostnames.get(id);
+                                assertEquals(expectedHostName, actualHostName);
+                            }
+                        }
+                        for (int offset = 0; offset < idBlock.size(); offset += ESTestCase.between(1, numDocs)) {
+                            int start = offset;
+                            var reader1 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(primaryField)
+                            );
+                            while (start < idBlock.size()) {
+                                int end = start + random().nextInt(idBlock.size() - start);
+                                TestBlock hostBlock = (TestBlock) reader1.tryReadAHead(factory, new BlockLoader.Docs() {
+                                    @Override
+                                    public int count() {
+                                        return end + 1;
+                                    }
+
+                                    @Override
+                                    public int get(int docId) {
+                                        return docId;
+                                    }
+                                }, start);
+                                Set<String> seenValues = new HashSet<>();
+                                for (int p = start; p <= end; p++) {
+                                    String hostName = hostnames.get(((Number) idBlock.get(p)).intValue());
+                                    seenValues.add(hostName);
+                                }
+                                if (seenValues.size() == 1) {
+                                    assertNotNull(hostBlock);
+                                    assertThat(hostBlock.size(), equalTo(end - start + 1));
+                                    for (int i = 0; i < hostBlock.size(); i++) {
+                                        String actualHostName = BytesRefs.toString(hostBlock.get(i));
+                                        assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
+                                    }
+                                } else {
+                                    assertNull(hostBlock);
+                                }
+                                if (start == idBlock.size() - 1) {
+                                    break;
+                                }
+                                start = end + ESTestCase.between(0, 10);
+                            }
+                        }
+                        writer.forceMerge(1);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testEncodeRangeWithSortedSetPrimarySortField() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, true, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+
+            int numDocs = 512 + random().nextInt(512);
+            int numHosts = numDocs / 20;
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                int batchIndex = i / numHosts;
+                {
+                    String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    d.add(new SortedSetDocValuesField(hostnameField, new BytesRef(hostName)));
+                }
+                {
+                    String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex + 1);
+                    d.add(new SortedSetDocValuesField(hostnameField, new BytesRef(hostName)));
+                }
+                // Index sorting doesn't work with NumericDocValuesField:
+                long timestamp = baseTimestamp + (1000L * i);
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedSetDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, hostNameDV.nextDoc());
+
+                    int batchIndex = i / numHosts;
+                    assertEquals(2, hostNameDV.docValueCount());
+
+                    long firstOrd = hostNameDV.nextOrd();
+                    assertEquals(batchIndex, firstOrd);
+                    String expectedFirstHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    String actualFirstHostName = hostNameDV.lookupOrd(firstOrd).utf8ToString();
+                    assertEquals(expectedFirstHostName, actualFirstHostName);
+
+                    batchIndex++;
+                    long secondOrd = hostNameDV.nextOrd();
+                    assertEquals(batchIndex, secondOrd);
+                    String expectedSecondHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    String actualSecondHostName = hostNameDV.lookupOrd(secondOrd).utf8ToString();
+                    assertEquals(expectedSecondHostName, actualSecondHostName);
+
+                    assertEquals(i, timestampDV.nextDoc());
+                    long timestamp = timestampDV.longValue();
+                    long lowerBound = baseTimestamp;
+                    long upperBound = baseTimestamp + (1000L * numDocs);
+                    assertTrue(
+                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                        timestamp >= lowerBound && timestamp < upperBound
+                    );
+                }
+            }
+        }
+    }
+
+    private static BaseDenseNumericValues getBaseDenseNumericValues(LeafReader leafReader, String field) throws IOException {
+        return (BaseDenseNumericValues) DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(field));
+    }
+
+    private static BaseSortedDocValues getBaseSortedDocValues(LeafReader leafReader, String field) throws IOException {
+        var sortedDocValues = leafReader.getSortedDocValues(field);
+        if (sortedDocValues == null) {
+            sortedDocValues = DocValues.unwrapSingleton(leafReader.getSortedSetDocValues(field));
+        }
+        return (BaseSortedDocValues) sortedDocValues;
+    }
+
+    public void testDocIDEndRun() throws IOException {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long counter1 = 0;
+
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
+
+            // IndexedDISI stores ids in blocks of 4096. To test sparse end runs, we want a mixture of
+            // dense and sparse blocks, so we need the gap frequency to be larger than
+            // this value, but smaller than two blocks, and to index at least three blocks
+            int gap_frequency = 4500 + random().nextInt(2048);
+            int numDocs = 10000 + random().nextInt(10000);
+            int numHosts = numDocs / 20;
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+
+                int batchIndex = i / numHosts;
+                String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                long timestamp = baseTimestamp + (1000L * i);
+
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                d.add(new NumericDocValuesField("counter", counter1++));
+                if (i % gap_frequency != 0) {
+                    d.add(new NumericDocValuesField("sparse_counter", counter1));
+                }
+
+                int numGauge2 = 1 + random().nextInt(8);
+                for (int j = 0; j < numGauge2; j++) {
+                    d.add(new SortedNumericDocValuesField("gauge", gauge2Values[(i + j) % gauge2Values.length]));
+                    if (i % gap_frequency != 0) {
+                        d.add(new SortedNumericDocValuesField("sparse_gauge", gauge2Values[(i + j) % gauge2Values.length]));
+                    }
+                }
+
+                d.add(new SortedDocValuesField("tag", new BytesRef(randomFrom(tags))));
+                if (i % gap_frequency != 0) {
+                    d.add(new SortedDocValuesField("sparse_tag", new BytesRef(randomFrom(tags))));
+                }
+
+                int numTags = 1 + random().nextInt(8);
+                for (int j = 0; j < numTags; j++) {
+                    d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(i + j) % tags.length])));
+                    if (i % gap_frequency != 0) {
+                        d.add(new SortedSetDocValuesField("sparse_tags", new BytesRef(tags[(i + j) % tags.length])));
+                    }
+                }
+
+                d.add(new BinaryDocValuesField("tags_as_bytes", new BytesRef(tags[i % tags.length])));
+                if (i % gap_frequency != 0) {
+                    d.add(new BinaryDocValuesField("sparse_tags_as_bytes", new BytesRef(tags[i % tags.length])));
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                validateRunEnd(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                validateRunEnd(timestampDV);
+                var counterOneDV = leaf.getNumericDocValues("counter");
+                assertNotNull(counterOneDV);
+                validateRunEnd(counterOneDV);
+                var sparseCounter = leaf.getNumericDocValues("sparse_counter");
+                assertNotNull(sparseCounter);
+                validateRunEnd(sparseCounter);
+                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge");
+                assertNotNull(gaugeOneDV);
+                validateRunEnd(gaugeOneDV);
+                var sparseGaugeDV = leaf.getSortedNumericDocValues("sparse_gauge");
+                assertNotNull(sparseGaugeDV);
+                validateRunEnd(sparseGaugeDV);
+                var tagDV = leaf.getSortedDocValues("tag");
+                assertNotNull(tagDV);
+                validateRunEnd(tagDV);
+                var sparseTagDV = leaf.getSortedDocValues("sparse_tag");
+                assertNotNull(sparseTagDV);
+                validateRunEnd(sparseTagDV);
+                var tagsDV = leaf.getSortedSetDocValues("tags");
+                assertNotNull(tagsDV);
+                validateRunEnd(tagsDV);
+                var sparseTagsDV = leaf.getSortedSetDocValues("sparse_tags");
+                assertNotNull(sparseTagsDV);
+                validateRunEnd(sparseTagsDV);
+                var tagBytesDV = leaf.getBinaryDocValues("tags_as_bytes");
+                assertNotNull(tagBytesDV);
+                validateRunEnd(tagBytesDV);
+                var sparseTagBytesDV = leaf.getBinaryDocValues("sparse_tags_as_bytes");
+                assertNotNull(sparseTagBytesDV);
+                validateRunEnd(sparseTagBytesDV);
+            }
+        }
+    }
+
+    private void validateRunEnd(DocIdSetIterator iterator) throws IOException {
+        int runCount = 0;
+        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            int runLength = iterator.docIDRunEnd() - iterator.docID() - 1;
+            if (runLength > 1) {
+                runCount++;
+                for (int i = 0; i < runLength; i++) {
+                    int expected = iterator.docID() + 1;
+                    assertEquals(expected, iterator.advance(expected));
+                }
+            }
+        }
+        assertTrue("Expected docid runs of greater than 1", runCount > 0);
+    }
+
+    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField);
+    }
+
+    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, boolean multiValued, String timestampField) {
+        var config = new IndexWriterConfig();
+        if (hostnameField != null) {
+            config.setIndexSort(
+                new Sort(
+                    multiValued ? new SortedSetSortField(hostnameField, false) : new SortField(hostnameField, SortField.Type.STRING, false),
+                    new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+                )
+            );
+        } else {
+            config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        }
         config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
         config.setMergePolicy(new LogByteSizeMergePolicy());
         config.setCodec(getCodec());

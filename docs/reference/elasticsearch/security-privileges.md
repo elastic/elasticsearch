@@ -1,17 +1,32 @@
 ---
+navigation_title: "Elasticsearch privileges"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
-# Elasticsearch privileges [security-privileges]
+# {{es}} privileges [security-privileges]
 
-:::{note}
 This section provides detailed **reference information** for Elasticsearch privileges.
 
-Refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) in the **Deploy and manage** section for more information on how role-based access control works.
+If you're using a stack-versioned deployment such as a self-managed cluster, {{ech}}, {{eck}}, or {{ece}}, then refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) for more information on how role-based access control works.
+
+If you're using {{serverless-full}}, then refer to [Serverless project custom roles](docs-content://deploy-manage/users-roles/serverless-custom-roles.md) to learn how to build roles using these privileges.
+
+:::{note}
+In {{serverless-full}}, Elastic manages the underlying infrastructure for you. Because of this, privileges related to cluster administration, scaling, snapshots, and availability are not available. [Learn more about the features managed by {{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md).
 :::
 
-This section lists the privileges that you can assign to a role.
+Roles are governed by a set of configurable privileges grouped into these categories:
+
+* [cluster](#privileges-list-cluster), which you can use to manage core operations like snapshots, managing API keys, autoscaling, and cross-cluster functionality.
+* [indices](#privileges-list-indices), which govern document-level access, index and data stream metadata information, and more.
+* [run-as](#_run_as_privilege), which allows for secure impersonation.
+* [application](#application-privileges), which enable external applications to define and store their privilege models within {{es}} roles.
+
+When creating roles, refer to this page for a complete list of available privileges.
 
 ## Cluster privileges [privileges-list-cluster]
 
@@ -21,36 +36,28 @@ This section lists the privileges that you can assign to a role.
 `cancel_task`
 :   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more informations.
 
-`create_snapshot`
+`create_snapshot` {applies_to}`serverless: unavailable`
 :   Privileges to create snapshots for existing repositories. Can also list and view details on existing repositories and snapshots.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`cross_cluster_replication`
+`cross_cluster_replication` {applies_to}`serverless: unavailable`
 :   Privileges to connect to [remote clusters configured with the API key based model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md) for cross-cluster replication.
 
-    This privilege is not available in {{serverless-full}}.
-
     ::::{note}
-    This privilege should *not* be directly granted. It is used internally by [Create Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and [Update Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-cross-cluster-api-key) to manage cross-cluster API keys.
+    This privilege must *not* be directly granted. It is used internally by [Create Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and [Update Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-cross-cluster-api-key) to manage cross-cluster API keys.
     ::::
 
 
-`cross_cluster_search`
+`cross_cluster_search` {applies_to}`serverless: unavailable`
 :   Privileges to connect to [remote clusters configured with the API key based model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md) for cross-cluster search.
 
-    This privilege is not available in {{serverless-full}}.
-
     ::::{note}
-    This privilege should *not* be directly granted. It is used internally by [Create Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and [Update Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-cross-cluster-api-key) to manage cross-cluster API keys.
+    This privilege must *not* be directly granted. It is used internally by [Create Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and [Update Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-cross-cluster-api-key) to manage cross-cluster API keys.
     ::::
 
 
-`grant_api_key`
+`grant_api_key` {applies_to}`serverless: unavailable`
 :   Privileges to create {{es}} API keys on behalf of other users.
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `manage`
@@ -66,38 +73,26 @@ This section lists the privileges that you can assign to a role.
     ::::
 
 
-`manage_autoscaling`
+`manage_autoscaling` {applies_to}`serverless: unavailable`
 :   All operations related to managing autoscaling policies.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`manage_ccr`
+`manage_ccr` {applies_to}`serverless: unavailable`
 :   All {{ccr}} operations related to managing follower indices and auto-follow patterns. It also includes the authority to grant the privileges necessary to manage follower indices and auto-follow patterns. This privilege is necessary only on clusters that contain follower indices.
 
-    This privilege is not available in {{serverless-full}}.
+
+`manage_data_frame_transforms` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 7.5`
+:   Use `manage_transform` instead. {{es}} version 7.5 and older used `manage_data_frame_transforms` in operations related to managing {{transforms}}.
 
 
-`manage_data_frame_transforms`
-:   :::{admonition} Deprecated in 7.5
-    Use `manage_transform` instead.
-    :::
-
-    All operations related to managing {{transforms}}.
-
-    This privilege is not available in {{serverless-full}}.
-
-
-`manage_data_stream_global_retention`
-:   This privilege has no effect.[8.16]
+`manage_data_stream_global_retention` {applies_to}`stack: deprecated 8.16`
+:   This privilege has no effect.
 
 `manage_enrich`
 :   All operations related to managing and executing enrich policies.
 
-`manage_ilm`
+`manage_ilm` {applies_to}`serverless: unavailable`
 :   All {{ilm}} operations related to managing policies.
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `manage_index_templates`
@@ -120,10 +115,8 @@ This section lists the privileges that you can assign to a role.
     ::::
 
 
-`manage_oidc`
+`manage_oidc` {applies_to}`serverless: unavailable`
 :   Enables the use of {{es}} APIs ([OpenID connect prepare authentication](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-oidc-prepare-authentication), [OpenID connect authenticate](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-oidc-authenticate), and [OpenID connect logout](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-oidc-logout)) to initiate and manage OpenID Connect authentication on behalf of other users.
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `manage_own_api_key`
@@ -132,16 +125,12 @@ This section lists the privileges that you can assign to a role.
 `manage_pipeline`
 :   All operations on ingest pipelines.
 
-`manage_rollup`
+`manage_rollup` {applies_to}`serverless: unavailable`
 :   All rollup operations, including creating, starting, stopping and deleting rollup jobs.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`manage_saml`
+`manage_saml` {applies_to}`serverless: unavailable`
 :   Enables the use of internal {{es}} APIs to initiate and manage SAML authentication on behalf of other users.
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `manage_search_application`
@@ -156,34 +145,24 @@ This section lists the privileges that you can assign to a role.
 `manage_security`
 :   All security-related operations such as CRUD operations on users and roles and cache clearing.
 
-`manage_service_account`
+`manage_service_account` {applies_to}`serverless: unavailable`
 :   All security-related operations on {{es}} service accounts including [Get service accounts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-accounts), [Create service account tokens](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token), [Delete service account token](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token), and [Get service account credentials](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-credentials).
 
-    This privilege is not available in {{serverless-full}}.
 
+`manage_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`
+:   All {{slm}} ({{slm-init}}) actions, including creating and updating policies and starting and stopping {{slm-init}}. It also grants the permission to start and stop {{Ilm}}, using the [ILM start](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-start) and [ILM stop](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-stop) APIs.
 
-`manage_slm`
-:   All {{slm}} ({{slm-init}}) actions, including creating and updating policies and starting and stopping {{slm-init}}.
+    In a future major release, this privilege will not grant any {{Ilm}} permissions.
 
-    This privilege is not available in {{serverless-full}}.
-
-    :::{admonition} Deprecated in 8.15
-    Also grants the permission to start and stop {{Ilm}}, using the [ILM start](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-start) and [ILM stop](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-stop) APIs. In a future major release, this privilege will not grant any {{Ilm}} permissions.
-    :::
-
-`manage_token`
+`manage_token` {applies_to}`serverless: unavailable`
 :   All security-related operations on tokens that are generated by the {{es}} Token Service.
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `manage_transform`
 :   All operations related to managing {{transforms}}.
 
-`manage_watcher`
+`manage_watcher` {applies_to}`serverless: unavailable`
 :   All watcher operations, such as putting watches, executing, activate or acknowledging.
-
-    This privilege is not available in {{serverless-full}}.
 
     ::::{note}
     Watches that were created prior to version 6.1 or created when the {{security-features}} were disabled run as a system user with elevated privileges, including permission to read and write all indices. Newer watches run with the security roles of the user who created or updated them.
@@ -193,8 +172,8 @@ This section lists the privileges that you can assign to a role.
 `monitor`
 :   All cluster read-only operations, like cluster health and state, hot threads, node info, node and cluster stats, and pending cluster tasks.
 
-`monitor_data_stream_global_retention`
-:   This privilege has no effect.[8.16]
+`monitor_data_stream_global_retention` {applies_to}`stack: unavailable, deprecated 8.16`
+:   This privilege has no effect.
 
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.
@@ -208,70 +187,50 @@ This section lists the privileges that you can assign to a role.
 `monitor_ml`
 :   All read-only {{ml}} operations, such as getting information about {{dfeeds}}, jobs, model snapshots, or results.
 
-`monitor_rollup`
+`monitor_rollup` {applies_to}`serverless: unavailable`
 :   All read-only rollup operations, such as viewing the list of historical and currently running rollup jobs and their capabilities.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`monitor_snapshot`
+`monitor_snapshot` {applies_to}`serverless: unavailable`
 :   Privileges to list and view details on existing repositories and snapshots.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`monitor_stats`
+`monitor_stats` {applies_to}`serverless: unavailable`
 :   Privileges to list and view details of stats.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`monitor_text_structure`
+`monitor_text_structure` {applies_to}`serverless: unavailable`
 :   All read-only operations related to the [find structure API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-find-structure).
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `monitor_transform`
 :   All read-only operations related to {{transforms}}.
 
-`monitor_watcher`
+`monitor_watcher` {applies_to}`serverless: unavailable`
 :   All read-only watcher operations, such as getting a watch and watcher stats.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`read_ccr`
+`read_ccr` {applies_to}`serverless: unavailable`
 :   All read-only {{ccr}} operations, such as getting information about indices and metadata for leader indices in the cluster. It also includes the authority to check whether users have the appropriate privileges to follow leader indices. This privilege is necessary only on clusters that contain leader indices.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`read_ilm`
+`read_ilm` {applies_to}`serverless: unavailable`
 :   All read-only {{Ilm}} operations, such as getting policies and checking the status of {Ilm}
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `read_pipeline`
 :   Read-only access to ingest pipeline (get, simulate).
 
-`read_slm`
-:   All read-only {{slm-init}} actions, such as getting policies and checking the {{slm-init}} status.
+`read_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`
+:   All read-only {{slm-init}} actions, such as getting policies and checking the {{slm-init}} status. It also grants the permission to get the {{Ilm}} status, using the [ILM get status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-status).
 
-    This privilege is not available in {{serverless-full}}.
-
-    :::{admonition} Deprecated in 8.15
-    Also grants the permission to get the {{Ilm}} status, using the [ILM get status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-status). In a future major release, this privilege will not grant any {{Ilm}} permissions.
-    :::
+     In a future major release, this privilege will not grant any {{Ilm}} permissions.
 
 `read_security`
 :   All read-only security-related operations, such as getting users, user profiles, {{es}} API keys, {{es}} service accounts, roles and role mappings. Allows [querying](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-query-api-keys) and [retrieving information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-api-key) on all {{es}} API keys.
 
-`transport_client`
+`transport_client` {applies_to}`serverless: unavailable`
 :   All privileges necessary for a transport client to connect. Required by the remote cluster to enable [{{ccs}}](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md).
-
-    This privilege is not available in {{serverless-full}}.
 
 
 
@@ -316,22 +275,18 @@ This section lists the privileges that you can assign to a role.
     :::
 
 
-`create_index`
+`create_index` {applies_to}`serverless: unavailable`
 :   Privilege to create an index or data stream. A create index request may contain aliases to be added to the index once created. In that case the request requires the `manage` privilege as well, on both the index and the aliases names.
 
-`cross_cluster_replication`
+`cross_cluster_replication` {applies_to}`serverless: unavailable`
 :   Privileges to perform cross-cluster replication for indices located on [remote clusters configured with the API key based model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md). This privilege should only be used for the `privileges` field of [remote indices privileges](https://www.elastic.co/guide/en/elasticsearch/reference/current/defining-roles.html#roles-remote-indices-priv).
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`cross_cluster_replication_internal`
+`cross_cluster_replication_internal` {applies_to}`serverless: unavailable`
 :   Privileges to perform supporting actions for cross-cluster replication from [remote clusters configured with the API key based model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md).
 
-    This privilege is not available in {{serverless-full}}.
-
     ::::{note}
-    This privilege should *not* be directly granted. It is used internally by [Create Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and [Update Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-cross-cluster-api-key) to manage cross-cluster API keys.
+    This privilege must *not* be directly granted. It is used internally by [Create Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and [Update Cross-Cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-update-cross-cluster-api-key) to manage cross-cluster API keys.
     ::::
 
 
@@ -362,22 +317,16 @@ This section lists the privileges that you can assign to a role.
 `manage_failure_store` {applies_to}`stack: ga 9.1`
 :   All `monitor` privileges plus index and data stream administration limited to failure stores only. Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
 
-`manage_follow_index`
+`manage_follow_index` {applies_to}`serverless: unavailable`
 :   All actions that are required to manage the lifecycle of a follower index, which includes creating a follower index, closing it, and converting it to a regular index. This privilege is necessary only on clusters that contain follower indices.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`manage_ilm`
+`manage_ilm` {applies_to}`serverless: unavailable`
 :   All {{Ilm}} operations relating to managing the execution of policies of an index or data stream. This includes operations such as retrying policies and removing a policy from an index or data stream.
 
-    This privilege is not available in {{serverless-full}}.
 
-
-`manage_leader_index`
+`manage_leader_index` {applies_to}`serverless: unavailable`
 :   All actions that are required to manage the lifecycle of a leader index, which includes [forgetting a follower](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-forget-follower). This privilege is necessary only on clusters that contain leader indices.
-
-    This privilege is not available in {{serverless-full}}.
 
 
 `monitor`
@@ -386,10 +335,8 @@ This section lists the privileges that you can assign to a role.
 `read`
 :   Read-only access to actions (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv).
 
-`read_cross_cluster`
+`read_cross_cluster` {applies_to}`serverless: unavailable`
 :   Read-only access to the search action from a [remote cluster](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md).
-
-    This privilege is not available in {{serverless-full}}.
 
 `read_failure_store` {applies_to}`stack: ga 9.1`
 :   Read-only access to actions performed on a data stream's failure store. Required for access to failure store data (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv). Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
@@ -407,10 +354,11 @@ This section lists the privileges that you can assign to a role.
     :::
 
 ## Run as privilege [_run_as_privilege]
+```{applies_to}
+serverless: unavailable
+```
 
 The `run_as` permission enables an authenticated user to submit requests on behalf of another user. The value can be a user name or a comma-separated list of user names. (You can also specify users as an array of strings or a YAML sequence.) For more information, see [Submitting requests on behalf of other users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/submitting-requests-on-behalf-of-other-users.md).
-
-This privilege is not available in {{serverless-full}}.
 
 
 ## Application privileges [application-privileges]

@@ -40,6 +40,7 @@ import org.elasticsearch.script.BytesRefProducer;
 import org.elasticsearch.script.BytesRefSortScript;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
@@ -328,16 +329,16 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 };
             }
             case NUMBER -> {
-                final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
+                final ScoreScript.Factory numberSortFactory = context.compile(script, ScoreScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
-                final NumberSortScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);
+                final ScoreScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
+                    final Map<Object, ScoreScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
-                        NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
+                        ScoreScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
                         leafScripts.put(context.id(), leafScript);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
@@ -348,7 +349,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                             @Override
                             public double doubleValue() {
-                                return leafScript.execute();
+                                return leafScript.execute(new ScoreScript.ExplanationHolder());
                             }
                         };
                         return FieldData.singleton(values);

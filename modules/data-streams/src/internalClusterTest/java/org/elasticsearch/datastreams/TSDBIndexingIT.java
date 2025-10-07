@@ -325,20 +325,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
               }
             }""";
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put("index.mode", "time_series")
+            .put("index.dimensions_tsid_strategy_enabled", randomDouble() < 0.8);
+        if (randomBoolean()) {
+            settingsBuilder.put("index.routing_path", "metricset");
+        }
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
-                .template(
-                    new Template(
-                        Settings.builder()
-                            .put("index.mode", "time_series")
-                            .put("index.routing_path", randomBoolean() ? null : "metricset")
-                            .put("index.dimensions_tsid_strategy_enabled", randomDouble() < 0.8)
-                            .build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    )
-                )
+                .template(new Template(settingsBuilder.build(), new CompressedXContent(mappingTemplate), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );

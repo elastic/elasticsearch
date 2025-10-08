@@ -22,6 +22,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SimpleFSLockFactory;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -181,6 +182,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, int asyncPrefetchLimit) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
+            if (Constants.WINDOWS) {
+                // disable prefetching for WINDOWS, see https://github.com/elastic/elasticsearch/issues/136151
+                asyncPrefetchLimit = 0;
+            }
 
             DirectIODirectory directIO;
             try {

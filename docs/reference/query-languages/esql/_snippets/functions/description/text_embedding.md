@@ -2,5 +2,5 @@
 
 **Description**
 
-Generates dense vector embeddings from a text using a specified inference endpoint.
+Converts a constant text into dense vector embeddings using a inference endpoint. The resulting vectors can be used for knn search, and other vector-based operations. Requires an inference endpoint configured with the `text_embedding` task type.  See [Inference API documentation] for how to create inference endpoints.
 

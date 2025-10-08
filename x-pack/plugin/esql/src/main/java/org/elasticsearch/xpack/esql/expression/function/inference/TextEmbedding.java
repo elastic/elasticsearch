@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -39,7 +40,10 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Generates dense vector embeddings from a text using a specified inference endpoint.",
+        description = "Converts a constant text into dense vector embeddings using a inference endpoint. "
+            + "The resulting vectors can be used for knn search, and other vector-based operations. "
+            + "Requires an inference endpoint configured with the `text_embedding` task type. "
+            + " See [Inference API documentation] for how to create inference endpoints.",
         appliesTo = { @FunctionAppliesTo(version = "9.3", lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         preview = true,
         examples = {
@@ -47,25 +51,20 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
                 description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
                 file = "text-embedding",
                 tag = "text-embedding-eval"
-            ),
-            @Example(
-                description = "Generate text embeddings for use within a KNN search.",
-                file = "text-embedding",
-                tag = "text-embedding-knn"
-            ),
-            @Example(
-                description = "Generate text embeddings inline within a KNN search.",
-                file = "text-embedding",
-                tag = "text-embedding-knn-inline"
             ) }
     )
     public TextEmbedding(
         Source source,
-        @Param(name = "text", type = { "keyword" }, description = "Text to generate embeddings from") Expression inputText,
+        @Param(
+            name = "text",
+            type = { "keyword" },
+            description = "Text to generate embeddings from. Must be a non-null keyword constant."
+        ) Expression inputText,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
-            description = "Identifier of the inference endpoint. The inference endpoint must have the `text_embedding` task type."
+            description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
+                + "The inference endpoint must have the `text_embedding` task type."
         ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));
@@ -74,7 +73,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     }
 
     @Override
-    public void writeTo(StreamOutput out) {
+    public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException("doesn't escape the node");
     }
 

@@ -33,8 +33,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * Clamps the values of all samples to have a lower limit of min and an upper limit of max.
  */
 public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Clamp", Clamp::new);
-
     private final Expression field;
     private final Expression min;
     private final Expression max;
@@ -68,18 +66,9 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
         this.max = max;
     }
 
-    private Clamp(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
-    }
-
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("Clamp does not support serialization.");
     }
 
     @Override
@@ -135,10 +124,7 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field);
-        out.writeNamedWriteable(min);
-        out.writeNamedWriteable(max);
+        throw new UnsupportedOperationException("Clamp does not support serialization.");
     }
 
     @Override

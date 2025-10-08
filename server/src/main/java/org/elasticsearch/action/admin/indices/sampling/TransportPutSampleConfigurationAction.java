@@ -85,7 +85,6 @@ public class TransportPutSampleConfigurationAction extends AcknowledgedTransport
             request.ackTimeout(),
             listener
         );
-        state.projectState(projectId).metadata().custom("sample_config");
     }
 
     @Override

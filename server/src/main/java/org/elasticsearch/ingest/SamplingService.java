@@ -661,6 +661,16 @@ public class SamplingService implements ClusterStateListener {
      */
     private static final class SampleInfo {
         private final RawDocument[] rawDocuments;
+        /*
+         * This stores the maximum index in rawDocuments that has data currently. This is incremented speculatively before writing data to
+         * the array, so it is possible that this index is rawDocuments.length or greater.
+         */
+        private final AtomicInteger rawDocumentsIndex = new AtomicInteger(-1);
+        /*
+         * This caches the size of all raw documents in the rawDocuments array up to and including the data at the index on the left side
+         * of the tuple. The size in bytes is the right side of the tuple.
+         */
+        private volatile Tuple<Integer, Long> sizeInBytesAtIndex = Tuple.tuple(-1, 0L);
         private final SampleStats stats;
         private final long expiration;
         private final TimeValue timeToLive;
@@ -668,8 +678,6 @@ public class SamplingService implements ClusterStateListener {
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
-        private volatile Tuple<Integer, Long> sizeInBytesAtIndex = Tuple.tuple(-1, 0L);
-        private final AtomicInteger arrayIndex = new AtomicInteger(0);
 
         SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
             this.timeToLive = timeToLive;
@@ -688,7 +696,8 @@ public class SamplingService implements ClusterStateListener {
 
         /*
          * This gets an approximate size in bytes for ths sample. In only takes the size of the raw documents into account, since that is
-         * the only part of the sample that is not a fixed size.
+         * the only part of the sample that is not a fixed size. This method favors speed over 100% correctness -- it is possible during
+         * heavy concurrent ingestion that it under-reports the current size.
          */
         public long getSizeInBytes() {
             /*
@@ -698,15 +707,16 @@ public class SamplingService implements ClusterStateListener {
              * counting). That way we don't have to re-compute the size for documents we've already looked at.
              */
             Tuple<Integer, Long> knownIndexAndSize = sizeInBytesAtIndex;
-            int knownIndex = knownIndexAndSize.v1();
+            int knownSizeIndex = knownIndexAndSize.v1();
             long knownSize = knownIndexAndSize.v2();
-            int nextInsertionIndex = arrayIndex.get(); // The value in arrayIndex is always the _next_ insertion point
-            if (nextInsertionIndex - 1 == knownIndex) {
+            // It is possible that rawDocumentsIndex is beyond the end of rawDocuments
+            int currentRawDocumentsIndex = Math.min(rawDocumentsIndex.get(), rawDocuments.length - 1);
+            if (currentRawDocumentsIndex == knownSizeIndex) {
                 return knownSize;
             }
             long size = knownSize;
             boolean anyNulls = false;
-            for (int i = knownIndex + 1; i < nextInsertionIndex; i++) {
+            for (int i = knownSizeIndex + 1; i <= currentRawDocumentsIndex; i++) {
                 RawDocument rawDocument = rawDocuments[i];
                 if (rawDocument == null) {
                     /*
@@ -720,10 +730,10 @@ public class SamplingService implements ClusterStateListener {
             }
             /*
              * The most important thing is for this method to be fast. It is OK if we store the same value twice, or even if we store a
-             * slightly out-of-date copy, as long as we don't do any locking.
+             * slightly out-of-date copy, as long as we don't do any locking. The correct size will be calculated next time.
              */
-            if (anyNulls == false && sizeInBytesAtIndex.v1() + 1 < nextInsertionIndex) {
-                sizeInBytesAtIndex = Tuple.tuple(nextInsertionIndex - 1, size);
+            if (anyNulls == false) {
+                sizeInBytesAtIndex = Tuple.tuple(currentRawDocumentsIndex, size);
             }
             return size;
         }
@@ -732,7 +742,7 @@ public class SamplingService implements ClusterStateListener {
          * Adds the rawDocument to the sample if there is capacity. Returns true if it adds it, or false if it does not.
          */
         public boolean offer(RawDocument rawDocument) {
-            int index = arrayIndex.getAndIncrement();
+            int index = rawDocumentsIndex.incrementAndGet();
             if (index < rawDocuments.length) {
                 rawDocuments[index] = rawDocument;
                 if (index == rawDocuments.length - 1) {

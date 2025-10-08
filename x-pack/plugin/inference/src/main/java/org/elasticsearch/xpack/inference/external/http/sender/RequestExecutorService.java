@@ -270,8 +270,7 @@ public class RequestExecutorService implements RequestExecutor {
 
                 if (isShutdown()) {
                     logger.debug("Shutdown requested while handling request tasks, cleaning up");
-                    cleanup();
-                    return;
+                    rejectRequest(task);
                 } else {
                     var requestManager = task.getRequestManager();
 

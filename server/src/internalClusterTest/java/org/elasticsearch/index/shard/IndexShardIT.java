@@ -80,6 +80,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -305,25 +306,26 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testNodeWriteLoadsArePresent() {
-        // Disable write load decider to begin with
-        setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
-
-        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
-        ClusterInfoServiceUtils.refresh(clusterInfoService);
-        Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
-            .getNodeUsageStatsForThreadPools();
-        assertNotNull(nodeThreadPoolStats);
-        /** Not collecting stats yet because allocation write load stats collection is disabled by default.
-         *  see {@link WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING} */
-        assertTrue(nodeThreadPoolStats.isEmpty());
-
-        // Enable collection for node write loads.
-        setWriteLoadDeciderEnablement(
-            randomBoolean()
-                ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-                : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
-        );
         try {
+            // Disable write load decider to begin with
+            setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
+
+            InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
+                .getNodeUsageStatsForThreadPools();
+            assertNotNull(nodeThreadPoolStats);
+            /** Not collecting stats yet because allocation write load stats collection is disabled by default.
+             *  see {@link WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING} */
+            assertTrue(nodeThreadPoolStats.isEmpty());
+
+            // Enable collection for node write loads.
+            setWriteLoadDeciderEnablement(
+                randomBoolean()
+                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+            );
+
             // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeUsageStatsForThreadPools();
@@ -361,10 +363,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
-        // Explicitly disable write load decider
-        setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
-
         try {
+            // Explicitly disable write load decider
+            setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
+
             // Stats should not be collected when the decider is disabled
             {
                 ClusterInfoServiceUtils.refresh(clusterInfoService);

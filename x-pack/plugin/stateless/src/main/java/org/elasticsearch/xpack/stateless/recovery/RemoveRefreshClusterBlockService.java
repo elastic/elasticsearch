@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -47,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -117,7 +119,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
         }
         @FixForMultiProject(description = "we may want to loop through all active projects")
         final var projectId = Metadata.DEFAULT_PROJECT_ID;
-        var blockedIndices = event.state().blocks().indices(projectId, ClusterBlockLevel.REFRESH).keySet();
+        var blockedIndices = getIndicesWithRefreshBlock(event.state(), projectId);
         if (blockedIndices.isEmpty()) {
             return;
         }
@@ -128,7 +130,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
             scheduleExpiration = addRefreshBlockExpirationEntry(event.state(), blockedIndices);
 
         } else if (event.metadataChanged()) {
-            var previousBlockedIndices = event.previousState().blocks().indices(projectId, ClusterBlockLevel.REFRESH).keySet();
+            var previousBlockedIndices = getIndicesWithRefreshBlock(event.previousState(), projectId);
 
             var newBlockedIndices = Sets.difference(blockedIndices, previousBlockedIndices);
             if (newBlockedIndices.isEmpty() == false) {
@@ -182,6 +184,16 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
         if (scheduleExpiration) {
             scheduleExpirationCheck(delayed1sec(expireAfter.millis()));
         }
+    }
+
+    private static Set<String> getIndicesWithRefreshBlock(ClusterState clusterState, ProjectId projectId) {
+        return clusterState.blocks()
+            .indices(projectId, ClusterBlockLevel.REFRESH)
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().isEmpty() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     private boolean addRefreshBlockExpirationEntry(ClusterState clusterState, Set<String> indices) {

@@ -26,7 +26,7 @@
 ---
 "cluster health test for shard capacity settings":
   - requires:
-      cluster_features: [ "health.shard_capacity.unhealthy_threshold_setting" ]
+      cluster_features: [ "health.shard_capacity.unhealthy_threshold_settings" ]
       reason: "these relevant settings are added in 9.3"
   - do:
         health_report:
@@ -34,14 +34,14 @@
   - is_true: cluster_name
   - match:   { indicators.shards_capacity.status: "green" }
 
-  # set large threshold to force the indicator to go yellow
+  # set very large threshold to force the indicator to go yellow
   - do:
       cluster.put_settings:
         body:
           persistent:
-            health.shard_capacity.unhealthy_threshold.yellow: 10000
+            health.shard_capacity.unhealthy_threshold.yellow: 100000000
         flat_settings: true
-  - match:  { persistent: { health.shard_capacity.unhealthy_threshold.yellow: "10000" } }
+  - match:  { persistent: { health.shard_capacity.unhealthy_threshold.yellow: "100000000" } }
 
   - do:
       health_report:
@@ -49,14 +49,14 @@
   - is_true: cluster_name
   - match:  { indicators.shards_capacity.status: "yellow" }
 
-  # set large threshold to force the indicator to go red
+  # set very large threshold to force the indicator to go red
   - do:
       cluster.put_settings:
         body:
           persistent:
-            health.shard_capacity.unhealthy_threshold.red: 9000
+            health.shard_capacity.unhealthy_threshold.red: 90000000
         flat_settings: true
-  - match:  { persistent: { health.shard_capacity.unhealthy_threshold.red: "9000" } }
+  - match:  { persistent: { health.shard_capacity.unhealthy_threshold.red: "90000000" } }
 
   - do:
       health_report:

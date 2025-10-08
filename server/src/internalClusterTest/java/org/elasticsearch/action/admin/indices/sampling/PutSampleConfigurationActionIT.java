@@ -138,9 +138,7 @@ public class PutSampleConfigurationActionIT extends ESIntegTestCase {
         );
 
         // Setting multiple indices should fail
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-            request.indices(indexName1, indexName2);
-        });
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> { request.indices(indexName1, indexName2); });
         assertTrue(exception.getMessage().contains("Exactly one index or data stream must be specified"));
     }
 

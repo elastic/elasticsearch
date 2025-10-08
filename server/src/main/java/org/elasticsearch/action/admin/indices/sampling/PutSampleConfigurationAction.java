@@ -77,11 +77,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          * @param masterNodeTimeout the timeout for master node operations, or null for default
          * @param ackTimeout the timeout for acknowledgment, or null for default
          */
-        public Request(
-            SamplingConfiguration samplingConfiguration,
-            @Nullable TimeValue masterNodeTimeout,
-            @Nullable TimeValue ackTimeout
-        ) {
+        public Request(SamplingConfiguration samplingConfiguration, @Nullable TimeValue masterNodeTimeout, @Nullable TimeValue ackTimeout) {
             super(masterNodeTimeout, ackTimeout);
             Objects.requireNonNull(samplingConfiguration, "samplingConfiguration must not be null");
             this.samplingConfiguration = samplingConfiguration;

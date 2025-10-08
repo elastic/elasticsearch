@@ -109,7 +109,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         plugins.add(MockReadinessService.TestPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
-    
+
     private void assertMasterNode(Client client, String node) {
         assertThat(
             client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),

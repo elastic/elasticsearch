@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -508,7 +509,7 @@ public class AuthorizationService {
                 targetProjectListener.onResponse(TargetProjects.NOT_CROSS_PROJECT);
             }
 
-            targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
+            targetProjectListener.addListener(actionListenerWithErrorHandling(targetProjects -> {
                 final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
                     targetProjects,
                     requestInfo,
@@ -543,7 +544,7 @@ public class AuthorizationService {
                             threadContext
                         )
                     );
-            }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)));
+            }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e), listener::onFailure));
         } else {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
@@ -579,14 +580,7 @@ public class AuthorizationService {
                     projectMetadata.getIndicesLookup(),
                     ActionListener.wrap(authorizedIndices -> {
                         resolvedIndicesListener.onResponse(
-                            indicesAndAliasesResolver.resolve(
-                                action,
-                                request,
-                                projectMetadata,
-                                authorizedIndices,
-                                targetProjects
-
-                            )
+                            indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices, targetProjects)
                         );
                     }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e))
                 );
@@ -618,19 +612,6 @@ public class AuthorizationService {
                     authentication,
                     ex.getClass().getSimpleName()
                 ),
-                ex
-            );
-            listener.onFailure(ex);
-            return;
-        }
-        if (ex instanceof IllegalStateException) {
-            logger.warn(() -> Strings.format("failed [%s] action authorization for [%s]", action, authentication), ex);
-            listener.onFailure(ex);
-            return;
-        }
-        if (ex instanceof IllegalArgumentException) {
-            logger.debug(
-                () -> Strings.format("failed [%s] action authorization for [%s]. Reason [%s]", action, authentication, ex.getMessage()),
                 ex
             );
             listener.onFailure(ex);
@@ -1189,6 +1170,59 @@ public class AuthorizationService {
                 }
             }
             return valueFuture;
+        }
+    }
+
+    /**
+     * Creates a listener that executes the appropriate consumer when the response (or failure) is received.
+     * Any exceptions thrown from the {@code onResponse} consumer is passed into the {@code errorHandler} consumer.
+     * This is the main difference from {@link ActionListener#wrap(CheckedConsumer, Consumer)}.
+     *
+     * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
+     *                   exception, the exception is passed to the {@code errorHandler} consumer.
+     * @param onFailure the consumer of the failure, executed when the listener is completed with a failure
+     * @param errorHandler the consumer of exceptions thrown by the {@code onResponse} consumer
+     * @param <Response> the type of the response
+     * @return a listener that executes the appropriate consumer when the response (or failure) is received.
+     */
+    private static <Response> ActionListener<Response> actionListenerWithErrorHandling(
+        CheckedConsumer<Response, ? extends Exception> onResponse,
+        Consumer<Exception> onFailure,
+        Consumer<Exception> errorHandler
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    onResponse.accept(response);
+                } catch (Exception e) {
+                    safeAcceptException(errorHandler, e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                safeAcceptException(onFailure, e);
+            }
+
+            @Override
+            public String toString() {
+                return "ActionListenerWithErrorHandler{" + onResponse + "}{" + onFailure + "}{" + errorHandler + "}";
+            }
+        };
+    }
+
+    private static void safeAcceptException(Consumer<Exception> consumer, Exception e) {
+        assert e != null;
+        try {
+            consumer.accept(e);
+        } catch (RuntimeException ex) {
+            // noinspection ConstantConditions
+            if (e != null && ex != e) {
+                ex.addSuppressed(e);
+            }
+            assert false : ex;
+            throw ex;
         }
     }
 

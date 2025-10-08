@@ -425,7 +425,8 @@ final class CanMatchPreFilterSearchPhase {
             indexBoost,
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
-            ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex)
+            ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex),
+            shardIt.getReshardSplitShardCountSummary()
         );
     }
 

@@ -47,6 +47,21 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
  * Note that in this case no shard-bulk-request is sent to shards 5, 6, 7 and the requests that were meant for these target shards
  * are bundled together with and sent to their source shards.
  *
+ * Example 3:
+ * Suppose we are resharding an index from 4 -> 8 shards. While handling a search request, the coordinator observes
+ * that target shard 5 is in SPLIT state but target shards 4, 6, 7 are in CLONE/HANDOFF state.
+ * The coordinator will send shard search requests to all source shards (0, 1, 2, 3) and to all target shards
+ * that are at least in SPLIT state (5).
+ * Shard search request sent to source shards 0, 2, 3 has the "reshardSplitShardCountSummary" of 4
+ * since corresponding target shards (4, 6, 7) have not advanced to SPLIT state.
+ * Shard search request sent to source shard 1 has the "reshardSplitShardCountSummary" of 8
+ * since the corresponding target shard 5 is in SPLIT state.
+ * When a shard search request is executed on the source shard 1, "reshardSplitShardCountSummary" value
+ * is checked and documents that will be returned by target shard 5 are excluded
+ * (they are still present in the source shard because the resharding process is not complete).
+ * All other source shard search requests (0, 2, 3) return all available documents since corresponding target shards
+ * are not yet available to do that.
+ *
  * A value of 0 indicates an INVALID reshardSplitShardCountSummary. Hence, a request with INVALID reshardSplitShardCountSummary
  * will be treated as a Summary mismatch on the source shard node.
  */

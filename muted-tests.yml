@@ -642,12 +642,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testConcurrentAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/135777
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:math.NegateIntLongDouble}
-  issue: https://github.com/elastic/elasticsearch/issues/136089
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:text-embedding.Text_embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/136090
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBranchWithInlineStats}
   issue: https://github.com/elastic/elasticsearch/issues/136091
@@ -675,9 +669,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:text-embedding.Text_embedding with knn (inline) on semantic_text_dense_field}
   issue: https://github.com/elastic/elasticsearch/issues/136142
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:text-embedding.Text_embedding with multiple knn queries in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/136090
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249

@@ -17,7 +17,7 @@ import java.io.IOException;
 
 /**
  * Exception indicating a cluster state update was published and may or may not have been committed.
- * This exception can only be thrown by master nodes.
+ * This exception can only be thrown by the master node.
  * <p>
  * If this exception is thrown, then the cluster state update was published, but is not guaranteed
  * to be committed, including the next master node. This exception should only be thrown when there is

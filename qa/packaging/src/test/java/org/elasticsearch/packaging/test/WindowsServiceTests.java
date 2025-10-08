@@ -153,6 +153,21 @@ public class WindowsServiceTests extends PackagingTestCase {
         runElasticsearchTests();
 
         assertCommand(serviceScript + " stop");
+        assertStopped();
+
+        assertCommand(serviceScript + " remove");
+        assertCommand(
+            "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
+                + "echo \"$p\";"
+                + "if ($p -eq $Null) {"
+                + "  exit 0;"
+                + "} else {"
+                + "  exit 1;"
+                + "}"
+        );
+    }
+
+    private void assertStopped() {
         assertService(DEFAULT_ID, "Stopped");
         // the process is stopped async, and can become a zombie process, so we poll for the process actually being gone
         assertCommand(
@@ -169,17 +184,6 @@ public class WindowsServiceTests extends PackagingTestCase {
                 + "  $i += 1;"
                 + "} while ($i -lt 300);"
                 + "exit 9;"
-        );
-
-        assertCommand(serviceScript + " remove");
-        assertCommand(
-            "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
-                + "echo \"$p\";"
-                + "if ($p -eq $Null) {"
-                + "  exit 0;"
-                + "} else {"
-                + "  exit 1;"
-                + "}"
         );
     }
 
@@ -205,17 +209,22 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test33JavaChanged() throws Exception {
         final Path alternateJdk = installation.bundledJdk.getParent().resolve("jdk.copy");
 
-        try {
-            copyDirectory(installation.bundledJdk, alternateJdk);
-            sh.getEnv().put("ES_JAVA_HOME", alternateJdk.toString());
-            assertCommand(serviceScript + " install");
-            sh.getEnv().remove("ES_JAVA_HOME");
-            assertCommand(serviceScript + " start");
-            assertStartedAndStop();
-            assertCommand(serviceScript + " remove");
-        } finally {
-            FileUtils.rm(alternateJdk);
-        }
+        copyDirectory(installation.bundledJdk, alternateJdk);
+        sh.getEnv().put("ES_JAVA_HOME", alternateJdk.toString());
+        assertCommand(serviceScript + " install");
+        sh.getEnv().remove("ES_JAVA_HOME");
+        assertCommand(serviceScript + " start");
+        assertStartedAndStop();
+    }
+
+    public void test34StartStopStart() throws Exception {
+        assertCommand(serviceScript + " install");
+        assertCommand(serviceScript + " start");
+        ServerUtils.waitForElasticsearch(installation);
+        assertCommand(serviceScript + " stop");
+        assertStopped();
+        assertCommand(serviceScript + " start");
+        assertStartedAndStop();
     }
 
     public void test80JavaOptsInEnvVar() throws Exception {

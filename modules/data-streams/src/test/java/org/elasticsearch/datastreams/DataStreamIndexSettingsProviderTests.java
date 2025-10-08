@@ -250,9 +250,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
-        result = builder().put(result)
-            .put("index.mode", "time_series")
-            .build();
+        result = builder().put(result).put("index.mode", "time_series").build();
         assertThat(result.size(), equalTo(4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));

@@ -79,7 +79,7 @@ public class MlDailyMaintenanceService implements Releasable {
     private static final int MAX_TIME_OFFSET_MINUTES = 120;
 
     private final ThreadPool threadPool;
-    private final OriginSettingClient client;
+    private final Client client;
     private final ClusterService clusterService;
     private final MlAssignmentNotifier mlAssignmentNotifier;
 
@@ -111,7 +111,7 @@ public class MlDailyMaintenanceService implements Releasable {
         boolean isNlpEnabled
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         this.schedulerProvider = Objects.requireNonNull(schedulerProvider);
@@ -296,11 +296,14 @@ public class MlDailyMaintenanceService implements Releasable {
         // as AD job Ids cannot start with `.`
         String rolloverAlias = index + ".rollover_alias";
 
+        OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
+
+
         // If the index does not end in a digit then rollover does not know
         // what to name the new index so it must be specified in the request.
         // Otherwise leave null and rollover will calculate the new name
         String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
-        IndicesAliasesRequestBuilder aliasRequestBuilder = client.admin()
+        IndicesAliasesRequestBuilder aliasRequestBuilder = originSettingClient.admin()
             .indices()
             .prepareAliases(
                 MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
@@ -317,7 +320,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 var indexName = MlIndexAndAlias.has6DigitSuffix(index) ? index : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
 
                 // Make sure we use a fresh IndicesAliasesRequestBuilder, the original one may have changed internal state.
-                IndicesAliasesRequestBuilder localAliasRequestBuilder = client.admin()
+                IndicesAliasesRequestBuilder localAliasRequestBuilder = originSettingClient.admin()
                     .indices()
                     .prepareAliases(
                         MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
@@ -350,8 +353,8 @@ public class MlDailyMaintenanceService implements Releasable {
         // 2 rollover the index alias to the new index name
         ActionListener<IndicesAliasesResponse> getIndicesAliasesListener = ActionListener.wrap(getIndicesAliasesResponse -> {
             MlIndexAndAlias.rollover(
-                client,
-                new RolloverRequestBuilder(client).setRolloverTarget(rolloverAlias)
+                originSettingClient,
+                new RolloverRequestBuilder(originSettingClient).setRolloverTarget(rolloverAlias)
                     .setNewIndexName(newIndexName)
                     // TODO Make these conditions configurable settings?
                     .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(50, ByteSizeUnit.GB)).build())
@@ -361,7 +364,7 @@ public class MlDailyMaintenanceService implements Releasable {
         }, rolloverListener::onFailure);
 
         // 1. Create necessary aliases
-        MlIndexAndAlias.createAliasForRollover(logger, client, index, rolloverAlias, getIndicesAliasesListener);
+        MlIndexAndAlias.createAliasForRollover(logger, originSettingClient, index, rolloverAlias, getIndicesAliasesListener);
     }
 
     // TODO make public for testing?

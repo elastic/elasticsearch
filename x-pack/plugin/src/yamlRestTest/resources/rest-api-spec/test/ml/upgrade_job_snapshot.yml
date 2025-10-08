@@ -98,15 +98,15 @@ setup:
 "Test existing but corrupt snapshot":
   - do:
       ml.upgrade_job_snapshot:
-        job_id: "upgrade-model-snapshot"
+        job_id: "upgrade-model-snapshotXXX"
         snapshot_id: "1234567890"
         wait_for_completion: false
 
   - do:
       ml.get_model_snapshot_upgrade_stats:
-        job_id: "upgrade-model-snapshot"
+        job_id: "upgrade-model-snapshotYYY"
         snapshot_id: "1234567890"
   - match: { count: 1 }
-  - match: { model_snapshot_upgrades.0.job_id: "upgrade-model-snapshot" }
+  - match: { model_snapshot_upgrades.0.job_id: "upgrade-model-snapshotZZZ" }
   - match: { model_snapshot_upgrades.0.snapshot_id: "1234567890" }
   - match: { model_snapshot_upgrades.0.state: /failed|loading_old_state/ }

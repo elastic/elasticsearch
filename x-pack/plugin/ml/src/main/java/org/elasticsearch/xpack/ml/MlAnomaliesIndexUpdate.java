@@ -100,7 +100,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             );
 
             // Ensure the index name is of a format amenable to simplifying maintenance
-            boolean isCompatibleIndexFormat = MlIndexAndAlias.indexNameHasSixDigitSuffix(index);
+            boolean isCompatibleIndexFormat = MlIndexAndAlias.has6DigitSuffix(index);
 
             if (isCompatibleIndexVersion && isCompatibleIndexFormat) {
                 continue;

@@ -74,7 +74,7 @@ public final class MlIndexAndAlias {
     public static final String FIRST_INDEX_SIX_DIGIT_SUFFIX = "-000001";
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
-    private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("^.*\\d{6}$").asMatchPredicate();
+    private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
 
     static final Comparator<String> INDEX_NAME_COMPARATOR = (index1, index2) -> {
         String[] index1Parts = index1.split("-");
@@ -460,13 +460,6 @@ public final class MlIndexAndAlias {
      */
     public static boolean indexIsReadWriteCompatibleInV9(IndexVersion version) {
         return version.onOrAfter(IndexVersions.V_8_0_0);
-    }
-
-    /**
-     * True if the index name ends with a 6 digit suffix, e.g. 000001
-     */
-    public static boolean indexNameHasSixDigitSuffix(String indexName) {
-        return HAS_SIX_DIGIT_SUFFIX.test(indexName);
     }
 
     /**

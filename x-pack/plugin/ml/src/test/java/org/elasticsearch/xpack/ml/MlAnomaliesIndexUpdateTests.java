@@ -51,18 +51,6 @@ import static org.mockito.Mockito.when;
 
 public class MlAnomaliesIndexUpdateTests extends ESTestCase {
 
-    public void testIsAnomaliesWriteAlias() {
-        assertTrue(MlIndexAndAlias.isAnomaliesWriteAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlIndexAndAlias.isAnomaliesWriteAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlIndexAndAlias.isAnomaliesWriteAlias("some-index"));
-    }
-
-    public void testIsAnomaliesAlias() {
-        assertTrue(MlIndexAndAlias.isAnomaliesReadAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlIndexAndAlias.isAnomaliesReadAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlIndexAndAlias.isAnomaliesReadAlias("some-index"));
-    }
-
     public void testIsAbleToRun_IndicesDoNotExist() {
         RoutingTable.Builder routingTable = RoutingTable.builder();
         var updater = new MlAnomaliesIndexUpdate(TestIndexNameExpressionResolver.newInstance(), mock(Client.class));
@@ -145,7 +133,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     }
 
     public void testRunUpdate_UpToDateIndices() {
-        String indexName = ".ml-anomalies-sharedindex";
+        String indexName = ".ml-anomalies-sharedindex-000001";
         var jobs = List.of("job1", "job2");
         IndexMetadata.Builder indexMetadata = createSharedResultsIndex(indexName, IndexVersion.current(), jobs);
 

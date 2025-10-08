@@ -287,12 +287,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         unregistered.close();
     }
 
-    public void add(final ShardId shardId, final BytesReference data, final long seqNo, final Translog.Location location) {
+    public void add(final ShardId shardId, final Translog.Serialized operation, final long seqNo, final Translog.Location location) {
         try {
             ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
             while (true) {
                 NodeTranslogBuffer nodeTranslogBuffer = getNodeTranslogBuffer();
-                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, data, seqNo, location)) {
+                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, operation, seqNo, location)) {
                     if (nodeTranslogBuffer.shouldFlushBufferDueToSize()) {
                         executor.execute(new FlushTask(nodeTranslogBuffer));
                     }
@@ -308,6 +308,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             assert false;
             throw new UncheckedIOException(e);
         }
+
     }
 
     private NodeTranslogBuffer getNodeTranslogBuffer() {

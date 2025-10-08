@@ -526,7 +526,9 @@ public class EsqlFunctionRegistry {
                 def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
-                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time") } };
+                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
+                // dense vector function
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
 
     }
 
@@ -545,8 +547,7 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming"),
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

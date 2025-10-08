@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -29,7 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
@@ -217,16 +219,19 @@ public class InlineJoin extends Join {
     }
 
     @Override
-    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
+    public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
         JoinType joinType = config().type();
-        List<Attribute> output;
+        List<NamedExpression> output;
         if (LEFT.equals(joinType)) {
-            List<Attribute> leftOutputWithoutKeys = left.stream().filter(attr -> config().leftFields().contains(attr) == false).toList();
-            List<Attribute> rightWithAppendedKeys = new ArrayList<>(right);
-            rightWithAppendedKeys.removeAll(config().rightFields());
-            rightWithAppendedKeys.addAll(config().leftFields());
+            List<? extends NamedExpression> leftOutputWithoutKeys = left.stream()
+                .filter(ne -> config().leftFields().contains(ne.toAttribute()) == false)
+                .toList();
+            List<NamedExpression> rightWithAppendedLeftKeys = new ArrayList<>(right);
+            rightWithAppendedLeftKeys.removeIf(ne -> config().rightFields().contains(ne.toAttribute()));
+            AttributeMap<NamedExpression> leftAttrMap = AttributeMap.mapAll(left, NamedExpression::toAttribute);
+            config().leftFields().forEach(lk -> rightWithAppendedLeftKeys.add(leftAttrMap.getOrDefault(lk, lk)));
 
-            output = mergeOutputAttributes(rightWithAppendedKeys, leftOutputWithoutKeys);
+            output = mergeOutputExpressions(rightWithAppendedLeftKeys, leftOutputWithoutKeys);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }

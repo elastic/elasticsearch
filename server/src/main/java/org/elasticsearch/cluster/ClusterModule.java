@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageMetric;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -72,6 +75,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.ClusterSecrets;
@@ -320,6 +324,9 @@ public class ClusterModule extends AbstractModule {
 
         // Streams
         registerProjectCustom(entries, StreamsMetadata.TYPE, StreamsMetadata::new, StreamsMetadata::readDiffFrom);
+
+        // Actions
+        entries.addAll(ActionModule.getNamedWriteables());
 
         return entries;
     }

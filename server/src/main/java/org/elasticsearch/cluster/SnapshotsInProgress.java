@@ -1812,6 +1812,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
 
+        private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
+
         private final SnapshotsInProgress after;
 
         private final DiffableUtils.MapDiff<ProjectRepo, ByRepo, Map<ProjectRepo, ByRepo>> mapDiff;
@@ -1824,7 +1826,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         SnapshotInProgressDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+            if (in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                 final var oldMapDiff = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1875,13 +1877,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
             if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-                if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+                if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                     DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
                         if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
                             final var message = "Cannot write instance with non-default project id "
                                 + projectRepo.projectId()
                                 + " to version before "
-                                + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
+                                + PROJECT_ID_IN_SNAPSHOT;
                             assert false : message;
                             throw new IllegalArgumentException(message);
                         }

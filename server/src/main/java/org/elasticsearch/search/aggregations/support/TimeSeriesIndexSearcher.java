@@ -39,7 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.IntSupplier;
 
-import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+import static org.elasticsearch.index.IndexSortConfig.IndexSortConfigDefaults.TIME_SERIES_SORT;
 
 /**
  * An IndexSearcher wrapper that executes the searches in time-series indices by traversing them by tsid and timestamp

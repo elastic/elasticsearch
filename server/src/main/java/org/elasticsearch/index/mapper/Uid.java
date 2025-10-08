@@ -175,6 +175,12 @@ public final class Uid {
 
     /** Decode an indexed id back to its original form.
      *  @see #encodeId */
+    public static String decodeId(BytesRef idBytes) {
+        return decodeId(idBytes.bytes, idBytes.offset, idBytes.length);
+    }
+
+    /** Decode an indexed id back to its original form.
+     *  @see #encodeId */
     public static String decodeId(byte[] idBytes) {
         return decodeId(idBytes, 0, idBytes.length);
     }

@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.inference.services.nvidia;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
-import org.elasticsearch.xpack.inference.services.nvidia.action.NvidiaActionVisitor;
+import org.elasticsearch.xpack.inference.services.llama.LlamaModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 /**
@@ -32,6 +32,15 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     }
 
     /**
+     * Constructor for creating a LlamaModel with specified model, service settings, and secret settings.
+     * @param model the model configurations
+     * @param taskSettings the settings for the task
+     */
+    protected NvidiaModel(NvidiaModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+    }
+
+    /**
      * Constructor for creating a NvidiaModel with specified model, service settings, and secret settings.
      * @param model the model configurations
      * @param serviceSettings the settings for the inference service
@@ -45,10 +54,4 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    /**
-     * Accepts a visitor to create an executable action for the Nvidia model.
-     * @param creator the visitor that creates the executable action
-     * @return an executable action for the Nvidia model
-     */
-    protected abstract ExecutableAction accept(NvidiaActionVisitor creator);
 }

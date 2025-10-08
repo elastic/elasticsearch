@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.nvidia.action.NvidiaActionCreator;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -110,10 +111,12 @@ public class NvidiaService extends SenderService {
         ActionListener<InferenceServiceResults> listener
     ) {
         var actionCreator = new NvidiaActionCreator(getSender(), getServiceComponents());
-        if (model instanceof NvidiaModel nvidiaModel) {
-            nvidiaModel.accept(actionCreator).execute(inputs, timeout, listener);
-        } else {
-            listener.onFailure(createInvalidModelException(model));
+        switch (model) {
+            case NvidiaChatCompletionModel nvidiaChatCompletionModel -> nvidiaChatCompletionModel.accept(actionCreator)
+                .execute(inputs, timeout, listener);
+            case NvidiaEmbeddingsModel nvidiaEmbeddingsModel -> nvidiaEmbeddingsModel.accept(actionCreator, taskSettings)
+                .execute(inputs, timeout, listener);
+            default -> listener.onFailure(createInvalidModelException(model));
         }
     }
 

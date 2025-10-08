@@ -132,7 +132,6 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
      * @param creator the visitor that creates the executable action
      * @return an ExecutableAction representing this model
      */
-    @Override
     public ExecutableAction accept(NvidiaActionVisitor creator) {
         return creator.create(this);
     }

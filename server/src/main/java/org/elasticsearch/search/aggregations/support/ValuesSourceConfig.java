@@ -431,7 +431,10 @@ public class ValuesSourceConfig {
      */
     public boolean alignesWithSearchIndex() {
         boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
-        return script() == null && missing() == null && fieldType() != null && (fieldType().isIndexed() || hasDocValuesSkipper);
+        return script() == null
+            && missing() == null
+            && fieldType() != null
+            && (fieldType().indexType().supportsSortShortcuts() || hasDocValuesSkipper);
     }
 
     /**

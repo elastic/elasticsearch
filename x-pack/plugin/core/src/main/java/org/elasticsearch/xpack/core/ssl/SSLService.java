@@ -57,6 +57,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -772,7 +773,7 @@ public class SSLService {
         private final SslKeyConfig keyConfig;
         private final SslTrustConfig trustConfig;
         private final SslConfiguration sslConfiguration;
-        private final List<Runnable> reloadListeners;
+        private final List<Consumer<? super SSLContextHolder>> reloadListeners;
 
         SSLContextHolder(SSLContext context, SslConfiguration sslConfiguration) {
             this.context = context;
@@ -799,7 +800,7 @@ public class SSLService {
                 sslConfiguration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
                 supportedCiphers(socketFactory.getSupportedCipherSuites(), sslConfiguration.getCipherSuites(), false)
             );
-            this.addReloadListener(securitySSLSocketFactory::reload);
+            this.addReloadListener(profile -> securitySSLSocketFactory.reload());
             return securitySSLSocketFactory;
         }
 
@@ -850,11 +851,16 @@ public class SSLService {
             return sslEngine;
         }
 
+        @Override
+        public void addReloadListener(Consumer<SslProfile> listener) {
+            this.reloadListeners.add(listener);
+        }
+
         synchronized void reload() {
             invalidateSessions(context.getClientSessionContext());
             invalidateSessions(context.getServerSessionContext());
             reloadSslContext();
-            this.reloadListeners.forEach(Runnable::run);
+            this.reloadListeners.forEach(l -> l.accept(this));
         }
 
         private void reloadSslContext() {
@@ -874,10 +880,6 @@ public class SSLService {
             } catch (GeneralSecurityException e) {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);
             }
-        }
-
-        public void addReloadListener(Runnable listener) {
-            this.reloadListeners.add(listener);
         }
     }
 

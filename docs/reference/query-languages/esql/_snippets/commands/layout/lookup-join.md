@@ -1,5 +1,6 @@
 ```yaml {applies_to}
 stack: preview 9.0.0, ga 9.1.0
+serverless: ga
 ```
 
 `LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup'

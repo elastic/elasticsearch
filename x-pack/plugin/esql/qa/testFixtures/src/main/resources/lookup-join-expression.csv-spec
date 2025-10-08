@@ -735,3 +735,26 @@ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:int
 13             | Mia              | thud           | xi             | 14000
 14             | Nina             | foo2           | omicron        | 15000
 ;
+
+lookupJoinExpressionOnUnionTypes
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: metadata_fields_remote_test
+
+FROM apps, apps_short METADATA _index
+| EVAL language_code = id::integer
+| KEEP _index, language_code
+| WHERE language_code < 3
+| RENAME language_code as language_code_left
+| LOOKUP JOIN languages_lookup ON language_code_left == language_code
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP _index, language_code, language_name
+| SORT _index ASC, language_code ASC
+;
+
+_index:keyword | language_code:integer | language_name:keyword
+apps           | 1                     | English
+apps           | 2                     | French
+apps_short     | 1                     | English
+apps_short     | 2                     | French
+;

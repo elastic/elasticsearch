@@ -534,7 +534,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         "index.dimensions",
         Setting.Property.IndexScope,
         Property.Dynamic,
-        Property.PrivateIndex
+        Property.PrivateIndex,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Allows to disable the {@link #INDEX_DIMENSIONS}-based tsid creation strategy on a per-index basis.
+     * This can help to mitigate potential issues with that strategy.
+     * For example, when using this strategy,
+     * it's not allowed to add a dynamic template that defines dimension fields to existing backing indices of a time series data stream.
+     */
+    public static final Setting<Boolean> INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED = Setting.boolSetting(
+        "index.dimensions_tsid_strategy_enabled",
+        true,
+        Setting.Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**
@@ -3022,7 +3037,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Returns the number of shards that should be used for routing. This basically defines the hash space we use in
      * {@link IndexRouting#indexShard} to route documents
      * to shards based on their ID or their specific routing value. The default value is {@link #getNumberOfShards()}. This value only
-     * changes if and index is shrunk.
+     * changes if an index is shrunk.
      */
     public int getRoutingNumShards() {
         return routingNumShards;
@@ -3042,7 +3057,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @param shardId the id of the target shard to split into
      * @param sourceIndexMetadata the source index metadata
      * @param numTargetShards the total number of shards in the target index
-     * @return a the source shard ID to split off from
+     * @return the source shard ID to split off from
      */
     public static ShardId selectSplitShard(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
         int numSourceShards = sourceIndexMetadata.getNumberOfShards();

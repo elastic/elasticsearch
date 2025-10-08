@@ -26,45 +26,50 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class X509CertificateSignature implements Writeable {
 
     private static final Logger logger = LogManager.getLogger(X509CertificateSignature.class);
 
-    private final X509Certificate certificate;
+    private final X509Certificate[] certificateChain;
     private final String algorithm;
     private final BytesReference signature;
 
-    public X509CertificateSignature(X509Certificate certificate, String algorithm, BytesReference signature) {
-        this.certificate = Objects.requireNonNull(certificate);
+    public X509CertificateSignature(X509Certificate[] certificateChain, String algorithm, BytesReference signature) {
+        this.certificateChain = Objects.requireNonNull(certificateChain);
         this.algorithm = Objects.requireNonNull(algorithm);
         this.signature = Objects.requireNonNull(signature);
     }
 
     public X509CertificateSignature(StreamInput in) throws IOException {
-        final byte[] certBytes = in.readByteArray();
-        if (certBytes == null || certBytes.length == 0) {
-            throw new IOException("Certificate bytes cannot be empty");
-        }
-        try (var bais = new ByteArrayInputStream(certBytes)) {
-            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            final Certificate cert = certFactory.generateCertificate(bais);
-            if (cert instanceof X509Certificate x509) {
-                this.certificate = x509;
-            } else {
-                throw new IOException("Input bytes are not an X509 certificate [" + cert.getClass() + "] [" + cert + "]");
+        this.certificateChain = in.readArray((arrayIn) -> {
+            final byte[] certBytes = arrayIn.readByteArray();
+            if (certBytes == null || certBytes.length == 0) {
+                throw new IOException("Certificate bytes cannot be empty");
             }
-        } catch (CertificateException e) {
-            throw new IOException("Cannot read certificate", e);
-        }
+            try (var bais = new ByteArrayInputStream(certBytes)) {
+                CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+                final Certificate cert = certFactory.generateCertificate(bais);
+                if (cert instanceof X509Certificate x509) {
+                    return x509;
+                } else {
+                    throw new IOException("Input bytes are not an X509 certificate [" + cert.getClass() + "] [" + cert + "]");
+                }
+            } catch (CertificateException e) {
+                throw new IOException("Cannot read certificate", e);
+            }
+        }, X509Certificate[]::new);
+
         this.algorithm = in.readString();
         this.signature = in.readBytesReference();
     }
 
-    public X509Certificate certificate() {
-        return certificate;
+    public X509Certificate[] certificates() {
+        return certificateChain;
     }
 
     public String algorithm() {
@@ -80,37 +85,37 @@ public final class X509CertificateSignature implements Writeable {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (X509CertificateSignature) obj;
-        return Objects.equals(this.certificate, that.certificate)
+        return Arrays.equals(this.certificateChain, that.certificateChain)
             && Objects.equals(this.algorithm, that.algorithm)
             && Objects.equals(this.signature, that.signature);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(certificate, algorithm, signature);
+        return Objects.hash(Arrays.hashCode(certificateChain), algorithm, signature);
     }
 
     @Override
     public String toString() {
         return "X509CertificateSignature["
-            + "certificate=("
-            + certificate.getSubjectX500Principal()
-            + ";"
-            + certificate.getType()
-            + ";"
-            + fingerprint()
-            + "), "
+            + "certificates="
+            + Arrays.stream(certificateChain).map(this::certificateToString).collect(Collectors.joining(","))
+            + ", "
             + "algorithm="
             + algorithm
             + ", "
             + "signature="
-            + signature
+            + signature.toBytesRef()
             + ']';
     }
 
-    private String fingerprint() {
+    private String certificateToString(X509Certificate certificate) {
+        return "(" + certificate.getSubjectX500Principal() + ";" + certificate.getType() + ";" + fingerprint(certificate) + ")";
+    }
+
+    private String fingerprint(X509Certificate certificate) {
         try {
-            return "SHA1:" + SslUtil.calculateFingerprint(this.certificate, "SHA-1");
+            return "SHA1:" + SslUtil.calculateFingerprint(certificate, "SHA-1");
         } catch (CertificateEncodingException e) {
             return "<bad-encoding:" + e.getMessage() + ">";
         }
@@ -118,12 +123,15 @@ public final class X509CertificateSignature implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        try {
-            final byte[] encoded = certificate.getEncoded();
-            out.writeByteArray(encoded);
-        } catch (CertificateEncodingException e) {
-            throw new IOException("Cannot convert certificate for " + certificate.getSubjectX500Principal() + " to bytes", e);
-        }
+        out.writeArray((arrayOut, certificate) -> {
+            try {
+                final byte[] encoded = certificate.getEncoded();
+                arrayOut.writeByteArray(encoded);
+            } catch (CertificateEncodingException e) {
+                throw new IOException("Cannot convert certificate for " + certificate.getSubjectX500Principal() + " to bytes", e);
+            }
+        }, certificateChain);
+
         out.writeString(algorithm);
         out.writeBytesReference(signature);
     }

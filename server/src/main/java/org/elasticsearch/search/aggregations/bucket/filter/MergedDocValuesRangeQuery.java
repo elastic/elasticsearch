@@ -12,12 +12,14 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.lang.reflect.Field;
 import java.util.Objects;
 
 class MergedDocValuesRangeQuery {
 
+    @SuppressForbidden(reason = "Uses reflection to access package-private lucene class")
     public static Query merge(Query query, Query extraQuery) {
         Class<? extends Query> queryClass = query.getClass();
         Class<? extends Query> extraQueryClass = extraQuery.getClass();

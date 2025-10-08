@@ -15,7 +15,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -23,7 +22,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MergedDocValuesRangeQueryTests extends ESTestCase {
 
-    @Test
     public void testNotRangeQueries() {
         assertThat(
             MergedDocValuesRangeQuery.merge(LongPoint.newRangeQuery("field", 1, 4), new TermQuery(new Term("field", "foo"))),
@@ -41,7 +39,6 @@ public class MergedDocValuesRangeQueryTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testDifferentFields() {
         assertThat(
             MergedDocValuesRangeQuery.merge(
@@ -52,7 +49,6 @@ public class MergedDocValuesRangeQueryTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testNoOverlap() {
         assertThat(
             MergedDocValuesRangeQuery.merge(
@@ -63,7 +59,6 @@ public class MergedDocValuesRangeQueryTests extends ESTestCase {
         );
     }
 
-    @Test
     public void testOverlap() {
         assertThat(
             MergedDocValuesRangeQuery.merge(

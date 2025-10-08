@@ -600,7 +600,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         final var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
         for (var nodeId : List.of("node-0", "node-1")) {
-            final var desiredBalanceInput = new DesiredBalanceInput(
+            final var desiredBalanceInput = DesiredBalanceInput.create(
                 randomInt(),
                 new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
                     @Override
@@ -608,8 +608,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         // Move command works every decision except NO
                         return randomFrom(Decision.YES, Decision.THROTTLE, Decision.NOT_PREFERRED);
                     }
-                })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
-                List.of()
+                })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L)
             );
             var desiredBalance = desiredBalanceComputer.compute(
                 DesiredBalance.BECOME_MASTER_INITIAL,
@@ -662,16 +661,15 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
         clusterState = rebuildRoutingTable(clusterState, routingNodes);
 
-        final var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
-        final var desiredBalanceInput = new DesiredBalanceInput(
+        final var desiredBalanceInput = DesiredBalanceInput.create(
             randomInt(),
             new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    // Always return NO so that AllocationCommands will silently fail.
                     return Decision.NO;
                 }
-            })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
-            List.of()
+            })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L)
         );
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.BECOME_MASTER_INITIAL,

@@ -696,6 +696,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:semantic_text.Repeat}
   issue: https://github.com/elastic/elasticsearch/issues/136150
+- class: org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluatorTests
+  method: testFoldTextEmbeddingFunction
+  issue: https://github.com/elastic/elasticsearch/issues/136154
 
 # Examples:
 #

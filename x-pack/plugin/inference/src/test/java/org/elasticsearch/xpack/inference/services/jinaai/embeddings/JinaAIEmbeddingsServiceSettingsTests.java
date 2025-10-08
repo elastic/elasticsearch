@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,6 +37,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIEmbeddingsServiceSettings> {
+
+    private static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        "jina_ai_embedding_type_support_added"
+    );
+
     public static JinaAIEmbeddingsServiceSettings createRandom() {
         SimilarityMeasure similarityMeasure = null;
         Integer dims = null;
@@ -221,7 +225,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected JinaAIEmbeddingsServiceSettings mutateInstanceForVersion(JinaAIEmbeddingsServiceSettings instance, TransportVersion version) {
-        if (version.onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19)) {
+        if (version.supports(JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)) {
             return instance;
         }
 

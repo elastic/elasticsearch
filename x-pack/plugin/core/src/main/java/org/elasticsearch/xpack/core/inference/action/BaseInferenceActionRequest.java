@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,8 +24,9 @@ import java.util.Objects;
  */
 public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
-    private boolean hasBeenRerouted;
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
+    private boolean hasBeenRerouted;
     private final InferenceContext context;
 
     public BaseInferenceActionRequest(InferenceContext context) {
@@ -41,8 +43,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
             // a version pre-node-local-rate-limiting as already rerouted to maintain pre-node-local-rate-limiting behavior.
             this.hasBeenRerouted = true;
         }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             this.context = new InferenceContext(in);
         } else {
             this.context = InferenceContext.EMPTY_INSTANCE;
@@ -73,8 +74,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
             out.writeBoolean(hasBeenRerouted);
         }
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             context.writeTo(out);
         }
     }

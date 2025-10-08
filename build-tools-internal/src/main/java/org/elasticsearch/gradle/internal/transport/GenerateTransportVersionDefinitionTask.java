@@ -109,7 +109,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             resetAllUpperBounds(resources, idsByBase);
         } else {
             getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
-            List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
+            List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromGitBase();
             Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
 
             List<TransportVersionId> ids = updateUpperBounds(
@@ -143,7 +143,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         List<TransportVersionId> ids = new ArrayList<>();
         boolean stageInGit = getResolveConflict().getOrElse(false);
 
-        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromUpstream(definitionName);
+        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromGitBase(definitionName);
         for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
             String upperBoundName = existingUpperBound.name();
 
@@ -263,7 +263,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     private void resetAllUpperBounds(TransportVersionResourcesService resources, Map<Integer, List<IdAndDefinition>> idsByBase)
         throws IOException {
         for (String upperBoundName : resources.getChangedUpperBoundNames()) {
-            TransportVersionUpperBound upstreamUpperBound = resources.getUpperBoundFromUpstream(upperBoundName);
+            TransportVersionUpperBound upstreamUpperBound = resources.getUpperBoundFromGitBase(upperBoundName);
             resetUpperBound(resources, upstreamUpperBound, idsByBase, null);
         }
     }

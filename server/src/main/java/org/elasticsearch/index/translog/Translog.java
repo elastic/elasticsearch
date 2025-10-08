@@ -1370,7 +1370,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE;
+            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_DOC_TYPE;
             if (format < FORMAT_REORDERED) {
                 out.writeVInt(format);
                 out.writeString(Uid.decodeId(uid.bytes, uid.offset, uid.length));
@@ -1570,7 +1572,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS) ? SERIALIZATION_FORMAT : FORMAT_NO_DOC_TYPE;
+            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_DOC_TYPE;
             if (format < FORMAT_REORDERED) {
                 out.writeVInt(format);
                 if (format < FORMAT_NO_DOC_TYPE) {

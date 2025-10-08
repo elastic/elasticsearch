@@ -33,7 +33,6 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -43,18 +42,12 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.anthropic.AnthropicChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.mistral.MistralUnifiedChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.EnumSet;
@@ -95,34 +88,6 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         InputType.CLUSTERING,
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
-    );
-
-    public static final ResponseHandler GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
-        "Google Vertex AI chat completion"
-    );
-
-    private static final ResponseHandler ANTHROPIC_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
-        "Google Model Garden Anthropic chat completion"
-    );
-
-    private static final ResponseHandler META_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(
-        "Google Model Garden Meta chat completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    private static final ResponseHandler HUGGING_FACE_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
-        "Google Model Garden Hugging Face chat completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    private static final ResponseHandler MISTRAL_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
-        "Google Model Garden Mistral chat completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    private static final ResponseHandler AI21_CHAT_COMPLETION_HANDLER = new Ai21ChatCompletionResponseHandler(
-        "Google Model Garden Ai21 chat completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
     );
 
     @Override
@@ -291,50 +256,15 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
     }
 
     /**
-     * Create the request manager based on the provider specified in the model's service settings.
-     * @param model The GoogleVertexAiChatCompletionModel containing the provider information.
-     * @return A GenericRequestManager configured with the appropriate response handler.
-     */
-    private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
-        switch (model.getServiceSettings().provider()) {
-            case GOOGLE -> {
-                return createRequestManagerWithHandler(model, GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER);
-            }
-            case ANTHROPIC -> {
-                return createRequestManagerWithHandler(model, ANTHROPIC_CHAT_COMPLETION_HANDLER);
-            }
-            case META -> {
-                return createRequestManagerWithHandler(model, META_CHAT_COMPLETION_HANDLER);
-            }
-            case HUGGING_FACE -> {
-                return createRequestManagerWithHandler(model, HUGGING_FACE_CHAT_COMPLETION_HANDLER);
-            }
-            case MISTRAL -> {
-                return createRequestManagerWithHandler(model, MISTRAL_CHAT_COMPLETION_HANDLER);
-            }
-            case AI21 -> {
-                return createRequestManagerWithHandler(model, AI21_CHAT_COMPLETION_HANDLER);
-            }
-            case null, default -> throw new ElasticsearchException(
-                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
-            );
-        }
-    }
-
-    /**
      * Helper method to create a GenericRequestManager with a specified response handler.
      * @param model The GoogleVertexAiChatCompletionModel to be used for requests.
-     * @param responseHandler The ResponseHandler to process the responses.
      * @return A GenericRequestManager configured with the provided response handler.
      */
-    private GenericRequestManager<UnifiedChatInput> createRequestManagerWithHandler(
-        GoogleVertexAiChatCompletionModel model,
-        ResponseHandler responseHandler
-    ) {
+    private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
         return new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             model,
-            responseHandler,
+            model.getServiceSettings().provider().getChatCompletionResponseHandler(),
             unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
             UnifiedChatInput.class
         );

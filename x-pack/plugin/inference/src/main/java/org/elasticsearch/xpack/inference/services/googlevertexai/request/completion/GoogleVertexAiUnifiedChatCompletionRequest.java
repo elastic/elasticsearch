@@ -10,19 +10,14 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
-import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequestEntity;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +40,9 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         HttpPost httpPost = new HttpPost(uri);
 
         ToXContentObject requestEntity;
-        requestEntity = createRequestEntity();
+        requestEntity = model.getServiceSettings()
+            .provider()
+            .createRequestEntity(unifiedChatInput, extractModelId(), model.getTaskSettings());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -54,33 +51,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
         decorateWithAuth(httpPost);
         return new HttpRequest(httpPost, getInferenceEntityId());
-    }
-
-    private ToXContentObject createRequestEntity() {
-        final var modelId = extractModelId();
-        switch (model.getServiceSettings().provider()) {
-            case GOOGLE -> {
-                return new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings().thinkingConfig());
-            }
-            case ANTHROPIC -> {
-                return new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings());
-            }
-            case META -> {
-                return new LlamaChatCompletionRequestEntity(unifiedChatInput, modelId);
-            }
-            case HUGGING_FACE -> {
-                return new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, modelId);
-            }
-            case MISTRAL -> {
-                return new MistralChatCompletionRequestEntity(unifiedChatInput, modelId);
-            }
-            case AI21 -> {
-                return new Ai21ChatCompletionRequestEntity(unifiedChatInput, modelId);
-            }
-            case null, default -> throw new ElasticsearchException(
-                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
-            );
-        }
     }
 
     /**

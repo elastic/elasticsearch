@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
@@ -44,12 +43,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.USER_ROLE;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,192 +79,124 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
     // Successful case would typically be tested via end-to-end notebook tests in AppEx repo
 
     public void testExecute_ThrowsElasticsearchExceptionGoogleVertexAi() {
-        testExecute_ThrowsElasticsearchException(
-            GoogleModelGardenProvider.GOOGLE,
-            null,
-            GoogleVertexAiService.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.GOOGLE, null);
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledGoogleVertexAi() {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
-            GoogleModelGardenProvider.GOOGLE,
-            null,
-            GoogleVertexAiService.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.GOOGLE, null);
     }
 
     public void testExecute_ThrowsExceptionGoogleVertexAi() {
-        testExecute_ThrowsException(GoogleModelGardenProvider.GOOGLE, null, GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER);
-    }
-
-    public void testExecute_ThrowsElasticsearchExceptionMissingProvider() {
-        testExecute_ThrowsElasticsearchException(null, null, GoogleVertexAiService.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER);
-    }
-
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMissingProvider() {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
-            null,
-            null,
-            GoogleVertexAiService.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER
-        );
-    }
-
-    public void testExecute_ThrowsExceptionMissingProvider() {
-        testExecute_ThrowsException(null, null, GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER);
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.GOOGLE, null);
     }
 
     public void testExecute_ThrowsElasticsearchExceptionAnthropic() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(
-            GoogleModelGardenProvider.ANTHROPIC,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.ANTHROPIC, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledAnthropic() throws URISyntaxException {
         testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
             GoogleModelGardenProvider.ANTHROPIC,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER
+            new URI("http://localhost:9200")
         );
     }
 
     public void testExecute_ThrowsExceptionAnthropic() throws URISyntaxException {
-        testExecute_ThrowsException(
-            GoogleModelGardenProvider.ANTHROPIC,
-            new URI("http://localhost:9200"),
-            GoogleVertexAiActionCreator.GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.ANTHROPIC, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchExceptionMeta() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(
-            GoogleModelGardenProvider.META,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.META, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMeta() throws URISyntaxException {
         testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
             GoogleModelGardenProvider.META,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER
+            new URI("http://localhost:9200")
         );
     }
 
     public void testExecute_ThrowsExceptionMeta() throws URISyntaxException {
-        testExecute_ThrowsException(
-            GoogleModelGardenProvider.META,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.META, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchExceptionMistral() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(
-            GoogleModelGardenProvider.MISTRAL,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.MISTRAL, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMistral() throws URISyntaxException {
         testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
             GoogleModelGardenProvider.MISTRAL,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER
+            new URI("http://localhost:9200")
         );
     }
 
     public void testExecute_ThrowsExceptionMistral() throws URISyntaxException {
-        testExecute_ThrowsException(
-            GoogleModelGardenProvider.MISTRAL,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.MISTRAL, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchExceptionHuggingFace() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(
-            GoogleModelGardenProvider.HUGGING_FACE,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.HUGGING_FACE, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledHuggingFace() throws URISyntaxException {
         testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
             GoogleModelGardenProvider.HUGGING_FACE,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER
+            new URI("http://localhost:9200")
         );
     }
 
     public void testExecute_ThrowsExceptionHuggingFace() throws URISyntaxException {
-        testExecute_ThrowsException(
-            GoogleModelGardenProvider.HUGGING_FACE,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.HUGGING_FACE, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchExceptionAi21() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(
-            GoogleModelGardenProvider.AI21,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER
-        );
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.AI21, new URI("http://localhost:9200"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledAi21() throws URISyntaxException {
         testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
             GoogleModelGardenProvider.AI21,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER
+            new URI("http://localhost:9200")
         );
     }
 
     public void testExecute_ThrowsExceptionAi21() throws URISyntaxException {
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.AI21, new URI("http://localhost:9200"));
+    }
+
+    private void testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider provider, URI uri) {
         testExecute_ThrowsException(
-            GoogleModelGardenProvider.AI21,
-            new URI("http://localhost:9200"),
-            GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER
+            provider,
+            uri,
+            new IllegalArgumentException("failed"),
+            "Failed to send Google Vertex AI chat completion request. Cause: failed"
         );
     }
 
-    private void testExecute_ThrowsException(GoogleModelGardenProvider provider, URI uri, ResponseHandler handler) {
-        var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction(sender, provider, uri, handler);
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is("Failed to send Google Vertex AI chat completion request. Cause: failed"));
+    private void testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider provider, URI uri) {
+        testExecute_ThrowsException(provider, uri, new ElasticsearchException("failed"), "failed");
     }
 
-    private void testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider provider, URI uri, ResponseHandler responseHandler) {
-        var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction(sender, provider, uri, responseHandler);
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is("failed"));
-    }
-
-    private void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
+    private void testExecute_ThrowsException(
         GoogleModelGardenProvider provider,
         URI uri,
-        ResponseHandler responseHandler
+        Exception exception,
+        String expectedExceptionMessage
     ) {
+        var sender = mock(Sender.class);
+        doThrow(exception).when(sender).send(any(), any(), any(), any());
+
+        var action = createAction(sender, provider, uri, provider.getChatCompletionResponseHandler());
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.getMessage(), is(expectedExceptionMessage));
+    }
+
+    private void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider provider, URI uri) {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
@@ -280,7 +205,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(sender, provider, uri, responseHandler);
+        var action = createAction(sender, provider, uri, provider.getChatCompletionResponseHandler());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);

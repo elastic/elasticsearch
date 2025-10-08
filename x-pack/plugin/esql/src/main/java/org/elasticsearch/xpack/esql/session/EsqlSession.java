@@ -126,7 +126,6 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
-    private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
@@ -148,7 +147,7 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanTelemetry planTelemetry,
-        IndicesExpressionGrouper indicesExpressionGrouper,
+        IndicesExpressionGrouper indicesExpressionGrouper, // TODO remove
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -163,7 +162,6 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
-        this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
@@ -706,35 +704,28 @@ public class EsqlSession {
             ThreadPool.Names.SYSTEM_READ
         );
         if (preAnalysis.indexPattern() != null) {
-            if (executionInfo.clusterAliases().isEmpty()) {
-                // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
-                listener.onResponse(
-                    result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
-                );
-            } else {
-                indexResolver.resolveAsMergedMapping(
-                    preAnalysis.indexPattern().indexPattern(),
-                    result.fieldNames,
-                    // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                    switch (preAnalysis.indexMode()) {
-                        case IndexMode.TIME_SERIES -> {
-                            var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                            yield requestFilter != null
-                                ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                                : indexModeFilter;
-                        }
-                        default -> requestFilter;
-                    },
-                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
-                    preAnalysis.supportsAggregateMetricDouble(),
-                    preAnalysis.supportsDenseVector(),
-                    listener.delegateFailureAndWrap((l, indexResolution) -> {
-                        EsqlCCSUtils.initCrossClusterState(indexResolution.resolvedIndices(), executionInfo, verifier.licenseState());
-                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
-                        l.onResponse(result.withIndices(indexResolution));
-                    })
-                );
-            }
+            indexResolver.resolveAsMergedMapping(
+                preAnalysis.indexPattern().indexPattern(),
+                result.fieldNames,
+                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                switch (preAnalysis.indexMode()) {
+                    case IndexMode.TIME_SERIES -> {
+                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                        yield requestFilter != null
+                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
+                            : indexModeFilter;
+                    }
+                    default -> requestFilter;
+                },
+                preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                preAnalysis.supportsAggregateMetricDouble(),
+                preAnalysis.supportsDenseVector(),
+                listener.delegateFailureAndWrap((l, indexResolution) -> {
+                    EsqlCCSUtils.initCrossClusterState(indexResolution.resolvedIndices(), executionInfo, verifier.licenseState());
+                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
+                    l.onResponse(result.withIndices(indexResolution));
+                })
+            );
         } else {
             // occurs when dealing with local relations (row a = 1)
             listener.onResponse(result.withIndices(IndexResolution.invalid("[none specified]")));

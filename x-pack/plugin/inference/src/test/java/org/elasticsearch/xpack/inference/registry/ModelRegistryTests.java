@@ -254,9 +254,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
             assertThat(minimalSettings.taskType(), is(TaskType.CHAT_COMPLETION));
         }
         {
-            var minimalSettings = registry.getMinimalServiceSettings(
-                ElasticInferenceServiceMinimalSettings.DEFAULT_ELSER_ENDPOINT_ID_V2
-            );
+            var minimalSettings = registry.getMinimalServiceSettings(ElasticInferenceServiceMinimalSettings.DEFAULT_ELSER_ENDPOINT_ID_V2);
 
             assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
             assertThat(minimalSettings.taskType(), is(TaskType.SPARSE_EMBEDDING));
@@ -270,9 +268,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
             assertThat(minimalSettings.taskType(), is(TaskType.TEXT_EMBEDDING));
         }
         {
-            var minimalSettings = registry.getMinimalServiceSettings(
-                ElasticInferenceServiceMinimalSettings.DEFAULT_RERANK_ENDPOINT_ID_V1
-            );
+            var minimalSettings = registry.getMinimalServiceSettings(ElasticInferenceServiceMinimalSettings.DEFAULT_RERANK_ENDPOINT_ID_V1);
 
             assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
             assertThat(minimalSettings.taskType(), is(TaskType.RERANK));

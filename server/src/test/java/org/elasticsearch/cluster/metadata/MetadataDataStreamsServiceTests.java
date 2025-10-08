@@ -474,7 +474,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mock(ClusterService.class),
             mock(IndicesService.class),
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-            mock(IndexSettingProviders.class)
+            new IndexSettingProviders(Set.of())
         );
         {
             // Remove lifecycle
@@ -506,7 +506,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mock(ClusterService.class),
             mock(IndicesService.class),
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-            mock(IndexSettingProviders.class)
+            new IndexSettingProviders(Set.of())
         );
 
         // Ensure no data stream options are stored

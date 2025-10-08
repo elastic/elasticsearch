@@ -142,7 +142,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             mock(ClusterService.class),
             mock(IndicesService.class),
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
-            mock(IndexSettingProviders.class)
+            new IndexSettingProviders(Set.of())
         );
 
         ProjectMetadata after = metadataDataStreamsService.updateDataLifecycle(

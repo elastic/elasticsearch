@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -425,16 +426,34 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public static boolean shouldExcludeInferenceFieldsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
-        var explicit = shouldExcludeInferenceFieldsFromSourceExplicit(fetchSourceContext);
+        if (fetchSourceContext != null && fetchSourceContext.fetchSource() == false) {
+            // Source is disabled
+            return true;
+        }
+
+        Boolean filtered = null;
         var filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
         if (filter != null) {
             if (filter.isPathFiltered(InferenceMetadataFieldsMapper.NAME, true)) {
-                return true;
+                filtered = true;
             } else if (filter.isExplicitlyIncluded(InferenceMetadataFieldsMapper.NAME)) {
-                return false;
+                filtered = false;
             }
         }
-        return explicit != null ? explicit : INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
+        if (filtered != null) {
+            return filtered;
+        }
+
+        Boolean excludeInferenceFieldsExplicit = shouldExcludeInferenceFieldsFromSourceExplicit(fetchSourceContext);
+        if (excludeInferenceFieldsExplicit != null) {
+            return excludeInferenceFieldsExplicit;
+        }
+
+        // We always default to excluding the inference metadata field. We only use the index setting when it is explicitly set.
+        Settings settings = indexSettings.getSettings();
+        return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(settings)
+            ? INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(settings)
+            : true;
     }
 
     private static Boolean shouldExcludeInferenceFieldsFromSourceExplicit(FetchSourceContext fetchSourceContext) {

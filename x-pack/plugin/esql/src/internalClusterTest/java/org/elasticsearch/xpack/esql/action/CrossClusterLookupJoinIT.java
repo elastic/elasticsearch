@@ -561,6 +561,21 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    public void testAlwaysAppliesTheFilter() throws IOException {
+        setupClusters(3);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(LOCAL_CLUSTER, "data", defaultSettings, Map.of("key", 1, "f1", 1));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 2, "f2", 2));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 3, "f3", 3));
+
+        try (var r = runQuery(syncEsqlQueryRequest().query("FROM data,*:data | WHERE f1 == 1").filter(new TermQueryBuilder("f2", 2)))) {
+            assertThat(getValuesList(r), hasSize(0));
+        }
+    }
+
     public void testLookupJoinRetryAnalysis() throws IOException {
         setupClusters(3);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);

@@ -933,7 +933,7 @@
                                 "usage": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "type": "unsigned_long"
                                     }
                                   }
                                 },

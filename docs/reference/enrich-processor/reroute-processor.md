@@ -1,5 +1,8 @@
 ---
 navigation_title: "Reroute"
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/reroute-processor.html
 ---
@@ -10,7 +13,7 @@ The `reroute` processor routes a document to a different target index or data st
 
 ## Operating modes [reroute-operating-modes]
 
-The reroute processor has two main modes of operation:
+The reroute processor has two main modes of operation.
 
 ### Explicit destination mode [reroute-explicit-destination]
 

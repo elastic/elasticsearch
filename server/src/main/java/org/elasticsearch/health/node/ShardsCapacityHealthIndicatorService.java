@@ -97,8 +97,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         "frozen"
     );
 
-    public static final NodeFeature SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS =
-        new NodeFeature("health.shard_capacity.unhealthy_threshold_setting");
+    public static final NodeFeature SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS = new NodeFeature(
+        "health.shard_capacity.unhealthy_threshold_setting"
+    );
 
     public static final Setting<Integer> SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW = Setting.intSetting(
         "health.shard_capacity.unhealthy_threshold.yellow",

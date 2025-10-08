@@ -487,8 +487,8 @@ public final class MlIndexAndAlias {
             baseIndexName + "*"
         );
 
-        // This should never happen
-        assert matching.length > 0 : "No indices matching [" + baseIndexName + "*]";
+        // We used to assert here if no matching indices could be found. However, when called _before_ a job is created it may be the case
+        // that no .ml-anomalies-shared* indices yet exist
         if (matching.length == 0) {
             return index;
         }

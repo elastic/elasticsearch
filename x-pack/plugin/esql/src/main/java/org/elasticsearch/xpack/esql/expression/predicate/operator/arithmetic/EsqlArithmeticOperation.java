@@ -165,8 +165,8 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     @Override
-    public boolean isPushable() {
-        return left().isPushable() && right().isPushable();
+    public PushableOptions pushableOptions() {
+        return left().pushableOptions().and(right().pushableOptions());
     }
 
     @Override

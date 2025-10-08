@@ -238,8 +238,9 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     @Override
-    public boolean isPushable() {
-        return true;
+    public PushableOptions pushableOptions() {
+        // Don't mess with nulls, they don't have the same meaning in Lucene
+        return value() == null ? PushableOptions.NOT_SUPPORTED : PushableOptions.SUPPORTED;
     }
 
     @Override

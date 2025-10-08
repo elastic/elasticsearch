@@ -212,11 +212,27 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return super.propertiesToString(false);
     }
 
-    public boolean isPushable() {
-        return false;
+    public PushableOptions pushableOptions() {
+        return PushableOptions.NOT_SUPPORTED;
     }
 
     public String asScript() {
         throw new UnsupportedOperationException("asScript not implemented for " + getWriteableName());
+    }
+
+    public enum PushableOptions {
+        SUPPORTED,
+        NOT_SUPPORTED,
+        PREFERRED;
+
+        public PushableOptions and(PushableOptions other) {
+            if (this == NOT_SUPPORTED || other == NOT_SUPPORTED) {
+                return NOT_SUPPORTED;
+            }
+            if (this == PREFERRED || other == PREFERRED) {
+                return PREFERRED;
+            }
+            return SUPPORTED;
+        }
     }
 }

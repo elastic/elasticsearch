@@ -260,8 +260,8 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    public boolean isPushable() {
-        return true;
+    public PushableOptions pushableOptions() {
+        return PushableOptions.SUPPORTED;
     }
 
     @Override

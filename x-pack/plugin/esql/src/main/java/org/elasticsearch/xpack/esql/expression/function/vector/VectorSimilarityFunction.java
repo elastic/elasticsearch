@@ -90,10 +90,12 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     @Override
-    public boolean isPushable() {
+    public PushableOptions pushableOptions() {
         // Can only push if one of the arguments is a literal, and the other a field name
         return left().foldable() && left().dataType() != NULL && right() instanceof FieldAttribute
-            || right().foldable() && right().dataType() != NULL && left() instanceof FieldAttribute;
+            || right().foldable() && right().dataType() != NULL && left() instanceof FieldAttribute
+                ? PushableOptions.PREFERRED
+                : PushableOptions.NOT_SUPPORTED;
     }
 
     @Override

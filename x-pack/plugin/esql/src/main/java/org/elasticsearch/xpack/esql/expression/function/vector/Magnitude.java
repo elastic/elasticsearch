@@ -133,8 +133,8 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     @Override
-    public boolean isPushable() {
-        return true;
+    public PushableOptions pushableOptions() {
+        return PushableOptions.PREFERRED;
     }
 
     private record ScalarEvaluator(

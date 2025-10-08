@@ -13,6 +13,7 @@ import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -38,8 +39,7 @@ public class PushScriptsToSource extends PhysicalOptimizerRules.ParameterizedOpt
             List<Alias> nonPushedAliases = new ArrayList<>();
             EvalExec scriptEval = null;
             for (Alias alias : aliases) {
-                if (aliasPushed == false && alias.child().isPushable()) {
-
+                if (aliasPushed == false && alias.child().pushableOptions() == Expression.PushableOptions.PREFERRED) {
                     if (esQueryExec.sorts() != null
                         && esQueryExec.sorts()
                             .stream()

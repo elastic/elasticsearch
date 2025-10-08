@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -20,8 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
@@ -133,8 +130,6 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     record PushableCompoundExec(EvalExec evalExec, EsQueryExec queryExec, List<EsQueryExec.Sort> pushableSorts) implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
             List<Alias> evalExecAlias = evalExec.fields();
-            List<FieldAttribute> additionalQueryAttrs = new ArrayList<>();
-            boolean aliasChanged = false;
             for (EsQueryExec.Sort pushableSort : pushableSorts) {
                 if (pushableSort instanceof EsQueryExec.ScriptSort scriptSort) {
                     // Change eval alias to the script sort field
@@ -142,17 +137,10 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                         Alias alias = evalExecAlias.get(i);
                         if (alias.id().equals(scriptSort.alias().id())) {
                             evalExecAlias.set(i, alias.replaceChild(scriptSort.field()));
-                            additionalQueryAttrs.add(scriptSort.field());
-                            aliasChanged = true;
                             break;
                         }
                     }
                 }
-            }
-            if (aliasChanged) {
-                EsQueryExec newQueryExec = queryExec.withSorts(pushableSorts).withLimit(topNExec.limit());
-//                newQueryExec.attrs().addAll(additionalQueryAttrs);
-                EvalExec newEvalExec = new EvalExec(evalExec.source(), evalExec.child(), evalExecAlias);
             }
 
             // We need to keep the EVAL in place because the coordinator will have its own TopNExec so we need to keep the distance
@@ -191,7 +179,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     distances.put(alias.id(), distance);
                 } else if (alias.child() instanceof Attribute attr) {
                     aliasReplacedByBuilder.put(alias.toAttribute(), attr.toAttribute());
-                } else if (alias.child().isPushable()) {
+                } else if (alias.child().pushableOptions() == Expression.PushableOptions.PREFERRED) {
                     pushableExpressions.put(alias.id(), alias);
                 }
             });

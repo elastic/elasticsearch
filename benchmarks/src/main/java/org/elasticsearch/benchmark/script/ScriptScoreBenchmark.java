@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -85,7 +86,23 @@ public class ScriptScoreBenchmark {
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class).toList());
 
     private final Map<String, MappedFieldType> fieldTypes = Map.ofEntries(
-        Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null, null, false))
+        Map.entry(
+            "n",
+            new NumberFieldType(
+                "n",
+                NumberType.LONG,
+                IndexType.docValuesOnly(),
+                false,
+                true,
+                null,
+                Map.of(),
+                null,
+                false,
+                null,
+                null,
+                false
+            )
+        )
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();

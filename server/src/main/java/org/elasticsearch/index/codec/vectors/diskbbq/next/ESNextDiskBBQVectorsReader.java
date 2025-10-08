@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
@@ -17,7 +16,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
@@ -40,7 +38,7 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ESNextDiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+    public ESNextDiskBBQVectorsReader(SegmentReadState state, GetFormatReader getFormatReader) throws IOException {
         super(state, getFormatReader);
     }
 
@@ -141,6 +139,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     protected FieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
+        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -154,6 +153,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
         return new NextFieldEntry(
             rawVectorFormat,
+            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -172,6 +172,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
         NextFieldEntry(
             String rawVectorFormat,
+            boolean doDirectIOReads,
             VectorSimilarityFunction similarityFunction,
             VectorEncoding vectorEncoding,
             int numCentroids,
@@ -185,6 +186,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         ) {
             super(
                 rawVectorFormat,
+                doDirectIOReads,
                 similarityFunction,
                 vectorEncoding,
                 numCentroids,

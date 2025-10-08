@@ -325,6 +325,45 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]", exception.getMessage());
     }
 
+    public void testBuildRemoteInfoWithApiKey() throws IOException {
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(remoteInfo.getHeaders(), Map.of("Authorization", "ApiKey l3t-m3-1n"));
+    }
+
+    public void testBuildRemoteInfoWithApiKeyAndOtherHeaders() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("X-Routing-Magic", "Abracadabra");
+        originalHeaders.put("X-Tracing-Magic", "12345");
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(
+            remoteInfo.getHeaders(),
+            Map.of("X-Routing-Magic", "Abracadabra", "X-Tracing-Magic", "12345", "Authorization", "ApiKey l3t-m3-1n")
+        );
+    }
+
+    public void testBuildRemoteInfoWithConflictingApiKeyAndAuthorizationHeader() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("aUtHoRiZaTiOn", "op3n-s3s4m3"); // non-standard capitalization, but HTTP headers are not case-sensitive
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        assertThrows(IllegalArgumentException.class, () -> ReindexRequest.buildRemoteInfo(source));
+    }
+
     public void testReindexFromRemoteRequestParsing() throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {

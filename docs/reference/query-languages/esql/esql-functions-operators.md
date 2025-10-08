@@ -80,6 +80,12 @@ mapped_pages:
 :::
 ::::
 
+::::{dropdown} Dense vector functions
+:open:
+:::{include} _snippets/lists/dense-vector-functions.md
+:::
+::::
+
 ::::{dropdown} Multi value functions
 :open:
 :::{include} _snippets/lists/mv-functions.md

@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Locate any TopN that is "visible" under remote ENRICH, and make a copy of it above the ENRICH,
@@ -41,7 +43,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
     @Override
     protected LogicalPlan rule(Enrich en) {
         if (en.mode() == Enrich.Mode.REMOTE) {
-            List<NamedExpression> generatedAttributes = new ArrayList<>(en.generatedAttributes());
+            Set<NamedExpression> generatedAttributes = new HashSet<>(en.generatedAttributes());
             LogicalPlan plan = en.child();
             // This loop only takes care of one TopN. Repeated TopNs may be a problem, we can't handle them here.
             while (true) {
@@ -62,7 +64,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                         en.concreteIndices(),
                         // We add here all the attributes generated on the way, so if one of them is needed for ordering,
                         // it will be aliased
-                        generatedAttributes
+                        new ArrayList<>(generatedAttributes)
                     );
                     LogicalPlan pushPlan = PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(enrichWithOrderBy);
                     // If we needed to alias any names, the result would look like this:

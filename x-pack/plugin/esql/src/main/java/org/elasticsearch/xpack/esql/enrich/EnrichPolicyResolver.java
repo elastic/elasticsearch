@@ -289,7 +289,9 @@ public class EnrichPolicyResolver {
     // field and then added as a first-class ESQL field type. So in enrichment over clusters it may appear as
     // DATE_RANGE VS UNSUPPORTED, even though it's still the same type.
     private boolean typeMismatch(DataType old, DataType field) {
-        if (old == DataType.DATE_RANGE && field == DataType.UNSUPPORTED) return false;
+        if (old == DataType.DATE_RANGE && field == DataType.UNSUPPORTED) {
+            return false;
+        }
         return old.equals(field) == false;
     }
 

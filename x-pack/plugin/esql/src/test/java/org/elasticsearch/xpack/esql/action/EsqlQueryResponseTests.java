@@ -196,7 +196,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.TIME_DURATION
                 || t == DataType.PARTIAL_AGG
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
-                || t == DataType.TSID_DATA_TYPE,
+                || t == DataType.TSID_DATA_TYPE
+                || t == DataType.DATE_RANGE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());

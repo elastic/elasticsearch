@@ -97,4 +97,3 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     }
 
 }
-

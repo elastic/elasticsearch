@@ -274,7 +274,7 @@ public class RequestExecutorService implements RequestExecutor {
                 } else {
                     var requestManager = task.getRequestManager();
 
-                    if (rateLimitingEnabled(requestManager)) {
+                    if (rateLimitingEnabled(requestManager.rateLimitSettings())) {
                         submitTaskToRateLimitedExecutionPath(task);
                     } else {
                         executeTaskImmediately(task);
@@ -334,8 +334,8 @@ public class RequestExecutorService implements RequestExecutor {
         endpoint.enqueue(task);
     }
 
-    private boolean rateLimitingEnabled(RequestManager requestManager) {
-        return requestManager.rateLimitSettings() != null && requestManager.rateLimitSettings().isEnabled();
+    private static boolean rateLimitingEnabled(RateLimitSettings rateLimitSettings) {
+        return rateLimitSettings != null && rateLimitSettings.isEnabled();
     }
 
     private void cleanup() {
@@ -570,7 +570,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         private TimeValue executeEnqueuedTaskInternal() {
-            if (rateLimitSettings.isEnabled()) {
+            if (rateLimitingEnabled(rateLimitSettings)) {
                 var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
                 if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
                     return timeBeforeAvailableToken;

@@ -1,6 +1,6 @@
 version: 9.1.5
-released: false
-generated: 2025-10-03T13:40:06.241618847Z
+released: true
+generated: 2025-10-06T15:09:28.901349022Z
 changelogs:
   - pr: 134461
     summary: Propagates filter() to aggregation functions' surrogates
@@ -74,11 +74,10 @@ changelogs:
       body: |-
         Queries using LIMIT followed by MV_EXPAND before a remote ENRICH can produce incorrect results due to distributed execution semantics.
         These queries are now unsupported and produce an error. Example:
-        
-        ```yaml
+        [source,yaml]
+        ----------------------------
         FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:clientip_policy ON ip
-        ```
-
+        ----------------------------
         To avoid this error, reorder your query, for example by moving ENRICH earlier in the pipeline.
       pr: 135051
   - pr: 135078

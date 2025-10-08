@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldEx
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushScriptsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;

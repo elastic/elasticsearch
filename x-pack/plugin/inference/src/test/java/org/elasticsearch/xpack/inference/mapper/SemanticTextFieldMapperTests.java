@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -293,7 +294,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(SemanticTextFieldMapper.SemanticTextFieldType.class));
-        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
     }
 
@@ -846,8 +846,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertNotNull(textMapper);
             assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
             KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
-            assertFalse(textFieldMapper.fieldType().isIndexed());
-            assertFalse(textFieldMapper.fieldType().hasDocValues());
+            assertThat(textFieldMapper.fieldType().indexType(), equalTo(IndexType.NONE));
         } else {
             assertNull(textMapper);
             var offsetMapper = semanticTextFieldType.getOffsetsField();

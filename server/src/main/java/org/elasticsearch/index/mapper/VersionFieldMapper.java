@@ -41,12 +41,17 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 
         private VersionFieldType() {
-            super(NAME, false, false, true, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), false, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override
@@ -67,7 +72,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new, isIndexed());
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new, false);
         }
     }
 

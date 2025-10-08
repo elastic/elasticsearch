@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -41,8 +40,8 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ESNextDiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
-        super(state, rawVectorsReader);
+    public ESNextDiskBBQVectorsReader(SegmentReadState state, GetFormatReader getFormatReader) throws IOException {
+        super(state, getFormatReader);
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {

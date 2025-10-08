@@ -101,7 +101,7 @@
           "none",
           "all"
         ],
-        "default": "all",
+        "default": "open",
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "allow_closed": {

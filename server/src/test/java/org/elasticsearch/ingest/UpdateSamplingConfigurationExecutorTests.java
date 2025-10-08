@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -46,6 +47,10 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
         super.setUp();
         MockitoAnnotations.openMocks(this);
         executor = new SamplingService.UpdateSamplingConfigurationExecutor(projectResolver);
+
+        // Mock the cluster state metadata chain
+        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(metadata.settings()).thenReturn(Settings.EMPTY);
     }
 
     public void testExecuteTaskWithUpperBoundLimit() {
@@ -92,3 +97,4 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     }
 
 }
+

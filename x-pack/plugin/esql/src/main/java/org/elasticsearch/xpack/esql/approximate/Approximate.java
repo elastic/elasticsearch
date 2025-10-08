@@ -251,6 +251,7 @@ public class Approximate {
         // Verify that all commands are supported.
         logicalPlan.forEachUp(plan -> {
             if (SUPPORTED_COMMANDS.contains(plan.getClass()) == false) {
+                // TODO: better way of obtaining the command name
                 throw new VerificationException(
                     List.of(Failure.fail(plan, "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] cannot be approximated"))
                 );
@@ -267,6 +268,7 @@ public class Approximate {
                     plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
                         if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
                             && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
+                            // TODO: better way of obtaining the agg name
                             throw new VerificationException(
                                 List.of(
                                     Failure.fail(

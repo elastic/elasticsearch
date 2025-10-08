@@ -66,11 +66,11 @@ public class RestSegmentsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         RestUtils.consumeDeprecatedLocalParameter(request);
 
-        boolean allowClosed = request.paramAsBoolean("allow_closed", false);
-        IndicesOptions defaultOptions = allowClosed
+        final boolean allowClosed = request.paramAsBoolean("allow_closed", false);
+        final IndicesOptions defaultOptions = allowClosed
             ? IndicesOptions.strictExpandHidden()
             : IndicesOptions.strictExpandOpenAndForbidClosed();
-        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, defaultOptions);
+        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, defaultOptions);
 
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(indicesOptions);
 

@@ -20,7 +20,7 @@ base {
 
 restResources {
   restApi {
-    include '*'
+    include 'bulk', 'search'
   }
 }
 dependencies {

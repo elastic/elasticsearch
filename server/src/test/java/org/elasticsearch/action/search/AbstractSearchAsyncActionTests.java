@@ -328,19 +328,18 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 // only swap node for ids there have a non-null node id, i.e. those that didn't fail when opening a PIT
                 if (randomBoolean() && searchContextIdForNode.getNode() != null) {
                     // swap to a different node
-                    PhaseResult otherNode = new PhaseResult(searchContextIdForNode.getSearchContextId(),
-                            new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias()));
-                    results.add(
-                            otherNode
+                    PhaseResult otherNode = new PhaseResult(
+                        searchContextIdForNode.getSearchContextId(),
+                        new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias())
                     );
+                    results.add(otherNode);
                     shardsWithSwappedNodes.add(shardId);
                 } else {
                     results.add(
-                            new PhaseResult(
-                                    searchContextIdForNode.getSearchContextId(),
-                                    new SearchShardTarget(searchContextIdForNode.getNode(), shardId,
-                                            searchContextIdForNode.getClusterAlias())
-                            )
+                        new PhaseResult(
+                            searchContextIdForNode.getSearchContextId(),
+                            new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
+                        )
                     );
                 }
             }

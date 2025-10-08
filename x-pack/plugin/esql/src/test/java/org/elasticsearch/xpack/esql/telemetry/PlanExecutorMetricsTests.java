@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +21,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
-import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -68,12 +65,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void setUpThreadPool() throws Exception {
+    public void setUpThreadPool() {
         threadPool = new TestThreadPool(PlanExecutorMetricsTests.class.getSimpleName());
     }
 
     @After
-    public void shutdownThreadPool() throws Exception {
+    public void shutdownThreadPool() {
         terminate(threadPool);
     }
 
@@ -129,7 +126,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient);
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -164,10 +160,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         EsqlSession.PlanRunner runPhase = (p, r) -> fail("this shouldn't happen");
-        IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
-            "",
-            new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
-        );
 
         planExecutor.esql(
             request,
@@ -176,7 +168,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             FoldContext.small(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
-            groupIndicesByCluster,
             runPhase,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
             new ActionListener<>() {
@@ -207,7 +198,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             FoldContext.small(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
-            groupIndicesByCluster,
             runPhase,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
             new ActionListener<>() {

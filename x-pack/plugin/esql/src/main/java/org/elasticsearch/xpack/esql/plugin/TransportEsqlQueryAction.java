@@ -279,7 +279,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             foldCtx,
             enrichPolicyResolver,
             executionInfo,
-            remoteClusterService,
             planRunner,
             services,
             ActionListener.wrap(result -> {

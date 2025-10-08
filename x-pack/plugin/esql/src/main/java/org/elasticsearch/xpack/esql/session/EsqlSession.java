@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
@@ -147,7 +146,6 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanTelemetry planTelemetry,
-        IndicesExpressionGrouper indicesExpressionGrouper, // TODO remove
         TransportActionServices services
     ) {
         this.sessionId = sessionId;

@@ -615,7 +615,7 @@ PUT test-index
 
 You can query `semantic_text` fields using the following query types:
 
-- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions#esql-match) syntax.
+- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax.
 <!--
 Refer to examples of match queries on `semantic_text` fields. 
 -->

@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimizerTests {
+public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public ReplaceRoundToWithQueryAndTagsTests(String name, Configuration config) {
         super(name, config);

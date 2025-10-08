@@ -53,7 +53,7 @@ public class BreakerTestUtil {
         try {
             c.accept(onePastLimit);
         } catch (CircuitBreakingException e) {
-            throw new IllegalArgumentException("expected runnable to break under a limit of " + onePastLimit + " bytes");
+            throw new IllegalArgumentException("expected runnable to *not* break under a limit of " + onePastLimit + " bytes");
         }
         return limit;
     }

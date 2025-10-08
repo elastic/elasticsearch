@@ -203,11 +203,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertFalse(bft.hasDocValues());
     }
 
-    public void testIsIndexed() {
+    public void testIndexType() {
         DenseVectorFieldType fft = createFloatFieldType();
-        assertEquals(indexed, fft.isIndexed());
+        assertEquals(indexed, fft.indexType().hasVectors());
         DenseVectorFieldType bft = createByteFieldType();
-        assertTrue(bft.isIndexed());
+        assertTrue(bft.indexType().hasVectors());
     }
 
     public void testIsSearchable() {

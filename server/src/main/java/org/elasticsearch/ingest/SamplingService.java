@@ -695,7 +695,7 @@ public class SamplingService implements ClusterStateListener {
         }
 
         /*
-         * This gets an approximate size in bytes for ths sample. In only takes the size of the raw documents into account, since that is
+         * This gets an approximate size in bytes for this sample. It only takes the size of the raw documents into account, since that is
          * the only part of the sample that is not a fixed size. This method favors speed over 100% correctness -- it is possible during
          * heavy concurrent ingestion that it under-reports the current size.
          */

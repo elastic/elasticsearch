@@ -24,17 +24,12 @@ import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogr
 import java.io.IOException;
 import java.util.Map;
 
-/**
- * A field data based aggregator that adds all values in the value_count metric sub-field from an aggregate_metric field.
- * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance
- * aggregates the counts for all buckets owned by the parent aggregator)
- */
 class ExponentialHistogramValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ExponentialHistogramValuesSource.ExponentialHistogram valuesSource;
 
     // a count per bucket
-    LongArray counts;
+    private LongArray counts;
 
     ExponentialHistogramValueCountAggregator(
         String name,

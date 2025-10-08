@@ -16,6 +16,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -68,7 +69,7 @@ public class SearchResponseMetrics {
         );
 
         for (String phaseName : SEARCH_PHASE_NAMES) {
-            String metricName = String.format(SEARCH_PHASE_METRIC_FORMAT, phaseName);
+            String metricName = String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, phaseName);
             LongHistogram histogram = meterRegistry.registerLongHistogram(
                 metricName,
                 "The search phase " + phaseName + " duration in milliseconds at the coordinator, expressed as a histogram",

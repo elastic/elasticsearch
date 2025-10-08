@@ -117,11 +117,23 @@ public class ApproximateTests extends ESTestCase {
         createApproximate("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
     }
 
-    public void testVerify_noStats() {
-        assertError("FROM test | EVAL x = 1 | SORT emp_no", equalTo("line 1:1: query without [STATS] cannot be approximated"));
+    public void testVerify_exactlyOneStats() {
+        assertError(
+            "FROM test | EVAL x = 1 | SORT emp_no | LIMIT 100 | MV_EXPAND x",
+            equalTo("line 1:1: query without [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",
+            equalTo("line 1:39: query with multiple [STATS] cannot be approximated")
+        );
     }
 
-    public void testVerify_incompatibleCommand() {
+    public void testVerify_incompatibleSourceCommand() {
+        assertError("SHOW INFO | STATS COUNT()", equalTo("line 1:1: query with [SHOWINFO] cannot be approximated"));
+        assertError("TS test | STATS COUNT(emp_no)", equalTo("line 1:11: query with [TIMESERIESAGGREGATE] cannot be approximated"));
+    }
+
+    public void testVerify_incompatibleProcessingCommand() {
         assertError(
             "FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS COUNT()",
             equalTo("line 1:13: query with [FORK] cannot be approximated")
@@ -139,19 +151,22 @@ public class ApproximateTests extends ESTestCase {
             equalTo("line 1:29: query with [INLINESTATS] cannot be approximated")
         );
         assertError(
-            "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
+            "FROM test | LOOKUP JOIN test_lookup ON emp_no | FORK (EVAL x=1) (EVAL y=1) | STATS COUNT()",
             equalTo("line 1:13: query with [LOOKUPJOIN] cannot be approximated")
         );
         assertError(
-            "FROM test | STATS emp_no=COUNT() | LOOKUP JOIN test_lookup ON emp_no",
+            "FROM test | STATS emp_no=COUNT() | LOOKUP JOIN test_lookup ON emp_no | FORK (EVAL x=1) (EVAL y=1)",
             equalTo("line 1:36: query with [LOOKUPJOIN] cannot be approximated")
         );
     }
 
     public void testVerify_incompatibleAggregation() {
-        assertError("FROM test | STATS MIN(emp_no)", equalTo("line 1:19: aggregation function [MIN] cannot be approximated"));
         assertError(
-            "FROM test | STATS SUM(emp_no), VALUES(emp_no), COUNT()",
+            "FROM test | SORT emp_no STATS MIN(emp_no) | LIMIT 100",
+            equalTo("line 1:19: aggregation function [MIN] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS SUM(emp_no), VALUES(emp_no), TOP(emp_no, 2, \"ASC\"), COUNT()",
             equalTo("line 1:32: aggregation function [VALUES] cannot be approximated")
         );
         assertError(

@@ -467,7 +467,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      *                       This is the first operation after the local checkpoint of the safe commit if exists.
      * @return a start recovery request
      */
-    public static StartRecoveryRequest getStartRecoveryRequest (
+    public static StartRecoveryRequest getStartRecoveryRequest(
         Logger logger,
         DiscoveryNode localNode,
         RecoveryTarget recoveryTarget,
@@ -498,9 +498,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
             if (startingSeqNo == UNASSIGNED_SEQ_NO) {
-                logger.trace("{} shard folder empty, recovering all files, startingSeqNo {}",
-                    recoveryTarget,
-                    startingSeqNo);
+                logger.trace("{} shard folder empty, recovering all files, startingSeqNo {}", recoveryTarget, startingSeqNo);
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
             } else {
                 throw e;

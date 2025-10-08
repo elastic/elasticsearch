@@ -130,17 +130,10 @@ public final class SingleValueMatchQuery extends Query {
                 SortedNumericDocValues sortedNumerics,
                 float boost,
                 ScoreMode scoreMode
-            ) throws IOException {
+            ) {
                 final int maxDoc = context.reader().maxDoc();
                 if (DocValues.unwrapSingleton(sortedNumerics) != null) {
-                    // check for dense field
-                    // TODO: check doc values skippers
-                    final PointValues points = context.reader().getPointValues(fieldData.getFieldName());
-                    if (points != null && points.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, sortedNumerics::advanceExact);
-                    }
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sortedNumerics);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedNumerics.advanceExact(doc)) {
@@ -160,23 +153,10 @@ public final class SingleValueMatchQuery extends Query {
                 SortedSetDocValues sortedSetDocValues,
                 float boost,
                 ScoreMode scoreMode
-            ) throws IOException {
+            ) {
                 final int maxDoc = context.reader().maxDoc();
                 if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
-                    // check for dense field
-                    // TODO: check doc values skippers
-                    final Terms terms = context.reader().terms(fieldData.getFieldName());
-                    if (terms != null && terms.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(
-                            boost,
-                            scoreMode,
-                            maxDoc,
-                            MULTI_VALUE_MATCH_COST,
-                            sortedSetDocValues::advanceExact
-                        );
-                    }
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sortedSetDocValues);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedSetDocValues.advanceExact(doc)) {
